@@ -103,7 +103,7 @@ import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
 import type { LogMaintenanceRequest } from '../api/cameras';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
-import { CameraAttentionBar, REJECTED_RECENT_DAYS, hasRecentRejection } from '../components/cameras/CameraAttentionBar';
+import { CameraAttentionBar, REJECTED_RECENT_DAYS } from '../components/cameras/CameraAttentionBar';
 import { useToast } from '../components/ui/Toaster';
 import { CameraUpdatesSheet } from '../components/CameraUpdatesSheet';
 import { feedApi } from '../api/feed';
@@ -665,7 +665,7 @@ export const CamerasPage: React.FC = () => {
     if (filters.rejected) {
       // Null means the viewer sees no rejections at all; neither bucket fits.
       result = result.filter((c) => {
-        if (filters.rejected === 'recent') return hasRecentRejection(c);
+        if (filters.rejected === 'recent') return (c.rejected_count_recent ?? 0) > 0;
         if (filters.rejected === 'any') return (c.rejected_count ?? 0) > 0;
         return c.rejected_count === 0;
       });
@@ -691,7 +691,7 @@ export const CamerasPage: React.FC = () => {
             case 'location': return c.location ? 1 : 0;
             case 'sim_expiry': return c.sim_expiry_date;
             case 'last_maintenance': return c.last_maintenance_date;
-            case 'rejected': return c.rejected_count;
+            case 'rejected': return c.rejected_count_recent;
             default: return null;
           }
         };
@@ -838,12 +838,13 @@ export const CamerasPage: React.FC = () => {
           <span className="text-xs text-muted-foreground">-</span>
         );
       case 'rejected':
-        // Blank at zero: the number is a problem signal, and a column of
-        // zeros would drown the few that matter. Null (restricted viewer)
-        // reads the same, they see no rejections anywhere.
-        return camera.rejected_count ? (
+        // Last 7 days, blank at zero: the number is a problem signal, and
+        // a column of old setup shots would drown the few that matter. The
+        // 30-day total is in the slide-out. Null (restricted viewer) reads
+        // the same, they see no rejections anywhere.
+        return camera.rejected_count_recent ? (
           <span className="text-sm font-medium" style={{ color: '#882000' }}>
-            {camera.rejected_count}
+            {camera.rejected_count_recent}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">-</span>

@@ -424,10 +424,12 @@ the table; nothing scans the filesystem at read time.
 - Site-restricted viewers see no rejections anywhere: a rejection has no
   site, fail closed. The API sends `rejected_count: null` for them and the
   UI hides the column and tab, so the number is never a false zero.
-- The needs attention chip keys on `last_rejected_at` (last 7 days,
-  `REJECTED_RECENT_DAYS` in `CameraAttentionBar.tsx`), not on the count.
-  On drenthe 30 of 30 cameras had a rejection, 24 of them exactly one old
-  setup shot; only 2 had rejected anything that week.
+- Two counts per camera from one query (`fetch_rejection_stats`):
+  `rejected_count` is the 30-day total, shown in the slide-out;
+  `rejected_count_recent` is the last `REJECTED_RECENT_DAYS` (7) and drives
+  the Cameras column, the attention chip and the filter. On drenthe 30 of
+  30 cameras had a rejection in 30 days, 24 of them exactly one old setup
+  shot; only 2 had rejected anything that week.
 - Retention is 30 days, files and rows together, in
   `cleanup_old_rejected_files` (`services/ingestion/main.py`). Every count
   is therefore "within the last 30 days" without a parameter.

@@ -29,16 +29,14 @@ import type { Camera } from '../../api/types';
 export const LOW_BATTERY_PERCENT = 30;
 export const SD_NEARLY_FULL_PERCENT = 80;
 /**
- * The chip keys on recency, not on the 30-day count. Nearly every camera
- * has one old rejection (the setup shot before its first GPS fix), so
- * "any rejected file" would flag the whole project and hide the one
- * camera that started rejecting everything this morning.
+ * Window of rejected_count_recent, for labels only. The backend defines it
+ * (REJECTED_RECENT_DAYS in services/api/utils/camera_rejections.py); this
+ * must say the same number. The column and chip use the recent count, not
+ * the 30-day total: nearly every camera has one old rejection (the setup
+ * shot before its first GPS fix), and "any rejected file" would flag the
+ * whole project and hide the one camera rejecting everything this morning.
  */
 export const REJECTED_RECENT_DAYS = 7;
-
-export const hasRecentRejection = (c: Camera, now = Date.now()): boolean =>
-  !!c.last_rejected_at &&
-  now - new Date(c.last_rejected_at).getTime() < REJECTED_RECENT_DAYS * 24 * 3600 * 1000;
 
 interface AttentionItem {
   count: number;
@@ -76,7 +74,7 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
   ).length;
   // Files the server refused but could tie to the camera (no GPS fix, no
   // date), recently. Null means the viewer sees no rejections at all.
-  const withRejected = cameras.filter((c) => hasRecentRejection(c)).length;
+  const withRejected = cameras.filter((c) => (c.rejected_count_recent ?? 0) > 0).length;
 
   const candidates: AttentionItem[] = [
     {

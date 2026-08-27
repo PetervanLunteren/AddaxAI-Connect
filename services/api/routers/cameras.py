@@ -62,9 +62,10 @@ class CameraResponse(BaseModel):
     # no rejections anywhere (same rule as the Live feed), and the UI hides
     # the column and tab rather than showing a zero that is not true.
     rejected_count: Optional[int] = None
-    # Server wall-clock of the newest rejection, ISO 8601. Drives the
-    # attention chip: recent trouble, not the one setup shot from weeks ago.
-    last_rejected_at: Optional[str] = None
+    # The same, last 7 days only (REJECTED_RECENT_DAYS). Drives the Cameras
+    # column and the attention chip: trouble now, not the one setup shot
+    # from weeks ago. None under the same rule as rejected_count.
+    rejected_count_recent: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -183,7 +184,7 @@ def camera_to_response(
     current_site: Optional[dict] = None,
     last_maintenance_date: Optional[date] = None,
     rejected_count: Optional[int] = None,
-    last_rejected_at: Optional[datetime] = None,
+    rejected_count_recent: Optional[int] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape.
 
@@ -219,7 +220,7 @@ def camera_to_response(
         sim_expiry_date=camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else None,
         last_maintenance_date=last_maintenance_date.isoformat() if last_maintenance_date else None,
         rejected_count=rejected_count,
-        last_rejected_at=last_rejected_at.isoformat() if last_rejected_at else None,
+        rejected_count_recent=rejected_count_recent,
     )
 
 
@@ -238,11 +239,11 @@ async def camera_detail_response(
     """
     recency = await fetch_camera_recency(db, [camera.id])
     rejected_count = None
-    last_rejected_at = None
+    rejected_count_recent = None
     if site_scope is None:
         stats = await fetch_rejection_stats(db, [camera.id])
         rejected_count = stats.counts.get(camera.id, 0)
-        last_rejected_at = stats.last_rejected.get(camera.id)
+        rejected_count_recent = stats.recent_counts.get(camera.id, 0)
 
     last_maintenance_date = (await db.execute(
         select(func.max(CameraMaintenanceEvent.event_date))
@@ -277,7 +278,7 @@ async def camera_detail_response(
         current_site=current_site,
         last_maintenance_date=last_maintenance_date,
         rejected_count=rejected_count,
-        last_rejected_at=last_rejected_at,
+        rejected_count_recent=rejected_count_recent,
     )
 
 
@@ -374,7 +375,7 @@ async def list_cameras(
             current_site=current_site_map.get(camera.id),
             last_maintenance_date=last_maintenance_map.get(camera.id),
             rejected_count=None if site_scope is not None else rejections.counts.get(camera.id, 0),
-            last_rejected_at=rejections.last_rejected.get(camera.id),
+            rejected_count_recent=None if site_scope is not None else rejections.recent_counts.get(camera.id, 0),
         )
         for camera in cameras
     ]
