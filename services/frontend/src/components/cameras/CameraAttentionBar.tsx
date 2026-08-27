@@ -28,15 +28,6 @@ import type { Camera } from '../../api/types';
  */
 export const LOW_BATTERY_PERCENT = 30;
 export const SD_NEARLY_FULL_PERCENT = 80;
-/**
- * Window of rejected_count_recent, for labels only. The backend defines it
- * (REJECTED_RECENT_DAYS in services/api/utils/camera_rejections.py); this
- * must say the same number. The column and chip use the recent count, not
- * the 30-day total: nearly every camera has one old rejection (the setup
- * shot before its first GPS fix), and "any rejected file" would flag the
- * whole project and hide the one camera rejecting everything this morning.
- */
-export const REJECTED_RECENT_DAYS = 7;
 
 interface AttentionItem {
   count: number;
@@ -73,7 +64,10 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       c.sd_utilization_percentage > SD_NEARLY_FULL_PERCENT,
   ).length;
   // Files the server refused but could tie to the camera (no GPS fix, no
-  // date), recently. Null means the viewer sees no rejections at all.
+  // date). The recent count, not the 30-day total: nearly every camera has
+  // one old setup shot before its first GPS fix, and counting that would
+  // flag the whole project. The window (7 days) is the backend's business,
+  // users just see "rejected files". Null means the viewer sees none.
   const withRejected = cameras.filter((c) => (c.rejected_count_recent ?? 0) > 0).length;
 
   const candidates: AttentionItem[] = [
@@ -94,7 +88,7 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
     },
     {
       count: withRejected,
-      label: `${withRejected} ${plural(withRejected, 'camera', 'cameras')} with rejected files in the last ${REJECTED_RECENT_DAYS} days`,
+      label: `${withRejected} ${plural(withRejected, 'camera', 'cameras')} with rejected files`,
       patch: { rejected: 'recent' },
     },
   ];

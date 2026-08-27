@@ -26,8 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.models import Rejection
 
-# The frontend label repeats this number (REJECTED_RECENT_DAYS in
-# CameraAttentionBar.tsx). Change both.
+# Not shown to users. The column and chip just say "rejected files"; the
+# slide-out says 30 days because that one is the retention window.
 REJECTED_RECENT_DAYS = 7
 
 

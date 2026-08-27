@@ -103,7 +103,7 @@ import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
 import type { LogMaintenanceRequest } from '../api/cameras';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
-import { CameraAttentionBar, REJECTED_RECENT_DAYS } from '../components/cameras/CameraAttentionBar';
+import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
 import { useToast } from '../components/ui/Toaster';
 import { CameraUpdatesSheet } from '../components/CameraUpdatesSheet';
 import { feedApi } from '../api/feed';
@@ -527,8 +527,7 @@ export const CamerasPage: React.FC = () => {
       label: 'Rejected files',
       primary: false,
       options: [
-        { value: 'recent', label: `In the last ${REJECTED_RECENT_DAYS} days` },
-        { value: 'any', label: 'Any in the last 30 days' },
+        { value: 'recent', label: 'With rejected files' },
         { value: 'none', label: 'None' },
       ],
     },
@@ -664,11 +663,11 @@ export const CamerasPage: React.FC = () => {
     }
     if (filters.rejected) {
       // Null means the viewer sees no rejections at all; neither bucket fits.
-      result = result.filter((c) => {
-        if (filters.rejected === 'recent') return (c.rejected_count_recent ?? 0) > 0;
-        if (filters.rejected === 'any') return (c.rejected_count ?? 0) > 0;
-        return c.rejected_count === 0;
-      });
+      result = result.filter((c) =>
+        filters.rejected === 'recent'
+          ? (c.rejected_count_recent ?? 0) > 0
+          : c.rejected_count_recent === 0
+      );
     }
 
     // Sort (nulls last). Non-sortable columns return null and fall through
@@ -838,10 +837,10 @@ export const CamerasPage: React.FC = () => {
           <span className="text-xs text-muted-foreground">-</span>
         );
       case 'rejected':
-        // Last 7 days, blank at zero: the number is a problem signal, and
-        // a column of old setup shots would drown the few that matter. The
-        // 30-day total is in the slide-out. Null (restricted viewer) reads
-        // the same, they see no rejections anywhere.
+        // The recent count, blank at zero: the number is a problem signal,
+        // and a column of old setup shots would drown the few that matter.
+        // The 30-day total is in the slide-out. Null (restricted viewer)
+        // reads the same, they see no rejections anywhere.
         return camera.rejected_count_recent ? (
           <span className="text-sm font-medium" style={{ color: '#882000' }}>
             {camera.rejected_count_recent}

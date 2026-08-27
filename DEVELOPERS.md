@@ -427,7 +427,8 @@ the table; nothing scans the filesystem at read time.
 - Two counts per camera from one query (`fetch_rejection_stats`):
   `rejected_count` is the 30-day total, shown in the slide-out;
   `rejected_count_recent` is the last `REJECTED_RECENT_DAYS` (7) and drives
-  the Cameras column, the attention chip and the filter. On drenthe 30 of
+  the Cameras column, the attention chip and the filter, which just say
+  "rejected files" without the window. On drenthe 30 of
   30 cameras had a rejection in 30 days, 24 of them exactly one old setup
   shot; only 2 had rejected anything that week.
 - Retention is 30 days, files and rows together, in
