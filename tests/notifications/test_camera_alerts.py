@@ -6,6 +6,7 @@ from camera_alerts import (
     battery_offending,
     sd_offending,
     silent_offending,
+    rejections_offending,
     split_incidents,
     next_notified_state,
     rule_label,
@@ -55,6 +56,18 @@ class TestSilentOffending:
         assert silent_offending(None, 10, NOW) is False
 
 
+class TestRejectionsOffending:
+    def test_at_threshold_fires(self):
+        # "At least", a threshold of 1 must catch a single rejected file
+        assert rejections_offending(1, 1) is True
+
+    def test_below_threshold_does_not_fire(self):
+        assert rejections_offending(2, 3) is False
+
+    def test_zero_never_fires(self):
+        assert rejections_offending(0, 1) is False
+
+
 class TestSplitIncidents:
     def test_fresh_incident(self):
         new, ongoing, recovered = split_incidents([1, 2], [])
@@ -89,6 +102,8 @@ class TestLabels:
         assert rule_label("sd_full", 90) == "with the SD card above 90% full"
         assert rule_label("camera_silent", 10) == "silent for more than 10 days"
         assert rule_label("camera_silent", 1) == "silent for more than 1 day"
+        assert rule_label("rejections", 1) == "with 1 or more rejected file in the last day"
+        assert rule_label("rejections", 5) == "with 5 or more rejected files in the last day"
 
     def test_value_labels(self):
         battery = CamState(device_id="a", battery_percent=14,
@@ -101,6 +116,10 @@ class TestLabels:
                           sd_utilization_percent=None,
                           last_seen=datetime(2026, 5, 3, 8, 0))
         assert value_label("camera_silent", silent) == "last seen May 03, 2026"
+        rejected = CamState(device_id="a", battery_percent=None,
+                            sd_utilization_percent=None, last_seen=None,
+                            rejections_last_day=3)
+        assert value_label("rejections", rejected) == "3 rejected files"
 
 
 class TestLastSeenSemantics:

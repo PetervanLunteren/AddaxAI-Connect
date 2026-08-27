@@ -39,13 +39,22 @@ const RULE_TYPE_LABELS: Record<AlertRuleType, string> = {
   battery_low: 'Battery below',
   sd_full: 'SD card above',
   camera_silent: 'Silent for more than',
+  rejections: 'Rejected files per day, at least',
+};
+
+// Threshold unit and bounds per rule family. Must match validate_rule_fields
+// in services/api/routers/camera_alert_rules.py.
+const THRESHOLD_UNIT: Record<AlertRuleType, { min: number; max: number; default: number; label: (n: number) => string }> = {
+  battery_low: { min: 1, max: 99, default: 20, label: () => '%' },
+  sd_full: { min: 1, max: 99, default: 90, label: () => '%' },
+  camera_silent: { min: 1, max: 365, default: 7, label: (n) => (n === 1 ? 'day' : 'days') },
+  rejections: { min: 1, max: 999, default: 1, label: (n) => (n === 1 ? 'file' : 'files') },
 };
 
 const ruleSentence = (rule: AlertRule): string => {
-  const unit = rule.rule_type === 'camera_silent'
-    ? `${rule.threshold} day${rule.threshold !== 1 ? 's' : ''}`
-    : `${rule.threshold}%`;
-  return `${RULE_TYPE_LABELS[rule.rule_type]} ${unit}`;
+  const unit = THRESHOLD_UNIT[rule.rule_type].label(rule.threshold);
+  const spaced = unit === '%' ? `${rule.threshold}%` : `${rule.threshold} ${unit}`;
+  return `${RULE_TYPE_LABELS[rule.rule_type]} ${spaced}`;
 };
 
 export const CameraAlertRulesSheet: React.FC<CameraAlertRulesSheetProps> = ({
@@ -276,7 +285,7 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
   const initial = isEdit ? mode.rule : null;
 
   const [ruleType, setRuleType] = useState<AlertRuleType>(initial?.rule_type ?? 'battery_low');
-  const [threshold, setThreshold] = useState<string>(String(initial?.threshold ?? (initial?.rule_type === 'camera_silent' ? 7 : 20)));
+  const [threshold, setThreshold] = useState<string>(String(initial?.threshold ?? THRESHOLD_UNIT.battery_low.default));
   const [channels, setChannels] = useState<string[]>(initial?.channels ?? ['email']);
 
   // Hydrate stored camera ids back into Options for the MultiSelect
@@ -290,14 +299,12 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
       .filter((opt): opt is Option => !!opt),
   );
 
-  const isSilent = ruleType === 'camera_silent';
+  const unit = THRESHOLD_UNIT[ruleType];
   const thresholdNumber = Number(threshold);
   // Whole numbers only, the API stores an integer and would reject 20.5
   const thresholdValid =
     Number.isInteger(thresholdNumber) &&
-    (isSilent
-      ? thresholdNumber >= 1 && thresholdNumber <= 365
-      : thresholdNumber >= 1 && thresholdNumber <= 99);
+    thresholdNumber >= unit.min && thresholdNumber <= unit.max;
   // A telegram-only rule without a linked account could never deliver,
   // the evaluator would skip the channel and the alert would be lost
   const telegramOnlyUnlinked =
@@ -330,27 +337,27 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
                 onChange={(e) => {
                   const next = e.target.value as AlertRuleType;
                   setRuleType(next);
-                  // Sensible default when switching unit families
-                  if (next === 'camera_silent' && !isSilent) setThreshold('7');
-                  if (next !== 'camera_silent' && isSilent) setThreshold(next === 'battery_low' ? '20' : '90');
+                  // Sensible default when switching rule types
+                  setThreshold(String(THRESHOLD_UNIT[next].default));
                 }}
                 className="flex-1 px-3 py-2 border rounded-md text-sm bg-background"
               >
                 <option value="battery_low">Battery below</option>
                 <option value="sd_full">SD card above</option>
                 <option value="camera_silent">Silent for more than</option>
+                <option value="rejections">Rejected files per day, at least</option>
               </select>
               <input
                 type="number"
                 value={threshold}
-                min={1}
-                max={isSilent ? 365 : 99}
+                min={unit.min}
+                max={unit.max}
                 step={1}
                 onChange={(e) => setThreshold(e.target.value)}
                 className="w-20 px-3 py-2 border rounded-md text-sm"
               />
               <span className="text-sm text-muted-foreground w-10">
-                {isSilent ? 'days' : '%'}
+                {unit.label(thresholdNumber)}
               </span>
             </div>
           </div>

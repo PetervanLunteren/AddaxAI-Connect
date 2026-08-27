@@ -31,6 +31,7 @@ import {
 import { useToast } from '../../components/ui/Toaster';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { formatDateTime } from '../../utils/datetime';
+import { rejectionReasonLabel } from '../../utils/rejectionReason';
 import { uploadFile } from '../../api/devtools';
 import {
   getRejectedFiles,
@@ -49,7 +50,7 @@ interface FileUploadStatus {
   message?: string;
 }
 
-type SortField = 'filename' | 'reason' | 'device_id' | 'size_bytes' | 'timestamp';
+type SortField = 'filename' | 'reason' | 'device_id' | 'size_bytes' | 'rejected_at';
 type SortDirection = 'asc' | 'desc';
 
 /**
@@ -127,8 +128,8 @@ export const FileManagementPage: React.FC = () => {
   // Rejected files state
   const [selectedFile, setSelectedFile] = useState<RejectedFile | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [sortField, setSortField] = useState<SortField>('timestamp');
+  const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
+  const [sortField, setSortField] = useState<SortField>('rejected_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
@@ -298,12 +299,12 @@ export const FileManagementPage: React.FC = () => {
     setShowDetailsModal(true);
   };
 
-  const handleSelectFile = (filepath: string) => {
+  const handleSelectFile = (id: number) => {
     const newSelection = new Set(selectedFiles);
-    if (newSelection.has(filepath)) {
-      newSelection.delete(filepath);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
     } else {
-      newSelection.add(filepath);
+      newSelection.add(id);
     }
     setSelectedFiles(newSelection);
   };
@@ -312,7 +313,7 @@ export const FileManagementPage: React.FC = () => {
     if (selectedFiles.size === sortedFiles.length) {
       setSelectedFiles(new Set());
     } else {
-      setSelectedFiles(new Set(sortedFiles.map((f) => f.filepath)));
+      setSelectedFiles(new Set(sortedFiles.map((f) => f.id)));
     }
   };
 
@@ -324,24 +325,11 @@ export const FileManagementPage: React.FC = () => {
     reprocessMutation.mutate(Array.from(selectedFiles));
   };
 
-  const formatFileSize = (bytes: number): string => {
+  const formatFileSize = (bytes: number | null): string => {
+    if (bytes === null) return '-';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const reasonLabels: Record<string, string> = {
-    unknown_camera: 'Unknown camera',
-    no_camera_exif: 'No camera EXIF data',
-    unsupported_camera: 'Unsupported camera',
-    missing_device_id: 'Missing camera ID',
-    missing_imei: 'Missing camera ID',
-    missing_datetime: 'Missing datetime',
-    validation_failed: 'Validation failed',
-    duplicate: 'Duplicate',
-    parse_failed: 'Parse failed',
-    unsupported_file_type: 'Unsupported file type',
-    exif_extraction_failed: 'EXIF extraction failed',
   };
 
   return (
@@ -562,24 +550,24 @@ export const FileManagementPage: React.FC = () => {
                         </th>
                         <th
                           className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden lg:table-cell"
-                          onClick={() => handleSort('timestamp')}
+                          onClick={() => handleSort('rejected_at')}
                         >
-                          Timestamp {sortField === 'timestamp' && (sortDirection === 'asc' ? '↑' : '↓')}
+                          Rejected at {sortField === 'rejected_at' && (sortDirection === 'asc' ? '↑' : '↓')}
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {sortedFiles.map((file) => (
                         <tr
-                          key={file.filepath}
+                          key={file.id}
                           onClick={(e) => handleRowClick(file, e)}
                           className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
                         >
                           <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
-                              checked={selectedFiles.has(file.filepath)}
-                              onChange={() => handleSelectFile(file.filepath)}
+                              checked={selectedFiles.has(file.id)}
+                              onChange={() => handleSelectFile(file.id)}
                               className="cursor-pointer"
                             />
                           </td>
@@ -588,7 +576,7 @@ export const FileManagementPage: React.FC = () => {
                           </td>
                           <td className="py-2 px-2">
                             <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                              {reasonLabels[file.reason] || file.reason}
+                              {rejectionReasonLabel(file.reason)}
                             </span>
                           </td>
                           <td className="py-2 px-2 font-mono text-xs hidden sm:table-cell">
@@ -598,7 +586,7 @@ export const FileManagementPage: React.FC = () => {
                             {formatFileSize(file.size_bytes)}
                           </td>
                           <td className="py-2 px-2 whitespace-nowrap text-muted-foreground hidden lg:table-cell">
-                            {formatDateTime(file.timestamp * 1000)}
+                            {formatDateTime(file.rejected_at)}
                           </td>
                         </tr>
                       ))}
@@ -632,7 +620,7 @@ export const FileManagementPage: React.FC = () => {
                 <label className="text-sm font-medium text-muted-foreground">Rejection reason</label>
                 <p className="mt-1">
                   <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                    {reasonLabels[selectedFile.reason] || selectedFile.reason}
+                    {rejectionReasonLabel(selectedFile.reason)}
                   </span>
                 </p>
               </div>
@@ -644,10 +632,10 @@ export const FileManagementPage: React.FC = () => {
                 </div>
               )}
 
-              {selectedFile.error_details && (
+              {selectedFile.details && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Error details</label>
-                  <p className="text-sm mt-1 p-3 bg-muted rounded-md">{selectedFile.error_details}</p>
+                  <p className="text-sm mt-1 p-3 bg-muted rounded-md">{selectedFile.details}</p>
                 </div>
               )}
 
@@ -672,14 +660,12 @@ export const FileManagementPage: React.FC = () => {
                 <p className="text-sm mt-1">{formatFileSize(selectedFile.size_bytes)}</p>
               </div>
 
-              {selectedFile.rejected_at && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Rejected at</label>
-                  <p className="text-sm mt-1">
-                    {formatDateTime(selectedFile.rejected_at)}
-                  </p>
-                </div>
-              )}
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Rejected at</label>
+                <p className="text-sm mt-1">
+                  {formatDateTime(selectedFile.rejected_at)}
+                </p>
+              </div>
 
               <div>
                 <label className="text-sm font-medium text-muted-foreground">File path</label>

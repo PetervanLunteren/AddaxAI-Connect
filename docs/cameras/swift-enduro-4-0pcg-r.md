@@ -28,7 +28,7 @@ The same IMEI is on the `IMEI` line of the daily report, so one registered `Came
 
 ## What it sends
 
-- Photos as JPEG, with GPS and the timestamp in the EXIF data. Both are required. A photo missing either one is rejected and shows up on the `File management` page, which server admins can reach from the hamburger menu.
+- Photos as JPEG, with GPS and the timestamp in the EXIF data. Both are required. A photo missing either one is rejected. It shows up as a rejected file on that camera in the Cameras page, and on the `File management` page, which server admins can reach from the hamburger menu.
 - A daily report with signal strength, temperature, battery percentage, SD card usage, GPS, images taken and images sent. These fill the camera health page.
 
 The report carries an extra `CamID` field that the Willfine reports do not have. It is often empty, and nothing depends on it. The camera is always matched on the IMEI.

@@ -2,7 +2,6 @@
 Utility functions for ingestion service
 """
 import os
-import json
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -89,16 +88,18 @@ def _rejected_filename(filepath: str) -> str:
     return f"{stamp}_{flattened}"
 
 
-def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_metadata: Optional[dict] = None) -> str:
+def reject_file(filepath: str, reason: str, details: Optional[str] = None) -> str:
     """
-    Move file to rejected directory with error log.
+    Move a file to the rejected directory.
 
-    Creates:
-    - <upload_root>/rejected/{reason}/{timestamp}_{flattened_filename}
-    - <upload_root>/rejected/{reason}/{timestamp}_{flattened_filename}.error.json
+    Destination: <upload_root>/rejected/{reason}/{timestamp}_{flattened_filename}
 
     The rejected filename carries a timestamp prefix and the flattened source
     path, so no two rejections ever share a name (see _rejected_filename).
+
+    Only the bytes move. Everything about the rejection (reason, details,
+    EXIF, source path) lives on the Rejection row the caller writes next, so
+    there is one record and not a sidecar file that can drift from it.
 
     After moving, empty parent directories between the source and the upload
     root are pruned so nested camera trees (e.g. INSTAR/<lat-lon>/<date>/images/)
@@ -107,8 +108,7 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
     Args:
         filepath: Path to file to reject
         reason: Rejection reason (becomes subdirectory name)
-        details: Additional error details
-        exif_metadata: EXIF metadata extracted from file (if any)
+        details: Additional error details, logged only
 
     Returns:
         Absolute path of the moved file in the rejected/ tree. Used by the
@@ -116,7 +116,6 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
     """
     original_filename = os.path.basename(filepath)
     rejected_filename = _rejected_filename(filepath)
-    file_size = os.path.getsize(filepath)
 
     # Create rejection directory
     rejected_dir = _upload_root() / "rejected" / reason
@@ -125,21 +124,6 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
     # Move file
     dest_path = rejected_dir / rejected_filename
     shutil.move(filepath, dest_path)
-
-    # Create error JSON with metadata
-    error_data = {
-        "filename": original_filename,
-        "source_path": filepath,
-        "rejected_at": datetime.now(timezone.utc).isoformat() + "Z",
-        "reason": reason,
-        "details": details or "",
-        "file_size_bytes": file_size,
-        "exif_metadata": exif_metadata or {},
-    }
-
-    error_json_path = rejected_dir / f"{rejected_filename}.error.json"
-    with open(error_json_path, 'w') as f:
-        json.dump(error_data, f, indent=2)
 
     logger.warning(
         "File rejected",

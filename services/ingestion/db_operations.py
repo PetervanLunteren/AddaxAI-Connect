@@ -83,9 +83,10 @@ def create_rejection_record(
     device_id: Optional[str] = None,
     captured_at: Optional[datetime] = None,
     exif_metadata: Optional[dict] = None,
+    source_path: Optional[str] = None,
 ) -> None:
     """
-    Record a rejected file so the Live feed can show it without scanning disk.
+    Record a rejected file. The row is the only record of the rejection.
 
     Resolves camera_id and project_id from device_id where possible. The camera
     lookup runs here (not at the call site) because most rejections happen before
@@ -94,6 +95,8 @@ def create_rejection_record(
 
     Args:
         disk_path: Absolute path of the moved file in the rejected/ tree
+        source_path: Where the file sat under the upload root before the move,
+            relative POSIX. Reprocess restores it there.
         filename: Original camera filename
         reason: Rejection reason (matches the rejected/ subdirectory)
         details: Human-readable rejection detail
@@ -118,6 +121,7 @@ def create_rejection_record(
         rejection = Rejection(
             filename=filename,
             disk_path=disk_path,
+            source_path=source_path,
             reason=reason,
             details=details,
             device_id=device_id,

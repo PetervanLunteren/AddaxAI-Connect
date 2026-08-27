@@ -6,6 +6,8 @@
  * - History: Health history charts (all users)
  * - Placements: Where this camera has been over time (all users), with an
  *   admin-only change-site action per step as the late-correction escape hatch
+ * - Rejected: Files the server refused but could attribute to this camera
+ *   (all users, hidden for site-restricted viewers who get no count)
  * - Details: Camera id, custom fields, remarks, tags, SIM, reference (admins)
  * An action card at the top of the body holds "Images" (everyone) and,
  * for server admins, "Delete" (the page owns the confirm dialog).
@@ -33,6 +35,7 @@ import { Dialog, DialogContent } from './ui/Dialog';
 import { CameraHealthHistoryChart } from './CameraHealthHistoryChart';
 import { CameraDeploymentHistory } from './CameraDeploymentHistory';
 import { CameraMaintenanceTab } from './CameraMaintenanceTab';
+import { CameraRejectionsTab } from './CameraRejectionsTab';
 import { TagInput } from './TagInput';
 import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
@@ -55,7 +58,7 @@ interface CameraDetailSheetProps {
   onDeleteRequested?: (camera: { id: number; name: string }) => void;
 }
 
-type TabType = 'overview' | 'history' | 'deployments' | 'maintenance' | 'details';
+type TabType = 'overview' | 'history' | 'deployments' | 'rejections' | 'maintenance' | 'details';
 
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   camera,
@@ -286,6 +289,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
               <TabButton tab="deployments" label="Placements" />
+              {camera.rejected_count !== null && <TabButton tab="rejections" label="Rejected" />}
               {canAdmin && <TabButton tab="maintenance" label="Service" />}
               {canAdmin && <TabButton tab="details" label="Details" />}
             </div>
@@ -508,6 +512,22 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     <span className="text-muted-foreground">Images sent today</span>
                     <span>{camera.sent_images ?? 'N/A'}</span>
                   </div>
+                  {camera.rejected_count !== null && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Rejected files (30 days)</span>
+                      {camera.rejected_count > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('rejections')}
+                          className="text-primary hover:underline"
+                        >
+                          {camera.rejected_count}
+                        </button>
+                      ) : (
+                        <span>0</span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Last report</span>
                     <span>{noReports ? 'N/A' : formatDateTime(camera.last_report_timestamp, 'Never')}</span>
@@ -548,6 +568,11 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Deployments tab */}
             {activeTab === 'deployments' && (
               <CameraDeploymentHistory cameraId={camera.id} cameraName={camera.name} />
+            )}
+
+            {/* Rejected tab: files refused by the server, attributed to this camera */}
+            {activeTab === 'rejections' && camera.rejected_count !== null && (
+              <CameraRejectionsTab cameraId={camera.id} isServerAdmin={isServerAdmin} />
             )}
 
             {/* Service tab: log of field service visits (admins) */}

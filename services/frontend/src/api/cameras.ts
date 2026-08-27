@@ -70,6 +70,17 @@ export interface LogMaintenanceRequest {
   note?: string | null;
 }
 
+/** One rejected file of a camera, from the rejections table. */
+export interface CameraRejection {
+  id: number;
+  filename: string;
+  reason: string;
+  details: string | null;
+  captured_at: string | null;  // camera clock, localized ISO
+  rejected_at: string;  // server wall-clock ISO
+  image_url: string;  // blurred by the server when the project blurs
+}
+
 export interface CameraDeployment {
   id: number;
   deployment_number: number;
@@ -268,6 +279,12 @@ export const camerasApi = {
   /**
    * Deployment history for a camera (where it has been, oldest first).
    */
+  /** Rejected files of one camera, newest first (30-day window). */
+  getRejections: async (id: number): Promise<CameraRejection[]> => {
+    const response = await apiClient.get<CameraRejection[]>(`/api/cameras/${id}/rejections`);
+    return response.data;
+  },
+
   getDeployments: async (id: number): Promise<CameraDeployment[]> => {
     const response = await apiClient.get<CameraDeployment[]>(`/api/cameras/${id}/deployments`);
     return response.data;

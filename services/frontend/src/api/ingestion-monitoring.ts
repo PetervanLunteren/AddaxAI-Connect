@@ -4,14 +4,16 @@
 import apiClient from './client';
 
 export interface RejectedFile {
-  filename: string;
+  id: number;
+  filename: string;  // original camera filename
   reason: string;
-  filepath: string;
-  timestamp: number;
-  size_bytes: number;
+  details: string | null;
   device_id: string | null;
-  error_details: string | null;
-  rejected_at: string | null;
+  project_id: number | null;
+  filepath: string;  // where the bytes sit now, under rejected/
+  size_bytes: number | null;
+  rejected_at: string;  // ISO 8601, server wall-clock
+  captured_at: string | null;  // camera clock, naive ISO
   exif_metadata: Record<string, any> | null;
 }
 
@@ -27,7 +29,7 @@ export interface BulkActionResponse {
 }
 
 /**
- * Get all rejected files grouped by rejection reason (superuser only)
+ * Get all rejected files grouped by rejection reason (server admin only)
  */
 export const getRejectedFiles = async (): Promise<RejectedFilesResponse> => {
   const response = await apiClient.get<RejectedFilesResponse>(
@@ -37,23 +39,24 @@ export const getRejectedFiles = async (): Promise<RejectedFilesResponse> => {
 };
 
 /**
- * Delete rejected files and their error logs (superuser only)
+ * Delete rejected files by row id (server admin only)
  */
-export const deleteRejectedFiles = async (filepaths: string[]): Promise<BulkActionResponse> => {
+export const deleteRejectedFiles = async (ids: number[]): Promise<BulkActionResponse> => {
   const response = await apiClient.post<BulkActionResponse>(
     '/api/ingestion-monitoring/rejected-files/delete',
-    { filepaths }
+    { ids }
   );
   return response.data;
 };
 
 /**
- * Move rejected files back to uploads directory for reprocessing (superuser only)
+ * Move rejected files back into the upload tree for reprocessing, by row id
+ * (server admin only)
  */
-export const reprocessRejectedFiles = async (filepaths: string[]): Promise<BulkActionResponse> => {
+export const reprocessRejectedFiles = async (ids: number[]): Promise<BulkActionResponse> => {
   const response = await apiClient.post<BulkActionResponse>(
     '/api/ingestion-monitoring/rejected-files/reprocess',
-    { filepaths }
+    { ids }
   );
   return response.data;
 };

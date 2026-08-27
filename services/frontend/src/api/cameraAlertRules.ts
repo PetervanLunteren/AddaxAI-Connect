@@ -2,13 +2,14 @@
  * Camera condition alert rules API client.
  *
  * Any project member creates private rules (battery below a threshold,
- * SD card above a threshold, camera silent for days). A daily cron
+ * SD card above a threshold, camera silent for days, rejected files per
+ * day). A daily cron
  * evaluates them and notifies the creator once per incident, by email
  * and/or Telegram.
  */
 import apiClient from './client';
 
-export type AlertRuleType = 'battery_low' | 'sd_full' | 'camera_silent';
+export type AlertRuleType = 'battery_low' | 'sd_full' | 'camera_silent' | 'rejections';
 
 export interface AlertRule {
   id: number;

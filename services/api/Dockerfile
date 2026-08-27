@@ -5,7 +5,6 @@ WORKDIR /app
 # Install system dependencies (including Chromium dependencies for Playwright)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
-    exiftool \
     # Chromium/Playwright dependencies
     libglib2.0-0 \
     libnss3 \

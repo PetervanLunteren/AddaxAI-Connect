@@ -2,16 +2,19 @@
 Ingestion monitoring endpoints for server admins.
 
 Provides visibility into rejected files and ingestion issues.
+
+Rejected files are read from the rejections table, the same rows the Live
+feed and the per-camera count use. The bytes sit under
+<upload_root>/rejected/<reason>/ and both the api and ingestion containers
+mount that volume, so delete and reprocess act on the file the row points at.
 """
 import os
-import json
 import shutil
-import subprocess
-from typing import List
+from typing import List, Optional
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.models import User, Rejection
@@ -27,16 +30,18 @@ settings = get_settings()
 
 
 class RejectedFileResponse(BaseModel):
-    """Response model for rejected file"""
-    filename: str
-    reason: str  # Rejection reason (folder name)
-    filepath: str
-    timestamp: float  # File modification time (Unix timestamp)
-    size_bytes: int
-    device_id: str | None = None  # Extracted device ID if available
-    error_details: str | None = None  # Details from .error.json if available
-    rejected_at: str | None = None  # ISO timestamp from .error.json
-    exif_metadata: dict | None = None  # EXIF metadata from .error.json if available
+    """One rejected file, straight from its Rejection row"""
+    id: int
+    filename: str  # original camera filename
+    reason: str
+    details: str | None = None
+    device_id: str | None = None
+    project_id: int | None = None
+    filepath: str  # where the bytes sit now, under rejected/
+    size_bytes: int | None = None
+    rejected_at: str  # server wall-clock, ISO 8601
+    captured_at: str | None = None  # camera clock, naive ISO
+    exif_metadata: dict | None = None
 
 
 class RejectedFilesResponse(BaseModel):
@@ -46,8 +51,8 @@ class RejectedFilesResponse(BaseModel):
 
 
 class BulkActionRequest(BaseModel):
-    """Request model for bulk actions on rejected files"""
-    filepaths: List[str]
+    """Rejection row ids to act on"""
+    ids: List[int]
 
 
 class BulkActionResponse(BaseModel):
@@ -94,122 +99,65 @@ class DeleteUploadFileRequest(BaseModel):
     filepath: str  # Relative POSIX path from the upload root
 
 
-def extract_device_id_from_file(file_path: Path) -> str | None:
+def _upload_root() -> Path:
+    return Path(os.getenv("FTPS_UPLOAD_DIR", "/uploads"))
+
+
+def _rejection_to_response(row: Rejection) -> RejectedFileResponse:
+    return RejectedFileResponse(
+        id=row.id,
+        filename=row.filename,
+        reason=row.reason,
+        details=row.details,
+        device_id=row.device_id,
+        project_id=row.project_id,
+        filepath=row.disk_path,
+        size_bytes=row.file_size_bytes,
+        rejected_at=row.rejected_at.isoformat(),
+        captured_at=row.captured_at.isoformat() if row.captured_at else None,
+        exif_metadata=row.exif_metadata,
+    )
+
+
+def reprocess_destination(upload_root: Path, source_path: Optional[str], disk_path: str) -> Path:
+    """Where a rejected file goes back to for reprocessing.
+
+    The original relative path when the row has one, so a path-based camera
+    profile (INSTAR reads lat/lon from the directory name) identifies the
+    file again. Rows from before source_path existed fall back to the upload
+    root under the file's current name, which is what reprocess always did.
+
+    Pure so it is unit-testable; the path-escape guard lives here too.
     """
-    Extract device ID from a file using exiftool.
-
-    Args:
-        file_path: Path to the file
-
-    Returns:
-        Device ID string if found, None otherwise
-    """
-    try:
-        # Use exiftool to extract SerialNumber (device ID) from image files
-        result = subprocess.run(
-            ["exiftool", "-SerialNumber", "-s3", str(file_path)],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    except Exception as e:
-        logger.debug(
-            "Failed to extract device ID from file",
-            file_path=str(file_path),
-            error=str(e)
-        )
-
-    return None
+    root = upload_root.resolve()
+    if source_path:
+        target = (root / source_path).resolve()
+        if root in target.parents:
+            return target
+        # A row with a broken source_path must not become a write outside
+        # the upload tree. Fall through to the safe default.
+        logger.warning("Ignoring source_path outside the upload root", source_path=source_path)
+    return root / Path(disk_path).name
 
 
-def scan_rejected_files() -> List[RejectedFileResponse]:
-    """
-    Scan rejected/ directory and return file information.
+def _remove_legacy_sidecar(disk_path: Path) -> None:
+    """Rows written before 2026-08-27 had a .error.json next to the file.
+    Ingestion no longer writes it; remove it with the file so nothing is
+    left behind. Can go once every server has passed one retention window."""
+    Path(f"{disk_path}.error.json").unlink(missing_ok=True)
 
-    Returns:
-        List of rejected files with metadata
-    """
-    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
-    rejected_dir = Path(ftps_dir) / "rejected"
 
-    if not rejected_dir.exists():
-        logger.warning("Rejected directory does not exist", path=str(rejected_dir))
+def _in_rejected_tree(path: Path) -> bool:
+    """Security check: the file a row points at must sit under rejected/."""
+    return (_upload_root() / "rejected").resolve() in path.resolve().parents
+
+
+async def _load_rows(db: AsyncSession, ids: List[int]) -> List[Rejection]:
+    if not ids:
         return []
-
-    rejected_files = []
-
-    # Iterate through rejection reason directories
-    for reason_dir in rejected_dir.iterdir():
-        if not reason_dir.is_dir():
-            continue
-
-        reason = reason_dir.name
-
-        # Iterate through files in each reason directory
-        for file_path in reason_dir.iterdir():
-            if file_path.is_file():
-                try:
-                    # Skip .error.json files - we'll read them for the corresponding file
-                    if file_path.suffix == '.json' and file_path.stem.endswith('.error'):
-                        continue
-
-                    stat = file_path.stat()
-                    filename = file_path.name
-
-                    # Extract device ID from file EXIF data
-                    # Only attempt for image files to avoid processing daily reports unnecessarily
-                    device_id = None
-                    if file_path.suffix.lower() in ['.jpg', '.jpeg']:
-                        device_id = extract_device_id_from_file(file_path)
-
-                    # Try to read error details from corresponding .error.json file
-                    error_details = None
-                    rejected_at = None
-                    exif_metadata = None
-                    error_json_path = file_path.parent / f"{filename}.error.json"
-                    if error_json_path.exists():
-                        try:
-                            with open(error_json_path, 'r') as f:
-                                error_data = json.load(f)
-                                error_details = error_data.get('details')
-                                rejected_at = error_data.get('rejected_at')
-                                exif_metadata = error_data.get('exif_metadata')
-                                # If device ID wasn't extracted from EXIF, try to get it from error details
-                                if not device_id and error_details:
-                                    # Match both old "IMEI:" and new "Device ID:" formats
-                                    import re
-                                    match = re.search(r'(?:IMEI|Device ID):\s*(\S+)', error_details)
-                                    if match:
-                                        device_id = match.group(1)
-                        except Exception as e:
-                            logger.debug(
-                                "Failed to read error JSON",
-                                error_json=str(error_json_path),
-                                error=str(e)
-                            )
-
-                    rejected_files.append(RejectedFileResponse(
-                        filename=filename,
-                        reason=reason,
-                        filepath=str(file_path),
-                        timestamp=stat.st_mtime,
-                        size_bytes=stat.st_size,
-                        device_id=device_id,
-                        error_details=error_details,
-                        rejected_at=rejected_at,
-                        exif_metadata=exif_metadata
-                    ))
-                except Exception as e:
-                    logger.error(
-                        "Failed to process rejected file",
-                        file_path=str(file_path),
-                        error=str(e)
-                    )
-
-    return rejected_files
+    return list(
+        (await db.execute(select(Rejection).where(Rejection.id.in_(ids)))).scalars().all()
+    )
 
 
 @router.get(
@@ -218,33 +166,23 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
 )
 async def get_rejected_files(
     current_user: User = Depends(require_server_admin),
+    db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Get all rejected files grouped by rejection reason (server admin only)
+    All rejected files grouped by rejection reason, newest first (server admin only).
 
-    Args:
-        current_user: Current authenticated server admin
-
-    Returns:
-        Rejected files grouped by reason with metadata
+    Every row still within the 30-day retention, whether or not it resolved
+    to a project. Server admins see the unresolved ones here and nowhere else.
     """
-    rejected_files = scan_rejected_files()
+    rows = (
+        await db.execute(select(Rejection).order_by(Rejection.rejected_at.desc()))
+    ).scalars().all()
 
-    # Group by reason
-    by_reason = {}
-    for file in rejected_files:
-        if file.reason not in by_reason:
-            by_reason[file.reason] = []
-        by_reason[file.reason].append(file)
+    by_reason: dict[str, List[RejectedFileResponse]] = {}
+    for row in rows:
+        by_reason.setdefault(row.reason, []).append(_rejection_to_response(row))
 
-    # Sort each reason's files by timestamp (newest first)
-    for reason in by_reason:
-        by_reason[reason].sort(key=lambda f: f.timestamp, reverse=True)
-
-    return RejectedFilesResponse(
-        total_count=len(rejected_files),
-        by_reason=by_reason
-    )
+    return RejectedFilesResponse(total_count=len(rows), by_reason=by_reason)
 
 
 @router.post(
@@ -257,58 +195,44 @@ async def delete_rejected_files(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Delete rejected files and their error logs (server admin only)
+    Delete rejected files and their rows (server admin only).
 
-    Args:
-        request: List of file paths to delete
-        current_user: Current authenticated server admin
-
-    Returns:
-        Count of successfully deleted files and any errors
+    The row goes even when the bytes are already gone (retention ran, or
+    a manual cleanup), so the page never shows a phantom.
     """
-    # Drop the matching Rejection rows so the Live feed does not show phantoms.
-    # Match on disk_path, which is the absolute path the scan reports.
-    await db.execute(delete(Rejection).where(Rejection.disk_path.in_(request.filepaths)))
-    await db.commit()
-
+    rows = await _load_rows(db, request.ids)
+    found = {row.id for row in rows}
+    errors = [f"Rejection {rid} not found" for rid in request.ids if rid not in found]
     success_count = 0
-    failed_count = 0
-    errors = []
 
-    for filepath_str in request.filepaths:
+    for row in rows:
+        filepath = Path(row.disk_path)
         try:
-            filepath = Path(filepath_str)
-
-            # Verify file is in rejected directory (security check)
-            if "rejected" not in filepath.parts:
+            if not _in_rejected_tree(filepath):
                 errors.append(f"File not in rejected directory: {filepath.name}")
-                failed_count += 1
                 continue
 
-            # Delete the main file
             if filepath.exists():
                 filepath.unlink()
                 logger.info("Deleted rejected file", filepath=str(filepath))
+            _remove_legacy_sidecar(filepath)
 
-            # Delete corresponding .error.json file
-            error_json_path = filepath.parent / f"{filepath.name}.error.json"
-            if error_json_path.exists():
-                error_json_path.unlink()
-
+            await db.delete(row)
             success_count += 1
 
         except Exception as e:
             logger.error(
                 "Failed to delete rejected file",
-                filepath=filepath_str,
+                filepath=str(filepath),
                 error=str(e)
             )
-            errors.append(f"{Path(filepath_str).name}: {str(e)}")
-            failed_count += 1
+            errors.append(f"{filepath.name}: {str(e)}")
+
+    await db.commit()
 
     return BulkActionResponse(
         success_count=success_count,
-        failed_count=failed_count,
+        failed_count=len(errors),
         errors=errors
     )
 
@@ -323,70 +247,55 @@ async def reprocess_rejected_files(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Move rejected files back to uploads directory for reprocessing (server admin only)
+    Move rejected files back into the upload tree for reprocessing (server admin only).
 
-    Args:
-        request: List of file paths to reprocess
-        current_user: Current authenticated server admin
-
-    Returns:
-        Count of successfully moved files and any errors
+    The file returns to the path the camera uploaded it on (see
+    reprocess_destination), ingestion picks up the move event and writes a
+    fresh row if it rejects again. The old row is dropped with the move.
     """
-    # Drop the matching Rejection rows. The file goes back to /uploads and
-    # ingestion writes a fresh row if it rejects again.
-    await db.execute(delete(Rejection).where(Rejection.disk_path.in_(request.filepaths)))
-    await db.commit()
-
-    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
-    uploads_dir = Path(ftps_dir)
-
+    rows = await _load_rows(db, request.ids)
+    found = {row.id for row in rows}
+    errors = [f"Rejection {rid} not found" for rid in request.ids if rid not in found]
     success_count = 0
-    failed_count = 0
-    errors = []
+    upload_root = _upload_root()
 
-    for filepath_str in request.filepaths:
+    for row in rows:
+        filepath = Path(row.disk_path)
         try:
-            filepath = Path(filepath_str)
-
-            # Verify file is in rejected directory (security check)
-            if "rejected" not in filepath.parts:
+            if not _in_rejected_tree(filepath):
                 errors.append(f"File not in rejected directory: {filepath.name}")
-                failed_count += 1
                 continue
 
             if not filepath.exists():
-                errors.append(f"File not found: {filepath.name}")
-                failed_count += 1
+                errors.append(f"File not found: {row.filename}")
                 continue
 
-            # Move file to uploads directory
-            destination = uploads_dir / filepath.name
+            destination = reprocess_destination(upload_root, row.source_path, row.disk_path)
+            destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(filepath), str(destination))
+            _remove_legacy_sidecar(filepath)
             logger.info(
                 "Moved file for reprocessing",
                 from_path=str(filepath),
                 to_path=str(destination)
             )
 
-            # Delete corresponding .error.json file
-            error_json_path = filepath.parent / f"{filepath.name}.error.json"
-            if error_json_path.exists():
-                error_json_path.unlink()
-
+            await db.delete(row)
             success_count += 1
 
         except Exception as e:
             logger.error(
                 "Failed to reprocess rejected file",
-                filepath=filepath_str,
+                filepath=str(filepath),
                 error=str(e)
             )
-            errors.append(f"{Path(filepath_str).name}: {str(e)}")
-            failed_count += 1
+            errors.append(f"{filepath.name}: {str(e)}")
+
+    await db.commit()
 
     return BulkActionResponse(
         success_count=success_count,
-        failed_count=failed_count,
+        failed_count=len(errors),
         errors=errors
     )
 
@@ -401,8 +310,7 @@ def scan_upload_files() -> List[UploadFileResponse]:
     Returns:
         List of files in the uploads root directory
     """
-    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
-    upload_dir = Path(ftps_dir)
+    upload_dir = _upload_root()
 
     if not upload_dir.exists():
         logger.warning("Upload directory does not exist", path=str(upload_dir))
@@ -564,8 +472,7 @@ async def get_uploads_tree(
     Excludes the ``rejected/`` subtree (shown in the Rejected files card)
     and hidden files (Pure-FTPd temp uploads, etc.).
     """
-    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
-    upload_root = Path(ftps_dir)
+    upload_root = _upload_root()
 
     if not upload_root.exists():
         return UploadsTreeResponse(tree=[], total_files=0, total_dirs=0, total_size_bytes=0)
@@ -591,8 +498,7 @@ async def delete_upload_file(
     Security: rejects paths that escape the upload root, target the
     rejected/ subtree, or point to a directory.
     """
-    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
-    upload_root = Path(ftps_dir).resolve()
+    upload_root = _upload_root().resolve()
 
     # Resolve the requested path against the upload root
     target = (upload_root / request.filepath).resolve()

@@ -77,10 +77,15 @@ def _reject(
     and write a Rejection row pointing at the moved file (create_rejection_record).
     Pass device_id / captured_at when they were already extracted so the row can
     be resolved to a project. Centralised here so no rejection path is missed.
+
+    The source path is taken before the move, relative to the upload root, so
+    reprocess can put the file back where the camera uploaded it.
     """
-    dest_path = reject_file(filepath, reason, details, exif_metadata=exif)
+    source_path = _relative_upload_path(filepath)
+    dest_path = reject_file(filepath, reason, details)
     create_rejection_record(
         disk_path=dest_path,
+        source_path=source_path,
         filename=os.path.basename(filepath),
         reason=reason,
         details=details,

@@ -71,6 +71,7 @@ type CameraFilterState = {
   sd_usage: string;
   location: string;
   site: string;
+  rejected: string;
 };
 
 const FILTER_SCHEMA: FilterSchema = {
@@ -81,6 +82,7 @@ const FILTER_SCHEMA: FilterSchema = {
   sd_usage: 'string',
   location: 'string',
   site: 'string',
+  rejected: 'string',
   search: 'string',
 };
 
@@ -168,6 +170,7 @@ export const CamerasPage: React.FC = () => {
     sd_usage: asString(parsedFilters.sd_usage),
     location: asString(parsedFilters.location),
     site: asString(parsedFilters.site),
+    rejected: asString(parsedFilters.rejected),
   };
   const searchQuery = asString(parsedFilters.search);
 
@@ -179,6 +182,7 @@ export const CamerasPage: React.FC = () => {
     sd_usage: filters.sd_usage || undefined,
     location: filters.location || undefined,
     site: filters.site || undefined,
+    rejected: filters.rejected || undefined,
     search: searchQuery || undefined,
   };
 
@@ -201,6 +205,7 @@ export const CamerasPage: React.FC = () => {
       sd_usage: undefined,
       location: undefined,
       site: undefined,
+      rejected: undefined,
       search: undefined,
     });
 
@@ -516,6 +521,16 @@ export const CamerasPage: React.FC = () => {
         { value: 'unknown', label: 'Unknown' },
       ],
     },
+    {
+      kind: 'select',
+      key: 'rejected',
+      label: 'Rejected files',
+      primary: false,
+      options: [
+        { value: 'any', label: 'With rejected files' },
+        { value: 'none', label: 'Without rejected files' },
+      ],
+    },
   ];
 
   const handleSort = (column: ColumnId) => {
@@ -646,6 +661,12 @@ export const CamerasPage: React.FC = () => {
     if (filters.site) {
       result = result.filter((c) => String(c.current_site?.id) === filters.site);
     }
+    if (filters.rejected) {
+      // Null means the viewer sees no rejections at all; neither bucket fits.
+      result = result.filter((c) =>
+        filters.rejected === 'any' ? (c.rejected_count ?? 0) > 0 : c.rejected_count === 0
+      );
+    }
 
     // Sort (nulls last). Non-sortable columns return null and fall through
     // to the unsorted branch below if the user somehow ends up sorting on one.
@@ -667,6 +688,7 @@ export const CamerasPage: React.FC = () => {
             case 'location': return c.location ? 1 : 0;
             case 'sim_expiry': return c.sim_expiry_date;
             case 'last_maintenance': return c.last_maintenance_date;
+            case 'rejected': return c.rejected_count;
             default: return null;
           }
         };
@@ -687,7 +709,7 @@ export const CamerasPage: React.FC = () => {
   const isFiltered = searchQuery.trim() !== '' ||
     !!filters.status || !!filters.tag ||
     !!filters.battery || !!filters.signal || !!filters.sd_usage ||
-    !!filters.location || !!filters.site;
+    !!filters.location || !!filters.site || !!filters.rejected;
 
   // Point-in-time health readings (battery, signal, SD, temperature) keep
   // showing the last value a camera reported even after it goes silent,
@@ -808,6 +830,17 @@ export const CamerasPage: React.FC = () => {
         return camera.current_site ? (
           <span className="text-sm">
             {camera.current_site.name}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+      case 'rejected':
+        // Blank at zero: the number is a problem signal, and a column of
+        // zeros would drown the few that matter. Null (restricted viewer)
+        // reads the same, they see no rejections anywhere.
+        return camera.rejected_count ? (
+          <span className="text-sm font-medium" style={{ color: '#882000' }}>
+            {camera.rejected_count}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">-</span>

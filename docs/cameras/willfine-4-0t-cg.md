@@ -51,7 +51,7 @@ The camera writes that serial number into the EXIF data of every photo, and the 
 
 ## What it sends
 
-- Photos as JPEG, with GPS and the timestamp in the EXIF data. Both are required. A photo missing either one is rejected and shows up on the `File management` page, which server admins can reach from the hamburger menu.
+- Photos as JPEG, with GPS and the timestamp in the EXIF data. Both are required. A photo missing either one is rejected. It shows up as a rejected file on that camera in the Cameras page, and on the `File management` page, which server admins can reach from the hamburger menu.
 - A daily report with signal strength, temperature, battery percentage, SD card usage, GPS, images taken and images sent. These fill the camera health page.
 
 ## Firmware update

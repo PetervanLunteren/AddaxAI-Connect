@@ -45,7 +45,7 @@ Only JPEG stills with a timestamped filename go into the ML pipeline. INSTAR als
 |---|---|
 | `A_YYYY-MM-DD_HH-MM-SS.jpeg` | Processed as a normal image. Datetime is parsed from the filename, GPS from the path. |
 | `A_YYYY-MM-DD_HH-MM-SS.mp4` | Logged and deleted. Video is not processed. |
-| `Test-Snapshot.jpeg` | Rejected as `missing_datetime`. Server admins see it in `File management`. |
+| `Test-Snapshot.jpeg` | Rejected as `missing_datetime`. Shows on the camera in the Cameras page and in `File management`. |
 
 ## Known issues
 

@@ -111,3 +111,22 @@ def test_no_device_id_is_unresolved(monkeypatch, tmp_path):
     assert rej.camera_id is None
     assert rej.project_id is None
     assert rej.file_size_bytes == 1
+
+
+def test_source_path_is_stored(monkeypatch, tmp_path):
+    # Reprocess puts the file back on this path, so a path-based profile
+    # (INSTAR) can identify it again.
+    f = tmp_path / "w.jpeg"
+    f.write_bytes(b"ab")
+    session = _FakeSession(camera=None)
+    _patch_session(monkeypatch, session)
+
+    db_operations.create_rejection_record(
+        disk_path=str(f),
+        filename="w.jpeg",
+        reason="missing_datetime",
+        source_path="INSTAR/lat52.02368_lon12.98290/20260409/images/w.jpeg",
+    )
+
+    rej = session.added[0]
+    assert rej.source_path == "INSTAR/lat52.02368_lon12.98290/20260409/images/w.jpeg"

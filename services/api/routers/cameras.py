@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text, delete as sql_delete
 from pydantic import BaseModel
 
-from shared.models import User, Camera, Project, Image, CameraHealthReport, CameraMaintenanceEvent, Detection, Classification, BulkUploadJob
+from shared.models import User, Camera, Project, Image, CameraHealthReport, CameraMaintenanceEvent, Detection, Classification, BulkUploadJob, Rejection
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -25,6 +25,7 @@ from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKE
 from shared.logger import get_logger
 from shared.camera_status import camera_status as _camera_status
 from utils.camera_recency import fetch_camera_recency
+from utils.camera_rejections import fetch_rejection_counts
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags
 
@@ -56,6 +57,11 @@ class CameraResponse(BaseModel):
     reference_thumbnail_url: Optional[str] = None
     sim_expiry_date: Optional[str] = None  # YYYY-MM-DD or null
     last_maintenance_date: Optional[str] = None  # YYYY-MM-DD or null, max event_date of the camera's maintenance log
+    # Rejected files attributed to this camera, within the 30-day retention.
+    # None for site-restricted viewers: a rejection has no site, so they see
+    # no rejections anywhere (same rule as the Live feed), and the UI hides
+    # the column and tab rather than showing a zero that is not true.
+    rejected_count: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -173,12 +179,14 @@ def camera_to_response(
     last_image_arrival: Optional[datetime] = None,
     current_site: Optional[dict] = None,
     last_maintenance_date: Optional[date] = None,
+    rejected_count: Optional[int] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape.
 
     `last_captured_at` / `last_reported_at` are camera-clock readings and
     feed the two displayed timestamps. The `*_arrival` pair are server
     receive times and feed the status, see `shared.camera_status`.
+    `rejected_count` stays None for site-restricted viewers.
     """
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
@@ -206,11 +214,12 @@ def camera_to_response(
         reference_thumbnail_url=f"/reference-images/{camera.reference_thumbnail_path}" if camera.reference_thumbnail_path else None,
         sim_expiry_date=camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else None,
         last_maintenance_date=last_maintenance_date.isoformat() if last_maintenance_date else None,
+        rejected_count=rejected_count,
     )
 
 
 async def camera_detail_response(
-    db: AsyncSession, camera: Camera
+    db: AsyncSession, camera: Camera, site_scope: Optional[List[int]] = None
 ) -> CameraResponse:
     """Build the full response for one camera, looking up everything derived.
 
@@ -218,8 +227,14 @@ async def camera_detail_response(
     `camera_to_response` directly leaves the derived arguments at their
     defaults, which makes a healthy camera come back as `never_reported` with
     no site and no timestamps, and the detail sheet then shows that.
+
+    `site_scope` is the caller's allow-list (None = unrestricted). Admin-only
+    endpoints can leave it out, admins are never restricted.
     """
     recency = await fetch_camera_recency(db, [camera.id])
+    rejected_count = None
+    if site_scope is None:
+        rejected_count = (await fetch_rejection_counts(db, [camera.id])).get(camera.id, 0)
 
     last_maintenance_date = (await db.execute(
         select(func.max(CameraMaintenanceEvent.event_date))
@@ -253,6 +268,7 @@ async def camera_detail_response(
         last_image_arrival=recency.last_image_arrival.get(camera.id),
         current_site=current_site,
         last_maintenance_date=last_maintenance_date,
+        rejected_count=rejected_count,
     )
 
 
@@ -301,6 +317,11 @@ async def list_cameras(
 
     camera_ids = [c.id for c in cameras]
     recency = await fetch_camera_recency(db, camera_ids)
+    # Restricted viewers see no rejections at all (a rejection has no site),
+    # so their count stays None and the UI hides it.
+    rejection_counts: dict[int, int] = {}
+    if site_scope is None:
+        rejection_counts = await fetch_rejection_counts(db, camera_ids)
     last_maintenance_map: dict[int, date] = {}
     if camera_ids:
         maintenance_rows = await db.execute(
@@ -343,6 +364,7 @@ async def list_cameras(
             last_image_arrival=recency.last_image_arrival.get(camera.id),
             current_site=current_site_map.get(camera.id),
             last_maintenance_date=last_maintenance_map.get(camera.id),
+            rejected_count=None if site_scope is not None else rejection_counts.get(camera.id, 0),
         )
         for camera in cameras
     ]
@@ -703,9 +725,75 @@ async def get_camera(
             detail="You do not have access to this camera"
         )
 
-    await _check_camera_in_scope(db, current_user, camera)
+    site_scope = await _check_camera_in_scope(db, current_user, camera)
 
-    return await camera_detail_response(db, camera)
+    return await camera_detail_response(db, camera, site_scope)
+
+
+class CameraRejectionResponse(BaseModel):
+    """One rejected file of a camera, for the slide-out list."""
+    id: int
+    filename: str
+    reason: str
+    details: Optional[str] = None
+    captured_at: Optional[str] = None  # camera clock, localized ISO 8601
+    rejected_at: str  # server wall-clock, ISO 8601
+    # Served by the live-feed endpoint, which owns the blur and path guards.
+    image_url: str
+
+
+@router.get(
+    "/{camera_id}/rejections",
+    response_model=List[CameraRejectionResponse],
+)
+async def get_camera_rejections(
+    camera_id: int,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    The rejected files attributed to this camera, newest first.
+
+    Every row still within the 30-day retention, the same set the
+    `rejected_count` on the camera counts. Site-restricted viewers get an
+    empty list, fail closed, matching the Live feed.
+    """
+    camera = (await db.execute(select(Camera).where(Camera.id == camera_id))).scalar_one_or_none()
+    if not camera:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera not found")
+    if camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this camera",
+        )
+    site_scope = await _check_camera_in_scope(db, current_user, camera)
+    if site_scope is not None:
+        return []
+
+    rows = (
+        await db.execute(
+            select(Rejection)
+            .where(Rejection.camera_id == camera.id)
+            .order_by(Rejection.rejected_at.desc())
+        )
+    ).scalars().all()
+
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+
+    return [
+        CameraRejectionResponse(
+            id=r.id,
+            filename=r.filename,
+            reason=r.reason,
+            details=r.details,
+            captured_at=_localize(r.captured_at, tz),
+            rejected_at=r.rejected_at.isoformat(),
+            image_url=f"/api/projects/{camera.project_id}/live-feed/rejections/{r.id}/image",
+        )
+        for r in rows
+    ]
 
 
 class CameraDeploymentResponse(BaseModel):

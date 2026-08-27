@@ -767,9 +767,9 @@ class Rejection(Base):
     A file that ingestion refused to turn into an Image.
 
     Rejected files never reach the images table; they are moved to
-    <upload_root>/rejected/<reason>/ on disk with an .error.json sidecar. This
-    row mirrors that, so the Live feed can show rejections (e.g. an image sent
-    at setup before the GPS fix) without scanning the filesystem at read time.
+    <upload_root>/rejected/<reason>/ on disk. This row is the record of the
+    rejection: the Live feed, the per-camera count and File management all
+    read it, nothing scans the filesystem at read time.
 
     project_id is resolved from device_id at rejection time where possible. It
     is null when the file carries no usable device id (corrupt file, stripped
@@ -784,6 +784,12 @@ class Rejection(Base):
     # Matches what ingestion_monitoring reports; both api and ingestion
     # containers mount the same /uploads volume.
     disk_path = Column(String(512), nullable=False)
+    # Where the file sat under the upload root before the move, relative and
+    # POSIX (e.g. "INSTAR/lat52.02_lon12.98/20260409/images/A.jpeg"). Reprocess
+    # puts the file back here so a path-based profile can identify it again.
+    # Null on rows from before the column existed; those fall back to the
+    # upload root.
+    source_path = Column(String(512), nullable=True)
     reason = Column(String(50), nullable=False, index=True)
     details = Column(Text, nullable=True)
     device_id = Column(String(50), nullable=True, index=True)

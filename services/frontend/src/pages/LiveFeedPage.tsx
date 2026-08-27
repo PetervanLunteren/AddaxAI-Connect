@@ -15,6 +15,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { liveFeedApi, type LiveFeedItem } from '../api/liveFeed';
 import { AuthenticatedImage } from '../components/AuthenticatedImage';
 import { Button } from '../components/ui/Button';
+import { rejectionReasonLabel as reasonLabel } from '../utils/rejectionReason';
 
 // Status colours follow the repo convention: teal done, light teal in flight,
 // burnt orange for failure or rejection.
@@ -38,26 +39,6 @@ function statusColor(status: string | null | undefined): string {
   if (status === 'classified') return COLOR_DONE;
   if (status === 'failed') return COLOR_BAD;
   return COLOR_IN_FLIGHT;
-}
-
-// Plain, natural-caps labels for each rejection reason. No colons.
-const REASON_LABELS: Record<string, string> = {
-  missing_gps: 'Missing GPS',
-  invalid_gps: 'Invalid GPS',
-  missing_datetime: 'Missing date',
-  missing_device_id: 'Missing device id',
-  unknown_camera: 'Unknown camera',
-  unsupported_camera: 'Unsupported camera',
-  no_camera_exif: 'No camera info',
-  exif_extraction_failed: 'No metadata',
-  validation_failed: 'Invalid file',
-  parse_failed: 'Bad report',
-  unsupported_file_type: 'Unsupported file',
-};
-
-function reasonLabel(reason: string | null | undefined): string {
-  if (!reason) return 'Rejected';
-  return REASON_LABELS[reason] ?? reason.replace(/_/g, ' ');
 }
 
 function relativeTime(iso: string): string {

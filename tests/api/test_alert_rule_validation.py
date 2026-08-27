@@ -23,6 +23,7 @@ class TestRuleType:
         ok("battery_low", 20, ["email"], None)
         ok("sd_full", 90, ["telegram"], None)
         ok("camera_silent", 10, ["email", "telegram"], None)
+        ok("rejections", 1, ["email"], None)
 
     def test_unknown_type_rejected(self):
         rejected("wolf_in_daylight", 20, ["email"], None)
@@ -35,6 +36,13 @@ class TestThreshold:
         rejected("battery_low", 0, ["email"], None)
         rejected("battery_low", 100, ["email"], None)
         rejected("sd_full", 0, ["email"], None)
+
+    def test_files_bounds(self):
+        # 1 means "any rejected file at all", which is the common case
+        ok("rejections", 1, ["email"], None)
+        ok("rejections", 999, ["email"], None)
+        rejected("rejections", 0, ["email"], None)
+        rejected("rejections", 1000, ["email"], None)
 
     def test_days_bounds(self):
         ok("camera_silent", 1, ["email"], None)

@@ -2,8 +2,9 @@
 Camera condition alert rules.
 
 Any project member creates private rules for camera conditions, battery
-below a threshold, SD card above a threshold, or a camera silent for a
-number of days. The daily cron at 07:00 UTC evaluates active rules and
+below a threshold, SD card above a threshold, a camera silent for a
+number of days, or a camera with rejected files. The daily cron at 07:00
+UTC evaluates active rules and
 notifies the creator by email and/or Telegram, once per incident. Rules
 are private, the creator is the only recipient and other members never
 see them.
@@ -30,7 +31,7 @@ from utils.site_scope import cameras_current_site_clause
 
 router = APIRouter(prefix="/api/projects", tags=["camera-alert-rules"])
 
-VALID_RULE_TYPES = {"battery_low", "sd_full", "camera_silent"}
+VALID_RULE_TYPES = {"battery_low", "sd_full", "camera_silent", "rejections"}
 VALID_CHANNELS = {"email", "telegram"}
 
 
@@ -52,6 +53,10 @@ def validate_rule_fields(
     if rule_type == "camera_silent":
         if not (1 <= threshold <= 365):
             return "threshold must be between 1 and 365 days"
+    elif rule_type == "rejections":
+        # Files in the last day. 1 means "any rejection at all".
+        if not (1 <= threshold <= 999):
+            return "threshold must be between 1 and 999 files"
     else:
         if not (1 <= threshold <= 99):
             return "threshold must be between 1 and 99 percent"

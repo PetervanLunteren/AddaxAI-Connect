@@ -2,10 +2,11 @@
 Camera condition alert rules — daily evaluation.
 
 Each row in `camera_alert_rules` is a private, user-created rule: battery
-below X percent, SD card above Y percent, or camera silent for Z days,
-scoped to selected cameras or all cameras of the project. Every morning
-at 07:00 UTC active rules are evaluated against the latest camera health
-reports and image arrivals, and the creator (the only recipient) gets one
+below X percent, SD card above Y percent, camera silent for Z days, or
+N or more rejected files in the last day, scoped to selected cameras or
+all cameras of the project. Every morning at 07:00 UTC active rules are
+evaluated against the latest camera health reports, image arrivals and
+rejections, and the creator (the only recipient) gets one
 message per rule listing the newly offending cameras, by email and/or
 Telegram as configured on the rule.
 
@@ -23,6 +24,13 @@ This covers camera models that never send health reports (they still
 send images). Cameras the server has never heard from at all are
 excluded, a freshly registered camera should not alarm on day one.
 Battery and SD rules can only fire for cameras that send health reports.
+
+Rejections: a rejected file is one ingestion refused (no GPS fix, no
+date) and attributed to the camera by its device id. The rule counts the
+rows of the last 24 hours before the run, so a camera that rejected
+yesterday and is fine today reads zero and re-arms. Only rejections that
+resolved to a registered camera count; files without a device id cannot
+be attributed to anyone.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -40,6 +48,7 @@ from shared.models import (
     Project,
     ProjectMembership,
     ProjectNotificationPreference,
+    Rejection,
     User,
 )
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATION_TELEGRAM
@@ -65,6 +74,7 @@ class CamState:
     battery_percent: Optional[int]
     sd_utilization_percent: Optional[float]
     last_seen: Optional[datetime]  # aware UTC server receive time, newer of report arrival and live image ingestion
+    rejections_last_day: int = 0  # rejected files attributed to the camera in the 24 h before the run
 
 
 def battery_offending(battery: Optional[int], threshold: int) -> bool:
@@ -80,6 +90,11 @@ def silent_offending(
 ) -> bool:
     # Cameras never heard from at all are excluded, see module docstring
     return last_seen is not None and (now - last_seen) > timedelta(days=days)
+
+
+def rejections_offending(count: int, threshold: int) -> bool:
+    # "At least", so a threshold of 1 catches the first rejected file
+    return count >= threshold
 
 
 def split_incidents(
@@ -110,6 +125,8 @@ def rule_label(rule_type: str, threshold: int) -> str:
         return f"with the SD card above {threshold}% full"
     if rule_type == "camera_silent":
         return f"silent for more than {threshold} day{'s' if threshold != 1 else ''}"
+    if rule_type == "rejections":
+        return f"with {threshold} or more rejected file{'s' if threshold != 1 else ''} in the last day"
     raise ValueError(f"Unknown rule type {rule_type}")
 
 
@@ -120,6 +137,9 @@ def value_label(rule_type: str, state: CamState) -> str:
         return f"{round(state.sd_utilization_percent)}% full"
     if rule_type == "camera_silent":
         return f"last seen {state.last_seen.strftime('%b %d, %Y')}"
+    if rule_type == "rejections":
+        n = state.rejections_last_day
+        return f"{n} rejected file{'s' if n != 1 else ''}"
     raise ValueError(f"Unknown rule type {rule_type}")
 
 
@@ -153,6 +173,8 @@ def offending_cameras(
         elif rule.rule_type == "sd_full" and sd_offending(state.sd_utilization_percent, rule.threshold):
             result.append(camera_id)
         elif rule.rule_type == "camera_silent" and silent_offending(state.last_seen, rule.threshold, now):
+            result.append(camera_id)
+        elif rule.rule_type == "rejections" and rejections_offending(state.rejections_last_day, rule.threshold):
             result.append(camera_id)
     return sorted(result)
 
@@ -229,7 +251,7 @@ def send_camera_condition_alerts() -> None:
                     allowed_camera_ids = allowed_cache[cache_key]
 
                 if project.id not in state_cache:
-                    state_cache[project.id] = _load_camera_states(db, project.id)
+                    state_cache[project.id] = _load_camera_states(db, project.id, now_utc)
                 states = state_cache[project.id]
 
                 offending = offending_cameras(rule, states, now_utc, allowed_camera_ids)
@@ -288,9 +310,9 @@ def send_camera_condition_alerts() -> None:
         )
 
 
-def _load_camera_states(db, project_id: int) -> Dict[int, CamState]:
+def _load_camera_states(db, project_id: int, now: datetime) -> Dict[int, CamState]:
     """One state entry per camera of the project, from the latest health
-    report and the last image arrival."""
+    report, the last image arrival and the rejections of the last day."""
     cameras = {
         row.id: CamState(
             device_id=row.device_id,
@@ -358,6 +380,15 @@ def _load_camera_states(db, project_id: int) -> Dict[int, CamState]:
         state = cameras[row.camera_id]
         if state.last_seen is None or row.last_ingested_at > state.last_seen:
             state.last_seen = row.last_ingested_at
+
+    # Rejected files of the last 24 hours, by server receive time
+    for row in db.execute(
+        select(Rejection.camera_id, func.count(Rejection.id).label("count"))
+        .join(Camera, Rejection.camera_id == Camera.id)
+        .where(Camera.project_id == project_id, Rejection.rejected_at > now - timedelta(days=1))
+        .group_by(Rejection.camera_id)
+    ).all():
+        cameras[row.camera_id].rejections_last_day = row.count
 
     return cameras
 

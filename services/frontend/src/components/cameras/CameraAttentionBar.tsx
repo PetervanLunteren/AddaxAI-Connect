@@ -63,6 +63,9 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       c.sd_utilization_percentage != null &&
       c.sd_utilization_percentage > SD_NEARLY_FULL_PERCENT,
   ).length;
+  // Files the server refused but could tie to the camera (no GPS fix, no
+  // date). Null means the viewer sees no rejections at all, so nothing counts.
+  const withRejected = cameras.filter((c) => (c.rejected_count ?? 0) > 0).length;
 
   const candidates: AttentionItem[] = [
     {
@@ -79,6 +82,11 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       count: sdNearlyFull,
       label: `${sdNearlyFull} SD ${plural(sdNearlyFull, 'card', 'cards')} nearly full`,
       patch: { sd_usage: 'high' },
+    },
+    {
+      count: withRejected,
+      label: `${withRejected} ${plural(withRejected, 'camera', 'cameras')} with rejected files`,
+      patch: { rejected: 'any' },
     },
   ];
 

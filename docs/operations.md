@@ -59,7 +59,13 @@ A growing `image-ingested` queue means detection is falling behind or stuck. A g
 
 ## File management
 
-The `File management` page (hamburger menu, server admins only) shows rejected files and their rejection reasons. Common reasons: no matching camera profile, missing GPS or timestamp metadata, wrong file format, or file too large. You can delete rejected files or move them back for reprocessing from this page.
+The `File management` page (hamburger menu, server admins only) shows rejected files and their rejection reasons. Common reasons: no matching camera profile, missing GPS or timestamp metadata, wrong file format, or file too large. You can delete rejected files or move them back for reprocessing from this page. Reprocessing puts a file back on the path the camera uploaded it to, so it goes through ingestion exactly like a fresh upload.
+
+When the server can read the camera ID from a rejected file (missing or invalid GPS, missing date), the file also counts against that camera. The Cameras page shows a `Rejected files` column, a `cameras with rejected files` chip in the needs attention strip, and a `Rejected` tab in the camera panel with the files and their reasons. Every project member sees this; the pictures are blurred when the project hides people or vehicles. Files without a readable camera ID (no metadata, unknown camera model) only show on `File management`.
+
+Rejected files are kept for 30 days and then deleted, from disk and from the count.
+
+To get a message when a camera starts rejecting files, add a camera alert rule of type `Rejected files per day` on the notifications page. It is checked once a day together with the battery, SD card and silence rules.
 
 ![File management page](https://github.com/user-attachments/assets/e1651680-7fce-4a27-8a21-10cb59e21408)
 

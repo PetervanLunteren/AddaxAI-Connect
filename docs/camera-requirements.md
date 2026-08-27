@@ -68,7 +68,7 @@ If you need a new camera profile, [open an issue](https://github.com/PetervanLun
 Images uploading but not showing up? Here are the most common causes:
 
 - **No matching camera profile**: the system rejects images it can't identify. Go to `File management` (hamburger menu on the projects page, server admins only) to see rejected files and the reason they were rejected.
-- **Missing required metadata**: if the camera profile requires GPS or date/time and the image doesn't have it, it gets rejected.
+- **Missing required metadata**: if the camera profile requires GPS or date/time and the image doesn't have it, it gets rejected. These files still carry the camera ID, so they show up on the Cameras page as a `Rejected files` count and in the `Rejected` tab of that camera, for every project member.
 - **Wrong file format**: only JPEG images are accepted (max 10 MB).
 - **Daily reports not parsed**: reports must be under 1 MB and match the expected format for the camera profile.
 

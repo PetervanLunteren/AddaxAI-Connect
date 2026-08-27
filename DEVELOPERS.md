@@ -403,6 +403,31 @@ The API side gets the timestamps from `fetch_camera_recency` in
 grouped queries. The camera alert rules and the theft watch define contact the
 same way, so all of them agree.
 
+## Rejected files
+
+A file ingestion refuses is moved to `<upload_root>/rejected/<reason>/` and
+gets one row in `rejections` (`shared/shared/models.py`). The row is the
+record: reason, details, EXIF, device id, `camera_id` and `project_id`
+resolved at reject time, and `source_path`, where the file sat under the
+upload root before the move. There is no sidecar file. Every reader (Live
+feed, the per-camera count and tab, File management, the daily alert) reads
+the table; nothing scans the filesystem at read time.
+
+- `camera_id` is set only when the device id was readable before the
+  reject (missing or invalid GPS, missing date). Those rows count on the
+  camera. Rows without one (no metadata, unknown camera model) show only on
+  the server-admin File management page.
+- Reprocess moves the file back to `source_path` (`reprocess_destination`
+  in `services/api/routers/ingestion_monitoring.py`), so a path-based
+  profile identifies it again. Rows from before the column existed have
+  NULL and fall back to the upload root; they age out.
+- Site-restricted viewers see no rejections anywhere: a rejection has no
+  site, fail closed. The API sends `rejected_count: null` for them and the
+  UI hides the column and tab, so the number is never a false zero.
+- Retention is 30 days, files and rows together, in
+  `cleanup_old_rejected_files` (`services/ingestion/main.py`). Every count
+  is therefore "within the last 30 days" without a parameter.
+
 ## Worker liveness
 
 Every long-running worker proves it is alive by stamping a Redis key with

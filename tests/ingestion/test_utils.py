@@ -1,5 +1,4 @@
 """Tests for ingestion utility helpers (reject_file, prune_empty_parents)."""
-import json
 import os
 import re
 from pathlib import Path
@@ -20,8 +19,8 @@ TIMESTAMP_PREFIX_RE = r"\d{8}T\d{6}_\d{6}_"
 
 
 def rejected_images(reason_dir: Path) -> list[Path]:
-    """The rejected image files in a reason directory (error logs excluded)."""
-    return sorted(p for p in reason_dir.iterdir() if not p.name.endswith(".error.json"))
+    """The rejected image files in a reason directory."""
+    return sorted(reason_dir.iterdir())
 
 
 @pytest.fixture
@@ -67,12 +66,16 @@ class TestRejectFileFlat:
         assert re.fullmatch(TIMESTAMP_PREFIX_RE + r"IMG_0001\.jpg", rejected.name)
         assert not src.exists()
 
-        error_json = reason_dir / f"{rejected.name}.error.json"
-        assert error_json.exists()
-        data = json.loads(error_json.read_text())
-        assert data["filename"] == "IMG_0001.jpg"
-        assert data["reason"] == "missing_datetime"
-        assert data["details"] == "no timestamp"
+    def test_moves_only_the_file(self, upload_root):
+        # The Rejection row is the record. No sidecar next to the file, so
+        # nothing on disk can drift from the row.
+        src = upload_root / "IMG_0003.jpg"
+        src.write_bytes(b"\xff\xd8\xff\x00")
+
+        reject_file(str(src), "missing_datetime", "no timestamp")
+
+        reason_dir = upload_root / "rejected" / "missing_datetime"
+        assert [p.suffix for p in reason_dir.iterdir()] == [".jpg"]
 
     def test_returns_moved_file_path(self, upload_root):
         # The persistence layer stores this path on the Rejection row, so the
@@ -88,7 +91,7 @@ class TestRejectFileFlat:
 
     def test_same_basename_rejected_twice_does_not_overwrite(self, upload_root):
         # The TODO scenario: many cameras all send an img001.jpg with bad GPS.
-        # Every rejection must survive as its own file with its own error log.
+        # Every rejection must survive as its own file.
         for details in ("first camera", "second camera"):
             src = upload_root / "img001.jpg"
             src.write_bytes(b"\xff\xd8\xff\x00")
@@ -98,12 +101,7 @@ class TestRejectFileFlat:
         rejected = rejected_images(reason_dir)
         assert len(rejected) == 2
         assert all(p.name.endswith("_img001.jpg") for p in rejected)
-
-        details = sorted(
-            json.loads((reason_dir / f"{p.name}.error.json").read_text())["details"]
-            for p in rejected
-        )
-        assert details == ["first camera", "second camera"]
+        assert all(p.read_bytes() == b"\xff\xd8\xff\x00" for p in rejected)
 
 
 class TestRejectFileNested:
@@ -125,12 +123,6 @@ class TestRejectFileNested:
             rejected.name,
         )
         assert not src.exists()
-
-        error_json = rejected.with_suffix(rejected.suffix + ".error.json")
-        assert error_json.exists()
-        data = json.loads(error_json.read_text())
-        assert data["filename"] == "Test-Snapshot.jpeg"
-        assert data["source_path"] == str(src)
 
     def test_two_nested_sources_with_same_basename_do_not_collide(self, upload_root):
         # Two different INSTAR cameras both produce a Test-Snapshot.jpeg

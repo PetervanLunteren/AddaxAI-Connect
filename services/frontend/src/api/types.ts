@@ -27,6 +27,9 @@ export interface Camera {
   reference_thumbnail_url: string | null;
   sim_expiry_date: string | null;  // YYYY-MM-DD or null
   last_maintenance_date: string | null;  // YYYY-MM-DD or null, derived from the maintenance log
+  // Rejected files attributed to this camera in the last 30 days. Null for
+  // site-restricted viewers, who see no rejections anywhere; hide it then.
+  rejected_count: number | null;
 }
 
 // Camera maintenance events. The vocabulary mirrors VALID_ACTION_TYPES
