@@ -105,7 +105,7 @@ def build_detection_event(
     if confidence is not None:
         details["addaxai_connect_confidence"] = round(confidence, 2)
     if site_name:
-        details["addaxai_connect_site"] = site_name
+        details["addaxai_connect_site_name"] = site_name
     return {
         "source": device_id,
         "title": f"{species_display} at {where}",
@@ -142,7 +142,7 @@ def build_camera_event(
         "addaxai_connect_link": camera_url,
     }
     if site_name:
-        details["addaxai_connect_site"] = site_name
+        details["addaxai_connect_site_name"] = site_name
     return {
         "source": device_id,
         "title": f"Camera alert at {where}",

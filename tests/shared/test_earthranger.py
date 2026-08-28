@@ -85,7 +85,7 @@ class TestBuildDetectionEvent:
             "addaxai_connect_scientific_name": "Vulpes vulpes",
             "addaxai_connect_count": 2,
             "addaxai_connect_confidence": 0.88,
-            "addaxai_connect_site": "Site 4",
+            "addaxai_connect_site_name": "Site 4",
         }
 
     def test_person_category(self):
@@ -95,7 +95,7 @@ class TestBuildDetectionEvent:
     def test_no_site_uses_camera_in_title(self):
         event = _detection(site_name=None)
         assert event["title"] == "Red fox at CAM-012"
-        assert "addaxai_connect_site" not in event["event_details"]
+        assert "addaxai_connect_site_name" not in event["event_details"]
 
     def test_optional_fields_omitted(self):
         details = _detection(count=None, confidence=None, scientific_name=None)["event_details"]
@@ -127,7 +127,7 @@ class TestBuildCameraEvent:
         assert event["recorded_at"] == "2026-07-01T06:00:00+00:00"
         assert event["event_details"]["addaxai_connect_alert"] == "battery_low"
         assert event["event_details"]["addaxai_connect_summary"] == "Battery at 12%"
-        assert event["event_details"]["addaxai_connect_site"] == "Site 4"
+        assert event["event_details"]["addaxai_connect_site_name"] == "Site 4"
 
     def test_missing_location_raises(self):
         with pytest.raises(ValueError):

@@ -264,6 +264,6 @@ class TestTheftWatchBranches:
         event = sent[0]["event"]
         assert event["source"] == "CAM-021"
         assert event["event_details"]["addaxai_connect_alert"] == "theft_watch_silence"
-        assert event["event_details"]["addaxai_connect_site"] == "Ridge"
+        assert event["event_details"]["addaxai_connect_site_name"] == "Ridge"
         assert event["location"] == {"lat": 3.0, "lon": 4.0}
         assert sent[0]["notification_type"] == "theft_watch_silence"

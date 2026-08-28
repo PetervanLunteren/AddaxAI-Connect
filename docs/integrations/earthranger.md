@@ -44,7 +44,7 @@ Detections. Display name "AddaxAI detection", value `addaxai_connect_detection`.
       "addaxai_connect_count": {"type": "integer", "title": "Count"},
       "addaxai_connect_confidence": {"type": "number", "title": "Confidence (0-1)"},
       "addaxai_connect_camera_id": {"type": "string", "title": "Camera"},
-      "addaxai_connect_site": {"type": "string", "title": "Site"},
+      "addaxai_connect_site_name": {"type": "string", "title": "Site"},
       "addaxai_connect_link": {"type": "string", "title": "Link to AddaxAI"}
     }
   },
@@ -55,7 +55,7 @@ Detections. Display name "AddaxAI detection", value `addaxai_connect_detection`.
     {"key": "addaxai_connect_count", "htmlClass": "col-lg-6"},
     {"key": "addaxai_connect_confidence", "htmlClass": "col-lg-6"},
     {"key": "addaxai_connect_camera_id", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_connect_site", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_site_name", "htmlClass": "col-lg-6"},
     {"key": "addaxai_connect_link"}
   ]
 }
@@ -73,14 +73,14 @@ Camera alerts. Display name "AddaxAI camera alert", value `addaxai_connect_camer
       "addaxai_connect_alert": {"type": "string", "title": "Alert"},
       "addaxai_connect_summary": {"type": "string", "title": "Summary"},
       "addaxai_connect_camera_id": {"type": "string", "title": "Camera"},
-      "addaxai_connect_site": {"type": "string", "title": "Site"},
+      "addaxai_connect_site_name": {"type": "string", "title": "Site"},
       "addaxai_connect_link": {"type": "string", "title": "Link to AddaxAI"}
     }
   },
   "definition": [
     {"key": "addaxai_connect_alert", "htmlClass": "col-lg-6"},
     {"key": "addaxai_connect_camera_id", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_connect_site", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_site_name", "htmlClass": "col-lg-6"},
     {"key": "addaxai_connect_summary"},
     {"key": "addaxai_connect_link"}
   ]
