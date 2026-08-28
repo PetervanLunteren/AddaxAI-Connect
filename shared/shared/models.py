@@ -816,9 +816,11 @@ class FeedEvent(Base):
     Written by ingestion when a deployment is created: a camera sent its first
     image (camera_first_seen), or a confirmed relocation opened a new
     deployment (camera_moved). Entries report what the system already did;
-    they never block ingestion and ignoring them is harmless. A project admin
-    can act on an entry (rename the site, pick another site, split off a new
-    site, or undo a move), which stamps the resolved_* columns.
+    they never block ingestion. Each entry has one shared state: needs review
+    (resolved_action NULL) or reviewed. A project admin reviews it by
+    correcting it (rename the site, pick another site, split off a new site,
+    undo a move) or by confirming it as is; that stamps the resolved_*
+    columns for everyone. No personal read state on purpose.
     """
     __tablename__ = "feed_events"
 
@@ -851,20 +853,6 @@ class FeedEvent(Base):
     resolved_action = Column(String(20), nullable=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
     resolved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-
-
-class FeedSeen(Base):
-    """
-    When a user last closed a project's camera updates feed. Drives the unseen
-    badge: open events created after this count as unseen. Its own table rather
-    than a project_memberships column because server admins access projects
-    without a membership row.
-    """
-    __tablename__ = "feed_seen"
-
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
-    last_seen_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class TelegramConfig(Base):

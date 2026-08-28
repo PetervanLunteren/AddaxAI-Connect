@@ -2,9 +2,9 @@
  * Camera updates feed endpoints.
  *
  * One entry per deployment the system created (a camera's first images, or a
- * confirmed move). Entries report what already happened; nothing blocks and
- * ignoring them is harmless. A project admin can act on an entry with one of
- * four actions, each wrapping existing site/deployment plumbing.
+ * confirmed move). Entries report what already happened; nothing blocks.
+ * Each entry has one shared state, needs review or reviewed. A project admin
+ * reviews it by correcting it or by confirming it as is.
  */
 import apiClient from './client';
 
@@ -43,9 +43,6 @@ export interface FeedEventItem {
   resolved_action: string | null;
   resolved_at: string | null;
   resolved_by_email: string | null;
-  // Already seen on an earlier visit, personal. New entries show bold.
-  // Stamped when the panel closes.
-  seen: boolean;
 }
 
 export type ResolveAction = 'rename_site' | 'set_site' | 'new_site' | 'not_moved' | 'confirmed';
@@ -59,9 +56,9 @@ export interface ResolveRequest {
 // Page size of the list; the panel asks for more in steps of this.
 export const FEED_PAGE = 100;
 
-// Open means nobody has dealt with it yet. Shared: the badge is the open
-// count, and the panel's to-do section is the open entries.
-export function isOpen(e: FeedEventItem): boolean {
+// Needs review means nobody has reviewed it yet. Shared: the badge is this
+// count, and the panel's first tab is these entries.
+export function needsReview(e: FeedEventItem): boolean {
   return !e.resolved_action;
 }
 
@@ -72,15 +69,15 @@ export const feedApi = {
     const { data } = await apiClient.get(base(projectId), { params: { limit } });
     return data;
   },
-  // Entries nobody has dealt with yet, the badge. Same for every user.
+  // Entries that still need review, the badge. Same for every user.
   openCount: async (projectId: number): Promise<number> => {
     const { data } = await apiClient.get(`${base(projectId)}/open`);
     return data.count as number;
   },
-  // upTo is the newest created_at the user had on screen, so an entry that
-  // arrived while the panel was open stays new. Omit for an empty feed.
-  markSeen: async (projectId: number, upTo?: string): Promise<void> => {
-    await apiClient.post(`${base(projectId)}/seen`, upTo ? { up_to: upTo } : {});
+  // Every entry that needs review becomes reviewed, nothing to change.
+  reviewAll: async (projectId: number): Promise<{ reviewed: number }> => {
+    const { data } = await apiClient.post(`${base(projectId)}/review-all`);
+    return data;
   },
   resolve: async (
     projectId: number,

@@ -60,9 +60,9 @@ import pytest  # noqa: E402
 from pydantic import ValidationError  # noqa: E402
 
 from routers.feed import (  # noqa: E402
-    MarkSeenRequest,
     ResolveFeedEventRequest,
     _required_name,
+    _scope_clause,
 )
 
 
@@ -88,7 +88,13 @@ def test_required_name_strips_and_rejects_blank():
     assert exc.value.status_code == 422
 
 
-def test_mark_seen_defaults_to_now():
-    # No body means "stamp now"; the endpoint substitutes func.now().
-    assert MarkSeenRequest().up_to is None
-    assert MarkSeenRequest(up_to="2026-08-27T10:00:00+00:00").up_to is not None
+def test_scope_clause_unrestricted_adds_nothing():
+    assert _scope_clause(None) == []
+
+
+def test_scope_clause_restricts_both_ends_of_a_move():
+    clauses = _scope_clause([1, 2])
+    sql = " ".join(str(c) for c in clauses)
+    assert len(clauses) == 2
+    assert "feed_events.site_id IN" in sql
+    assert "feed_events.from_site_id IS NULL" in sql

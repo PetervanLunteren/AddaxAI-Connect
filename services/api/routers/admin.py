@@ -2000,7 +2000,7 @@ async def purge_non_admin_users(
         )
 
         # Everything else is handled by the schema itself: project_memberships,
-        # notification_logs, feed_seen and telegram_linking_tokens cascade on
+        # notification_logs and telegram_linking_tokens cascade on
         # users.id, and feed_events.resolved_by_user_id is ON DELETE SET NULL.
         # Preferences were already cleared above.
         #

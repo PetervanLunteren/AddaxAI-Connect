@@ -12,40 +12,35 @@ actions:
 - new_site: this spot deserves its own site (co-located cameras)
 - not_moved: the "move" was GPS noise, fold the deployment back where it was
 
-- confirmed: the placement is right, nothing to change; closes the entry
+- confirmed: the placement is right, nothing to change
 
-Entries never block ingestion and ignoring them is harmless. Re-resolving is
-allowed (a user can change their mind, the last action wins). An entry's
-site_id is updated by set_site / new_site / not_moved so the feed always shows
-where the camera is now, not the superseded guess.
+Entries never block ingestion. Every entry has exactly one state, shared by
+the whole project: needs review (resolved_action NULL) or reviewed. Any of
+the actions above reviews it, stamping who and when, for everyone at once.
+Renaming a site anywhere reviews that site's open entries too
+(close_events_for_named_site), and review-all reviews every open entry in
+one go. There is no personal read state on purpose: looking at the panel
+changes nothing. The badge is the needs-review count.
 
-Two states, kept apart on purpose:
-- Open or done is shared. resolved_action on the entry, set by one admin,
-  closes the entry for everyone. The badge is the open count, a to-do list
-  for the project's admins; it only goes down when someone deals with an
-  entry. Renaming a site anywhere closes that site's open entries too
-  (close_events_for_named_site).
-- Seen is personal. feed_seen holds one watermark per user per project;
-  entries created after it are new to that user and show bold. Opening and
-  closing the panel changes nothing for anyone else.
-Reads are open to any project member; resolving requires project admin.
+Re-resolving is allowed (a user can change their mind, the last action wins).
+An entry's site_id is updated by set_site / new_site / not_moved so the feed
+always shows where the camera is now, not the superseded guess. Reads are
+open to any project member; reviewing requires project admin.
 """
 import uuid as uuid_module
-from datetime import datetime
 from typing import List, Literal, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from geoalchemy2.elements import WKTElement
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select, text
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.models import Deployment, FeedEvent, FeedSeen, Image, Site, User
+from shared.models import Deployment, FeedEvent, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
 from utils.deployment_edits import reassign_deployment_site
@@ -108,10 +103,6 @@ class FeedEventItem(BaseModel):
     resolved_action: Optional[str] = None
     resolved_at: Optional[str] = None
     resolved_by_email: Optional[str] = None
-    # Whether this user had already seen the entry on an earlier visit. Bold
-    # in the panel when not. The seen stamp is written when the panel closes,
-    # so the bold set is stable while the panel is open.
-    seen: bool = False
 
 
 @router.get("", response_model=List[FeedEventItem])
@@ -131,7 +122,7 @@ async def list_feed(
     involve an out-of-scope site on either end are hidden entirely, so no
     other site's name or distance leaks through the move context."""
     scope_sql = ""
-    params = {"project_id": project_id, "limit": limit, "user_id": user.id}
+    params = {"project_id": project_id, "limit": limit}
     if site_scope is not None:
         scope_sql = (
             " AND e.site_id = ANY(:scope)"
@@ -148,8 +139,6 @@ async def list_feed(
                        e.distance_m, e.site_created, e.deployment_id,
                        e.resolved_action, e.resolved_at,
                        u.email AS resolved_by_email,
-                       (fsn.last_seen_at IS NOT NULL
-                        AND e.created_at <= fsn.last_seen_at) AS seen,
                        ST_Y(d.location::geometry) AS dep_lat,
                        ST_X(d.location::geometry) AS dep_lon
                 FROM feed_events e
@@ -158,8 +147,6 @@ async def list_feed(
                 LEFT JOIN sites fs ON fs.id = e.from_site_id
                 LEFT JOIN deployments d ON d.id = e.deployment_id
                 LEFT JOIN users u ON u.id = e.resolved_by_user_id
-                LEFT JOIN feed_seen fsn ON fsn.project_id = e.project_id
-                                       AND fsn.user_id = :user_id
                 WHERE e.project_id = :project_id{scope_sql}
                 ORDER BY e.created_at DESC, e.id DESC
                 LIMIT :limit
@@ -225,7 +212,6 @@ async def list_feed(
             resolved_action=r["resolved_action"],
             resolved_at=r["resolved_at"].isoformat() if r["resolved_at"] else None,
             resolved_by_email=r["resolved_by_email"],
-            seen=r["seen"],
         ))
     return items
 
@@ -241,51 +227,57 @@ async def open_count(
     user: User = Depends(require_project_access),
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
-    """How many entries nobody has dealt with yet (the badge).
+    """How many entries still need review (the badge).
 
     Shared: the same number for every user, and it only drops when someone
-    resolves an entry. Not tied to the personal seen stamp on purpose, a
-    to-do does not go away because someone looked at it."""
+    reviews an entry."""
     query = select(func.count(FeedEvent.id)).where(
         FeedEvent.project_id == project_id,
         FeedEvent.resolved_action.is_(None),
+        *_scope_clause(site_scope),
     )
-    if site_scope is not None:
-        # Same visibility rule as the list, count only what the viewer can see
-        query = query.where(
-            FeedEvent.site_id.in_(site_scope),
-            (FeedEvent.from_site_id.is_(None)) | FeedEvent.from_site_id.in_(site_scope),
-        )
     count = (await db.execute(query)).scalar_one()
     return OpenCountResponse(count=count)
 
 
-class MarkSeenRequest(BaseModel):
-    # The newest created_at the user actually had on screen. An entry that
-    # lands while the panel is open is then still new on the next visit,
-    # instead of being swallowed by a "now" stamp. Omitted (empty feed) means
-    # now. The stamp never moves backwards.
-    up_to: Optional[datetime] = None
+def _scope_clause(site_scope: Optional[List[int]]):
+    """The visibility rule shared by the list, the count and review-all."""
+    if site_scope is None:
+        return []
+    return [
+        FeedEvent.site_id.in_(site_scope),
+        (FeedEvent.from_site_id.is_(None)) | FeedEvent.from_site_id.in_(site_scope),
+    ]
 
 
-@router.post("/seen", status_code=status.HTTP_204_NO_CONTENT)
-async def mark_seen(
+class ReviewAllResponse(BaseModel):
+    reviewed: int
+
+
+@router.post("/review-all", response_model=ReviewAllResponse)
+async def review_all(
     project_id: int,
-    request: MarkSeenRequest = MarkSeenRequest(),
     db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(require_project_access),
+    user: User = Depends(require_project_admin_access),
+    site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
-    """Stamp this user's last feed visit, clearing the badge."""
-    stamp = request.up_to if request.up_to is not None else func.now()
-    await db.execute(
-        pg_insert(FeedSeen)
-        .values(user_id=user.id, project_id=project_id, last_seen_at=stamp)
-        .on_conflict_do_update(
-            index_elements=[FeedSeen.user_id, FeedSeen.project_id],
-            set_={"last_seen_at": func.greatest(FeedSeen.last_seen_at, stamp)},
+    """Mark every entry that needs review as reviewed, nothing to change.
+
+    For the morning after a field day: twenty cameras moved, the sites are
+    right, one click. Sites keep their names, so unnamed ones stay flagged
+    on the Sites page."""
+    result = await db.execute(
+        update(FeedEvent)
+        .where(
+            FeedEvent.project_id == project_id,
+            FeedEvent.resolved_action.is_(None),
+            *_scope_clause(site_scope),
         )
+        .values(resolved_action='confirmed', resolved_at=func.now(), resolved_by_user_id=user.id)
     )
     await db.commit()
+    logger.info("Reviewed all feed entries", project_id=project_id, count=result.rowcount)
+    return ReviewAllResponse(reviewed=result.rowcount)
 
 
 class EventThumbnails(BaseModel):

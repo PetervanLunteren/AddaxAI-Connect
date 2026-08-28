@@ -2149,8 +2149,7 @@ def insert_feed_events(session: Session, deployments: list, cam_index_to_id: dic
     One camera_first_seen per camera's first placement, resolved a day later
     as a rename (the demo sites carry real names, so someone named them). One
     camera_moved per relocation, left unresolved so the panel shows open
-    entries. feed_seen is stamped 30 days before the newest event for every
-    project member, so the sidebar badge shows the recent entries only.
+    entries.
     """
     first_by_camera = {
         dep["camera_index"]: dep for dep in deployments if dep["deployment_number"] == 1
@@ -2195,16 +2194,6 @@ def insert_feed_events(session: Session, deployments: list, cam_index_to_id: dic
                 "resolved_at": resolved_at,
             },
         )
-    session.execute(
-        text("""
-            INSERT INTO feed_seen (user_id, project_id, last_seen_at)
-            SELECT pm.user_id, :pid,
-                   (SELECT MAX(created_at) - INTERVAL '30 days'
-                    FROM feed_events WHERE project_id = :pid)
-            FROM project_memberships pm WHERE pm.project_id = :pid
-        """),
-        {"pid": project_id},
-    )
     session.flush()
 
 

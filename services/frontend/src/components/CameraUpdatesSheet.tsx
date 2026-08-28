@@ -1,18 +1,15 @@
 /**
  * Camera updates slideout.
  *
- * Opens from the sidebar. Lists what the system did on its own, one entry per
- * created deployment. A camera sent its first images, or a confirmed move
- * opened a new placement. Entries are notifications, not questions. Ignoring
- * them is always fine. Project admins can correct an entry with one of four
- * actions (rename the site, pick a different nearby site, split off a new
- * site, or undo a move that was GPS noise); viewers see the list read-only.
- *
- * Two states, kept apart. "Open or done" is shared: an entry is a to-do for
- * the project until one admin deals with it (a correction, the tick, or
- * naming the site anywhere), and the badge is the open count. "New to you"
- * is personal: closing the sheet stamps a per-user watermark, entries after
- * it show bold. Looking never changes anything for anyone else.
+ * Lists what the system did on its own, one entry per created deployment: a
+ * camera sent its first images, or a confirmed move opened a new placement.
+ * The system already acted; a human only reviews. Each entry has one state,
+ * shared by the whole project: needs review, or reviewed. A project admin
+ * reviews an entry by correcting it (rename the site, pick a different
+ * nearby site, split off a new site, undo a move that was GPS noise) or by
+ * ticking it as right. Either way it moves to the Reviewed tab for
+ * everyone, with who and when. There is no personal read state: looking
+ * changes nothing. Viewers see both tabs read-only.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,10 +21,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { useToast } from './ui/Toaster';
 import { AuthenticatedImage } from './AuthenticatedImage';
-import { FEED_PAGE, feedApi, isOpen, type FeedEventItem, type ResolveRequest } from '../api/feed';
+import { FEED_PAGE, feedApi, needsReview, type FeedEventItem, type ResolveRequest } from '../api/feed';
 import { deploymentsApi } from '../api/deployments';
 import { autoSiteName, isAutoSiteName } from '../utils/site-names';
 import { UnnamedSiteChip } from './sites/UnnamedSiteChip';
+import { cn } from '../lib/utils';
 
 interface CameraUpdatesSheetProps {
   open: boolean;
@@ -41,7 +39,8 @@ type DialogMode =
   | { kind: 'rename'; event: FeedEventItem }
   | { kind: 'different_site'; event: FeedEventItem }
   | { kind: 'new_site'; event: FeedEventItem }
-  | { kind: 'not_moved'; event: FeedEventItem };
+  | { kind: 'not_moved'; event: FeedEventItem }
+  | { kind: 'review_all' };
 
 function fmtDistance(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
@@ -113,8 +112,8 @@ const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
 // Chips on the collapsed line, so a list of thirty entries can be scanned
 // without opening every one. They answer the three questions an entry can
 // raise, in this order: what happened (Moved), where it landed (N cameras),
-// what it needs (Unnamed). A resolved entry raises none of them, so "Done"
-// replaces the lot.
+// what it needs (Unnamed). A reviewed entry raises none of them, so
+// "Reviewed" replaces the lot.
 //
 // Only "N cameras" is loud. On the morning a project's cameras all wake up,
 // nearly every entry is a new camera on its own fresh unnamed site, so the
@@ -126,7 +125,7 @@ const CHIP = 'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-f
 
 const EntryChips: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   if (e.resolved_action) {
-    return <span className={`${CHIP} bg-muted text-muted-foreground`}>Done</span>;
+    return <span className={`${CHIP} bg-muted text-muted-foreground`}>Reviewed</span>;
   }
   return (
     <>
@@ -149,9 +148,7 @@ const EntryChips: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
 // camera ids (a device_id is an IMEI); the id sits in the metadata line as
 // the lookup detail.
 const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
-  // New to this user reads bold, like an unread message; the site names
-  // inside keep their own weight either way.
-  const cls = e.seen ? 'text-sm break-words' : 'text-sm break-words font-semibold';
+  const cls = 'text-sm break-words';
   if (e.event_type === 'camera_moved') {
     const dist = e.distance_m != null ? ` about ${fmtDistance(e.distance_m)}` : '';
     // Live destination name, so a placeholder in the title is the naming
@@ -268,7 +265,7 @@ const ResolutionLine: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
       did = <>gave the camera its own site {site}</>;
       break;
     case 'confirmed':
-      did = <>confirmed this, nothing to change</>;
+      did = <>reviewed this, nothing to change</>;
       break;
     default: // not_moved
       did = <>marked this as GPS noise, the camera stayed at {site}</>;
@@ -286,20 +283,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
   const queryClient = useQueryClient();
   const toast = useToast();
   const [dialog, setDialog] = useState<DialogMode>({ kind: 'closed' });
-  const [earlierOpen, setEarlierOpen] = useState(false);
-  // Which archive buckets are unfolded ("This week", ...). All start folded,
-  // so the opened archive reads as an index of time ranges with counts.
-  const [openBuckets, setOpenBuckets] = useState<Set<string>>(new Set());
-  const toggleBucket = (heading: string) =>
-    setOpenBuckets((prev) => {
-      const next = new Set(prev);
-      if (next.has(heading)) {
-        next.delete(heading);
-      } else {
-        next.add(heading);
-      }
-      return next;
-    });
+  const [tab, setTab] = useState<'review' | 'reviewed'>('review');
 
   // The list grows in pages when the user asks for older entries. A full
   // page means there may be more.
@@ -312,37 +296,41 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
   });
   const maybeMore = (events ?? []).length >= limit;
 
-  // Closing the sheet is "having seen" the feed. Stamping on close (not on
-  // open) keeps the fresh/earlier split stable while the panel is open, and
-  // clears the badge once the user is done looking. The stamp is the newest
-  // entry that was on screen, so one that landed meanwhile stays new.
+  // Closing changes nothing for anyone; the panel just resets to its first
+  // tab and page for the next visit.
   const handleClose = () => {
     onClose();
-    setEarlierOpen(false);
-    setOpenBuckets(new Set());
+    setTab('review');
     setLimit(FEED_PAGE);
-    if (projectId > 0) {
-      const newest = (events ?? []).reduce<string | undefined>(
-        (acc, e) => (acc == null || e.created_at > acc ? e.created_at : acc),
-        undefined,
-      );
-      feedApi.markSeen(projectId, newest).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['feed', projectId] });
-      });
-    }
   };
+
+  const invalidateAfterReview = () => {
+    // A review can change sites and deployments, so refresh everything
+    // that shows them, not only the feed.
+    queryClient.invalidateQueries({ queryKey: ['feed', projectId] });
+    queryClient.invalidateQueries({ queryKey: ['feed-open', projectId] });
+    queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
+    queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
+    queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
+  };
+
+  const reviewAllMutation = useMutation({
+    mutationFn: () => feedApi.reviewAll(projectId),
+    onSuccess: ({ reviewed }) => {
+      invalidateAfterReview();
+      setDialog({ kind: 'closed' });
+      toast.success(`${reviewed} ${reviewed === 1 ? 'entry' : 'entries'} reviewed`);
+    },
+    onError: (error: any) => {
+      toast.error(`Could not save. ${error.response?.data?.detail || error.message || ''}`);
+    },
+  });
 
   const resolveMutation = useMutation({
     mutationFn: ({ eventId, body }: { eventId: number; body: ResolveRequest }) =>
       feedApi.resolve(projectId, eventId, body),
     onSuccess: () => {
-      // The action changed sites and deployments, so refresh everything that
-      // shows them, not only the feed.
-      queryClient.invalidateQueries({ queryKey: ['feed', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['feed-open', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
+      invalidateAfterReview();
       setDialog({ kind: 'closed' });
       toast.success('Saved');
     },
@@ -351,11 +339,11 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     },
   });
 
-  // Open entries are the to-do list and stay on top, grouped by day, with
-  // the ones new to this user in bold. Done entries collapse under "Done"
-  // so the list stays short. Same rule as the badge.
-  const fresh = (events ?? []).filter(isOpen);
-  const earlier = (events ?? []).filter((e) => !isOpen(e));
+  // The Needs review tab holds the entries nobody has reviewed, grouped by
+  // day. The Reviewed tab holds the rest, grouped by time range. Same rule
+  // as the badge.
+  const fresh = (events ?? []).filter(needsReview);
+  const earlier = (events ?? []).filter((e) => !needsReview(e));
 
   const groups: { heading: string; items: FeedEventItem[] }[] = [];
   for (const e of fresh) {
@@ -369,16 +357,15 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
   }
   // Days newest first, but the entries inside a day oldest first, so a day
   // reads as a story in the order it happened (a camera appears, then moves).
-  // The API delivers newest first, so each day group is reversed. The Earlier
-  // archive below stays newest first: it is a lookup pile, not a story.
+  // The API delivers newest first, so each day group is reversed.
   for (const group of groups) {
     group.items.reverse();
   }
 
-  // The archive groups into coarse relative buckets. Input is newest first,
-  // so the buckets come out in Today .. Earlier order by construction. One
-  // ordering rule for the whole panel: groups newest first, entries inside
-  // every group in the order they happened.
+  // The Reviewed tab groups into coarse relative buckets. Input is newest
+  // first, so the buckets come out in Today .. Earlier order by
+  // construction. One ordering rule for the whole panel: groups newest
+  // first, entries inside every group in the order they happened.
   const earlierGroups: { heading: string; items: FeedEventItem[] }[] = [];
   for (const e of earlier) {
     const heading = archiveBucket(e.created_at);
@@ -415,83 +402,101 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
             <SheetTitle>Camera updates</SheetTitle>
             <SheetDescription>
               New cameras and camera moves show up here, together with the site
-              the system picked. Each entry stays on the list until a project
-              admin deals with it, for everyone at once. If the guess is right,
-              tick it. If not, correct it with the buttons on the entry.
+              the system picked. The system already acted; a project admin only
+              reviews. Tick an entry when it is right, or correct it with the
+              buttons inside. A reviewed entry is reviewed for everyone.
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
+            {/* Same switcher as the Sites page table/map toggle. */}
+            <div className="flex items-center justify-between border-b mb-4">
+              <div className="flex">
+                <button
+                  type="button"
+                  onClick={() => setTab('review')}
+                  className={cn(
+                    'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                    tab === 'review'
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Needs review
+                  {fresh.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#71b7ba] text-white">
+                      {fresh.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('reviewed')}
+                  className={cn(
+                    'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                    tab === 'reviewed'
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Reviewed
+                </button>
+              </div>
+              {tab === 'review' && canEdit && fresh.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mb-1"
+                  onClick={() => setDialog({ kind: 'review_all' })}
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  Mark all as reviewed
+                </Button>
+              )}
+            </div>
+
             {isLoading && (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             )}
 
-            {!isLoading && (events ?? []).length === 0 && (
+            {!isLoading && tab === 'review' && fresh.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                No camera updates yet. When a camera starts sending images or
-                moves to another spot, it shows up here.
+                {(events ?? []).length === 0
+                  ? 'No camera updates yet. When a camera starts sending images or moves to another spot, it shows up here.'
+                  : 'Nothing needs review.'}
               </p>
             )}
 
-            {!isLoading && fresh.length === 0 && earlier.length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                Nothing to do. Every entry has been dealt with.
-              </p>
-            )}
-
-            {groups.map((group) => (
+            {tab === 'review' && groups.map((group) => (
               <div key={group.heading} className="mb-4">
                 <p className="text-xs font-medium text-muted-foreground mb-2">{group.heading}</p>
                 <ul className="space-y-3">{group.items.map(renderEntry)}</ul>
               </div>
             ))}
 
-            {earlier.length > 0 && (
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setEarlierOpen((o) => !o)}
-                  className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  {earlierOpen ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  Done ({earlier.length})
-                </button>
-                {earlierOpen && earlierGroups.map((group) => (
-                  <div key={group.heading} className="mt-2 ml-5">
-                    <button
-                      type="button"
-                      onClick={() => toggleBucket(group.heading)}
-                      className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      {openBuckets.has(group.heading) ? (
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      ) : (
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      )}
-                      {group.heading} ({group.items.length})
-                    </button>
-                    {openBuckets.has(group.heading) && (
-                      <ul className="mt-2 space-y-3">{group.items.map(renderEntry)}</ul>
-                    )}
-                  </div>
-                ))}
-                {earlierOpen && maybeMore && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 ml-5"
-                    disabled={isFetching}
-                    onClick={() => setLimit((l) => l + FEED_PAGE)}
-                  >
-                    {isFetching ? 'Loading' : 'Show older entries'}
-                  </Button>
-                )}
+            {!isLoading && tab === 'reviewed' && earlier.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nothing has been reviewed yet.</p>
+            )}
+
+            {tab === 'reviewed' && earlierGroups.map((group) => (
+              <div key={group.heading} className="mb-4">
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  {group.heading} ({group.items.length})
+                </p>
+                <ul className="space-y-3">{group.items.map(renderEntry)}</ul>
               </div>
+            ))}
+
+            {tab === 'reviewed' && maybeMore && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isFetching}
+                onClick={() => setLimit((l) => l + FEED_PAGE)}
+              >
+                {isFetching ? 'Loading' : 'Show older entries'}
+              </Button>
             )}
           </SheetBody>
         </SheetContent>
@@ -545,6 +550,23 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
           }
         />
       )}
+
+      <ConfirmDialog
+        open={dialog.kind === 'review_all'}
+        onClose={() => setDialog({ kind: 'closed' })}
+        onConfirm={() => reviewAllMutation.mutate()}
+        title="Mark everything as reviewed?"
+        body={
+          <>
+            All {fresh.length} entries move to Reviewed with your name on them,
+            for everyone in the project. Sites keep their names, so a site that
+            still has an automatic name stays marked as unnamed on the Sites page.
+          </>
+        }
+        confirmLabel="Yes, all reviewed"
+        cancelLabel="No, cancel"
+        isPending={reviewAllMutation.isPending}
+      />
 
       <ConfirmDialog
         open={dialog.kind === 'not_moved'}
@@ -604,13 +626,13 @@ const FeedEntry: React.FC<{
   // "Rename site" is for the naming pass on fresh auto-named sites. Once a
   // site has a real name, renaming belongs to the site slideout, not here.
   const autoNamed = isAutoSiteName(e.site_name);
-  // Resolution is terminal in the feed: one action closes the entry and every
-  // button goes away. Late corrections live in the site slideout and the
-  // camera slideout, not here. (A generic undo was considered and rejected:
-  // two of the four actions merge deployments, which destroys the information
-  // an undo would need.)
+  // Review is terminal in the feed: one action moves the entry to Reviewed
+  // and every button goes away. Late corrections live in the site slideout
+  // and the camera slideout, not here. (A generic undo was considered and
+  // rejected: two of the four actions merge deployments, which destroys the
+  // information an undo would need.)
   const openEntry = canEdit && !e.resolved_action;
-  // The correcting actions need the deployment; "nothing to change" does not.
+  // The correcting actions need the deployment; the tick does not.
   const actionable = openEntry && e.deployment_id != null;
 
   return (
@@ -634,14 +656,14 @@ const FeedEntry: React.FC<{
             <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
           )}
         </button>
-        {/* The tick: looked, the system got it right, done for everyone.
+        {/* The tick: looked, the system got it right, reviewed for everyone.
             On the collapsed row so a list of twenty can be cleared without
             opening each one; a sibling of the expand button, not inside it. */}
         {openEntry && (
           <button
             type="button"
-            title="Nothing to change. Mark as done for everyone."
-            aria-label="Nothing to change"
+            title="Mark as reviewed, nothing to change"
+            aria-label="Mark as reviewed"
             onClick={() => onAction('confirmed')}
             className="shrink-0 -mt-1 -mr-1 p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
           >

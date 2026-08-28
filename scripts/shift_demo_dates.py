@@ -346,21 +346,12 @@ def shift_dates(session: Session, project_id: int) -> None:
         {"delta": delta, "pid": project_id},
     )
 
-    # 11) camera updates feed. feed_seen shifts along so the badge keeps
-    #     showing the same relative window of unseen entries.
+    # 11) camera updates feed.
     session.execute(
         text("""
             UPDATE feed_events
             SET created_at  = created_at  + (:delta * INTERVAL '1 day'),
                 resolved_at = resolved_at + (:delta * INTERVAL '1 day')
-            WHERE project_id = :pid
-        """),
-        {"delta": delta, "pid": project_id},
-    )
-    session.execute(
-        text("""
-            UPDATE feed_seen
-            SET last_seen_at = last_seen_at + (:delta * INTERVAL '1 day')
             WHERE project_id = :pid
         """),
         {"delta": delta, "pid": project_id},
