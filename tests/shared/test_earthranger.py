@@ -78,30 +78,30 @@ class TestBuildDetectionEvent:
     def test_details(self):
         details = _detection()["event_details"]
         assert details == {
-            "addaxai_species": "Red fox",
-            "addaxai_category": "animal",
-            "addaxai_camera_id": "CAM-012",
-            "addaxai_link": "https://connect.example.org/projects/1/images?image=abc",
-            "addaxai_scientific_name": "Vulpes vulpes",
-            "addaxai_count": 2,
-            "addaxai_confidence": 0.88,
-            "addaxai_site": "Site 4",
+            "addaxai_connect_species": "Red fox",
+            "addaxai_connect_category": "animal",
+            "addaxai_connect_camera_id": "CAM-012",
+            "addaxai_connect_link": "https://connect.example.org/projects/1/images?image=abc",
+            "addaxai_connect_scientific_name": "Vulpes vulpes",
+            "addaxai_connect_count": 2,
+            "addaxai_connect_confidence": 0.88,
+            "addaxai_connect_site": "Site 4",
         }
 
     def test_person_category(self):
         details = _detection(species="person", species_display="Person")["event_details"]
-        assert details["addaxai_category"] == "person"
+        assert details["addaxai_connect_category"] == "person"
 
     def test_no_site_uses_camera_in_title(self):
         event = _detection(site_name=None)
         assert event["title"] == "Red fox at CAM-012"
-        assert "addaxai_site" not in event["event_details"]
+        assert "addaxai_connect_site" not in event["event_details"]
 
     def test_optional_fields_omitted(self):
         details = _detection(count=None, confidence=None, scientific_name=None)["event_details"]
-        assert "addaxai_count" not in details
-        assert "addaxai_confidence" not in details
-        assert "addaxai_scientific_name" not in details
+        assert "addaxai_connect_count" not in details
+        assert "addaxai_connect_confidence" not in details
+        assert "addaxai_connect_scientific_name" not in details
 
     def test_missing_location_raises(self):
         with pytest.raises(ValueError):
@@ -125,9 +125,9 @@ class TestBuildCameraEvent:
         assert event["event_type"] == EVENT_TYPE_CAMERA_ALERT
         assert event["title"] == "Camera alert at Site 4"
         assert event["recorded_at"] == "2026-07-01T06:00:00+00:00"
-        assert event["event_details"]["addaxai_alert"] == "battery_low"
-        assert event["event_details"]["addaxai_summary"] == "Battery at 12%"
-        assert event["event_details"]["addaxai_site"] == "Site 4"
+        assert event["event_details"]["addaxai_connect_alert"] == "battery_low"
+        assert event["event_details"]["addaxai_connect_summary"] == "Battery at 12%"
+        assert event["event_details"]["addaxai_connect_site"] == "Site 4"
 
     def test_missing_location_raises(self):
         with pytest.raises(ValueError):

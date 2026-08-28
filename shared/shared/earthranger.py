@@ -28,12 +28,12 @@ GUNDI_BASE_URL = "https://sensors.api.gundiservice.org/v2"
 
 # EarthRanger event type slugs. They must exist on the destination site,
 # with a schema whose keys match event_details below; the docs page carries
-# the schema JSON. Agreed with EarthRanger on 2026-08-28: the keys carry an
-# addaxai_ prefix (EarthRanger's convention, one namespace per source) and
-# no product name, so the desktop AddaxAI can send the same event type and a
-# site sets it up once for both.
-EVENT_TYPE_DETECTION = "addaxai_detection"
-EVENT_TYPE_CAMERA_ALERT = "addaxai_camera_alert"
+# the schema JSON. Type and keys carry the addaxai_connect_ prefix
+# (EarthRanger's convention, one namespace per source). The plain addaxai_
+# namespace is reserved for the desktop AddaxAI, whose events will carry
+# verified labels and updates and so get their own type.
+EVENT_TYPE_DETECTION = "addaxai_connect_detection"
+EVENT_TYPE_CAMERA_ALERT = "addaxai_connect_camera_alert"
 
 # MegaDetector categories that are not species. Sent as event_details.category
 # so a site can style or route people and vehicles differently.
@@ -93,19 +93,19 @@ def build_detection_event(
         raise ValueError("detection has no location")
     where = site_name or device_id
     details: Dict[str, Any] = {
-        "addaxai_species": species_display,
-        "addaxai_category": category_of(species),
-        "addaxai_camera_id": device_id,
-        "addaxai_link": image_url,
+        "addaxai_connect_species": species_display,
+        "addaxai_connect_category": category_of(species),
+        "addaxai_connect_camera_id": device_id,
+        "addaxai_connect_link": image_url,
     }
     if scientific_name:
-        details["addaxai_scientific_name"] = scientific_name
+        details["addaxai_connect_scientific_name"] = scientific_name
     if count is not None:
-        details["addaxai_count"] = count
+        details["addaxai_connect_count"] = count
     if confidence is not None:
-        details["addaxai_confidence"] = round(confidence, 2)
+        details["addaxai_connect_confidence"] = round(confidence, 2)
     if site_name:
-        details["addaxai_site"] = site_name
+        details["addaxai_connect_site"] = site_name
     return {
         "source": device_id,
         "title": f"{species_display} at {where}",
@@ -136,13 +136,13 @@ def build_camera_event(
         raise ValueError("camera has no location")
     where = site_name or device_id
     details: Dict[str, Any] = {
-        "addaxai_alert": alert,
-        "addaxai_summary": summary,
-        "addaxai_camera_id": device_id,
-        "addaxai_link": camera_url,
+        "addaxai_connect_alert": alert,
+        "addaxai_connect_summary": summary,
+        "addaxai_connect_camera_id": device_id,
+        "addaxai_connect_link": camera_url,
     }
     if site_name:
-        details["addaxai_site"] = site_name
+        details["addaxai_connect_site"] = site_name
     return {
         "source": device_id,
         "title": f"Camera alert at {where}",
@@ -163,10 +163,10 @@ def build_test_event(*, project_name: str, lat: float, lon: float) -> Dict[str, 
         "recorded_at": format_recorded_at(datetime.now(timezone.utc)),
         "location": {"lat": lat, "lon": lon},
         "event_details": {
-            "addaxai_species": "Test",
-            "addaxai_category": "animal",
-            "addaxai_camera_id": "addaxai-connect-test",
-            "addaxai_link": "",
+            "addaxai_connect_species": "Test",
+            "addaxai_connect_category": "animal",
+            "addaxai_connect_camera_id": "addaxai-connect-test",
+            "addaxai_connect_link": "",
         },
     }
 

@@ -61,7 +61,7 @@ def spies(monkeypatch):
 def _message(**overrides):
     base = dict(
         notification_log_id=42, project_id=1,
-        event={"title": "Wolf at North gate", "event_type": "addaxai_detection"},
+        event={"title": "Wolf at North gate", "event_type": "addaxai_connect_detection"},
         attachment_minio_path="annotated/img-1.jpg",
     )
     base.update(overrides)
@@ -72,7 +72,7 @@ def test_event_and_attachment_are_posted_and_recorded(spies):
     worker.process_message(_message())
     client = FakeClient.instances[0]
     assert client.api_key == "key-1"
-    assert client.events == [{"title": "Wolf at North gate", "event_type": "addaxai_detection"}]
+    assert client.events == [{"title": "Wolf at North gate", "event_type": "addaxai_connect_detection"}]
     assert client.attachments == [("obj-1", "img-1.jpg", b"jpeg")]
     assert spies.statuses == [(42, "sent", None)]
     assert spies.successes == [1]

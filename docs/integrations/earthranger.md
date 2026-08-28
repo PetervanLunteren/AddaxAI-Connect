@@ -29,7 +29,7 @@ What is never sent: images from bulk uploads (an SD card carried in is history, 
 
 The site needs the two event types below. An EarthRanger admin creates them under Admin > Activity > Event Types with Add Event Type, and pastes the schema. Put them in the event category your camera trap reports live in (Monitoring is common) and make sure the user behind the Gundi connection has permission on that category. Without that permission Gundi accepts the event but EarthRanger refuses it.
 
-Detections. Display name "AddaxAI detection", value `addaxai_detection`. The keys carry the `addaxai_` prefix EarthRanger uses to keep one namespace per source; the desktop AddaxAI will send the same type, so a site sets it up once.
+Detections. Display name "AddaxAI detection", value `addaxai_connect_detection`. The type and its keys carry the `addaxai_connect_` prefix, EarthRanger's way to keep one namespace per source.
 
 ```json
 {
@@ -38,30 +38,30 @@ Detections. Display name "AddaxAI detection", value `addaxai_detection`. The key
     "title": "AddaxAI detection",
     "type": "object",
     "properties": {
-      "addaxai_species": {"type": "string", "title": "Species"},
-      "addaxai_scientific_name": {"type": "string", "title": "Scientific name"},
-      "addaxai_category": {"type": "string", "title": "Category"},
-      "addaxai_count": {"type": "integer", "title": "Count"},
-      "addaxai_confidence": {"type": "number", "title": "Confidence (0-1)"},
-      "addaxai_camera_id": {"type": "string", "title": "Camera"},
-      "addaxai_site": {"type": "string", "title": "Site"},
-      "addaxai_link": {"type": "string", "title": "Link to AddaxAI"}
+      "addaxai_connect_species": {"type": "string", "title": "Species"},
+      "addaxai_connect_scientific_name": {"type": "string", "title": "Scientific name"},
+      "addaxai_connect_category": {"type": "string", "title": "Category"},
+      "addaxai_connect_count": {"type": "integer", "title": "Count"},
+      "addaxai_connect_confidence": {"type": "number", "title": "Confidence (0-1)"},
+      "addaxai_connect_camera_id": {"type": "string", "title": "Camera"},
+      "addaxai_connect_site": {"type": "string", "title": "Site"},
+      "addaxai_connect_link": {"type": "string", "title": "Link to AddaxAI"}
     }
   },
   "definition": [
-    {"key": "addaxai_species", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_scientific_name", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_category", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_count", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_confidence", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_camera_id", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_site", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_link"}
+    {"key": "addaxai_connect_species", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_scientific_name", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_category", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_count", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_confidence", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_camera_id", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_site", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_link"}
   ]
 }
 ```
 
-Camera alerts. Display name "AddaxAI camera alert", value `addaxai_camera_alert`:
+Camera alerts. Display name "AddaxAI camera alert", value `addaxai_connect_camera_alert`:
 
 ```json
 {
@@ -70,24 +70,24 @@ Camera alerts. Display name "AddaxAI camera alert", value `addaxai_camera_alert`
     "title": "AddaxAI camera alert",
     "type": "object",
     "properties": {
-      "addaxai_alert": {"type": "string", "title": "Alert"},
-      "addaxai_summary": {"type": "string", "title": "Summary"},
-      "addaxai_camera_id": {"type": "string", "title": "Camera"},
-      "addaxai_site": {"type": "string", "title": "Site"},
-      "addaxai_link": {"type": "string", "title": "Link to AddaxAI"}
+      "addaxai_connect_alert": {"type": "string", "title": "Alert"},
+      "addaxai_connect_summary": {"type": "string", "title": "Summary"},
+      "addaxai_connect_camera_id": {"type": "string", "title": "Camera"},
+      "addaxai_connect_site": {"type": "string", "title": "Site"},
+      "addaxai_connect_link": {"type": "string", "title": "Link to AddaxAI"}
     }
   },
   "definition": [
-    {"key": "addaxai_alert", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_camera_id", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_site", "htmlClass": "col-lg-6"},
-    {"key": "addaxai_summary"},
-    {"key": "addaxai_link"}
+    {"key": "addaxai_connect_alert", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_camera_id", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_site", "htmlClass": "col-lg-6"},
+    {"key": "addaxai_connect_summary"},
+    {"key": "addaxai_connect_link"}
   ]
 }
 ```
 
-The default priority of the event type decides the colour of the dot on the map. People and vehicles come in with `addaxai_category` set to `person` or `vehicle`, so a site that wants those in red can ask the Gundi team for a mapping rule on that field, or give them their own event type.
+The default priority of the event type decides the colour of the dot on the map. People and vehicles come in with `addaxai_connect_category` set to `person` or `vehicle`, so a site that wants those in red can ask the Gundi team for a mapping rule on that field, or give them their own event type.
 
 ### 3. Connect the project
 

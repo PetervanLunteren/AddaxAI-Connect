@@ -425,12 +425,13 @@ nothing is backfilled. User docs: `docs/integrations/earthranger.md`.
   dev server posts only for the project ids in
   `DEV_NOTIFY_EARTHRANGER_PROJECTS`. A restored production database carries
   real API keys, and an event from a dev box lands on a real ranger map.
-- Event type slugs (`addaxai_detection`, `addaxai_camera_alert`) are
+- Event type slugs (`addaxai_connect_detection`, `addaxai_connect_camera_alert`) are
   constants in `shared/earthranger.py` and must exist on the EarthRanger
-  site with the schema from the user docs. Detail keys carry the
-  `addaxai_` prefix (EarthRanger's one-namespace-per-source convention,
-  agreed with them on 2026-08-28) and no product name, so the desktop
-  AddaxAI can send the same type. `project_integrations` is
+  site with the schema from the user docs. Type and detail keys carry the
+  `addaxai_connect_` prefix (EarthRanger's one-namespace-per-source
+  convention). The plain `addaxai_` namespace stays reserved for the
+  desktop AddaxAI, whose events will carry verified labels and updates and
+  so get their own type. `project_integrations` is
   generic on purpose: the next outbound integrations (each with its own
   page under the Integrations menu) get a row kind, not a table each.
 

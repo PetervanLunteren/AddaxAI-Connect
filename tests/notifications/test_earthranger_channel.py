@@ -58,7 +58,7 @@ class TestQueueEvent:
 
     def test_logs_and_publishes(self, monkeypatch):
         queue, logs = _stub_channel(monkeypatch)
-        event = {"title": "Wolf at North gate", "event_type": "addaxai_detection"}
+        event = {"title": "Wolf at North gate", "event_type": "addaxai_connect_detection"}
         ok = er.queue_event(
             None, project_id=1, rule_id=2, user_id=3,
             notification_type="species_detection", trigger_data={"rule_id": 2},
@@ -147,10 +147,10 @@ class TestDetectionBranch:
         assert event["title"] == "Wolf at North gate"
         assert event["recorded_at"] == "2026-08-09T14:30:00+02:00"
         assert event["location"] == {"lat": 52.1, "lon": 5.2}
-        assert event["event_details"]["addaxai_scientific_name"] == "Canis lupus"
-        assert event["event_details"]["addaxai_count"] == 2
-        assert event["event_details"]["addaxai_confidence"] == 0.91
-        assert event["event_details"]["addaxai_link"] == (
+        assert event["event_details"]["addaxai_connect_scientific_name"] == "Canis lupus"
+        assert event["event_details"]["addaxai_connect_count"] == 2
+        assert event["event_details"]["addaxai_connect_confidence"] == 0.91
+        assert event["event_details"]["addaxai_connect_link"] == (
             "https://connect.example.org/projects/1/images?image=img-1"
         )
 
@@ -216,10 +216,10 @@ class TestCameraBranch:
         assert len(sent) == 1
         event = sent[0]["event"]
         assert event["source"] == "CAM-011"
-        assert event["event_type"] == "addaxai_camera_alert"
+        assert event["event_type"] == "addaxai_connect_camera_alert"
         assert event["location"] == {"lat": 1.0, "lon": 2.0}
-        assert event["event_details"]["addaxai_alert"] == "battery_low"
-        assert "CAM-011" in event["event_details"]["addaxai_summary"]
+        assert event["event_details"]["addaxai_connect_alert"] == "battery_low"
+        assert "CAM-011" in event["event_details"]["addaxai_connect_summary"]
         assert sent[0]["trigger_data"]["camera_id"] == 11
         assert sent[0]["notification_type"] == "camera_alert"
 
@@ -241,7 +241,7 @@ class TestTheftWatchBranches:
         )
         assert delivered is True
         event = sent[0]["event"]
-        assert event["event_details"]["addaxai_alert"] == "theft_watch_person"
+        assert event["event_details"]["addaxai_connect_alert"] == "theft_watch_person"
         assert event["recorded_at"] == "2026-08-09T14:30:00+02:00"
         assert event["location"] == {"lat": 52.1, "lon": 5.2}
         assert sent[0]["attachment_minio_path"] == "annotated/img-1.jpg"
@@ -263,7 +263,7 @@ class TestTheftWatchBranches:
         assert delivered is True
         event = sent[0]["event"]
         assert event["source"] == "CAM-021"
-        assert event["event_details"]["addaxai_alert"] == "theft_watch_silence"
-        assert event["event_details"]["addaxai_site"] == "Ridge"
+        assert event["event_details"]["addaxai_connect_alert"] == "theft_watch_silence"
+        assert event["event_details"]["addaxai_connect_site"] == "Ridge"
         assert event["location"] == {"lat": 3.0, "lon": 4.0}
         assert sent[0]["notification_type"] == "theft_watch_silence"
