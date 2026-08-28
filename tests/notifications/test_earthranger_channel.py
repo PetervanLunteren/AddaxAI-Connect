@@ -147,10 +147,10 @@ class TestDetectionBranch:
         assert event["title"] == "Wolf at North gate"
         assert event["recorded_at"] == "2026-08-09T14:30:00+02:00"
         assert event["location"] == {"lat": 52.1, "lon": 5.2}
-        assert event["event_details"]["scientific_name"] == "Canis lupus"
-        assert event["event_details"]["count"] == 2
-        assert event["event_details"]["confidence"] == 0.91
-        assert event["event_details"]["image_url"] == (
+        assert event["event_details"]["addaxai_scientific_name"] == "Canis lupus"
+        assert event["event_details"]["addaxai_count"] == 2
+        assert event["event_details"]["addaxai_confidence"] == 0.91
+        assert event["event_details"]["addaxai_link"] == (
             "https://connect.example.org/projects/1/images?image=img-1"
         )
 
@@ -218,8 +218,8 @@ class TestCameraBranch:
         assert event["source"] == "CAM-011"
         assert event["event_type"] == "addaxai_camera_alert"
         assert event["location"] == {"lat": 1.0, "lon": 2.0}
-        assert event["event_details"]["alert"] == "battery_low"
-        assert "CAM-011" in event["event_details"]["summary"]
+        assert event["event_details"]["addaxai_alert"] == "battery_low"
+        assert "CAM-011" in event["event_details"]["addaxai_summary"]
         assert sent[0]["trigger_data"]["camera_id"] == 11
         assert sent[0]["notification_type"] == "camera_alert"
 
@@ -241,7 +241,7 @@ class TestTheftWatchBranches:
         )
         assert delivered is True
         event = sent[0]["event"]
-        assert event["event_details"]["alert"] == "theft_watch_person"
+        assert event["event_details"]["addaxai_alert"] == "theft_watch_person"
         assert event["recorded_at"] == "2026-08-09T14:30:00+02:00"
         assert event["location"] == {"lat": 52.1, "lon": 5.2}
         assert sent[0]["attachment_minio_path"] == "annotated/img-1.jpg"
@@ -263,7 +263,7 @@ class TestTheftWatchBranches:
         assert delivered is True
         event = sent[0]["event"]
         assert event["source"] == "CAM-021"
-        assert event["event_details"]["alert"] == "theft_watch_silence"
-        assert event["event_details"]["site"] == "Ridge"
+        assert event["event_details"]["addaxai_alert"] == "theft_watch_silence"
+        assert event["event_details"]["addaxai_site"] == "Ridge"
         assert event["location"] == {"lat": 3.0, "lon": 4.0}
         assert sent[0]["notification_type"] == "theft_watch_silence"

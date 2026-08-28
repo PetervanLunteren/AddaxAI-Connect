@@ -27,8 +27,11 @@ import httpx
 GUNDI_BASE_URL = "https://sensors.api.gundiservice.org/v2"
 
 # EarthRanger event type slugs. They must exist on the destination site,
-# with a schema whose keys match event_details below. Names are provisional
-# until agreed with EarthRanger; the docs page carries the schema JSON.
+# with a schema whose keys match event_details below; the docs page carries
+# the schema JSON. Agreed with EarthRanger on 2026-08-28: the keys carry an
+# addaxai_ prefix (EarthRanger's convention, one namespace per source) and
+# no product name, so the desktop AddaxAI can send the same event type and a
+# site sets it up once for both.
 EVENT_TYPE_DETECTION = "addaxai_detection"
 EVENT_TYPE_CAMERA_ALERT = "addaxai_camera_alert"
 
@@ -90,19 +93,19 @@ def build_detection_event(
         raise ValueError("detection has no location")
     where = site_name or device_id
     details: Dict[str, Any] = {
-        "species": species_display,
-        "category": category_of(species),
-        "camera": device_id,
-        "image_url": image_url,
+        "addaxai_species": species_display,
+        "addaxai_category": category_of(species),
+        "addaxai_camera_id": device_id,
+        "addaxai_link": image_url,
     }
     if scientific_name:
-        details["scientific_name"] = scientific_name
+        details["addaxai_scientific_name"] = scientific_name
     if count is not None:
-        details["count"] = count
+        details["addaxai_count"] = count
     if confidence is not None:
-        details["confidence"] = round(confidence, 2)
+        details["addaxai_confidence"] = round(confidence, 2)
     if site_name:
-        details["site"] = site_name
+        details["addaxai_site"] = site_name
     return {
         "source": device_id,
         "title": f"{species_display} at {where}",
@@ -133,13 +136,13 @@ def build_camera_event(
         raise ValueError("camera has no location")
     where = site_name or device_id
     details: Dict[str, Any] = {
-        "alert": alert,
-        "summary": summary,
-        "camera": device_id,
-        "camera_url": camera_url,
+        "addaxai_alert": alert,
+        "addaxai_summary": summary,
+        "addaxai_camera_id": device_id,
+        "addaxai_link": camera_url,
     }
     if site_name:
-        details["site"] = site_name
+        details["addaxai_site"] = site_name
     return {
         "source": device_id,
         "title": f"Camera alert at {where}",
@@ -160,10 +163,10 @@ def build_test_event(*, project_name: str, lat: float, lon: float) -> Dict[str, 
         "recorded_at": format_recorded_at(datetime.now(timezone.utc)),
         "location": {"lat": lat, "lon": lon},
         "event_details": {
-            "species": "Test",
-            "category": "animal",
-            "camera": "addaxai-connect-test",
-            "image_url": "",
+            "addaxai_species": "Test",
+            "addaxai_category": "animal",
+            "addaxai_camera_id": "addaxai-connect-test",
+            "addaxai_link": "",
         },
     }
 
