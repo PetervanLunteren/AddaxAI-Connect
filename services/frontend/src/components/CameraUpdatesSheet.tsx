@@ -581,12 +581,15 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
           dialog.kind === 'not_moved' ? (
             <>
               That means the reading was GPS noise. The camera and its images
-              go back to <SiteName name={dialog.event.from_site_name} />.
+              go back to <SiteName name={dialog.event.from_site_name} />, and
+              the placement at the new spot is removed. This cannot be undone.
             </>
           ) : ''
         }
         confirmLabel="Yes, it is GPS noise"
         cancelLabel="No, cancel"
+        // The merge cannot be undone from the app, so Cancel takes Enter.
+        focusCancel
         isPending={resolveMutation.isPending}
       />
     </>
