@@ -174,11 +174,19 @@ log "Schema is at HEAD"
 # other's /start messages (a real incident on 2026-08-12). Clearing it forces
 # whoever tests on dev to configure a separate dev bot. A real prod-to-prod
 # disaster recovery keeps the config, that server IS the one bot owner.
+#
+# Same for the project integrations (EarthRanger via Gundi). A restored
+# database carries every project's Gundi API key, and an alert fired on dev
+# would post to a real ranger map. Clearing the rows means dev only holds
+# keys someone pasted on dev on purpose.
 ENVIRONMENT="$(env_get ENVIRONMENT)"
 if [ "$ENVIRONMENT" = "development" ]; then
   log "Dev server: clearing restored Telegram bot config so it cannot fight the source bot"
   docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
     -c 'DELETE FROM telegram_config;' > /dev/null
+  log "Dev server: clearing restored EarthRanger (Gundi) keys so dev cannot post to real ranger maps"
+  docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
+    -c 'DELETE FROM project_integrations;' > /dev/null
 fi
 
 # Whole-mirror retries, on top of mc's own per-object --retry. Pulling tens of

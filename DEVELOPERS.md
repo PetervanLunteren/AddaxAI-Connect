@@ -421,10 +421,11 @@ nothing is backfilled. User docs: `docs/integrations/earthranger.md`.
   delivery workers; Gundi itself retries delivery to EarthRanger.
 - Gundi's own dedupe is a one hour content hash, and it stores no id in
   EarthRanger, so the notification log is the record of what was sent.
-- Development guard: `earthranger_allowed` in `shared/notify_guard.py`. A
-  dev server posts only for the project ids in
-  `DEV_NOTIFY_EARTHRANGER_PROJECTS`. A restored production database carries
-  real API keys, and an event from a dev box lands on a real ranger map.
+- Development servers: `scripts/restore.sh` deletes the restored
+  `project_integrations` rows on a dev box, the same way it drops the
+  Telegram bot config. A restored production database carries real Gundi
+  keys, and an alert fired on dev would land on a real ranger map. No
+  allow-list, dev only holds keys pasted there on purpose.
 - Event type slugs (`addaxai_connect_detection`, `addaxai_connect_camera_alert`) are
   constants in `shared/earthranger.py` and must exist on the EarthRanger
   site with the schema from the user docs. Type and detail keys carry the

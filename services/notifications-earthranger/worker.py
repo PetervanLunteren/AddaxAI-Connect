@@ -15,13 +15,15 @@ page can show whether the connection works.
 Like the email and Telegram workers there is no retry: a failed send is
 logged as failed with the reason and the message is dropped. Gundi itself
 retries delivery to EarthRanger for a day once it has accepted the event.
+
+A development server needs no guard here: scripts/restore.sh deletes the
+restored project_integrations rows on a dev box, so dev only holds keys
+someone pasted there on purpose.
 """
 from typing import Any, Dict, Optional
 
-from shared.config import get_settings
 from shared.earthranger import GundiClient, GundiError
 from shared.logger import get_logger
-from shared.notify_guard import earthranger_allowed, is_development
 from shared.queue import (
     RedisQueue,
     QUEUE_NOTIFICATION_EARTHRANGER,
@@ -37,7 +39,6 @@ from db_operations import (
 )
 
 logger = get_logger("notifications-earthranger")
-settings = get_settings()
 
 
 def download_attachment(minio_path: str) -> Optional[bytes]:
@@ -82,17 +83,6 @@ def process_message(message: Dict[str, Any]) -> None:
         event_type=event.get('event_type'),
         has_attachment=attachment_path is not None,
     )
-
-    allowed, reason = earthranger_allowed(project_id)
-    if not allowed:
-        logger.warning(
-            "Blocked earthranger event on a development server",
-            log_id=log_id,
-            project_id=project_id,
-            reason=reason,
-        )
-        update_notification_status(log_id, 'blocked', error_message=reason)
-        return
 
     api_key = load_api_key(project_id)
     if not api_key:
@@ -143,12 +133,6 @@ def process_message(message: Dict[str, Any]) -> None:
 
 def main() -> None:
     logger.info("Starting earthranger notifications worker")
-
-    if is_development():
-        logger.warning(
-            "Development server: EarthRanger posting is restricted to the allow-list",
-            allow_list=settings.dev_notify_earthranger_projects or "(empty, everything is blocked)",
-        )
 
     queue = RedisQueue(QUEUE_NOTIFICATION_EARTHRANGER)
     logger.info("Listening for earthranger events", queue=QUEUE_NOTIFICATION_EARTHRANGER)

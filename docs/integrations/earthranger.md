@@ -123,5 +123,5 @@ These rules belong to the project. Any project admin can change them, and they s
 - **"Gundi returned 403"** when saving or testing: the API key is wrong or was revoked. Copy it again from the connection's data provider node.
 - **The test event is accepted but nothing shows in EarthRanger:** open the connection in the Gundi portal and check its activity log. The usual causes are a missing event type on the site, or the Gundi user without permission on the event category.
 - **Events stop after a while:** the page shows the last error. A camera without a site or GPS cannot be placed on a map, so its alerts are skipped and logged.
-- **A development server sends nothing:** on purpose. A server marked as development only posts for the projects listed in `DEV_NOTIFY_EARTHRANGER_PROJECTS`, because a restored database carries real API keys.
+- **A development server:** a restore of a production backup on a development server removes the saved keys, so a dev box never posts to a real ranger map. Paste a key there on purpose to test.
 - **Disconnect** forgets the key. The rules stay and start working again when a key is saved.

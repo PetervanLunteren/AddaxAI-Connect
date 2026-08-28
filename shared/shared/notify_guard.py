@@ -82,25 +82,3 @@ def chat_id_allowed(chat_id: Optional[str]) -> Tuple[bool, str]:
         return True, ""
 
     return False, "development server, chat id is not in DEV_NOTIFY_CHAT_IDS"
-
-
-def earthranger_allowed(project_id: Optional[int]) -> Tuple[bool, str]:
-    """May this project post events to EarthRanger from this server?
-
-    Same rule again. A restored production database carries every project's
-    Gundi API key, and an event posted from a dev box lands on a real
-    ranger map, so on a development server only the listed project ids may
-    post. That is also how a test against a sandbox site is run: list the
-    one project that points at it.
-    """
-    if not is_development():
-        return True, ""
-
-    allowed = _split(get_settings().dev_notify_earthranger_projects)
-    if not allowed:
-        return False, "development server with an empty DEV_NOTIFY_EARTHRANGER_PROJECTS allow-list"
-
-    if str(project_id or "").strip() in allowed:
-        return True, ""
-
-    return False, "development server, project is not in DEV_NOTIFY_EARTHRANGER_PROJECTS"

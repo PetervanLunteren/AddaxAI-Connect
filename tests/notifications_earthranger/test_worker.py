@@ -1,7 +1,7 @@
 """The EarthRanger worker: one message in, one Gundi event out, outcome recorded.
 
 Gundi, storage and the database are stubbed at the worker's own seams, so
-these tests exercise the shipped code path: the dev guard, the missing key,
+these tests exercise the shipped code path: the missing key,
 the event post, the attachment, and what lands on the log and integration
 rows for each outcome.
 """
@@ -43,10 +43,9 @@ def spies(monkeypatch):
     FakeClient.fail_event = None
     FakeClient.fail_attachment = None
     rec = SimpleNamespace(statuses=[], successes=[], failures=[], api_key="key-1",
-                          attachment=b"jpeg", allowed=(True, ""))
+                          attachment=b"jpeg")
 
     monkeypatch.setattr(worker, "GundiClient", FakeClient)
-    monkeypatch.setattr(worker, "earthranger_allowed", lambda pid: rec.allowed)
     monkeypatch.setattr(worker, "load_api_key", lambda pid: rec.api_key)
     monkeypatch.setattr(worker, "record_success", lambda pid: rec.successes.append(pid))
     monkeypatch.setattr(worker, "record_failure", lambda pid, err: rec.failures.append((pid, err)))
@@ -105,13 +104,6 @@ def test_event_failure_marks_log_and_integration(spies):
     assert spies.statuses == [(42, "failed", "Gundi returned 403: bad key")]
     assert spies.failures == [(1, "Gundi returned 403: bad key")]
     assert spies.successes == []
-
-
-def test_blocked_on_development_server(spies):
-    spies.allowed = (False, "development server, project is not in DEV_NOTIFY_EARTHRANGER_PROJECTS")
-    worker.process_message(_message())
-    assert FakeClient.instances == []
-    assert spies.statuses == [(42, "blocked", spies.allowed[1])]
 
 
 def test_missing_key_fails_without_posting(spies):

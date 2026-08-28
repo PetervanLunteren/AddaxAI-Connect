@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.database import get_async_session
 from shared.earthranger import GundiClient, GundiError, build_test_event
 from shared.models import Project, ProjectIntegration, User
-from shared.notify_guard import earthranger_allowed
 from auth.permissions import require_project_admin_access
 
 
@@ -177,10 +176,6 @@ async def send_test_event(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="EarthRanger is not set up for this project",
         )
-
-    allowed, reason = earthranger_allowed(project_id)
-    if not allowed:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
 
     lat, lon = await _test_location(db, project_id)
     if lat is None or lon is None:

@@ -147,7 +147,6 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       DEV_NOTIFY_EMAILS: ${DEV_NOTIFY_EMAILS:-}
       DEV_NOTIFY_CHAT_IDS: ${DEV_NOTIFY_CHAT_IDS:-}
-      DEV_NOTIFY_EARTHRANGER_PROJECTS: ${DEV_NOTIFY_EARTHRANGER_PROJECTS:-}
       BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
       FTPS_UPLOAD_DIR: /uploads
       # FTPS connection for upload testing
@@ -500,7 +499,6 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      DEV_NOTIFY_EARTHRANGER_PROJECTS: ${DEV_NOTIFY_EARTHRANGER_PROJECTS:-}
     depends_on:
       postgres:
         condition: service_healthy

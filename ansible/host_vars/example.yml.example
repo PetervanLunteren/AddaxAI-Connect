@@ -41,8 +41,6 @@ log_level: INFO
 # setup. Chat ids default to empty, so no Telegram goes out until you name one.
 # dev_notify_emails: "you@example.com"
 # dev_notify_chat_ids: "123456789"
-# Project ids that may post to EarthRanger from a development server
-# dev_notify_earthranger_projects: "1"
 
 # --- Passwords. Generate long random values, do not reuse them. ---------
 # `openssl rand -base64 32` gives a good one.

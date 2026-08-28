@@ -69,8 +69,6 @@ class Settings(BaseSettings):
     # Ignored entirely on production. See shared/notify_guard.py.
     dev_notify_emails: str = ""
     dev_notify_chat_ids: str = ""
-    # Project ids that may post to EarthRanger from a development server.
-    dev_notify_earthranger_projects: str = ""
 
     # Demo
     demo_mode: bool = False
