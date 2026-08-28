@@ -27,6 +27,7 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
   notifications: 'Notifications worker',
   'notifications-email': 'Email notifications worker',
   'notifications-telegram': 'Telegram notifications worker',
+  'notifications-earthranger': 'EarthRanger notifications worker',
   'processing-pipeline': 'Processing pipeline',
 };
 

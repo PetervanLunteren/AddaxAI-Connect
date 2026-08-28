@@ -1,0 +1,2 @@
+# Shared runtime deps come from the shared package (shared/pyproject.toml),
+# including httpx for the Gundi client. Nothing service-specific yet.

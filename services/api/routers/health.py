@@ -23,12 +23,14 @@ from shared.queue import (
     QUEUE_NOTIFICATION_EVENTS,
     QUEUE_NOTIFICATION_EMAIL,
     QUEUE_NOTIFICATION_TELEGRAM,
+    QUEUE_NOTIFICATION_EARTHRANGER,
     HEARTBEAT_KEY_INGESTION,
     HEARTBEAT_KEY_DETECTION,
     HEARTBEAT_KEY_CLASSIFICATION,
     HEARTBEAT_KEY_NOTIFICATIONS,
     HEARTBEAT_KEY_NOTIFICATIONS_EMAIL,
     HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
+    HEARTBEAT_KEY_NOTIFICATIONS_EARTHRANGER,
     HEARTBEAT_STALE_AFTER_MINUTES,
     parse_heartbeat,
 )
@@ -353,6 +355,7 @@ async def get_services_health(
     services.append(check_heartbeat("notifications", HEARTBEAT_KEY_NOTIFICATIONS, QUEUE_NOTIFICATION_EVENTS))
     services.append(check_heartbeat("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, QUEUE_NOTIFICATION_EMAIL))
     services.append(check_heartbeat("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, QUEUE_NOTIFICATION_TELEGRAM))
+    services.append(check_heartbeat("notifications-earthranger", HEARTBEAT_KEY_NOTIFICATIONS_EARTHRANGER, QUEUE_NOTIFICATION_EARTHRANGER))
     services.append(check_cold_tier_watchdog())
     services.append(check_backup())
 

@@ -18,6 +18,7 @@ def settings(monkeypatch):
         environment = "production"
         dev_notify_emails = ""
         dev_notify_chat_ids = ""
+        dev_notify_earthranger_projects = ""
 
     s = _S()
     monkeypatch.setattr(notify_guard, "get_settings", lambda: s)
@@ -139,3 +140,24 @@ def test_the_two_allow_lists_are_independent(settings):
     settings.dev_notify_chat_ids = ""
     assert notify_guard.email_allowed("peter@addaxdatascience.com")[0] is True
     assert notify_guard.chat_id_allowed("12345")[0] is False
+
+
+# --- EarthRanger follows the same rule, keyed on the project ----------------
+
+def test_production_posts_to_earthranger_for_any_project(settings):
+    assert notify_guard.earthranger_allowed(7) == (True, "")
+
+
+def test_development_blocks_earthranger_without_allow_list(settings):
+    settings.environment = "development"
+    allowed, reason = notify_guard.earthranger_allowed(7)
+    assert allowed is False
+    assert "DEV_NOTIFY_EARTHRANGER_PROJECTS" in reason
+
+
+def test_development_allows_a_listed_project(settings):
+    settings.environment = "development"
+    settings.dev_notify_earthranger_projects = "3, 7"
+    assert notify_guard.earthranger_allowed(7) == (True, "")
+    assert notify_guard.earthranger_allowed(8)[0] is False
+    assert notify_guard.earthranger_allowed(None)[0] is False
