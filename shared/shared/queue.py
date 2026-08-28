@@ -211,6 +211,7 @@ QUEUE_BULK_UPLOAD_JOB_PROCESS = "bulk-upload-job-process"
 QUEUE_NOTIFICATION_EVENTS = "notification-events"  # Core service listens here
 QUEUE_NOTIFICATION_TELEGRAM = "notification-telegram"  # Telegram worker listens here
 QUEUE_NOTIFICATION_EMAIL = "notification-email"  # Email worker listens here
+QUEUE_NOTIFICATION_EARTHRANGER = "notification-earthranger"  # EarthRanger (Gundi) worker listens here
 
 def parse_heartbeat(raw: Optional[str]) -> Optional[datetime]:
     """Parse a stored heartbeat stamp. None on missing or garbage.
@@ -239,6 +240,7 @@ def parse_heartbeat(raw: Optional[str]) -> Optional[datetime]:
 HEARTBEAT_KEY_NOTIFICATIONS = "heartbeat:notifications"
 HEARTBEAT_KEY_NOTIFICATIONS_EMAIL = "heartbeat:notifications-email"
 HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM = "heartbeat:notifications-telegram"
+HEARTBEAT_KEY_NOTIFICATIONS_EARTHRANGER = "heartbeat:notifications-earthranger"
 HEARTBEAT_KEY_INGESTION = "heartbeat:ingestion"
 HEARTBEAT_KEY_DETECTION = "heartbeat:detection"
 # One key for both classifiers. A server runs deepfaune or speciesnet,
@@ -249,6 +251,3 @@ HEARTBEAT_KEY_CLASSIFICATION = "heartbeat:classification"
 # one slow message from raising a false alarm.
 HEARTBEAT_TICK_SECONDS = 60
 HEARTBEAT_STALE_AFTER_MINUTES = 15
-# Future channels:
-# QUEUE_NOTIFICATION_SMS = "notification-sms"
-# QUEUE_NOTIFICATION_EARTHRANGER = "notification-earthranger"

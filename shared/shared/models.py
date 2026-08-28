@@ -978,3 +978,31 @@ class UserInvitation(Base):
     expires_at = Column(DateTime(timezone=True), nullable=True, index=True)  # Expiry date (default 7 days)
     used = Column(Boolean, nullable=False, server_default="false", index=True)  # Whether invitation has been accepted
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ProjectIntegration(Base):
+    """
+    One outbound integration of a project (EarthRanger via Gundi first,
+    more to follow). One row per project and kind; the row existing means
+    the integration is configured. Credentials live in config (plain, the
+    same trade-off as TelegramConfig.bot_token) and are never returned by
+    the API. The status columns feed the integration page: the delivery
+    worker stamps them after every attempt.
+    """
+    __tablename__ = "project_integrations"
+    __table_args__ = (
+        UniqueConstraint("project_id", "kind", name="uq_project_integrations_project_kind"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = Column(String(50), nullable=False)  # earthranger
+    config = Column(JSON, nullable=False)  # earthranger: {"api_key": str}
+    is_enabled = Column(Boolean, nullable=False, server_default="true")
+    health_status = Column(String(50), nullable=True)  # healthy | error
+    last_health_check = Column(DateTime(timezone=True), nullable=True)
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(Text, nullable=True)
+    events_sent = Column(Integer, nullable=False, server_default="0")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
