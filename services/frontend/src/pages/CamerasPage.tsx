@@ -262,12 +262,12 @@ export const CamerasPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameras, searchParams]);
 
-  // Unseen camera updates for the header button. Shares the query key with
-  // the sidebar badge, so both clear together when the sheet marks seen.
-  const { data: unseenUpdates } = useQuery({
-    queryKey: ['feed-unseen', currentProject?.id],
-    queryFn: () => feedApi.unseen(currentProject!.id),
-    enabled: !!currentProject,
+  // Open camera updates for the header button, admins only (a to-do count).
+  // Shares the query key with the sidebar badge, so both update together.
+  const { data: openUpdates } = useQuery({
+    queryKey: ['feed-open', currentProject?.id],
+    queryFn: () => feedApi.openCount(currentProject!.id),
+    enabled: !!currentProject && canAdminCurrentProject,
   });
 
   // Create camera mutation
@@ -928,12 +928,12 @@ export const CamerasPage: React.FC = () => {
           <Button variant="outline" className="whitespace-nowrap" onClick={() => setShowUpdates(true)}>
             <Route className="h-4 w-4 mr-2" />
             Updates
-            {(unseenUpdates ?? 0) > 0 && (
+            {(openUpdates ?? 0) > 0 && (
               <span
                 className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
                 style={{ backgroundColor: '#71b7ba', color: 'white' }}
               >
-                {unseenUpdates}
+                {openUpdates}
               </span>
             )}
           </Button>

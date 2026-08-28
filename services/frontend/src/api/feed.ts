@@ -43,9 +43,8 @@ export interface FeedEventItem {
   resolved_action: string | null;
   resolved_at: string | null;
   resolved_by_email: string | null;
-  // Already seen on an earlier visit; the panel collapses these under
-  // "Already seen" together with resolved entries. Stamped when the panel
-  // closes.
+  // Already seen on an earlier visit, personal. New entries show bold.
+  // Stamped when the panel closes.
   seen: boolean;
 }
 
@@ -60,11 +59,10 @@ export interface ResolveRequest {
 // Page size of the list; the panel asks for more in steps of this.
 export const FEED_PAGE = 100;
 
-// The panel's "new" section and the badge share one rule: new to this user
-// and not yet handled by anyone. Resolved entries fold into the archive even
-// when this user never saw them, so one admin's work quiets everyone.
-export function isOpenAndNew(e: FeedEventItem): boolean {
-  return !e.seen && !e.resolved_action;
+// Open means nobody has dealt with it yet. Shared: the badge is the open
+// count, and the panel's to-do section is the open entries.
+export function isOpen(e: FeedEventItem): boolean {
+  return !e.resolved_action;
 }
 
 const base = (projectId: number) => `/api/projects/${projectId}/feed`;
@@ -74,8 +72,9 @@ export const feedApi = {
     const { data } = await apiClient.get(base(projectId), { params: { limit } });
     return data;
   },
-  unseen: async (projectId: number): Promise<number> => {
-    const { data } = await apiClient.get(`${base(projectId)}/unseen`);
+  // Entries nobody has dealt with yet, the badge. Same for every user.
+  openCount: async (projectId: number): Promise<number> => {
+    const { data } = await apiClient.get(`${base(projectId)}/open`);
     return data.count as number;
   },
   // upTo is the newest created_at the user had on screen, so an entry that

@@ -8,15 +8,15 @@
  * actions (rename the site, pick a different nearby site, split off a new
  * site, or undo a move that was GPS noise); viewers see the list read-only.
  *
- * Two states, kept apart. "New to you" is personal: closing the sheet stamps
- * a per-user watermark, and entries created after it are new. "Done" is
- * shared: one admin's action closes the entry for everyone. The badge and the
- * top section of the list count entries that are both new and still open,
- * so one admin working through the list quiets everyone's badge.
+ * Two states, kept apart. "Open or done" is shared: an entry is a to-do for
+ * the project until one admin deals with it (a correction, the tick, or
+ * naming the site anywhere), and the badge is the open count. "New to you"
+ * is personal: closing the sheet stamps a per-user watermark, entries after
+ * it show bold. Looking never changes anything for anyone else.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera as CameraIcon, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { Camera as CameraIcon, Check, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody } from './ui/Sheet';
 import { Button } from './ui/Button';
 import { Select } from './ui/Select';
@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { useToast } from './ui/Toaster';
 import { AuthenticatedImage } from './AuthenticatedImage';
-import { FEED_PAGE, feedApi, isOpenAndNew, type FeedEventItem, type ResolveRequest } from '../api/feed';
+import { FEED_PAGE, feedApi, isOpen, type FeedEventItem, type ResolveRequest } from '../api/feed';
 import { deploymentsApi } from '../api/deployments';
 import { autoSiteName, isAutoSiteName } from '../utils/site-names';
 import { UnnamedSiteChip } from './sites/UnnamedSiteChip';
@@ -149,6 +149,9 @@ const EntryChips: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
 // camera ids (a device_id is an IMEI); the id sits in the metadata line as
 // the lookup detail.
 const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
+  // New to this user reads bold, like an unread message; the site names
+  // inside keep their own weight either way.
+  const cls = e.seen ? 'text-sm break-words' : 'text-sm break-words font-semibold';
   if (e.event_type === 'camera_moved') {
     const dist = e.distance_m != null ? ` about ${fmtDistance(e.distance_m)}` : '';
     // Live destination name, so a placeholder in the title is the naming
@@ -160,7 +163,7 @@ const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
       : e.site_name ?? e.original_site_name;
     if (e.from_site_name && dest) {
       return (
-        <p className="text-sm break-words">
+        <p className={cls}>
           A camera moved{dist} from <SiteName name={e.from_site_name} /> to{' '}
           <SiteName name={dest} />.
         </p>
@@ -168,12 +171,12 @@ const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
     }
     if (e.from_site_name) {
       return (
-        <p className="text-sm break-words">
+        <p className={cls}>
           A camera at <SiteName name={e.from_site_name} /> moved{dist}.
         </p>
       );
     }
-    return <p className="text-sm break-words">A camera moved{dist}.</p>;
+    return <p className={cls}>A camera moved{dist}.</p>;
   }
   // The live site name, so a still-placeholder name in the title is itself
   // the at-a-glance signal that naming is wanted, and a renamed site reads
@@ -181,13 +184,13 @@ const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   const siteName = e.site_name ?? e.original_site_name;
   if (siteName) {
     return (
-      <p className="text-sm break-words">
+      <p className={cls}>
         A camera started sending images from <SiteName name={siteName} />.
       </p>
     );
   }
   return (
-    <p className="text-sm break-words">A new camera started sending images.</p>
+    <p className={cls}>A new camera started sending images.</p>
   );
 };
 
@@ -324,7 +327,6 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
         undefined,
       );
       feedApi.markSeen(projectId, newest).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['feed-unseen', projectId] });
         queryClient.invalidateQueries({ queryKey: ['feed', projectId] });
       });
     }
@@ -337,6 +339,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
       // The action changed sites and deployments, so refresh everything that
       // shows them, not only the feed.
       queryClient.invalidateQueries({ queryKey: ['feed', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['feed-open', projectId] });
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
       queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
       queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
@@ -348,11 +351,11 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     },
   });
 
-  // Entries that are new to this user and still open stay prominent, grouped
-  // by day. Everything else (seen before, or handled by someone) collapses
-  // under "Already seen" so the list stays short. Same rule as the badge.
-  const fresh = (events ?? []).filter(isOpenAndNew);
-  const earlier = (events ?? []).filter((e) => !isOpenAndNew(e));
+  // Open entries are the to-do list and stay on top, grouped by day, with
+  // the ones new to this user in bold. Done entries collapse under "Done"
+  // so the list stays short. Same rule as the badge.
+  const fresh = (events ?? []).filter(isOpen);
+  const earlier = (events ?? []).filter((e) => !isOpen(e));
 
   const groups: { heading: string; items: FeedEventItem[] }[] = [];
   for (const e of fresh) {
@@ -412,9 +415,9 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
             <SheetTitle>Camera updates</SheetTitle>
             <SheetDescription>
               New cameras and camera moves show up here, together with the site
-              the system picked. Nothing here needs an answer. If a guess is
-              wrong, it can be corrected with the buttons on the entry. An
-              entry that one project admin handles is done for everyone.
+              the system picked. Each entry stays on the list until a project
+              admin deals with it, for everyone at once. If the guess is right,
+              tick it. If not, correct it with the buttons on the entry.
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
@@ -433,7 +436,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
 
             {!isLoading && fresh.length === 0 && earlier.length > 0 && (
               <p className="text-sm text-muted-foreground">
-                Nothing new. Everything here has been seen or handled.
+                Nothing to do. Every entry has been dealt with.
               </p>
             )}
 
@@ -456,7 +459,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
                   ) : (
                     <ChevronRight className="h-4 w-4" />
                   )}
-                  Already seen ({earlier.length})
+                  Done ({earlier.length})
                 </button>
                 {earlierOpen && earlierGroups.map((group) => (
                   <div key={group.heading} className="mt-2 ml-5">
@@ -612,24 +615,40 @@ const FeedEntry: React.FC<{
 
   return (
     <li className="border rounded-md p-3">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-start gap-2 text-left"
-      >
-        <div className="flex-1 min-w-0">
-          <EventHeadline event={e} />
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span>{fmtDateTime(e.created_at)}</span>
-            <EntryChips event={e} />
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex-1 min-w-0 flex items-start gap-2 text-left"
+        >
+          <div className="flex-1 min-w-0">
+            <EventHeadline event={e} />
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span>{fmtDateTime(e.created_at)}</span>
+              <EntryChips event={e} />
+            </div>
           </div>
-        </div>
-        {open ? (
-          <ChevronDown className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+          {open ? (
+            <ChevronDown className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+          )}
+        </button>
+        {/* The tick: looked, the system got it right, done for everyone.
+            On the collapsed row so a list of twenty can be cleared without
+            opening each one; a sibling of the expand button, not inside it. */}
+        {openEntry && (
+          <button
+            type="button"
+            title="Nothing to change. Mark as done for everyone."
+            aria-label="Nothing to change"
+            onClick={() => onAction('confirmed')}
+            className="shrink-0 -mt-1 -mr-1 p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <Check className="h-4 w-4" />
+          </button>
         )}
-      </button>
+      </div>
 
       {open && (
         <>
@@ -700,15 +719,6 @@ const FeedEntry: React.FC<{
               />
             )}
           </>
-        )}
-        {/* Closes the entry for everyone without touching anything. Last, so
-            the correcting actions are read first. */}
-        {openEntry && (
-          <EntryAction
-            label="Nothing to change"
-            caption="This looks right. Mark it as done for everyone in the project."
-            onClick={() => onAction('confirmed')}
-          />
         )}
       </div>
         </>

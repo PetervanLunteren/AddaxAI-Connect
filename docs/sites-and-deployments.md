@@ -22,11 +22,11 @@ A camera's position is not taken from a single photo. The app keeps averaging th
 
 ## The camera updates panel
 
-Open the Cameras page and click Updates. The button shows how many entries are new to you and not yet handled, and the Cameras item in the menu shows the same count from any page.
+Open the Cameras page and click Updates. The button shows how many entries nobody has dealt with yet, and the Cameras item in the menu shows the same count from any page. It is a to-do count for project admins, so viewers do not see it.
 
 ![The Updates button on the Cameras page](https://github.com/user-attachments/assets/3b0e1674-4ff6-45af-b78d-fbc827524696)
 
-*The Updates button on the Cameras page. The count shows how many entries are new to you and still open.*
+*The Updates button on the Cameras page. The count shows how many entries still wait for someone.*
 
 Every automatic decision becomes one entry. Entries show as one-line sentences, so the list reads like a short report. The sentence tells you if something is wanted from you. A placeholder name in the title means the site waits for a real name. A real name means there is nothing to do.
 
@@ -40,20 +40,18 @@ Click an entry to see more: the camera id, a few photos from that spot, where th
 
 *An expanded entry. This camera was placed on an existing site 30 metres away, so it can also be split off to its own site.*
 
-Nothing in this panel needs an answer. The app already acted, and ignoring every entry is fine. When you take an action, the entry closes and records who did what and when. The buttons then go away.
+The app already acted, so nothing here blocks anything. But every entry stays on the list until a project admin deals with it. That works like a shared inbox:
 
-Two things are tracked, and they work differently:
+- **Open or done** is shared. An entry is open until someone presses a button on it. Then it is done for everyone in the project, drops out of the count, and moves to the Done section with a note of who did what and when.
+- **New to you** is personal. Entries you have not seen before show in bold. Closing the panel marks what you had on screen as seen, for you only. Looking at the list changes nothing for anyone else.
 
-- **New to you** is personal. Closing the panel marks everything you had on screen as seen, for you only. Another user still sees those entries as new until they open the panel themselves.
-- **Done** is shared. When one project admin handles an entry, it is done for everyone in the project. It drops out of the count and folds into the seen entries for all users.
-
-So one admin working through the list on Monday morning clears the count for the whole team.
+So one admin working through the list on Monday morning clears the count for the whole team, and an admin who only glances at it clears nothing.
 
 ![A closed entry with the resolution line](https://github.com/user-attachments/assets/0b50bf64-973a-4151-b7e2-137cecb3acd3)
 
 *A closed entry. It keeps what happened and records who corrected it and when.*
 
-Entries you have seen before, and entries someone has handled, fold into "Already seen" at the bottom, grouped by time range. New entries always sit on top. The panel loads the newest hundred entries; a button at the bottom of the archive loads older ones.
+Entries someone has dealt with fold into "Done" at the bottom, grouped by time range. Open entries always sit on top. The panel loads the newest hundred entries; a button at the bottom of Done loads older ones.
 
 ![The already seen section with time ranges](https://github.com/user-attachments/assets/5e4e4b2b-c02b-432b-b579-010348367849)
 
@@ -68,7 +66,9 @@ Which buttons an entry shows depends on the situation. Only project admins can u
 - **Different site** moves the camera to another existing site nearby. It only shows when there is one within 250 metres. Use it when several sites sit close together and the app picked the wrong one.
 - **New site** splits the camera off to its own new site at its exact spot. It only shows when the camera was placed on a site that already existed. Use it when two cameras stand close together but should count as separate places, like both ends of a wildlife bridge.
 - **It did not move** undoes a move that was GPS noise. The camera and its images go back to the previous site, as if the move never happened. Use it when the entry shows a move but you know the camera hangs where it always was.
-- **Nothing to change** closes the entry without changing anything. Use it when the placement is right and you want the entry out of the way for the whole team. It is the only button that shows on every open entry, also on one whose site or placement was merged away later.
+- **The tick** on the right of every open entry means nothing to change. Use it when the placement is right. The entry is done for everyone, without opening it.
+
+Naming a site anywhere, on the Sites page or in the site slideout, also closes the open entries at that site. The name was what they asked for.
 
 ## Common situations
 

@@ -91,13 +91,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // immediate query invalidation, so they never wait.
   const numericProjectId = projectId ? Number(projectId) : undefined;
 
-  // Camera updates that are new to this user and still open, for the badge.
-  // Events are rare (a camera appearing or moving), so a slow poll is enough;
-  // closing the sheet marks the feed seen and invalidates this query.
-  const { data: unseenUpdates } = useQuery({
-    queryKey: ['feed-unseen', numericProjectId],
-    queryFn: () => feedApi.unseen(numericProjectId!),
-    enabled: numericProjectId !== undefined,
+  // Open camera updates for the badge: a to-do count, so admins only (a
+  // viewer cannot act on it). Events are rare (a camera appearing or
+  // moving), so a slow poll is enough; resolving an entry invalidates it.
+  const { data: openUpdates } = useQuery({
+    queryKey: ['feed-open', numericProjectId],
+    queryFn: () => feedApi.openCount(numericProjectId!),
+    enabled: numericProjectId !== undefined && isProjectAdmin,
     refetchInterval: 300000,
   });
 
@@ -212,12 +212,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 {/* Unseen camera updates. The feed itself opens from the
                     Updates button on the Cameras page; the badge here keeps
                     new entries visible from anywhere without a nav slot. */}
-                {item.label === 'Cameras' && (unseenUpdates ?? 0) > 0 && (
+                {item.label === 'Cameras' && (openUpdates ?? 0) > 0 && (
                   <span
                     className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
                     style={{ backgroundColor: '#71b7ba', color: 'white' }}
                   >
-                    {unseenUpdates}
+                    {openUpdates}
                   </span>
                 )}
               </NavLink>

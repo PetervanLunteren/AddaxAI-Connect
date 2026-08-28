@@ -19,14 +19,16 @@ allowed (a user can change their mind, the last action wins). An entry's
 site_id is updated by set_site / new_site / not_moved so the feed always shows
 where the camera is now, not the superseded guess.
 
-Two states, kept apart on purpose (this is what every multi-user inbox does):
+Two states, kept apart on purpose:
+- Open or done is shared. resolved_action on the entry, set by one admin,
+  closes the entry for everyone. The badge is the open count, a to-do list
+  for the project's admins; it only goes down when someone deals with an
+  entry. Renaming a site anywhere closes that site's open entries too
+  (close_events_for_named_site).
 - Seen is personal. feed_seen holds one watermark per user per project;
-  entries created after it are new to that user.
-- Done is shared. resolved_action on the entry, set by one admin, closes the
-  entry for everyone.
-The badge counts entries that are both new to the user and still open, so
-one admin working through the list quiets everyone's badge. Reads are open
-to any project member; resolving requires project admin.
+  entries created after it are new to that user and show bold. Opening and
+  closing the panel changes nothing for anyone else.
+Reads are open to any project member; resolving requires project admin.
 """
 import uuid as uuid_module
 from datetime import datetime
@@ -47,7 +49,7 @@ from shared.models import Deployment, FeedEvent, FeedSeen, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
 from utils.deployment_edits import reassign_deployment_site
-from utils.feed import nearby_sites
+from utils.feed import close_events_for_named_site, nearby_sites
 from utils.site_scope import site_in_scope
 
 logger = get_logger("api.feed")
@@ -106,10 +108,9 @@ class FeedEventItem(BaseModel):
     resolved_action: Optional[str] = None
     resolved_at: Optional[str] = None
     resolved_by_email: Optional[str] = None
-    # Whether this user had already seen the entry on an earlier visit. The
-    # UI shows entries that are new and still open prominently and collapses
-    # the rest; the seen stamp is written when the panel closes, so the split
-    # is stable while the panel is open.
+    # Whether this user had already seen the entry on an earlier visit. Bold
+    # in the panel when not. The seen stamp is written when the panel closes,
+    # so the bold set is stable while the panel is open.
     seen: bool = False
 
 
@@ -229,30 +230,22 @@ async def list_feed(
     return items
 
 
-class UnseenResponse(BaseModel):
+class OpenCountResponse(BaseModel):
     count: int
 
 
-@router.get("/unseen", response_model=UnseenResponse)
-async def unseen_count(
+@router.get("/open", response_model=OpenCountResponse)
+async def open_count(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_access),
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
-    """How many entries are new to this user and still open (the badge).
+    """How many entries nobody has dealt with yet (the badge).
 
-    Resolved entries are left out on purpose: once one admin has handled an
-    entry, nobody else needs to be pulled to it. The panel applies the same
-    rule to its "new" section, so the badge and the panel always agree."""
-    last_seen = (
-        await db.execute(
-            select(FeedSeen.last_seen_at).where(
-                FeedSeen.user_id == user.id, FeedSeen.project_id == project_id
-            )
-        )
-    ).scalar_one_or_none()
-
+    Shared: the same number for every user, and it only drops when someone
+    resolves an entry. Not tied to the personal seen stamp on purpose, a
+    to-do does not go away because someone looked at it."""
     query = select(func.count(FeedEvent.id)).where(
         FeedEvent.project_id == project_id,
         FeedEvent.resolved_action.is_(None),
@@ -263,10 +256,8 @@ async def unseen_count(
             FeedEvent.site_id.in_(site_scope),
             (FeedEvent.from_site_id.is_(None)) | FeedEvent.from_site_id.in_(site_scope),
         )
-    if last_seen is not None:
-        query = query.where(FeedEvent.created_at > last_seen)
     count = (await db.execute(query)).scalar_one()
-    return UnseenResponse(count=count)
+    return OpenCountResponse(count=count)
 
 
 class MarkSeenRequest(BaseModel):
@@ -460,6 +451,10 @@ async def resolve_event(
             )
         site = await _site_in_project(db, project_id, event.site_id)
         site.name = _required_name(request)
+        # The name serves every entry at this site (four cameras on one
+        # bridge share it), so the siblings close along; this entry gets
+        # its own stamp below.
+        await close_events_for_named_site(db, site.id, user.id)
 
     elif request.action == 'set_site':
         if request.site_id is None:
