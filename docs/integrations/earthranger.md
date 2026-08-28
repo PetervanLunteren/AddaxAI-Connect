@@ -7,8 +7,8 @@ The connection runs through Gundi, the integration service of EarthRanger. You n
 ## How it works
 
 1. A live image finishes classification.
-2. The project's EarthRanger rules decide if it matters: which species, at which sites, at what time of day, how many animals, and a cooldown so one visit gives one event and not forty.
-3. One event is posted to Gundi with the annotated image (the same image the Telegram alerts use, with the project's privacy blur applied).
+2. The rules set in AddaxAI Connect decide whether it goes through.
+3. One event is posted to Gundi with the annotated image.
 4. Gundi forwards it to the EarthRanger site. It usually shows up within a minute.
 
 Camera alerts work the same way: a camera with a low battery, a full SD card, silence, rejected files, or a theft watch trigger posts one event at the camera's site.
