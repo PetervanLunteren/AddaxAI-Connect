@@ -1,5 +1,8 @@
 # EarthRanger
 
+!!! warning "Work in progress"
+    This integration is being built and is not released yet. The steps and field names on this page can still change.
+
 Send detections and camera alerts to an EarthRanger site as events on the ranger map. Each alert becomes one event with the photo attached and a link back to the full record. It works as a notification channel, next to email and Telegram: an event is sent once and is not changed afterwards.
 
 The connection runs through Gundi, the integration service of EarthRanger. You need a Gundi account and admin access to the EarthRanger site. Gundi is free for conservation use; request access at [projectgundi.org](https://projectgundi.org/).
