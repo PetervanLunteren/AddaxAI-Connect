@@ -13,7 +13,7 @@ export interface DetectionRule {
   id: number;
   species: string[];            // labels, including person/vehicle
   site_ids: number[] | null;    // null = all sites of the project
-  channels: string[];           // subset of ['email', 'telegram']
+  channels: string[];           // subset of ['email', 'telegram', 'earthranger']
   hour_from: number | null;     // half-open window, wraps past midnight
   hour_to: number | null;
   min_group_size: number | null;
@@ -35,9 +35,12 @@ export interface DetectionRulePayload {
 }
 
 export const detectionAlertRulesApi = {
-  list: async (projectId: number): Promise<DetectionRule[]> => {
+  // channel=earthranger lists every rule of the project on that channel
+  // (project admins), for the integration page; otherwise your own rules.
+  list: async (projectId: number, channel?: string): Promise<DetectionRule[]> => {
     const response = await apiClient.get<DetectionRule[]>(
       `/api/projects/${projectId}/detection-rules`,
+      { params: channel ? { channel } : undefined },
     );
     return response.data;
   },

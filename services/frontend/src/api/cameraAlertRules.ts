@@ -16,7 +16,7 @@ export interface AlertRule {
   rule_type: AlertRuleType;
   threshold: number;
   camera_ids: number[] | null;  // null = all cameras of the project
-  channels: string[];           // subset of ['email', 'telegram']
+  channels: string[];           // subset of ['email', 'telegram', 'earthranger']
   is_active: boolean;
   notified_camera_ids: number[];
   created_at: string;
@@ -30,9 +30,12 @@ export interface AlertRulePayload {
 }
 
 export const cameraAlertRulesApi = {
-  list: async (projectId: number): Promise<AlertRule[]> => {
+  // channel=earthranger lists every rule of the project on that channel
+  // (project admins), for the integration page; otherwise your own rules.
+  list: async (projectId: number, channel?: string): Promise<AlertRule[]> => {
     const response = await apiClient.get<AlertRule[]>(
       `/api/projects/${projectId}/alert-rules`,
+      { params: channel ? { channel } : undefined },
     );
     return response.data;
   },

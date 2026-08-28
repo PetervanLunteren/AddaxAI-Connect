@@ -3,7 +3,7 @@
  *
  * Two-column layout matching ProjectSettingsPage pattern
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { Loader2, Save, MessageCircle, ChevronDown } from 'lucide-react';
@@ -12,7 +12,6 @@ import { Button } from '../components/ui/Button';
 import { Callout } from '../components/ui/Callout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import { useToast } from '../components/ui/Toaster';
-import { Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { remindersApi } from '../api/reminders';
 import { RemindersSheet } from '../components/RemindersSheet';
@@ -25,12 +24,10 @@ import { scheduledReportsApi } from '../api/scheduledReports';
 import { TheftWatchSheet } from '../components/TheftWatchSheet';
 import { theftWatchApi } from '../api/theftWatch';
 import { adminApi } from '../api/admin';
-import { sitesApi } from '../api/sites';
-import { speciesApi } from '../api/species';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
-import { normalizeLabel } from '../utils/labels';
+import { useRuleOptions } from '../hooks/useRuleOptions';
 
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -81,43 +78,8 @@ export const NotificationsPage: React.FC = () => {
   const adminEmail = telegramStatus?.admin_email ?? null;
 
   // Fetch sites in this project for the per-site scope picker
-  const { data: projectSites } = useQuery({
-    queryKey: ['sites', projectIdNum],
-    queryFn: () => sitesApi.list(projectIdNum),
-    enabled: !!projectIdNum && projectIdNum > 0,
-  });
-  const siteOptions: Option[] = useMemo(() => {
-    const list = projectSites ?? [];
-    return list
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((site) => ({ label: site.name, value: site.id }));
-  }, [projectSites]);
-
-  // Fetch available species from the API (model-dependent)
-  const { data: availableSpeciesData } = useQuery({
-    queryKey: ['available-species'],
-    queryFn: () => speciesApi.getAvailable(),
-  });
-  const isSpeciesNet = availableSpeciesData?.model === 'speciesnet';
-
-  // For DeepFaune: use project's included_species filter if set, otherwise full model list
-  // For SpeciesNet: always use taxonomy_mapping labels (included_species is not used)
-  // Always include person/vehicle as they are detection-level categories
-  const availableSpecies = useMemo(() => {
-    const modelSpecies = availableSpeciesData?.species ?? [];
-    const baseSpecies = (!isSpeciesNet && selectedProject?.included_species) || modelSpecies;
-    return [...new Set([...baseSpecies, 'person', 'vehicle'])];
-  }, [availableSpeciesData?.species, isSpeciesNet, selectedProject?.included_species]);
-  const speciesOptions: Option[] = useMemo(() =>
-    availableSpecies
-      .slice()
-      .sort()
-      .map(species => ({
-        label: normalizeLabel(species),
-        value: species
-      })),
-    [availableSpecies]
+  const { siteOptions, speciesOptions, defaultCooldownMinutes } = useRuleOptions(
+    projectIdNum, selectedProject,
   );
 
   // Update form when preferences load. Real-time detection alerts live in
@@ -228,14 +190,6 @@ export const NotificationsPage: React.FC = () => {
     enabled: !!projectIdNum && projectIdNum > 0,
   });
   const activeTheftWatchCount = (theftWatchRules || []).filter((r) => r.is_active).length;
-
-  // Default cooldown for new detection rules. The independence interval
-  // expresses how far apart two sightings must be to count as separate
-  // events, so it is the natural burst control; 30 minutes when disabled.
-  const defaultCooldownMinutes =
-    selectedProject && selectedProject.independence_interval_minutes > 0
-      ? selectedProject.independence_interval_minutes
-      : 30;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

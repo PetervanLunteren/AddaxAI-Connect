@@ -15,6 +15,7 @@ import { Button } from './ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { MultiSelect, type Option } from './ui/MultiSelect';
+import { channelLabel } from '../utils/channels';
 import { useToast } from './ui/Toaster';
 import {
   theftWatchApi,
@@ -29,6 +30,9 @@ interface TheftWatchSheetProps {
   projectId: number;
   telegramLinked: boolean;
   siteOptions: Option[];
+  // Set to list and edit the project's EarthRanger rules instead of your
+  // own; the dialog then locks the channel and hides the picker.
+  channel?: 'earthranger';
 }
 
 type DialogMode =
@@ -43,14 +47,14 @@ const SENSITIVITY_LABELS: Record<TheftWatchSensitivity, string> = {
 };
 
 export const TheftWatchSheet: React.FC<TheftWatchSheetProps> = ({
-  open, onClose, projectId, telegramLinked, siteOptions,
+  open, onClose, projectId, telegramLinked, siteOptions, channel,
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
 
   const { data: rules } = useQuery({
-    queryKey: ['theft-watch-rules', projectId],
-    queryFn: () => theftWatchApi.list(projectId),
+    queryKey: ['theft-watch-rules', projectId, channel ?? 'own'],
+    queryFn: () => theftWatchApi.list(projectId, channel),
     enabled: open && projectId > 0,
   });
 
@@ -114,7 +118,7 @@ export const TheftWatchSheet: React.FC<TheftWatchSheetProps> = ({
 
   const channelsLabel = (rule: TheftWatchRule): string =>
     rule.channels
-      .map((c) => (c === 'email' ? 'Email' : 'Telegram'))
+      .map(channelLabel)
       .join(' + ');
 
   return (
@@ -130,21 +134,15 @@ export const TheftWatchSheet: React.FC<TheftWatchSheetProps> = ({
         <SheetContent>
           <SheetHeader>
             <SheetTitle>
-              Theft watch
+              {channel ? 'Theft watch events for EarthRanger' : 'Theft watch'}
               <span className="ml-2 align-middle inline-flex items-center px-1.5 h-5 text-[10px] font-semibold uppercase tracking-wide rounded bg-[#882000]/10 text-[#882000]">
                 beta
               </span>
             </SheetTitle>
             <SheetDescription>
-              Two triggers watch your cameras. A person unusually close to a
-              camera alerts you right away. Where people pass often, only a
-              much closer person than usual counts, and where people are
-              rare, any person counts. A camera that stays silent longer
-              than its own normal rhythm alerts you within hours or days.
-              A new or moved camera first learns its normal pattern for 14
-              days before alerts start. This feature is in beta. It can
-              miss real thefts and it can raise false alarms. Only you
-              receive your alerts.
+              {channel
+                ? 'A person unusually close to a camera, or a camera silent for longer than its own rhythm, posts one event at the site on the ranger map. A new or moved camera first learns its normal pattern for 14 days. This feature is in beta and can raise false alarms. These rules belong to the project and any admin can change them.'
+                : 'Two triggers watch your cameras. A person unusually close to a camera alerts you right away. Where people pass often, only a much closer person than usual counts, and where people are rare, any person counts. A camera that stays silent longer than its own normal rhythm alerts you within hours or days. A new or moved camera first learns its normal pattern for 14 days before alerts start. This feature is in beta. It can miss real thefts and it can raise false alarms. Only you receive your alerts.'}
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
@@ -215,6 +213,7 @@ export const TheftWatchSheet: React.FC<TheftWatchSheetProps> = ({
       {(dialog.kind === 'add' || dialog.kind === 'edit') && (
         <TheftWatchEditDialog
           mode={dialog}
+          fixedChannels={channel ? [channel] : undefined}
           siteOptions={siteOptions}
           telegramLinked={telegramLinked}
           isPending={dialog.kind === 'add' ? createMutation.isPending : updateMutation.isPending}
@@ -257,10 +256,11 @@ interface TheftWatchEditDialogProps {
   isPending: boolean;
   onClose: () => void;
   onConfirm: (payload: TheftWatchRulePayload) => void;
+  fixedChannels?: string[];
 }
 
 const TheftWatchEditDialog: React.FC<TheftWatchEditDialogProps> = ({
-  mode, siteOptions, telegramLinked, isPending, onClose, onConfirm,
+  mode, siteOptions, telegramLinked, isPending, onClose, onConfirm, fixedChannels,
 }) => {
   const isEdit = mode.kind === 'edit';
   const initial = isEdit ? mode.rule : null;
@@ -268,7 +268,7 @@ const TheftWatchEditDialog: React.FC<TheftWatchEditDialogProps> = ({
   const [sensitivity, setSensitivity] = useState<TheftWatchSensitivity>(
     initial?.sensitivity ?? 'medium',
   );
-  const [channels, setChannels] = useState<string[]>(initial?.channels ?? ['email']);
+  const [channels, setChannels] = useState<string[]>(initial?.channels ?? fixedChannels ?? ['email']);
 
   // Hydrate stored site ids back into Options for the MultiSelect
   const byId = useMemo(
@@ -284,7 +284,7 @@ const TheftWatchEditDialog: React.FC<TheftWatchEditDialogProps> = ({
   // A telegram-only rule without a linked account could never deliver,
   // the evaluator would skip the channel and the alert would be lost
   const telegramOnlyUnlinked =
-    channels.length === 1 && channels[0] === 'telegram' && !telegramLinked;
+    !fixedChannels && channels.length === 1 && channels[0] === 'telegram' && !telegramLinked;
   const canConfirm = channels.length > 0 && !telegramOnlyUnlinked;
 
   const toggleChannel = (channel: string) => {
@@ -332,34 +332,36 @@ const TheftWatchEditDialog: React.FC<TheftWatchEditDialogProps> = ({
               Leave empty to watch all sites of the project.
             </p>
           </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Notify via</label>
-            <div className="flex gap-4 mt-1">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={channels.includes('email')}
-                  onChange={() => toggleChannel('email')}
-                />
-                Email
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={channels.includes('telegram')}
-                  onChange={() => toggleChannel('telegram')}
-                />
-                Telegram
-              </label>
+          {!fixedChannels && (
+            <div>
+              <label className="text-xs text-muted-foreground">Notify via</label>
+              <div className="flex gap-4 mt-1">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={channels.includes('email')}
+                    onChange={() => toggleChannel('email')}
+                  />
+                  Email
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={channels.includes('telegram')}
+                    onChange={() => toggleChannel('telegram')}
+                  />
+                  Telegram
+                </label>
+              </div>
+              {channels.includes('telegram') && !telegramLinked && (
+                <p className={`text-xs mt-1 ${telegramOnlyUnlinked ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {telegramOnlyUnlinked
+                    ? 'No Telegram account is linked, so this rule could never reach you. Link Telegram on the notifications page, or add email.'
+                    : 'Telegram alerts need a linked Telegram account, see the notifications page.'}
+                </p>
+              )}
             </div>
-            {channels.includes('telegram') && !telegramLinked && (
-              <p className={`text-xs mt-1 ${telegramOnlyUnlinked ? 'text-destructive' : 'text-muted-foreground'}`}>
-                {telegramOnlyUnlinked
-                  ? 'No Telegram account is linked, so this rule could never reach you. Link Telegram on the notifications page, or add email.'
-                  : 'Telegram alerts need a linked Telegram account, see the notifications page.'}
-              </p>
-            )}
-          </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>

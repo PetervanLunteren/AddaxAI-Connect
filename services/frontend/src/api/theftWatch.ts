@@ -14,7 +14,7 @@ export interface TheftWatchRule {
   id: number;
   sensitivity: TheftWatchSensitivity;
   site_ids: number[] | null;  // null = all sites of the project
-  channels: string[];         // subset of ['email', 'telegram']
+  channels: string[];         // subset of ['email', 'telegram', 'earthranger']
   is_active: boolean;
   created_at: string;
 }
@@ -26,9 +26,12 @@ export interface TheftWatchRulePayload {
 }
 
 export const theftWatchApi = {
-  list: async (projectId: number): Promise<TheftWatchRule[]> => {
+  // channel=earthranger lists every rule of the project on that channel
+  // (project admins), for the integration page; otherwise your own rules.
+  list: async (projectId: number, channel?: string): Promise<TheftWatchRule[]> => {
     const response = await apiClient.get<TheftWatchRule[]>(
       `/api/projects/${projectId}/theft-watch-rules`,
+      { params: channel ? { channel } : undefined },
     );
     return response.data;
   },

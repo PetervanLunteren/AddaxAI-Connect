@@ -68,6 +68,7 @@ const PROJECT_ROUTES = [
   'documents',
   'settings',
   'users',
+  'integrations/earthranger',
   'manage-images',
   'bulk-upload',
 ];

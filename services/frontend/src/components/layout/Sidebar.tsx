@@ -29,6 +29,8 @@ import {
   GanttChartSquare,
   LineChart,
   Table2,
+  Plug,
+  Radio,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useProject } from '../../contexts/ProjectContext';
@@ -48,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { projectId } = useParams<{ projectId: string }>();
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
 
   // Navigation items (all project-specific). Map and Performance now live
   // under the collapsible Insights group below.
@@ -116,6 +119,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const inFlightBulkCount = (bulkJobs ?? []).filter(
     (j) => j.status === 'uploading' || j.status === 'processing',
   ).length;
+
+  // Integrations - outbound connections to other platforms, one page each.
+  // Project level, so project admins only. Every integration is listed
+  // whether it is set up or not, so people discover what exists.
+  const integrationItems = [
+    { to: `/projects/${projectId}/integrations/earthranger`, icon: Radio, label: 'EarthRanger' },
+  ];
 
   // Admin tools - visible to project admins and server admins. The
   // bulk-upload entry carries a live badge with the number of jobs in
@@ -264,6 +274,49 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               </div>
             )}
           </div>
+
+          {/* Integrations section (collapsible, project admins) */}
+          {isProjectAdmin && (
+            <div className="mt-2">
+              <button
+                onClick={() => setIntegrationsOpen(!integrationsOpen)}
+                className="flex items-center justify-between w-full px-4 py-3 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <Plug className="h-5 w-5" />
+                  <span>Integrations</span>
+                </div>
+                {integrationsOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </button>
+
+              {integrationsOpen && (
+                <div className="ml-4 mt-1 space-y-1">
+                  {integrationItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        cn(
+                          'flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        )
+                      }
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Admin Tools Section (project admin or server admin) */}
           {isProjectAdmin && (

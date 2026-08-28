@@ -15,6 +15,7 @@ import { Button } from './ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { MultiSelect, type Option } from './ui/MultiSelect';
+import { channelLabel } from '../utils/channels';
 import { useToast } from './ui/Toaster';
 import { normalizeLabel } from '../utils/labels';
 import {
@@ -31,6 +32,9 @@ interface DetectionAlertRulesSheetProps {
   speciesOptions: Option[];
   siteOptions: Option[];
   defaultCooldownMinutes: number;
+  // Set to list and edit the project's EarthRanger rules instead of your
+  // own; the dialog then locks the channel and hides the picker.
+  channel?: 'earthranger';
 }
 
 type DialogMode =
@@ -51,7 +55,7 @@ const ruleSummary = (rule: DetectionRule): string => {
     parts.push(`${rule.site_ids.length} site${rule.site_ids.length !== 1 ? 's' : ''}`);
   }
   parts.push(
-    rule.channels.map((c) => (c === 'email' ? 'Email' : 'Telegram')).join(' + '),
+    rule.channels.map(channelLabel).join(' + '),
   );
   if (rule.hour_from !== null && rule.hour_to !== null) {
     parts.push(`${formatHour(rule.hour_from)} to ${formatHour(rule.hour_to)}`);
@@ -69,14 +73,14 @@ const ruleSummary = (rule: DetectionRule): string => {
 };
 
 export const DetectionAlertRulesSheet: React.FC<DetectionAlertRulesSheetProps> = ({
-  open, onClose, projectId, telegramLinked, speciesOptions, siteOptions, defaultCooldownMinutes,
+  open, onClose, projectId, telegramLinked, speciesOptions, siteOptions, defaultCooldownMinutes, channel,
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
 
   const { data: rules } = useQuery({
-    queryKey: ['detection-alert-rules', projectId],
-    queryFn: () => detectionAlertRulesApi.list(projectId),
+    queryKey: ['detection-alert-rules', projectId, channel ?? 'own'],
+    queryFn: () => detectionAlertRulesApi.list(projectId, channel),
     enabled: open && projectId > 0,
   });
 
@@ -145,13 +149,13 @@ export const DetectionAlertRulesSheet: React.FC<DetectionAlertRulesSheetProps> =
       >
         <SheetContent>
           <SheetHeader>
-            <SheetTitle>Real-time detection alerts</SheetTitle>
+            <SheetTitle>
+              {channel ? 'Detection events for EarthRanger' : 'Real-time detection alerts'}
+            </SheetTitle>
             <SheetDescription>
-              Get an instant email or Telegram message with a photo when one
-              of your selected labels is detected. Each rule can be narrowed
-              by site, time of day, or group size, quieted with a cooldown,
-              or limited to species that return after a long absence. Only
-              you receive your alerts.
+              {channel
+                ? 'Each match posts one event with the photo on the ranger map. Rules can be narrowed by site, time of day, or group size, and quieted with a cooldown so one visit gives one event. These rules belong to the project and any admin can change them.'
+                : 'Get an instant email or Telegram message with a photo when one of your selected labels is detected. Each rule can be narrowed by site, time of day, or group size, quieted with a cooldown, or limited to species that return after a long absence. Only you receive your alerts.'}
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
@@ -222,6 +226,7 @@ export const DetectionAlertRulesSheet: React.FC<DetectionAlertRulesSheetProps> =
       {(dialog.kind === 'add' || dialog.kind === 'edit') && (
         <DetectionRuleEditDialog
           mode={dialog}
+          fixedChannels={channel ? [channel] : undefined}
           speciesOptions={speciesOptions}
           siteOptions={siteOptions}
           telegramLinked={telegramLinked}
@@ -268,13 +273,14 @@ interface DetectionRuleEditDialogProps {
   isPending: boolean;
   onClose: () => void;
   onConfirm: (payload: DetectionRulePayload) => void;
+  fixedChannels?: string[];
 }
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
 const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
   mode, speciesOptions, siteOptions, telegramLinked, defaultCooldownMinutes,
-  isPending, onClose, onConfirm,
+  isPending, onClose, onConfirm, fixedChannels,
 }) => {
   const isEdit = mode.kind === 'edit';
   const initial = isEdit ? mode.rule : null;
@@ -299,7 +305,7 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
       .filter((opt): opt is Option => !!opt),
   );
   const [channels, setChannels] = useState<string[]>(
-    initial?.channels ?? (telegramLinked ? ['telegram'] : ['email']),
+    initial?.channels ?? fixedChannels ?? (telegramLinked ? ['telegram'] : ['email']),
   );
 
   // Conditions, '' means off for the numeric ones. New rules get the
@@ -342,7 +348,7 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
   // A telegram-only rule without a linked account could never deliver,
   // the evaluator would skip the channel and the alert would be lost
   const telegramOnlyUnlinked =
-    channels.length === 1 && channels[0] === 'telegram' && !telegramLinked;
+    !fixedChannels && channels.length === 1 && channels[0] === 'telegram' && !telegramLinked;
   const canConfirm =
     selectedSpecies.length > 0 &&
     channels.length > 0 &&
@@ -389,34 +395,36 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
               Leave empty to watch all sites of the project.
             </p>
           </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Notify via</label>
-            <div className="flex gap-4 mt-1">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={channels.includes('email')}
-                  onChange={() => toggleChannel('email')}
-                />
-                Email
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={channels.includes('telegram')}
-                  onChange={() => toggleChannel('telegram')}
-                />
-                Telegram
-              </label>
+          {!fixedChannels && (
+            <div>
+              <label className="text-xs text-muted-foreground">Notify via</label>
+              <div className="flex gap-4 mt-1">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={channels.includes('email')}
+                    onChange={() => toggleChannel('email')}
+                  />
+                  Email
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={channels.includes('telegram')}
+                    onChange={() => toggleChannel('telegram')}
+                  />
+                  Telegram
+                </label>
+              </div>
+              {channels.includes('telegram') && !telegramLinked && (
+                <p className={`text-xs mt-1 ${telegramOnlyUnlinked ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {telegramOnlyUnlinked
+                    ? 'No Telegram account is linked, so this rule could never reach you. Link Telegram on the notifications page, or add email.'
+                    : 'Telegram alerts need a linked Telegram account, see the notifications page.'}
+                </p>
+              )}
             </div>
-            {channels.includes('telegram') && !telegramLinked && (
-              <p className={`text-xs mt-1 ${telegramOnlyUnlinked ? 'text-destructive' : 'text-muted-foreground'}`}>
-                {telegramOnlyUnlinked
-                  ? 'No Telegram account is linked, so this rule could never reach you. Link Telegram on the notifications page, or add email.'
-                  : 'Telegram alerts need a linked Telegram account, see the notifications page.'}
-              </p>
-            )}
-          </div>
+          )}
 
           <button
             type="button"
