@@ -139,6 +139,10 @@ addaxai-connect/
 │   │   ├── image_handler.py           # Image sending for Telegram
 │   │   └── db_operations.py
 │   │
+│   ├── notifications-earthranger/     # EarthRanger delivery via the Gundi sensors API
+│   │   ├── worker.py                  # Entry point (posts the event, attaches the image)
+│   │   └── db_operations.py           # Log status and integration health
+│   │
 │   ├── minio-init/                    # One-shot MinIO bootstrap (buckets, ILM rules)
 │   │   └── entrypoint.sh
 │   │
@@ -182,6 +186,7 @@ addaxai-connect/
 │   │   │   ├── logs.py                # Notification log queries
 │   │   │   ├── notifications.py       # Notification preference management
 │   │   │   ├── camera_alert_rules.py  # Camera condition alert rules
+│   │   │   ├── integrations.py        # Project integrations (EarthRanger key, status, test event)
 │   │   │   ├── detection_alert_rules.py # Real-time detection alert rules
 │   │   │   ├── scheduled_reports.py   # Scheduled species report rules
 │   │   │   ├── rule_helpers.py        # Shared helpers for the rule routers
@@ -240,6 +245,8 @@ addaxai-connect/
 │       ├── logger.py                  # Structured JSON logging with correlation IDs
 │       ├── email_renderer.py          # Jinja2 email template rendering
 │       ├── camera_status.py           # Camera liveness rule (active / inactive / never_reported)
+│       ├── earthranger.py             # Gundi event payloads and client for the EarthRanger channel
+│       ├── notify_guard.py            # Development server allow-lists for outbound notifications
 │       ├── taxonomy.py                # Species taxonomy utilities
 │       ├── species.py                 # Species data helpers
 │       ├── geo.py                     # GPS and spatial helpers
@@ -324,6 +331,7 @@ FTPS upload → Ingestion → [image-ingested]
                                                 → Classification → [notification-events]
                                                                         → Notifications → [notification-email]
                                                                                         → [notification-telegram]
+                                                                                        → [notification-earthranger]
 
 Bulk upload → API stages files → [bulk-upload-job-process]
                                      → Bulk-upload worker → [image-ingested-bulk]
@@ -342,6 +350,7 @@ Queue names (defined in `shared/shared/queue.py`):
 - `notification-events` carries notification triggers (from classification and other producers) to the notification coordinator
 - `notification-email` carries email messages to the email worker
 - `notification-telegram` carries Telegram messages to the Telegram worker
+- `notification-earthranger` carries Gundi events to the EarthRanger worker
 - `image-ingested-bulk` and `detection-complete-bulk` are the lower-priority bulk-upload variants of the two pipeline queues
 - `bulk-upload-job` and `bulk-upload-job-process` carry bulk-upload jobs to the bulk-upload worker (the process variant jumps ahead of pending jobs)
 - `failed-jobs` is the dead-letter queue
@@ -379,6 +388,48 @@ Rules:
 - Never reintroduce `AT TIME ZONE 'UTC'` on these columns, that was a fix-on-read hack for the pre-refactor mistagged-UTC storage and is gone.
 - When serializing a camera-clock value to ISO 8601, localize first with `.replace(tzinfo=ZoneInfo(server_tz))` so the output carries the correct DST-aware offset.
 - Server wall-clock filters stay aware UTC as before.
+
+## EarthRanger channel
+
+EarthRanger is a third delivery channel next to email and Telegram, not a
+mirror of the database. A rule with `earthranger` in `channels` posts one
+Gundi event per alert (per camera for camera alerts), with the annotated
+image attached; Gundi forwards it to the EarthRanger site the project's
+Gundi connection points at. Sent events are never updated or deleted, and
+nothing is backfilled. User docs: `docs/integrations/earthranger.md`.
+
+- The channel is project level. Only project admins may put `earthranger`
+  on a rule, and only when the project has an enabled row in
+  `project_integrations` (kind `earthranger`, the Gundi API key in
+  `config`). `check_earthranger_channel` in `routers/rule_helpers.py` is
+  the one check. Rule lists take `?channel=earthranger` to show every
+  project rule on that channel, and `load_rule_row` lets any admin edit
+  those whoever made them.
+- Payloads are built by the pure functions in `shared/shared/earthranger.py`
+  (`build_detection_event`, `build_camera_event`, `build_test_event`), so the
+  coordinator, the worker and the API test endpoint agree. `recorded_at`
+  is the naive camera-clock `captured_at` localised with
+  `ServerSettings.timezone`; a naive timestamp would be read as UTC by
+  Gundi. Events without coordinates are skipped, a ranger cannot act on
+  them.
+- `services/notifications/earthranger_channel.py` writes the notification
+  log row (`channel="earthranger"`, user = the rule creator) and queues
+  `{notification_log_id, project_id, event, attachment_minio_path}`. The
+  worker posts the event, then the attachment from `thumbnails/annotated/`,
+  and stamps `last_sent_at`, `events_sent`, `last_error` and
+  `health_status` on the integration row. No retry, like the other
+  delivery workers; Gundi itself retries delivery to EarthRanger.
+- Gundi's own dedupe is a one hour content hash, and it stores no id in
+  EarthRanger, so the notification log is the record of what was sent.
+- Development guard: `earthranger_allowed` in `shared/notify_guard.py`. A
+  dev server posts only for the project ids in
+  `DEV_NOTIFY_EARTHRANGER_PROJECTS`. A restored production database carries
+  real API keys, and an event from a dev box lands on a real ranger map.
+- Event type slugs (`addaxai_detection`, `addaxai_camera_alert`) are
+  constants in `shared/earthranger.py` and must exist on the EarthRanger
+  site with the schema from the user docs. `project_integrations` is
+  generic on purpose: the next outbound integrations (each with its own
+  page under the Integrations menu) get a row kind, not a table each.
 
 ## Camera liveness status
 
