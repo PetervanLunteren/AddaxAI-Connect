@@ -13,7 +13,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera as CameraIcon, Check, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { Camera as CameraIcon, Check, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody } from './ui/Sheet';
 import { Button } from './ui/Button';
 import { Select } from './ui/Select';
@@ -638,23 +638,19 @@ const FeedEntry: React.FC<{
   return (
     <li className="border rounded-md p-3">
       <div className="flex items-start gap-2">
+        {/* The whole headline is the expand target; no chevron, so the
+            tick is the only control on the row. */}
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex-1 min-w-0 flex items-start gap-2 text-left"
+          aria-expanded={open}
+          className="flex-1 min-w-0 text-left rounded-sm -m-1 p-1 hover:bg-accent/60"
         >
-          <div className="flex-1 min-w-0">
-            <EventHeadline event={e} />
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>{fmtDateTime(e.created_at)}</span>
-              <EntryChips event={e} />
-            </div>
+          <EventHeadline event={e} />
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span>{fmtDateTime(e.created_at)}</span>
+            <EntryChips event={e} />
           </div>
-          {open ? (
-            <ChevronDown className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-          )}
         </button>
         {/* The tick: looked, the system got it right, reviewed for everyone.
             On the collapsed row so a list of twenty can be cleared without

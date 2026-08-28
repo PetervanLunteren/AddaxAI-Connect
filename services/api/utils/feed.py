@@ -30,22 +30,3 @@ def nearby_sites(
     out.sort(key=lambda s: s["distance_m"])
     return out
 
-
-async def close_events_for_named_site(db, site_id: int, user_id: int) -> int:
-    """
-    Close every open feed entry whose site just got a real name.
-
-    Naming the site is the action a "started sending" or "moved" entry asks
-    for, wherever it happens (the feed, the Sites page, the site slideout),
-    so all of them close as rename_site by that user. The badge is a shared
-    to-do count, and a to-do that was done elsewhere must not stay on it.
-    Returns how many entries were closed.
-    """
-    from sqlalchemy import func, update
-    from shared.models import FeedEvent
-    result = await db.execute(
-        update(FeedEvent)
-        .where(FeedEvent.site_id == site_id, FeedEvent.resolved_action.is_(None))
-        .values(resolved_action='rename_site', resolved_at=func.now(), resolved_by_user_id=user_id)
-    )
-    return result.rowcount

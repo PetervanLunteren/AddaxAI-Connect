@@ -69,7 +69,7 @@ Which buttons an entry shows depends on the situation. Only project admins can u
 - **The tick** on the right of every entry that needs review means nothing to change. Use it when the placement is right. The entry is reviewed for everyone, without opening it.
 - **Mark all as reviewed** at the top of the Needs review tab ticks every entry at once, after one confirmation. Use it after a field day when the placements are right. Sites keep their names, so an unnamed site stays marked on the Sites page.
 
-Every correction also counts as a review. And naming a site anywhere, on the Sites page or in the site slideout, reviews the entries at that site. The name was what they asked for.
+Every correction also counts as a review, for that entry only. When several cameras share one site, naming it from one entry does not review the others. Their sentences pick up the new name, and each still gets its own look, because one of them may belong on its own site.
 
 ## Common situations
 

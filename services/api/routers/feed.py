@@ -17,9 +17,8 @@ actions:
 Entries never block ingestion. Every entry has exactly one state, shared by
 the whole project: needs review (resolved_action NULL) or reviewed. Any of
 the actions above reviews it, stamping who and when, for everyone at once.
-Renaming a site anywhere reviews that site's open entries too
-(close_events_for_named_site), and review-all reviews every open entry in
-one go. There is no personal read state on purpose: looking at the panel
+Only an action on an entry reviews that entry; naming a site elsewhere does
+not. Review-all reviews every open entry in one go. There is no personal read state on purpose: looking at the panel
 changes nothing. The badge is the needs-review count.
 
 Re-resolving is allowed (a user can change their mind, the last action wins).
@@ -44,7 +43,7 @@ from shared.models import Deployment, FeedEvent, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
 from utils.deployment_edits import reassign_deployment_site
-from utils.feed import close_events_for_named_site, nearby_sites
+from utils.feed import nearby_sites
 from utils.site_scope import site_in_scope
 
 logger = get_logger("api.feed")
@@ -443,10 +442,11 @@ async def resolve_event(
             )
         site = await _site_in_project(db, project_id, event.site_id)
         site.name = _required_name(request)
-        # The name serves every entry at this site (four cameras on one
-        # bridge share it), so the siblings close along; this entry gets
-        # its own stamp below.
-        await close_events_for_named_site(db, site.id, user.id)
+        # Only this entry is reviewed. Sibling entries at the same site
+        # (four cameras on one bridge) keep needing their own review: the
+        # name is now right for them, but whether each camera belongs on
+        # this site or its own is a per-entry decision. Their headlines
+        # pick up the new name by themselves.
 
     elif request.action == 'set_site':
         if request.site_id is None:

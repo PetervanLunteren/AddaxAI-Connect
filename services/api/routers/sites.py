@@ -21,7 +21,6 @@ from shared.models import Site, Deployment, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
 from utils.deployment_edits import recompute_site_location
-from utils.feed import close_events_for_named_site
 from utils.site_scope import site_in_scope
 from utils.tags import normalize_tags
 
@@ -446,10 +445,8 @@ async def update_site(
 ):
     """Rename a site or edit its habitat type / notes / tags."""
     site = await _site_in_project(db, project_id, site_id)
-    if body.name is not None and body.name.strip() != site.name:
+    if body.name is not None:
         site.name = body.name.strip()
-        # Naming the site is what its open feed entries were waiting for.
-        await close_events_for_named_site(db, site_id, user.id)
     if body.habitat_type is not None:
         site.habitat_type = body.habitat_type or None
     if body.notes is not None:
