@@ -3,6 +3,12 @@
  *
  * Caller controls open/close + onConfirm. The component renders a
  * <Dialog> with a title, body, Cancel button, and a primary action.
+ *
+ * Keyboard: the primary action takes focus when the dialog opens, so Enter
+ * (or Space) confirms, Tab reaches Cancel, and Escape closes (handled by
+ * Dialog). Native button behaviour, no key handler of our own. Dialogs
+ * with input fields do not use this component; they are a <form> so Enter
+ * submits from a field the normal way.
  */
 import React from 'react';
 import { Loader2 } from 'lucide-react';
@@ -50,7 +56,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           <Button variant="outline" onClick={onClose} disabled={isPending}>
             {cancelLabel}
           </Button>
-          <Button variant={variant} onClick={onConfirm} disabled={isPending}>
+          <Button variant={variant} onClick={onConfirm} disabled={isPending} autoFocus>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {confirmLabel}
           </Button>

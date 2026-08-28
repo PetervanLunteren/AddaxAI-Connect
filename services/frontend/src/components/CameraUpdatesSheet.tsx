@@ -781,34 +781,42 @@ const NameDialog: React.FC<{
   useEffect(() => {
     inputRef.current?.select();
   }, []);
+  // A form, so Enter in the field saves. The submit handler carries the
+  // same guard as the button's disabled state, since Enter bypasses it.
+  const submit = (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!isPending && name.trim()) onConfirm(name.trim());
+  };
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="py-4">
-          <label className="text-xs text-muted-foreground">Site name</label>
-          <input
-            ref={inputRef}
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={255}
-            autoFocus
-            className="w-full px-3 py-2 border rounded-md text-sm"
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button onClick={() => onConfirm(name.trim())} disabled={isPending || !name.trim()}>
-            {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{description}</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-xs text-muted-foreground">Site name</label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={255}
+              autoFocus
+              className="w-full px-3 py-2 border rounded-md text-sm"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending || !name.trim()}>
+              {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {confirmLabel}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
@@ -822,41 +830,45 @@ const DifferentSiteDialog: React.FC<{
 }> = ({ event, isPending, onClose, onConfirm }) => {
   const alternatives = event.candidates.filter((c) => c.site_id !== event.site_id);
   const [siteId, setSiteId] = useState<number | null>(alternatives[0]?.site_id ?? null);
+  const submit = (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!isPending && siteId != null) onConfirm(siteId);
+  };
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
-        <DialogHeader>
-          <DialogTitle>Different site</DialogTitle>
-          <DialogDescription>
-            Pick the site this camera actually stands at. Only sites within the
-            distance threshold are listed.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4">
-          <label className="text-xs text-muted-foreground">Site</label>
-          <Select
-            value={siteId ?? ''}
-            onChange={(e) => setSiteId(e.target.value === '' ? null : Number(e.target.value))}
-          >
-            {alternatives.map((c) => (
-              <option key={c.site_id} value={c.site_id}>
-                {c.name} ({fmtDistance(c.distance_m)} away)
-              </option>
-            ))}
-          </Select>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => siteId != null && onConfirm(siteId)}
-            disabled={isPending || siteId == null}
-          >
-            {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Move to this site
-          </Button>
-        </DialogFooter>
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>Different site</DialogTitle>
+            <DialogDescription>
+              Pick the site this camera actually stands at. Only sites within the
+              distance threshold are listed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="text-xs text-muted-foreground">Site</label>
+            <Select
+              autoFocus
+              value={siteId ?? ''}
+              onChange={(e) => setSiteId(e.target.value === '' ? null : Number(e.target.value))}
+            >
+              {alternatives.map((c) => (
+                <option key={c.site_id} value={c.site_id}>
+                  {c.name} ({fmtDistance(c.distance_m)} away)
+                </option>
+              ))}
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending || siteId == null}>
+              {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Move to this site
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
