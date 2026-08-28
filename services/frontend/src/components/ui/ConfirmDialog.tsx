@@ -9,6 +9,10 @@
  * Dialog). Native button behaviour, no key handler of our own. Dialogs
  * with input fields do not use this component; they are a <form> so Enter
  * submits from a field the normal way.
+ *
+ * focusCancel flips that for actions that destroy data with no way back
+ * (deleting a site, deleting imported images): Cancel takes focus, so
+ * Enter closes the dialog and the destructive action needs a click.
  */
 import React from 'react';
 import { Loader2 } from 'lucide-react';
@@ -32,6 +36,7 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   variant?: 'default' | 'destructive';
   isPending?: boolean;
+  focusCancel?: boolean;
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -44,6 +49,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelLabel = 'Cancel',
   variant = 'default',
   isPending = false,
+  focusCancel = false,
 }) => {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !isPending && onClose()}>
@@ -53,10 +59,10 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           {body && <DialogDescription>{body}</DialogDescription>}
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isPending}>
+          <Button variant="outline" onClick={onClose} disabled={isPending} autoFocus={focusCancel}>
             {cancelLabel}
           </Button>
-          <Button variant={variant} onClick={onConfirm} disabled={isPending} autoFocus>
+          <Button variant={variant} onClick={onConfirm} disabled={isPending} autoFocus={!focusCancel}>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {confirmLabel}
           </Button>

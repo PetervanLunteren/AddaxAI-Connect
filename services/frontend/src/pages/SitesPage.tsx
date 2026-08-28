@@ -866,6 +866,7 @@ export const SitesPage: React.FC = () => {
         }
         confirmLabel="Delete"
         variant="destructive"
+        focusCancel
         isPending={deleteMutation.isPending}
       />
     </div>

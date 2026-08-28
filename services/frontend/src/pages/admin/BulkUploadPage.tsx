@@ -485,6 +485,8 @@ export const BulkUploadPage: React.FC = () => {
         onClose={closeConfirm}
         onConfirm={handleConfirm}
         variant="destructive"
+        // Deleting images has no way back; stopping an upload keeps what was analysed.
+        focusCancel={confirm?.kind === 'delete-images'}
         title={confirm?.kind === 'delete-images' ? 'Delete imported images?' : 'Stop this upload?'}
         confirmLabel={confirm?.kind === 'delete-images' ? 'Delete images' : 'Stop'}
         body={
