@@ -24,12 +24,17 @@ from shared.models import DetectionAlertRule, Site, User
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.project_access import get_allowed_site_ids
-from routers.rule_helpers import require_project_access, load_own_row
+from routers.rule_helpers import (
+    VALID_CHANNELS,
+    check_earthranger_channel,
+    list_rule_rows,
+    load_rule_row,
+    require_project_access,
+)
 
 
 router = APIRouter(prefix="/api/projects", tags=["detection-alert-rules"])
 
-VALID_CHANNELS = {"email", "telegram"}
 
 
 def validate_rule_fields(
@@ -196,19 +201,13 @@ async def list_detection_rules(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
+    channel: Optional[str] = None,
 ):
-    """List the current user's own detection rules for a project."""
+    """List the current user's own rules for a project. With
+    channel=earthranger (project admins), every rule of the project that
+    sends to EarthRanger, for the integration page."""
     await require_project_access(db, current_user, project_id)
-
-    rows = (await db.execute(
-        select(DetectionAlertRule)
-        .where(
-            DetectionAlertRule.project_id == project_id,
-            DetectionAlertRule.created_by_user_id == current_user.id,
-        )
-        .order_by(DetectionAlertRule.id.asc())
-    )).scalars().all()
-
+    rows = await list_rule_rows(db, DetectionAlertRule, project_id, current_user, channel)
     return [_serialize(r) for r in rows]
 
 
@@ -234,6 +233,7 @@ async def create_detection_rule(
     )
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    await check_earthranger_channel(db, current_user, project_id, request.channels)
 
     if request.site_ids is not None:
         await _check_sites_in_project(db, project_id, request.site_ids)
@@ -273,7 +273,7 @@ async def update_detection_rule(
     """Edit a rule. Changing what the rule matches (labels, scope, or any
     condition) resets the cooldown state so the edited rule fires fresh."""
     await require_project_access(db, current_user, project_id)
-    rule = await load_own_row(db, DetectionAlertRule, project_id, rule_id, current_user, "Detection rule not found")
+    rule = await load_rule_row(db, DetectionAlertRule, project_id, rule_id, current_user, "Detection rule not found")
 
     sent = request.model_fields_set
 
@@ -307,6 +307,7 @@ async def update_detection_rule(
     )
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    await check_earthranger_channel(db, current_user, project_id, next_channels)
 
     if next_site_ids is not None and next_site_ids != rule.site_ids:
         await _check_sites_in_project(db, project_id, next_site_ids)
@@ -358,6 +359,6 @@ async def delete_detection_rule(
     """Delete a rule. Hard delete, a standing rule needs no cancel
     audit, the notification log is the trail of what fired."""
     await require_project_access(db, current_user, project_id)
-    rule = await load_own_row(db, DetectionAlertRule, project_id, rule_id, current_user, "Detection rule not found")
+    rule = await load_rule_row(db, DetectionAlertRule, project_id, rule_id, current_user, "Detection rule not found")
     await db.delete(rule)
     await db.commit()

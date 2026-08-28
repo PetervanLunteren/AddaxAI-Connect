@@ -25,14 +25,19 @@ from shared.models import Camera, CameraAlertRule, User
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.project_access import get_allowed_site_ids
-from routers.rule_helpers import require_project_access, load_own_row
+from routers.rule_helpers import (
+    VALID_CHANNELS,
+    check_earthranger_channel,
+    list_rule_rows,
+    load_rule_row,
+    require_project_access,
+)
 from utils.site_scope import cameras_current_site_clause
 
 
 router = APIRouter(prefix="/api/projects", tags=["camera-alert-rules"])
 
 VALID_RULE_TYPES = {"battery_low", "sd_full", "camera_silent", "rejections"}
-VALID_CHANNELS = {"email", "telegram"}
 
 
 def validate_rule_fields(
@@ -183,19 +188,13 @@ async def list_alert_rules(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
+    channel: Optional[str] = None,
 ):
-    """List the current user's own alert rules for a project."""
+    """List the current user's own rules for a project. With
+    channel=earthranger (project admins), every rule of the project that
+    sends to EarthRanger, for the integration page."""
     await require_project_access(db, current_user, project_id)
-
-    rows = (await db.execute(
-        select(CameraAlertRule)
-        .where(
-            CameraAlertRule.project_id == project_id,
-            CameraAlertRule.created_by_user_id == current_user.id,
-        )
-        .order_by(CameraAlertRule.id.asc())
-    )).scalars().all()
-
+    rows = await list_rule_rows(db, CameraAlertRule, project_id, current_user, channel)
     return [_serialize(r) for r in rows]
 
 
@@ -219,6 +218,7 @@ async def create_alert_rule(
     )
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    await check_earthranger_channel(db, current_user, project_id, request.channels)
 
     if request.camera_ids is not None:
         await _check_cameras_in_project(db, project_id, request.camera_ids)
@@ -255,7 +255,7 @@ async def update_alert_rule(
     camera scope) resets the once-per-incident state so the edited rule
     fires fresh on the next evaluation."""
     await require_project_access(db, current_user, project_id)
-    rule = await load_own_row(db, CameraAlertRule, project_id, rule_id, current_user, "Alert rule not found")
+    rule = await load_rule_row(db, CameraAlertRule, project_id, rule_id, current_user, "Alert rule not found")
 
     next_type = request.rule_type if request.rule_type is not None else rule.rule_type
     if next_type != rule.rule_type and request.threshold is None:
@@ -277,6 +277,7 @@ async def update_alert_rule(
     error = validate_rule_fields(next_type, next_threshold, next_channels, next_camera_ids)
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    await check_earthranger_channel(db, current_user, project_id, next_channels)
 
     if next_camera_ids is not None and next_camera_ids != rule.camera_ids:
         await _check_cameras_in_project(db, project_id, next_camera_ids)
@@ -320,6 +321,6 @@ async def delete_alert_rule(
     """Delete a rule. Hard delete, a standing rule needs no cancel
     audit, the notification log is the trail of what fired."""
     await require_project_access(db, current_user, project_id)
-    rule = await load_own_row(db, CameraAlertRule, project_id, rule_id, current_user, "Alert rule not found")
+    rule = await load_rule_row(db, CameraAlertRule, project_id, rule_id, current_user, "Alert rule not found")
     await db.delete(rule)
     await db.commit()

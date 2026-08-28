@@ -60,6 +60,7 @@ class TestChannels:
         assert check(channels=["email"]) is None
         assert check(channels=["telegram"]) is None
         assert check(channels=["email", "telegram"]) is None
+        assert check(channels=["earthranger"]) is None
 
     def test_empty_rejected(self):
         assert check(channels=[]) is not None

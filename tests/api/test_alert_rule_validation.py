@@ -23,6 +23,7 @@ class TestRuleType:
         ok("battery_low", 20, ["email"], None)
         ok("sd_full", 90, ["telegram"], None)
         ok("camera_silent", 10, ["email", "telegram"], None)
+        ok("camera_silent", 10, ["earthranger"], None)
         ok("rejections", 1, ["email"], None)
 
     def test_unknown_type_rejected(self):

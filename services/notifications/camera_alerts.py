@@ -54,7 +54,9 @@ from shared.models import (
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 from shared.email_renderer import render_email
+from shared.earthranger import build_camera_event
 
+import earthranger_channel as er
 from db_operations import (
     camera_ids_at_current_sites,
     create_notification_log,
@@ -539,5 +541,39 @@ def _notify(
             })
             queued += 1
             logger.info("Queued alert telegram", rule_id=rule.id, log_id=log_id)
+
+    if "earthranger" in rule.channels:
+        # One event per camera, each at its own site, so the ranger map
+        # shows which camera needs a visit. cameras is in new_camera_ids order.
+        now_utc = datetime.now(timezone.utc)
+        for camera_id, cam in zip(new_camera_ids, cameras):
+            site_name, lat, lon = er.camera_site(db, camera_id)
+            try:
+                er_event = build_camera_event(
+                    device_id=cam['name'],
+                    alert=rule.rule_type,
+                    summary=f"{cam['name']} {label}: {cam['value_label']}",
+                    occurred_at=now_utc,
+                    lat=lat,
+                    lon=lon,
+                    site_name=site_name,
+                    camera_url=cameras_url,
+                )
+            except ValueError as exc:
+                logger.warning(
+                    "Skipping earthranger channel for camera",
+                    rule_id=rule.id, camera_id=camera_id, reason=str(exc),
+                )
+                continue
+            if er.queue_event(
+                db,
+                project_id=project.id,
+                rule_id=rule.id,
+                user_id=user.id,
+                notification_type="camera_alert",
+                trigger_data={**trigger_data, "camera_id": camera_id},
+                event=er_event,
+            ):
+                queued += 1
 
     return queued > 0

@@ -62,7 +62,10 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATIO
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log
+from shared.earthranger import build_detection_event
+
+import earthranger_channel as er
+from db_operations import create_notification_log, get_server_timezone
 from text_format import md_escape
 
 logger = get_logger("notifications.detection_alerts")
@@ -613,5 +616,52 @@ def _notify_rule(
             })
             queued += 1
             logger.info("Queued detection alert telegram", rule_id=rule.id, log_id=log_id)
+
+    if "earthranger" in rule.channels:
+        # The event is pinned where the camera stands: the image's own GPS
+        # first, the site as fallback. Without either, or without a capture
+        # time, there is nothing a ranger can place, so the channel is
+        # skipped and the rule does not count as delivered on it.
+        location = event.get('camera_location') or {}
+        lat, lon = location.get('lat'), location.get('lon')
+        if lat is None or lon is None:
+            lat, lon = er.site_location(db, site_id)
+        if captured_at is None:
+            logger.warning(
+                "Skipping earthranger channel; image has no capture time",
+                rule_id=rule.id,
+            )
+        else:
+            try:
+                er_event = build_detection_event(
+                    device_id=event.get('camera_name') or str(event.get('camera_id')),
+                    species=species,
+                    species_display=species_display,
+                    captured_at=captured_at,
+                    tz=get_server_timezone(db),
+                    lat=lat,
+                    lon=lon,
+                    site_name=site_name,
+                    image_url=er.image_link(domain, project.id, event['image_uuid']),
+                    count=count,
+                    confidence=confidence,
+                    scientific_name=er.scientific_name(db, species),
+                )
+            except ValueError as exc:
+                logger.warning(
+                    "Skipping earthranger channel", rule_id=rule.id, reason=str(exc),
+                )
+            else:
+                if er.queue_event(
+                    db,
+                    project_id=project.id,
+                    rule_id=rule.id,
+                    user_id=user.id,
+                    notification_type="species_detection",
+                    trigger_data=trigger_data,
+                    event=er_event,
+                    attachment_minio_path=event.get('annotated_minio_path'),
+                ):
+                    queued += 1
 
     return queued > 0

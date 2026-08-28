@@ -11,8 +11,14 @@ from fastapi import HTTPException, status
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.models import Project, User
-from auth.permissions import can_access_project
+from shared.models import Project, ProjectIntegration, User
+from auth.permissions import can_access_project, can_admin_project
+
+# Delivery channels a rule may name. Email and Telegram reach the rule's
+# creator; earthranger reaches the project's EarthRanger site through Gundi
+# and is therefore a project-level choice (see check_earthranger_channel).
+EARTHRANGER = "earthranger"
+VALID_CHANNELS = {"email", "telegram", EARTHRANGER}
 
 
 async def require_project_access(
@@ -62,3 +68,90 @@ async def load_own_row(
             detail=not_found_detail,
         )
     return row
+
+
+async def require_project_admin(
+    db: AsyncSession, current_user: User, project_id: int
+) -> None:
+    """403 unless the user administers the project (or the server)."""
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Project admin access required",
+        )
+
+
+async def check_earthranger_channel(
+    db: AsyncSession, current_user: User, project_id: int, channels
+) -> None:
+    """A rule that sends to EarthRanger reaches the whole ranger team, not
+    its creator, so only project admins may pick that channel, and only on
+    a project whose EarthRanger integration is set up and enabled."""
+    if EARTHRANGER not in (channels or []):
+        return
+    await require_project_admin(db, current_user, project_id)
+    integration = (await db.execute(
+        select(ProjectIntegration).where(
+            ProjectIntegration.project_id == project_id,
+            ProjectIntegration.kind == EARTHRANGER,
+            ProjectIntegration.is_enabled == True,
+        )
+    )).scalar_one_or_none()
+    if not integration:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="EarthRanger is not set up for this project",
+        )
+
+
+async def load_rule_row(
+    db: AsyncSession,
+    model,
+    project_id: int,
+    row_id: int,
+    current_user: User,
+    not_found_detail: str,
+):
+    """Like load_own_row, but a rule with the earthranger channel is a
+    project rule: any project admin may edit or delete it, whoever made
+    it. Other people's personal rules stay a 404."""
+    row = (await db.execute(
+        select(model).where(
+            and_(model.id == row_id, model.project_id == project_id)
+        )
+    )).scalar_one_or_none()
+    if row and row.created_by_user_id != current_user.id:
+        is_project_rule = EARTHRANGER in (row.channels or [])
+        if not (is_project_rule and await can_admin_project(current_user, project_id, db)):
+            row = None
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=not_found_detail,
+        )
+    return row
+
+
+async def list_rule_rows(
+    db: AsyncSession, model, project_id: int, current_user: User, channel
+):
+    """Rows for a rule list. Without a channel filter, the caller's own
+    rules. With channel=earthranger, every rule of the project on that
+    channel, for the integration page; project admins only."""
+    if channel is None:
+        query = select(model).where(
+            model.project_id == project_id,
+            model.created_by_user_id == current_user.id,
+        )
+    elif channel == EARTHRANGER:
+        await require_project_admin(db, current_user, project_id)
+        query = select(model).where(model.project_id == project_id)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"unknown channel {channel}",
+        )
+    rows = (await db.execute(query.order_by(model.id.asc()))).scalars().all()
+    if channel == EARTHRANGER:
+        rows = [r for r in rows if EARTHRANGER in (r.channels or [])]
+    return rows

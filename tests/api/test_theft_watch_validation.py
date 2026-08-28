@@ -68,6 +68,7 @@ class TestChannels:
 
     def test_both_valid(self):
         assert check(channels=["email", "telegram"]) is None
+        assert check(channels=["earthranger"]) is None
 
     def test_empty_rejected(self):
         assert check(channels=[]) is not None
