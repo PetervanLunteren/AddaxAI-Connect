@@ -26,7 +26,7 @@ import {
   getDetectionRateColor,
   calculateColorScaleDomain,
 } from '../../utils/color-scale';
-import { LightBaseLayer } from '../map/BaseLayersControl';
+import { LightBaseLayer, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
 
 interface MiniMapCardProps {
@@ -118,6 +118,7 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
             <MapContainer
               key={mapKey}
               bounds={bounds}
+              maxZoom={MAP_MAX_ZOOM}
               boundsOptions={{ padding: [24, 24], maxZoom: 12 }}
               style={{ height: '100%', width: '100%', zIndex: 0 }}
               zoomControl={false}

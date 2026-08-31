@@ -22,6 +22,15 @@ const MapLibreGLLayer = lazy(() => import('./MapLibreGLLayer'));
 
 const STORAGE_KEY = 'map-baselayer';
 
+/**
+ * Zoom limit for every map that uses these base layers. Set it on the
+ * MapContainer, not only on a layer: Leaflet takes an unset map limit from
+ * the layers that happen to be mounted, and the Light layer loads lazily.
+ * A fitBounds on a single point in that window zooms to Infinity and
+ * MapLibre crashes in its matrix math on init.
+ */
+export const MAP_MAX_ZOOM = 18;
+
 const LIGHT_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
 export const SATELLITE_LAYER = {
@@ -68,7 +77,7 @@ export function LightBaseLayer() {
   }
   return (
     <Suspense fallback={null}>
-      <MapLibreGLLayer styleUrl={LIGHT_STYLE_URL} />
+      <MapLibreGLLayer styleUrl={LIGHT_STYLE_URL} maxZoom={MAP_MAX_ZOOM} />
     </Suspense>
   );
 }

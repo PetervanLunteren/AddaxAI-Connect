@@ -9,7 +9,7 @@ import { latLngBounds } from 'leaflet';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../../api/statistics';
 import { useProject } from '../../contexts/ProjectContext';
-import { BaseLayersControl } from './BaseLayersControl';
+import { BaseLayersControl, MAP_MAX_ZOOM } from './BaseLayersControl';
 import type { DetectionRateMapFilters } from '../../api/types';
 import {
   getDetectionRateColor,
@@ -234,6 +234,7 @@ export function DetectionRateMap({ filters, viewMode, metric: metricId }: Detect
       <MapContainer
         center={mapCenter}
         zoom={12}
+        maxZoom={MAP_MAX_ZOOM}
         style={{ height: '600px', width: '100%', zIndex: 0 }}
         className="rounded-lg border border-gray-200"
       >

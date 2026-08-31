@@ -14,7 +14,7 @@ import { MapContainer, Marker, Tooltip, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
-import { BaseLayersControl } from '../map/BaseLayersControl';
+import { BaseLayersControl, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { FullscreenControl } from '../map/FullscreenControl';
 import 'leaflet/dist/leaflet.css';
 
@@ -125,6 +125,7 @@ export function SiteMergePicker({
         <MapContainer
           center={center}
           zoom={13}
+          maxZoom={MAP_MAX_ZOOM}
           style={{ height: '100%', width: '100%', zIndex: 0 }}
         >
           <BaseLayersControl />
