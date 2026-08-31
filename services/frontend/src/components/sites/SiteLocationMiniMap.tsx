@@ -8,10 +8,9 @@
  */
 import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
-import { BASE_LAYERS } from '../map/BaseLayersControl';
+import { SATELLITE_LAYER as SATELLITE } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
 
-const SATELLITE = BASE_LAYERS.find((l) => l.key === 'satellite')!;
 const SITE_COLOR = '#0f6064'; // primary teal, matches the other site maps
 
 const siteIcon = L.divIcon({

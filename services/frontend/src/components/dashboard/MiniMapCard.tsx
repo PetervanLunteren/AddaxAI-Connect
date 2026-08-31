@@ -18,7 +18,7 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
+import { MapContainer, CircleMarker } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
@@ -26,13 +26,8 @@ import {
   getDetectionRateColor,
   calculateColorScaleDomain,
 } from '../../utils/color-scale';
-import { BASE_LAYERS } from '../map/BaseLayersControl';
+import { LightBaseLayer } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
-
-// Light base layer always, the blobs are the message and they read best on
-// the quietest background. The user's stored base-layer choice applies to
-// the real maps, not to this thumbnail.
-const LIGHT_TILES = BASE_LAYERS[0];
 
 interface MiniMapCardProps {
   projectId?: number;
@@ -134,7 +129,10 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
               boxZoom={false}
               keyboard={false}
             >
-              <TileLayer url={LIGHT_TILES.url} attribution={LIGHT_TILES.attribution} />
+              {/* Light base layer always, the blobs are the message and they
+                  read best on the quietest background. The user's stored
+                  base-layer choice applies to the real maps, not here. */}
+              <LightBaseLayer />
               {features.map((feature) => {
                 const [lon, lat] = feature.geometry.coordinates;
                 const color = getDetectionRateColor(
