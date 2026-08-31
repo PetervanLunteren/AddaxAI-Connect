@@ -7,6 +7,8 @@ export interface ServiceStatus {
   name: string;
   status: 'healthy' | 'unhealthy';
   message: string;
+  /** "cpu" or "cuda" for a healthy ML worker, absent for everything else */
+  device?: string | null;
 }
 
 export interface ServicesHealthResponse {

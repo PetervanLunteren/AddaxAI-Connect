@@ -59,6 +59,11 @@ const ServiceStatusBadge: React.FC<{ status: ServiceStatus }> = ({ status }) => 
           >
             {isHealthy ? 'Healthy' : 'Unhealthy'}
           </span>
+          {status.device && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-700">
+              {status.device === 'cuda' ? 'GPU' : 'CPU'}
+            </span>
+          )}
         </div>
         <p className="text-sm text-muted-foreground mt-1 break-words">
           {status.message}

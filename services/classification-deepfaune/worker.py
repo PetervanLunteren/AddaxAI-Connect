@@ -13,6 +13,7 @@ from shared.queue import (
     QUEUE_DETECTION_COMPLETE_BULK,
     QUEUE_NOTIFICATION_EVENTS,
     HEARTBEAT_KEY_CLASSIFICATION,
+    DEVICE_KEY_CLASSIFICATION,
 )
 from config import get_settings
 from model_loader import load_model
@@ -545,6 +546,7 @@ def main():
 
     # Initialize queue consumer. Priority BRPOP keeps live ahead of bulk.
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
+    queue.record_device(DEVICE_KEY_CLASSIFICATION, device)
     priority_queues = [QUEUE_DETECTION_COMPLETE, QUEUE_DETECTION_COMPLETE_BULK]
     def handle_message(msg):
         process_detection_complete(msg, classifier)

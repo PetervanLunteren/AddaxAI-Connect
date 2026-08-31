@@ -16,6 +16,7 @@ from shared.queue import (
     QUEUE_DETECTION_COMPLETE,
     QUEUE_DETECTION_COMPLETE_BULK,
     HEARTBEAT_KEY_DETECTION,
+    DEVICE_KEY_DETECTION,
 )
 from config import get_settings
 from model_loader import load_model
@@ -171,6 +172,7 @@ def main():
 
     # Initialize queue consumer. Live wins over bulk via priority BRPOP.
     queue = RedisQueue(QUEUE_IMAGE_INGESTED)
+    queue.record_device(DEVICE_KEY_DETECTION, device)
     priority_queues = [QUEUE_IMAGE_INGESTED, QUEUE_IMAGE_INGESTED_BULK]
     logger.info("Listening for messages", queues=priority_queues)
     queue.consume_forever_priority(

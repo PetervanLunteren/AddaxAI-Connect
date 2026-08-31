@@ -27,6 +27,8 @@ from shared.queue import (
     HEARTBEAT_KEY_INGESTION,
     HEARTBEAT_KEY_DETECTION,
     HEARTBEAT_KEY_CLASSIFICATION,
+    DEVICE_KEY_DETECTION,
+    DEVICE_KEY_CLASSIFICATION,
     HEARTBEAT_KEY_NOTIFICATIONS,
     HEARTBEAT_KEY_NOTIFICATIONS_EMAIL,
     HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
@@ -45,6 +47,8 @@ class ServiceStatus(BaseModel):
     name: str
     status: Literal["healthy", "unhealthy"]
     message: str
+    # "cpu" or "cuda" for the ML workers, only while healthy. None elsewhere.
+    device: Optional[str] = None
 
 
 class ServicesHealthResponse(BaseModel):
@@ -246,7 +250,10 @@ def check_backup() -> ServiceStatus:
 
 
 def check_heartbeat(
-    name: str, heartbeat_key: str, queue_name: Optional[str] = None
+    name: str,
+    heartbeat_key: str,
+    queue_name: Optional[str] = None,
+    device_key: Optional[str] = None,
 ) -> ServiceStatus:
     """
     Check a worker through its Redis heartbeat.
@@ -262,6 +269,11 @@ def check_heartbeat(
     worker. Ingestion has none to report, it watches the filesystem and
     publishes rather than consumes, and naming the queue it publishes to
     would show the detection backlog on the ingestion row.
+
+    With a device_key the row carries the device the ML worker loaded its
+    model on (see RedisQueue.record_device), but only when the row is
+    healthy. The key has no TTL, so on a dead worker it would repeat what
+    was true before the crash.
     """
     try:
         queue = RedisQueue(queue_name or "health-check")
@@ -294,10 +306,12 @@ def check_heartbeat(
                     f"{HEARTBEAT_STALE_AFTER_MINUTES} min{depth_label}"
                 ),
             )
+        device = queue.client.get(device_key) if device_key else None
         return ServiceStatus(
             name=name,
             status="healthy",
             message=f"Last heartbeat {age_label}{depth_label}",
+            device=device,
         )
     except Exception as e:
         logger.error("Heartbeat health check failed", service=name, error=str(e))
@@ -350,8 +364,8 @@ async def get_services_health(
     # the top of its own loop. Ingestion passes no queue: it watches the
     # filesystem, so there is no backlog of its own to report.
     services.append(check_heartbeat("ingestion", HEARTBEAT_KEY_INGESTION))
-    services.append(check_heartbeat("detection", HEARTBEAT_KEY_DETECTION, QUEUE_IMAGE_INGESTED))
-    services.append(check_heartbeat("classification", HEARTBEAT_KEY_CLASSIFICATION, QUEUE_DETECTION_COMPLETE))
+    services.append(check_heartbeat("detection", HEARTBEAT_KEY_DETECTION, QUEUE_IMAGE_INGESTED, DEVICE_KEY_DETECTION))
+    services.append(check_heartbeat("classification", HEARTBEAT_KEY_CLASSIFICATION, QUEUE_DETECTION_COMPLETE, DEVICE_KEY_CLASSIFICATION))
     services.append(check_heartbeat("notifications", HEARTBEAT_KEY_NOTIFICATIONS, QUEUE_NOTIFICATION_EVENTS))
     services.append(check_heartbeat("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, QUEUE_NOTIFICATION_EMAIL))
     services.append(check_heartbeat("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, QUEUE_NOTIFICATION_TELEGRAM))

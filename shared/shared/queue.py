@@ -185,6 +185,19 @@ class RedisQueue:
         """
         self.client.set(heartbeat_key, datetime.now(timezone.utc).isoformat())
 
+    def record_device(self, device_key: str, device: str) -> None:
+        """
+        Record which device ("cpu" or "cuda") an ML worker loaded its model on.
+
+        Written once, after the model is on that device, so the value is a
+        fact and not a plan. The health page shows it next to the worker's
+        heartbeat. A separate key rather than a richer heartbeat value, so
+        parse_heartbeat and every existing reader stay untouched. No TTL,
+        like the heartbeat; the reader only shows it for a healthy row, so a
+        worker that has since died cannot advertise a stale device.
+        """
+        self.client.set(device_key, device)
+
     def queue_depth(self) -> int:
         """Get current queue depth"""
         return self.client.llen(self.queue_name)
@@ -246,6 +259,11 @@ HEARTBEAT_KEY_DETECTION = "heartbeat:detection"
 # One key for both classifiers. A server runs deepfaune or speciesnet,
 # never both, and the health page has a single "classification" row.
 HEARTBEAT_KEY_CLASSIFICATION = "heartbeat:classification"
+# Device the ML workers loaded their model on, "cpu" or "cuda". Written by
+# RedisQueue.record_device after the load, read by the API health endpoint.
+# One key for both classifiers, for the same reason as the heartbeat.
+DEVICE_KEY_DETECTION = "device:detection"
+DEVICE_KEY_CLASSIFICATION = "device:classification"
 # How often an idle consume loop wakes to stamp, and how old a stamp may
 # get before the worker counts as dead. The margin between the two keeps
 # one slow message from raising a false alarm.

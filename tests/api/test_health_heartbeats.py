@@ -109,6 +109,40 @@ class TestCheckHeartbeat:
         assert "queue depth" not in row.message
         assert asked == []
 
+    def test_a_healthy_ml_worker_reports_its_device(self, monkeypatch):
+        _install_queue(
+            monkeypatch,
+            {"heartbeat:detection": _stamp(0.5), "device:detection": "cuda"},
+        )
+        row = health_router.check_heartbeat(
+            "detection", "heartbeat:detection", "image-ingested", "device:detection"
+        )
+        assert row.status == "healthy"
+        assert row.device == "cuda"
+
+    def test_no_device_key_asked_means_no_device(self, monkeypatch):
+        """Rows that never load a model (ingestion, notifications) carry
+        nothing, whatever happens to be in Redis."""
+        _install_queue(
+            monkeypatch,
+            {"heartbeat:ingestion": _stamp(0.5), "device:detection": "cuda"},
+        )
+        row = health_router.check_heartbeat("ingestion", "heartbeat:ingestion")
+        assert row.device is None
+
+    def test_a_dead_worker_never_shows_a_stale_device(self, monkeypatch):
+        """The device key has no TTL. A worker that crashed at startup
+        because the GPU vanished must not keep advertising cuda."""
+        _install_queue(
+            monkeypatch,
+            {"heartbeat:detection": _stamp(60), "device:detection": "cuda"},
+        )
+        row = health_router.check_heartbeat(
+            "detection", "heartbeat:detection", "image-ingested", "device:detection"
+        )
+        assert row.status == "unhealthy"
+        assert row.device is None
+
 
 class _FakeResult:
     def scalar(self):
