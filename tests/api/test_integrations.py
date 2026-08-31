@@ -18,7 +18,7 @@ from routers.rule_helpers import EARTHRANGER, VALID_CHANNELS  # noqa: E402
 
 class TestKeyHint:
     def test_last_four_characters(self):
-        assert key_hint("84I2Eaii2eeifo1te9YBtR05fjB9aoxZ") == "aoxZ"
+        assert key_hint("fake-test-key-not-a-secret-aoxZ") == "aoxZ"
 
     def test_short_or_missing_keys_give_nothing(self):
         assert key_hint("abc") is None
@@ -32,7 +32,7 @@ class TestStatusOf:
 
     def test_row_never_exposes_the_key(self):
         integration = SimpleNamespace(
-            config={"api_key": "84I2Eaii2eeifo1te9YBtR05fjB9aoxZ"},
+            config={"api_key": "fake-test-key-not-a-secret-aoxZ"},
             is_enabled=True, health_status="healthy", last_health_check=None,
             last_sent_at=None, last_error=None, events_sent=12,
         )
@@ -40,7 +40,7 @@ class TestStatusOf:
         assert out.is_configured is True
         assert out.api_key_hint == "aoxZ"
         assert out.events_sent == 12
-        assert "84I2" not in out.model_dump_json()
+        assert "fake-test-key" not in out.model_dump_json()
 
     def test_row_without_key_is_not_configured(self):
         integration = SimpleNamespace(
@@ -61,6 +61,6 @@ class TestKeyValidation:
         # The PUT handler strips and then refuses keys with spaces inside,
         # exercised via the same check the handler uses
         from routers.integrations import EarthRangerConfigRequest
-        key = "n some label 84I2Eaii2eeifo1te9YBtR05fjB9aoxZ"
+        key = "n some label fake-test-key-not-a-secret-aoxZ"
         stripped = EarthRangerConfigRequest(api_key=key).api_key.strip()
         assert any(ch.isspace() for ch in stripped)
