@@ -72,7 +72,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     ??? tip "Running on an NVIDIA GPU"
 
-        A GPU makes detection and classification many times faster. It matters most for bulk uploads of SD cards; a server that only receives live camera images does fine on the CPU.
+        A GPU makes detection and classification many times faster. Measured on one server (8 CPUs, NVIDIA RTX 4000 Ada), per image: MegaDetector 6.9 s on the CPU against 0.08 s on the GPU, SpeciesNet 6.5 s against 0.07 s, DeepFaune 0.07 s on the GPU. It matters most for bulk uploads of SD cards; a server that only receives live camera images does fine on the CPU.
 
         Before you run the playbook, install the driver on the server and reboot. On Ubuntu 24.04:
 
