@@ -185,7 +185,7 @@ Restarting a worker is safe. It will pick up where it left off since messages st
 
 **Images uploading but not showing up:** check the ingestion logs and the File management page. Most likely a missing camera profile or missing metadata.
 
-**Detection is slow or stuck:** check `docker compose logs detection --tail 20`. The detection worker processes one image at a time. If the queue is growing, the worker may have crashed. Restart it with `docker compose restart detection`.
+**Detection is slow or stuck:** check `docker compose logs detection --tail 20`. The detection worker processes one image at a time. If the queue is growing, the worker may have crashed. Restart it with `docker compose restart detection`. If it is only slow and the server mainly does bulk uploads, a GPU helps a lot, see `use_gpu` in the [deployment guide](deployment.md).
 
 **Emails not sending:** check `docker compose logs notifications-email --tail 20`. Verify SMTP settings in `.env`. Some cloud providers block outbound SMTP ports by default (see the email tip at the end of the [deployment guide](deployment.md)).
 

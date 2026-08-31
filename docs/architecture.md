@@ -87,6 +87,8 @@ The `docker-compose.yml` uses profiles to support different configurations:
 - **`speciesnet`** is the full stack with SpeciesNet classifier (2,498 global species)
 - **`demo`** runs only the API, database, and frontend (no ML workers, for demos and development)
 
+On a server with an NVIDIA GPU, `docker-compose.gpu.yml` is layered on top through `COMPOSE_FILE` in `.env` (written by Ansible when `use_gpu` is true). It gives the detection and classification workers the GPU; everything else is unchanged.
+
 ## Data storage
 
 By default, all data stays on your own server. PostgreSQL holds the metadata (projects, cameras, detections, users), and MinIO holds the image files (raw images, thumbnails, crops, annotated images). Neither is reachable from the internet.

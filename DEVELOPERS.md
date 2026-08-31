@@ -247,6 +247,7 @@ addaxai-connect/
 │       ├── camera_status.py           # Camera liveness rule (active / inactive / never_reported)
 │       ├── earthranger.py             # Gundi event payloads and client for the EarthRanger channel
 │       ├── notify_guard.py            # Development server allow-lists for outbound notifications
+│       ├── device.py                  # The one rule for cpu vs cuda in the ML workers
 │       ├── taxonomy.py                # Species taxonomy utilities
 │       ├── species.py                 # Species data helpers
 │       ├── geo.py                     # GPS and spatial helpers
@@ -296,6 +297,7 @@ addaxai-connect/
 │   ├── README.md                       # Layout and how to target one server
 │   └── roles/                         # app-deploy, docker, nginx, pure-ftpd, ssl,
 │                                      #   security, security-check, dev-tools
+│                                      #   (docker/tasks/nvidia.yml: container toolkit when use_gpu)
 │
 ├── docs/                              # MkDocs documentation site
 │   ├── index.md
@@ -313,6 +315,7 @@ addaxai-connect/
 │
 ├── email_previews/                    # HTML previews of all email templates
 ├── docker-compose.yml                 # All services (profiles: deepfaune, speciesnet, demo)
+├── docker-compose.gpu.yml             # Override: GPU for the ML workers, applied via COMPOSE_FILE in .env
 ├── mkdocs.yml                         # Docs site config
 ├── pyproject.toml                     # Pytest config
 ├── CONVENTIONS.md                     # Code conventions
@@ -360,6 +363,56 @@ Queue names (defined in `shared/shared/queue.py`):
 - **`deepfaune`** is the full stack with DeepFaune classifier (38 European species)
 - **`speciesnet`** is the full stack with SpeciesNet classifier (2,498 global species)
 - **`demo`** runs only the API, database, and frontend (no ML workers)
+
+## GPU inference
+
+Off by default. One boolean in `host_vars`, `use_gpu`, and everything
+follows from it; a server that never sets it runs exactly as before.
+
+- **The device rule** is `select_device` in `shared/shared/device.py`, the
+  one place that turns `USE_GPU` into `cpu` or `cuda`. False is always cpu.
+  True with a visible CUDA device is cuda. True without one raises, and the
+  worker never starts. No silent CPU fallback: it would leave a GPU server
+  twenty times slower with nobody told, while a crash-looping worker stops
+  its heartbeat and the liveness alert fires within the hour. The function
+  takes `cuda_available` as an argument, so it is tested without torch and
+  `shared` never imports torch.
+- **Workers** decide once in `main()`, before the model download, and pass
+  the device to `load_model(device)`. Detection uses megadetector's
+  `force_cpu`; DeepFaune keeps reading the checkpoint onto the CPU and only
+  moves the model; SpeciesNet passes `device` to its classifier. After the
+  load each worker writes the device to `device:detection` or
+  `device:classification` (`RedisQueue.record_device`), which the health
+  endpoint shows as a GPU or CPU pill, only on a healthy row because the
+  key has no TTL.
+- **The images need no change.** The PyPI torch wheel they install is the
+  CUDA build, so every image, CPU server or not, already carries the CUDA
+  13 runtime (which is most of their size). That also sets the host floor:
+  CUDA 13 needs the 580 driver branch or newer.
+- **Compose.** `docker-compose.gpu.yml` adds `gpus: all` and `USE_GPU=true`
+  to the three ML services and nothing else; `docker-compose.yml` is not
+  touched. Ansible writes `COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml`
+  into `.env` when `use_gpu` is true, and compose reads that from `.env`,
+  so no script needs a `-f`. The flag lives in the override on purpose: one
+  file grants the device and sets the flag, so they cannot disagree. A
+  device request on a host without the NVIDIA runtime fails the container
+  start, which is why it cannot be unconditional.
+- **Ansible.** `roles/docker/tasks/nvidia.yml`, imported when `use_gpu` is
+  true: asserts `nvidia-smi` reports 580 or newer with the fix in the
+  message, installs `nvidia-container-toolkit`, registers the runtime with
+  docker and restarts it only when it was missing (never
+  `--set-as-default`). The driver itself is a prerequisite, documented in
+  `docs/deployment.md`: the Canonical-signed `nvidia-driver-580-server`
+  package, which works under Secure Boot and rebuilds nothing on kernel
+  updates. The toolkit repo is not a security origin, so unattended-upgrades
+  never touches it.
+- **Gate.** `scripts/verify-server.sh` has a `gpu` check that only appears
+  when `.env` says `USE_GPU=true`: each running ML worker must see a CUDA
+  device from torch.
+- **Known interaction.** A kernel or driver security update can leave
+  `nvidia-smi` with a version mismatch until the 04:30 reboot; a worker
+  restarted in that window refuses to start, by design, and comes back
+  after the reboot. No `apt-mark hold`.
 
 ## Database migrations
 

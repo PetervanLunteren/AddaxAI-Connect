@@ -64,6 +64,32 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     |---------|---------|-------------|
     | `classification_model` | `"speciesnet"` | `"deepfaune"` (38 European species) or `"speciesnet"` (2,498 global species) |
 
+    **GPU (optional)**
+
+    | Variable | Example | Description |
+    |---------|---------|-------------|
+    | `use_gpu` | `true` | `true` when the server has an NVIDIA GPU. The detection and classification workers then run on it. Leave `false` on a normal server. |
+
+    ??? tip "Running on an NVIDIA GPU"
+
+        A GPU makes detection and classification many times faster. It matters most for bulk uploads of SD cards; a server that only receives live camera images does fine on the CPU.
+
+        Before you run the playbook, install the driver on the server and reboot. On Ubuntu 24.04:
+
+        ```bash
+        sudo apt install nvidia-driver-580-server
+        sudo reboot
+        nvidia-smi
+        ```
+
+        `nvidia-smi` must show driver version 580 or newer. The images carry CUDA 13, which needs that driver branch; an older driver (535, 550, 575) loads fine but the workers cannot see the GPU and refuse to start. The playbook checks this and stops with the fix spelled out. The `-server` package uses modules signed by Canonical, so it works with Secure Boot and needs no rebuild after kernel updates.
+
+        Then set `use_gpu: true` in your `host_vars` file and run the playbook. It installs the NVIDIA container toolkit, registers it with Docker (one Docker restart, first run only) and starts the ML workers with the GPU.
+
+        To check it worked: the health page (server admin menu) shows a GPU pill on the detection and classification workers, `docker compose logs detection | grep device` shows `cuda`, and `bash scripts/verify-server.sh` lists a `gpu` check that passes.
+
+        Two things to know. A worker that is asked for the GPU and cannot see it stops on purpose instead of silently running on the CPU, and the hourly liveness alert then emails the server admins. And after a kernel or driver security update `nvidia-smi` can report a version mismatch until the automatic reboot at 04:30; a worker restarted in that window stops for the same reason and recovers after the reboot.
+
     **Domain and TLS**
 
     | Variable | Example | Description |
