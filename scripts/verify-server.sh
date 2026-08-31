@@ -260,6 +260,31 @@ if [ -n "$TOKEN" ]; then
   fi
 fi
 
+# ----------------------------------------------------------------------- gpu
+# Only on a server that asked for the GPU: use_gpu true in host_vars writes
+# USE_GPU=true and the compose override into .env. A CPU server lists nothing
+# here. Each ML worker is asked whether torch can see a CUDA device, which
+# proves in one go that the override was applied, the NVIDIA runtime works
+# and the host driver is new enough for the CUDA build in the image. The
+# workers refuse to start without a device, so a running container should
+# say yes; a no means the container predates the override or .env lost it.
+# Costs a torch import per worker, a few seconds, no GPU memory.
+if grep -qxE 'USE_GPU=true' .env 2>/dev/null; then
+  gpu_bad=""
+  for svc in detection classification-deepfaune classification-speciesnet; do
+    grep -qx "$svc" <<< "$EXPECTED" || continue
+    if ! docker compose exec -T "$svc" python -c \
+        'import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)' >/dev/null 2>&1; then
+      gpu_bad="$gpu_bad $svc"
+    fi
+  done
+  if [ -z "$gpu_bad" ]; then
+    pass "gpu" "CUDA device visible in the ML workers"
+  else
+    fail "gpu" "no CUDA device in:$gpu_bad"
+  fi
+fi
+
 # ----------------------------------------------------------------- API smoke
 # The heavy read paths, run against whatever data this server holds. These are
 # where an update actually breaks: the migration succeeds and then a dashboard

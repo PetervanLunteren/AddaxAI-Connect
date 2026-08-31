@@ -48,8 +48,8 @@ HOST_VARS_DIR="$(cd "$(dirname "$INVENTORY")" && pwd)/host_vars"
 # .env key -> ansible variable. This is the reverse of
 # roles/app-deploy/templates/.env.j2; keep the two in step. Keys that .env
 # derives from another variable (DATABASE_URL, REDIS_URL, CORS_ORIGINS,
-# MINIO_ENDPOINT, COLD_TIER_PREFIX, BACKUP_HOST_PREFIX, COMPOSE_PROFILES) are
-# deliberately absent, they are outputs and not inputs.
+# MINIO_ENDPOINT, COLD_TIER_PREFIX, BACKUP_HOST_PREFIX, COMPOSE_PROFILES,
+# COMPOSE_FILE) are deliberately absent, they are outputs and not inputs.
 MAPPING="
 POSTGRES_USER=db_user
 POSTGRES_PASSWORD=db_password
@@ -59,6 +59,7 @@ MINIO_ROOT_USER=minio_user
 MINIO_ROOT_PASSWORD=minio_password
 JWT_SECRET=jwt_secret
 CLASSIFICATION_MODEL=classification_model
+USE_GPU=use_gpu
 FTPS_UPLOAD_DIR=ftps_upload_dir
 FTPS_USERNAME=ftps_username
 FTPS_PASSWORD=ftps_password
@@ -91,7 +92,7 @@ BACKUP_SECRET_KEY=backup_secret_key
 # Values that must not be quoted in the output, so ansible reads them as a
 # boolean or a number rather than a string. Everything else is quoted, which
 # matters for the Gmail app password because it contains spaces.
-UNQUOTED="demo_mode cold_tier_enabled backup_enabled mail_port cold_tier_hot_budget_gb"
+UNQUOTED="demo_mode use_gpu cold_tier_enabled backup_enabled mail_port cold_tier_hot_budget_gb"
 
 # A single quote, held in a variable so it can be used inside a ${//} pattern
 # without bash turning the escape into a literal backslash.

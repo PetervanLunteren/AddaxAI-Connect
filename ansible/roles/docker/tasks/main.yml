@@ -57,6 +57,12 @@
     state: started
     enabled: yes
 
+# import_tasks and not include_tasks, so the role's tags reach the imported
+# tasks and a --tags docker run covers them.
+- name: Set up the NVIDIA container toolkit on a GPU server
+  import_tasks: nvidia.yml
+  when: use_gpu | default(false) | bool
+
 - name: Create docker group
   group:
     name: docker

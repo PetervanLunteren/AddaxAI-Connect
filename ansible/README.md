@@ -115,8 +115,8 @@ falls back to a role default instead of keeping its own value.
 
 Values that `.env.j2` derives from another variable (`DATABASE_URL`,
 `REDIS_URL`, `CORS_ORIGINS`, `MINIO_ENDPOINT`, `COLD_TIER_PREFIX`,
-`BACKUP_HOST_PREFIX`, `COMPOSE_PROFILES`) are outputs, not inputs, and are
-deliberately absent from the importer.
+`BACKUP_HOST_PREFIX`, `COMPOSE_PROFILES`, `COMPOSE_FILE`) are outputs, not
+inputs, and are deliberately absent from the importer.
 
 ## Keeping your files in a private repo
 

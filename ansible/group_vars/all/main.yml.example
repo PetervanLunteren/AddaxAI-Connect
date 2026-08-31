@@ -36,5 +36,8 @@ enable_ssl: true
 letsencrypt_staging: false
 letsencrypt_email: "you@example.com"
 
-# Set true only on a machine with a CUDA GPU
+# Set true only on a server with an NVIDIA GPU, usually per host in host_vars.
+# The driver (580 branch or newer) must be installed and loaded first; the
+# playbook then installs the container toolkit and the ML workers run on the
+# GPU. See the deployment guide.
 use_gpu: false

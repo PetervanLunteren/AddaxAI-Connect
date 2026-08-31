@@ -1,0 +1,96 @@
+---
+# NVIDIA container toolkit, on a server with use_gpu true.
+#
+# Imported from main.yml, so the role's tags and the use_gpu condition apply
+# to every task here. Makes docker able to hand a GPU to a container; the
+# compose override (docker-compose.gpu.yml, applied through COMPOSE_FILE in
+# .env) is what asks for it.
+#
+# The driver is a prerequisite, not a task here. Installing it means a
+# reboot in the middle of the play, and how it installs differs per machine
+# (cloud image with a driver baked in, VM with a passed-through card, Secure
+# Boot). So this file checks the driver and refuses with the fix spelled out.
+#
+# Why 580: the ML images carry torch built against CUDA 13, and CUDA 13 needs
+# the 580 driver branch or newer. Older drivers (535, 550, 575) load fine and
+# then torch sees no device, which the workers turn into a refusal to start.
+
+- name: Read the NVIDIA driver version
+  command: nvidia-smi --query-gpu=driver_version --format=csv,noheader
+  register: nvidia_smi
+  changed_when: false
+  failed_when: false
+
+- name: Refuse to continue without a working driver of the 580 branch or newer
+  assert:
+    that:
+      - nvidia_smi.rc == 0
+      - (nvidia_smi.stdout_lines[0].split('.')[0] | int) >= 580
+    fail_msg: >-
+      use_gpu is true but nvidia-smi did not report a usable driver
+      (rc={{ nvidia_smi.rc }}, output: {{ (nvidia_smi.stdout ~ ' ' ~ nvidia_smi.stderr) | trim }}).
+      Three likely causes. Not installed: on Ubuntu 24.04 run
+      `apt install nvidia-driver-580-server` (Canonical-signed modules, works
+      under Secure Boot, no DKMS build). Installed but not loaded: reboot the
+      server. Loaded but older than 580: the images carry CUDA 13, which
+      needs the 580 branch or newer, so upgrade the driver and reboot.
+      Then re-run the playbook. See docs/deployment.md.
+    quiet: true
+
+- name: Add the NVIDIA container toolkit GPG key
+  shell: |
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /etc/apt/keyrings/nvidia-container-toolkit.gpg
+  args:
+    creates: /etc/apt/keyrings/nvidia-container-toolkit.gpg
+
+- name: Add the NVIDIA container toolkit repository
+  # Not an Ubuntu security origin, so unattended-upgrades (roles/security)
+  # never upgrades the toolkit on its own. It is upgraded during a normal
+  # update, like docker itself.
+  shell: |
+    curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+      | sed 's#deb https://#deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit.gpg] https://#g' \
+      > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  args:
+    creates: /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+- name: Install the NVIDIA container toolkit
+  apt:
+    name: nvidia-container-toolkit
+    state: present
+    update_cache: yes
+
+# Registering the runtime writes /etc/docker/daemon.json and needs a docker
+# restart, which stops every container for a few seconds (restart:
+# unless-stopped brings them back). So ask docker what it knows first and
+# only touch it when the runtime is missing: a re-run on a live server does
+# not bounce anything. Not --set-as-default: postgres and the rest must not
+# run through the nvidia hooks, and `gpus: all` does not need it.
+- name: Read the runtimes docker knows
+  shell: docker info 2>/dev/null | grep -E '^ *Runtimes:'
+  register: docker_runtimes
+  changed_when: false
+
+- name: Register the nvidia runtime with docker
+  command: nvidia-ctk runtime configure --runtime=docker
+  when: "'nvidia' not in docker_runtimes.stdout"
+
+- name: Restart docker so it picks up the nvidia runtime
+  systemd:
+    name: docker
+    state: restarted
+  when: "'nvidia' not in docker_runtimes.stdout"
+
+- name: Read the runtimes docker knows now
+  shell: docker info 2>/dev/null | grep -E '^ *Runtimes:'
+  register: docker_runtimes_after
+  changed_when: false
+
+- name: Refuse to continue when docker still has no nvidia runtime
+  assert:
+    that: "'nvidia' in docker_runtimes_after.stdout"
+    fail_msg: >-
+      nvidia-container-toolkit is installed but docker does not list the
+      nvidia runtime ({{ docker_runtimes_after.stdout | trim }}). Check
+      /etc/docker/daemon.json and `journalctl -u docker`.
+    quiet: true
