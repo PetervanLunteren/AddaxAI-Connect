@@ -87,11 +87,14 @@ def download_model_if_needed() -> str:
         raise
 
 
-def load_model() -> Any:
+def load_model(device: str) -> Any:
     """
     Load DeepFaune v1.4 ViT-Large model with DINOv2 backbone.
 
     Downloads model to persistent storage if not cached, then loads using timm.
+
+    Args:
+        device: "cpu" or "cuda", decided once by shared.device.select_device
 
     Returns:
         torch.nn.Module: Loaded DeepFaune classifier model
@@ -104,10 +107,6 @@ def load_model() -> Any:
     try:
         # Download model to persistent storage if needed
         model_path = download_model_if_needed()
-
-        # Determine device (CPU only for now, matching detection worker)
-        device = torch.device("cpu")
-        logger.info("Using device", device=str(device))
 
         # Create ViT-Large model with DINOv2 backbone
         # Architecture: vit_large_patch14_dinov2.lvd142m
@@ -147,7 +146,10 @@ def load_model() -> Any:
         ])
 
         logger.info("Loading model weights", model_path=model_path)
-        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
+        # Always read the checkpoint onto the CPU, whatever device runs
+        # inference. The state dict is copied into a CPU model right after,
+        # so loading it onto the GPU would only park 1.2 GB there for nothing.
+        checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
 
         # Handle nested state dict (checkpoint may have 'state_dict', 'model', or weights directly)
         if 'state_dict' in checkpoint:
@@ -164,13 +166,14 @@ def load_model() -> Any:
 
         model.load_state_dict(state_dict)
 
-        # Set to evaluation mode
+        # Set to evaluation mode and move to the inference device. The
+        # classifier reads the device back from the model's parameters.
         model.eval()
-        model.to(device)
+        model.to(torch.device(device))
 
         logger.info(
             "Model loaded successfully",
-            device=str(device),
+            device=device,
             num_classes=len(DEEPFAUNE_CLASSES),
             model_path=model_path
         )

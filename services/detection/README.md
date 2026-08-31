@@ -16,7 +16,7 @@ Runs MegaDetector object detection on camera trap images.
 
 Environment variables:
 - `MODEL_DETECTION_PATH` - Path to model weights
-- `USE_GPU` - Enable GPU inference (true/false)
+- `USE_GPU` - Set to true by `docker-compose.gpu.yml` when the server has a GPU. True with no visible CUDA device stops the worker at startup.
 - `DATABASE_URL` - PostgreSQL connection
 - `REDIS_URL` - Redis connection
 - `MINIO_ENDPOINT` - MinIO endpoint

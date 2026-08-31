@@ -19,6 +19,8 @@ from shared.queue import (
 )
 from config import get_settings
 from model_loader import load_model
+import torch
+from shared.device import select_device
 from detector import run_detection
 from storage_operations import download_image_from_minio
 from db_operations import update_image_status, insert_detections
@@ -160,9 +162,11 @@ def main():
     """Main entry point for detection worker"""
     logger.info("Detection worker starting", log_level=settings.log_level)
 
-    # Load model on startup
-    logger.info("Loading MegaDetector model")
-    detector = load_model()
+    # Decide the device before the model download, so a GPU server that
+    # cannot see its card fails in a second instead of after 280 MB.
+    device = select_device(settings.use_gpu, torch.cuda.is_available())
+    logger.info("Loading MegaDetector model", device=device)
+    detector = load_model(device)
     logger.info("Model loaded successfully")
 
     # Initialize queue consumer. Live wins over bulk via priority BRPOP.

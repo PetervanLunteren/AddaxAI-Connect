@@ -4,7 +4,6 @@ Configuration for classification worker
 Loads environment variables and validates required settings.
 """
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 
 class ClassificationSettings(BaseSettings):
@@ -37,8 +36,9 @@ class ClassificationSettings(BaseSettings):
     # Top-N predictions to store (1 = top-1 only)
     top_n_predictions: int = 1
 
-    # GPU configuration (auto-detect if not set)
-    use_gpu: Optional[bool] = None
+    # Set to true by docker-compose.gpu.yml. True with no visible CUDA device
+    # stops the worker at startup, see shared/shared/device.py.
+    use_gpu: bool = False
 
     # Logging
     log_level: str = "INFO"

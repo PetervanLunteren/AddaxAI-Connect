@@ -16,6 +16,8 @@ from shared.queue import (
 )
 from config import get_settings
 from model_loader import load_model
+import torch
+from shared.device import select_device
 from classifier import run_classification
 from storage_operations import download_image_from_minio
 from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_taxonomy_mapping, get_geofencing_config
@@ -530,9 +532,11 @@ def main():
 
     logger.info("SpeciesNet classification worker starting", log_level=settings.log_level)
 
-    # Load model on startup
-    logger.info("Loading SpeciesNet model")
-    classifier, ensemble = load_model()
+    # Decide the device before the model download, so a GPU server that
+    # cannot see its card fails in a second instead of after the download.
+    device = select_device(settings.use_gpu, torch.cuda.is_available())
+    logger.info("Loading SpeciesNet model", device=device)
+    classifier, ensemble = load_model(device)
     logger.info("Model loaded successfully")
 
     # Wait for taxonomy mapping and geofencing config to be configured via UI

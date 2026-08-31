@@ -74,11 +74,14 @@ def download_model_if_needed() -> str:
         raise
 
 
-def load_model() -> Any:
+def load_model(device: str) -> Any:
     """
     Load MegaDetector v1000 Redwood model using official package.
 
     Downloads model to persistent storage if not cached, then loads using MegaDetector API.
+
+    Args:
+        device: "cpu" or "cuda", decided once by shared.device.select_device
 
     Returns:
         PTDetector: Loaded MegaDetector model
@@ -92,11 +95,12 @@ def load_model() -> Any:
         # Download model to persistent storage if needed
         model_path = download_model_if_needed()
 
-        # Load using official MegaDetector API with explicit path
-        # force_cpu=True ensures CPU-only inference
-        detector = load_detector(model_path, force_cpu=True)
+        # Load using official MegaDetector API with explicit path. With
+        # force_cpu False the detector takes cuda:0; on a Linux server the
+        # other branches it probes (MPS, DirectML) never apply.
+        detector = load_detector(model_path, force_cpu=(device == "cpu"))
 
-        logger.info("Model loaded successfully", device="cpu", model_path=model_path)
+        logger.info("Model loaded successfully", device=device, model_path=model_path)
 
         # Note: MegaDetector performs warmup automatically during load
 

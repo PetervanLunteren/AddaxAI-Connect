@@ -41,7 +41,6 @@ class Settings(BaseSettings):
     detection_model_path: Optional[str] = None     # workers only
     classification_model_path: Optional[str] = None  # workers only
     classification_model: Optional[str] = None     # "deepfaune" or "speciesnet"
-    use_gpu: bool = False
 
     # FTPS (ingestion only)
     ftps_upload_dir: Optional[str] = None

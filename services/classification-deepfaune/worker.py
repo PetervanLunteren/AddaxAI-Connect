@@ -16,6 +16,8 @@ from shared.queue import (
 )
 from config import get_settings
 from model_loader import load_model
+import torch
+from shared.device import select_device
 from classifier import run_classification
 from storage_operations import download_image_from_minio
 from db_operations import get_detections_for_image, insert_classifications, update_image_status
@@ -534,9 +536,11 @@ def main():
     """Main entry point for classification worker"""
     logger.info("Classification worker starting", log_level=settings.log_level)
 
-    # Load model on startup
-    logger.info("Loading DeepFaune v1.4 model")
-    classifier = load_model()
+    # Decide the device before the model download, so a GPU server that
+    # cannot see its card fails in a second instead of after 1.2 GB.
+    device = select_device(settings.use_gpu, torch.cuda.is_available())
+    logger.info("Loading DeepFaune v1.4 model", device=device)
+    classifier = load_model(device)
     logger.info("Model loaded successfully")
 
     # Initialize queue consumer. Priority BRPOP keeps live ahead of bulk.

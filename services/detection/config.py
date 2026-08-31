@@ -4,7 +4,6 @@ Configuration for detection worker
 Loads environment variables and validates required settings.
 """
 from pydantic_settings import BaseSettings
-from typing import Optional
 
 
 class DetectionSettings(BaseSettings):
@@ -31,8 +30,9 @@ class DetectionSettings(BaseSettings):
     detection_model_path: str = "/models/detection/md_v1000.0.0-redwood.pt"
     confidence_threshold: float = 0.1
 
-    # GPU configuration (auto-detect if not set)
-    use_gpu: Optional[bool] = None
+    # Set to true by docker-compose.gpu.yml. True with no visible CUDA device
+    # stops the worker at startup, see shared/shared/device.py.
+    use_gpu: bool = False
 
     # Logging
     log_level: str = "INFO"

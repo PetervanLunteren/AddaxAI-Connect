@@ -131,9 +131,13 @@ def load_ensemble(model_dir: str) -> Any:
     return ensemble
 
 
-def load_model() -> tuple[Any, Any]:
+def load_model(device: str) -> tuple[Any, Any]:
     """
     Load SpeciesNet classifier and ensemble.
+
+    The device ("cpu" or "cuda") is decided once by
+    shared.device.select_device. Only the classifier holds a model; the
+    ensemble is taxonomy and geofence tables and takes no device.
 
     Downloads model from HuggingFace if not cached, patches info.json to
     prevent MegaDetector download, then instantiates both components.
@@ -152,10 +156,10 @@ def load_model() -> tuple[Any, Any]:
 
         from speciesnet import SpeciesNetClassifier
 
-        classifier = SpeciesNetClassifier(model_name=model_dir, device="cpu")
+        classifier = SpeciesNetClassifier(model_name=model_dir, device=device)
         ensemble = load_ensemble(model_dir)
 
-        logger.info("SpeciesNet model loaded successfully", model_dir=model_dir)
+        logger.info("SpeciesNet model loaded successfully", device=device, model_dir=model_dir)
 
         return classifier, ensemble
 

@@ -1,0 +1,32 @@
+# GPU override. Gives the three ML workers the host's NVIDIA GPUs and tells
+# them to use it.
+#
+# Not applied on its own. Ansible writes
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml
+# into .env when use_gpu is true in host_vars, and compose reads that
+# variable from .env, so every plain `docker compose ...` command on such a
+# server picks this file up without a -f flag. On a server without the NVIDIA
+# container runtime a device request fails the container start, which is why
+# this cannot live in docker-compose.yml unconditionally.
+#
+# USE_GPU lives here and not in docker-compose.yml on purpose: one file grants
+# the device and sets the flag, so the two cannot disagree. A worker started
+# with USE_GPU true and no visible CUDA device refuses to start
+# (shared/shared/device.py).
+#
+# `gpus: all` needs Docker Compose v2.30 or newer and the NVIDIA container
+# toolkit on the host. The docker ansible role installs the toolkit when
+# use_gpu is true.
+services:
+  detection:
+    gpus: all
+    environment:
+      USE_GPU: "true"
+  classification-deepfaune:
+    gpus: all
+    environment:
+      USE_GPU: "true"
+  classification-speciesnet:
+    gpus: all
+    environment:
+      USE_GPU: "true"
