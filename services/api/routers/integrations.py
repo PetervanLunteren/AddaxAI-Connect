@@ -133,6 +133,13 @@ async def configure_earthranger(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="API key looks too short",
         )
+    # A paste that grabbed surrounding text fails only at the first send,
+    # with Gundi's cryptic "anonymous is not a valid UUID". Catch it here.
+    if any(ch.isspace() for ch in api_key):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="API key contains spaces, copy it with the copy button in the Gundi portal",
+        )
     integration = await _load(db, project_id)
     if integration is None:
         integration = ProjectIntegration(project_id=project_id, kind=KIND, config={})

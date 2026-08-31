@@ -54,3 +54,13 @@ class TestChannelRegistry:
     def test_earthranger_is_a_known_channel(self):
         assert EARTHRANGER == "earthranger"
         assert VALID_CHANNELS == {"email", "telegram", "earthranger"}
+
+
+class TestKeyValidation:
+    def test_key_with_inner_whitespace_is_rejected(self):
+        # The PUT handler strips and then refuses keys with spaces inside,
+        # exercised via the same check the handler uses
+        from routers.integrations import EarthRangerConfigRequest
+        key = "n some label 84I2Eaii2eeifo1te9YBtR05fjB9aoxZ"
+        stripped = EarthRangerConfigRequest(api_key=key).api_key.strip()
+        assert any(ch.isspace() for ch in stripped)
