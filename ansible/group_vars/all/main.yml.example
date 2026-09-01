@@ -13,7 +13,11 @@
 app_user: ubuntu
 app_directory: /opt/addaxai-connect
 git_repo: https://github.com/PetervanLunteren/AddaxAI-Connect.git
-git_branch: main
+# Which version to deploy. Leave it unset and a new server gets the newest
+# release tag, the normal choice. Set a tag (v0.9.0) to pin a version. A dev
+# server that should follow unreleased work sets main in its own
+# host_vars/<host>.yml, not here.
+# git_version: v0.9.0
 deploy_pull_images: false
 
 # Handy tools on the box

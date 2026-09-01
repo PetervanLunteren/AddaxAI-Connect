@@ -27,6 +27,41 @@
     state: present
   when: install_vim | default(true) or install_htop | default(true) or install_tree | default(true)
 
+# Which code to check out. git_version pins a tag (v0.9.0) or a branch (main,
+# on a dev server only). Left unset, the newest release tag on the remote wins,
+# so a new server never starts from an untested head of main.
+- name: Find the newest release tag
+  command: git ls-remote --tags --refs --sort=-v:refname {{ git_repo }} 'v*'
+  register: newest_release
+  changed_when: false
+  failed_when: newest_release.rc != 0 or newest_release.stdout | length == 0
+  when:
+    - git_repo is defined
+    - git_version | default('') | length == 0
+  tags: [env-refresh]
+
+- name: Use the pinned version
+  set_fact:
+    checkout_ref: "{{ git_version }}"
+  when:
+    - git_repo is defined
+    - git_version | default('') | length > 0
+  tags: [env-refresh]
+
+- name: Use the newest release tag
+  set_fact:
+    checkout_ref: "{{ newest_release.stdout_lines | first | regex_replace('^.*refs/tags/', '') }}"
+  when:
+    - git_repo is defined
+    - git_version | default('') | length == 0
+  tags: [env-refresh]
+
+- name: Show which version will be deployed
+  debug:
+    msg: "Checking out {{ checkout_ref }}{{ '' if git_version | default('') else ' (newest release, set git_version to pin one)' }}"
+  when: git_repo is defined
+  tags: [env-refresh]
+
 - name: Check if repository already exists
   stat:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}/.git"
@@ -65,7 +100,7 @@
   git:
     repo: "{{ git_repo }}"
     dest: "{{ app_directory | default('/opt/addaxai-connect') }}"
-    version: "{{ git_branch | default('main') }}"
+    version: "{{ checkout_ref }}"
     force: no
     accept_hostkey: yes
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -87,7 +122,7 @@
   git:
     repo: "{{ git_repo }}"
     dest: "{{ app_directory | default('/opt/addaxai-connect') }}"
-    version: "{{ git_branch | default('main') }}"
+    version: "{{ checkout_ref }}"
     force: yes
     accept_hostkey: yes
     update: yes

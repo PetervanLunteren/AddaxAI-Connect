@@ -32,17 +32,22 @@ ansible-playbook -i ansible/inventory.yml ansible/playbook.yml \
 
 Do this **before** the rebuild. New code sometimes reads a new setting.
 
-## 3. Pull and rebuild
+## 3. Check out the release and rebuild
 
 *(on the production server)*
 
 ```bash
 cd /opt/addaxai-connect
-git pull origin main
+git fetch origin --tags
+git checkout vX.Y.Z
 docker compose up -d --build --force-recreate
 ```
 
-The code is baked into the images, so the rebuild is not optional.
+Take the version from the [releases page](https://github.com/PetervanLunteren/AddaxAI-Connect/releases),
+or the newest tag with `git tag --sort=-v:refname | head -1` after the fetch.
+Servers run tagged releases, never the head of `main`. A tag is what was
+tested against production data. The code is baked into the images, so the
+rebuild is not optional.
 
 ## 4. Migrate
 

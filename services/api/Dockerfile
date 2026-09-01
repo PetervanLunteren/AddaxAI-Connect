@@ -59,7 +59,7 @@ COPY services/api .
 # Copy scripts directory (for superuser creation, etc.)
 COPY scripts /app/scripts
 
-# Copy version file (maintained by GitHub Actions)
+# Copy version file (written and committed before each release tag)
 COPY VERSION /app/VERSION
 
 # Bake in the commit hash the image was built from, shown on the About page

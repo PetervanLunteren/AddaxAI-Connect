@@ -321,7 +321,7 @@ addaxai-connect/
 ├── CONVENTIONS.md                     # Code conventions
 ├── DEVELOPERS.md                      # This file
 ├── TODO.md                            # Active task tracker
-├── VERSION                            # Current version (updated by CI on git tag)
+├── VERSION                            # Current version, written before each release tag
 ├── LICENSE                            # MIT
 └── README.md                          # User-facing project description
 ```
@@ -624,6 +624,28 @@ workers dying, backups failing), not a quiet intruder.
 ## Infrastructure deployment
 
 See [docs/deployment.md](docs/deployment.md) for deployment, and [docs/update-guide.md](docs/update-guide.md) for updates.
+
+### Which code a server runs
+
+Servers run tagged releases, never the head of `main`. A tag is the commit the
+dev sweep tested against every production dataset; main between tags is work
+in progress. Three places agree on this:
+
+- The playbook checks out `git_version` (`ansible/roles/dev-tools`). Unset,
+  it resolves the newest `v*` tag on the remote at deploy time, so a fresh
+  server always gets the latest release. A tag pins one. `main` is for a dev
+  server only, set in its host_vars.
+- An update is `git fetch origin --tags && git checkout vX.Y.Z` plus a
+  rebuild (update guide), so a server sits on a detached HEAD at the tag.
+  Rollback is the same command with the previous tag.
+- `VERSION` is written and committed before the tag is made, so
+  `git show vX.Y.Z:VERSION` equals the tag. Tags before v0.7.0 carry the
+  previous version; work out an old server's position from its commit, not
+  from VERSION.
+
+`--tags env-refresh` also runs the checkout task, so on an existing server it
+moves the code to `git_version` and rebuilds. That is an update, not a config
+change. Use `sync-config` for config.
 
 ## Logging and debugging
 

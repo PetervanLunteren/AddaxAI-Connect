@@ -36,6 +36,10 @@ demo_mode: false
 app_environment: production
 log_level: INFO
 
+# A dev server also follows main instead of the newest release tag. Every
+# other server leaves this out.
+# git_version: main
+
 # Only read when app_environment is development. Comma separated.
 # Emails default to admin_email, so a test alert reaches you without extra
 # setup. Chat ids default to empty, so no Telegram goes out until you name one.

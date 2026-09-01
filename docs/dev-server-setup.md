@@ -12,11 +12,12 @@ development so it cannot reach your users.
 Follow the [restore guide](restore-guide.md). It provisions a fresh VM with the
 playbook and loads the data from a backup.
 
-Two things to set differently in `ansible/host_vars/<server>.yml`:
+Three things to set differently in `ansible/host_vars/<server>.yml`:
 
 ```yaml
 domain_name: "dev.example.com"    # a domain starting with dev
 app_environment: development      # this is what makes it a dev server
+git_version: main                 # follow main, other servers run the newest release
 ```
 
 Start the domain with `dev`. The data-purge tooling in the app refuses to run

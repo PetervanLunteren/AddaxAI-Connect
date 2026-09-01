@@ -23,6 +23,10 @@ bash scripts/test-update.sh <production-domain>
 It restores that server's latest backup, applies the migrations, and verifies
 the result. `PASS` or `FAIL`.
 
+A dev server follows `main` (`git_version: main` in its host_vars, see
+[dev server setup](dev-server-setup.md)), which is why `git pull` is right
+here. Production servers sit on a tagged release instead.
+
 You do not say which version to start from. The backup carries the schema
 production is on, so restoring it already puts the dev server at that point.
 
