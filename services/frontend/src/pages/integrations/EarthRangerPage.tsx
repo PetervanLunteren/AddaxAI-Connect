@@ -219,7 +219,7 @@ export const EarthRangerPage: React.FC = () => {
       </p>
 
       <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6 mb-6">
-        <div className="flex-1 space-y-2 text-sm text-muted-foreground">
+        <div className="flex-1 space-y-2 text-sm text-foreground">
           <p>
             EarthRanger is a free operations platform for protected areas, used by hundreds of
             parks and reserves worldwide. It gives ranger teams one live map of their area, with
