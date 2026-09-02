@@ -119,12 +119,14 @@
     - not repo_exists.stat.exists
     - git_repo is defined
 
+# Top level only, never recurse: data/postgres and data/redis belong to the
+# container users, and a recursive chown under a running server breaks both
+# (redis MISCONF, postgres permission denied on every new connection).
 - name: Fix ownership of repository files before update
   file:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}"
     owner: "{{ app_user | default('ubuntu') }}"
     group: "{{ app_user | default('ubuntu') }}"
-    recurse: yes
   when:
     - repo_exists.stat.exists
     - git_repo is defined
@@ -149,12 +151,12 @@
   when: git_repo is defined
   ignore_errors: true
 
+# Top level only, same reason as above.
 - name: Ensure app directory ownership is correct
   file:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}"
     owner: "{{ app_user | default('ubuntu') }}"
     group: "{{ app_user | default('ubuntu') }}"
-    recurse: yes
     state: directory
   when: app_directory is defined or true
 

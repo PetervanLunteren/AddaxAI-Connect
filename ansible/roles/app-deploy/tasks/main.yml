@@ -30,12 +30,12 @@
     mode: '0600'
   tags: [env-refresh, sync-config]
 
+# No owner on purpose: redis and minio chown their own data dir on boot, and
+# chowning data/redis under a running redis breaks its snapshots (npuh, 24 Aug).
 - name: Create required directories for volumes
   file:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}/{{ item }}"
     state: directory
-    owner: "{{ app_user | default('ubuntu') }}"
-    group: "{{ app_user | default('ubuntu') }}"
     mode: '0755'
   loop:
     - data/redis
