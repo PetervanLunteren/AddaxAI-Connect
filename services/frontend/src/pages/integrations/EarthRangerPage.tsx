@@ -180,7 +180,7 @@ export const EarthRangerPage: React.FC = () => {
       );
     }
     return (
-      <p className="text-sm text-foreground mt-3">
+      <p className="text-sm text-muted-foreground mt-3">
         Not tested yet. Send a test event to check the key and the route.
       </p>
     );
@@ -196,7 +196,7 @@ export const EarthRangerPage: React.FC = () => {
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
       <div className="w-full sm:w-1/2 sm:shrink-0">
         <label className="text-sm font-medium block">{label}</label>
-        <p className="text-sm text-foreground mt-1">{description}</p>
+        <p className="text-sm text-muted-foreground mt-1">{description}</p>
       </div>
       <div className="flex-1">
         <Button type="button" variant="outline" size="sm" onClick={onOpen}>
@@ -214,12 +214,12 @@ export const EarthRangerPage: React.FC = () => {
   return (
     <div className="max-w-4xl">
       <h1 className="text-2xl font-bold mb-0">EarthRanger</h1>
-      <p className="text-sm text-foreground mt-1 mb-6">
+      <p className="text-sm text-gray-600 mt-1 mb-6">
         Send detections and camera alerts to an EarthRanger site as events on the ranger map.
       </p>
 
       <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6 mb-6">
-        <div className="flex-1 space-y-2 text-sm text-foreground">
+        <div className="flex-1 space-y-2 text-sm text-muted-foreground">
           <p>
             EarthRanger is a free operations platform for protected areas, used by hundreds of
             parks and reserves worldwide. It gives ranger teams one live map of their area, with
@@ -265,7 +265,7 @@ export const EarthRangerPage: React.FC = () => {
                       Setting it up
                     </button>
                     {showSetup && (
-                      <div className="mt-3 space-y-3 text-sm text-foreground">
+                      <div className="mt-3 space-y-3 text-sm text-muted-foreground">
                         <p>
                           Events travel through Gundi, EarthRanger's integration hub. You create
                           a connection in the Gundi portal that points at your EarthRanger site
@@ -309,7 +309,7 @@ export const EarthRangerPage: React.FC = () => {
               <label className="text-sm font-medium block">Connection</label>
               {!isConfigured ? (
                 <>
-                  <p className="text-sm text-foreground mt-1 mb-3">
+                  <p className="text-sm text-muted-foreground mt-1 mb-3">
                     Paste the API key of your Gundi connection here, step 3 above. The{' '}
                     <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
                       setup guide
@@ -320,7 +320,7 @@ export const EarthRangerPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-foreground mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     API key ending in {status?.api_key_hint ?? '…'}.
                   </p>
                   {healthLine}
@@ -341,7 +341,7 @@ export const EarthRangerPage: React.FC = () => {
                       Disconnect
                     </Button>
                   </div>
-                  <p className="text-xs text-foreground mt-2">
+                  <p className="text-xs text-muted-foreground mt-2">
                     A test event is a real event on the ranger map, titled "Test from AddaxAI
                     Connect". Resolve it there afterwards.
                   </p>
