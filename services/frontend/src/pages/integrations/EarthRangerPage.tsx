@@ -11,7 +11,7 @@
 import React, { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Callout } from '../../components/ui/Callout';
@@ -44,6 +44,8 @@ export const EarthRangerPage: React.FC = () => {
   const toast = useToast();
 
   const [apiKeyInput, setApiKeyInput] = useState('');
+  // null = follow the default (open until a key is saved), boolean = user's choice
+  const [aboutToggled, setAboutToggled] = useState<boolean | null>(null);
   const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showDetectionSheet, setShowDetectionSheet] = useState(false);
@@ -224,20 +226,97 @@ export const EarthRangerPage: React.FC = () => {
         </div>
       ) : (
         <>
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              {(() => {
+                const showAbout = aboutToggled ?? !isConfigured;
+                const Chevron = showAbout ? ChevronDown : ChevronRight;
+                return (
+                  <>
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-sm font-medium w-full text-left"
+                      onClick={() => setAboutToggled(!showAbout)}
+                    >
+                      <Chevron className="h-4 w-4 text-muted-foreground" />
+                      About this integration
+                    </button>
+                    {showAbout && (
+                      <div className="mt-3 space-y-4 text-sm text-muted-foreground">
+                        <div>
+                          <p className="font-medium text-foreground mb-1">What is EarthRanger</p>
+                          <p>
+                            EarthRanger is a free operations platform for protected areas, used by
+                            hundreds of parks and reserves worldwide. It gives ranger teams one
+                            live map of their area, with tracked animals, patrols, vehicles, and
+                            reported incidents, so they can see what is happening and decide where
+                            to act.
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground mb-1">What this integration does</p>
+                          <p>
+                            It makes this project one of those report sources. When a rule on this
+                            page fires, the alert lands on the ranger map as an event with the
+                            annotated photo, placed at the camera's location, within seconds of the
+                            image arriving. Rangers handle it there like any other incident, while
+                            the full image record stays here in AddaxAI Connect.
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground mb-1">How the connection works</p>
+                          <p>
+                            Events travel through Gundi, EarthRanger's integration hub. You create
+                            a connection in the Gundi portal that points at your EarthRanger site
+                            and paste its API key here. AddaxAI Connect only ever talks to Gundi,
+                            it never sees your EarthRanger address or login.
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground mb-1">Setting it up</p>
+                          <ol className="list-decimal ml-5 space-y-1">
+                            <li>
+                              Ask your EarthRanger admin to add the AddaxAI Connect event types to
+                              your site.
+                            </li>
+                            <li>
+                              Create a connection in the Gundi portal, with an API provider and
+                              your EarthRanger site as its destination.
+                            </li>
+                            <li>Copy the connection's API key and save it below.</li>
+                            <li>
+                              Send a test event and look for it on your EarthRanger map, then set
+                              up rules for what to send.
+                            </li>
+                          </ol>
+                          <p className="mt-2">
+                            The{' '}
+                            <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
+                              setup guide
+                            </a>{' '}
+                            covers each step in detail, with the event type definitions and
+                            troubleshooting.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardContent className="pt-6">
               <label className="text-sm font-medium block">Connection</label>
               {!isConfigured ? (
                 <>
                   <p className="text-sm text-muted-foreground mt-1 mb-3">
-                    Create an API connection for this project in the Gundi portal, add your
-                    EarthRanger site as its destination, and paste the connection's API key here.
-                    The EarthRanger site also needs the event types this integration uses.
-                    The{' '}
+                    Paste the API key of your Gundi connection here, step 3 above. The{' '}
                     <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
                       setup guide
                     </a>{' '}
-                    walks through both.
+                    shows where to find it.
                   </p>
                   {keyForm}
                 </>
