@@ -16,6 +16,9 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Callout } from '../../components/ui/Callout';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
+import { PillTone } from '../../components/ui/StatusPill';
+import { ApiKeyConnectionRow } from '../../components/ApiKeyConnectionRow';
 import { useToast } from '../../components/ui/Toaster';
 import { DetectionAlertRulesSheet } from '../../components/DetectionAlertRulesSheet';
 import { CameraAlertRulesSheet } from '../../components/CameraAlertRulesSheet';
@@ -43,8 +46,6 @@ export const EarthRangerPage: React.FC = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showDetectionSheet, setShowDetectionSheet] = useState(false);
   const [showCameraSheet, setShowCameraSheet] = useState(false);
@@ -88,8 +89,6 @@ export const EarthRangerPage: React.FC = () => {
     mutationFn: (apiKey: string) => integrationsApi.configureEarthRanger(projectIdNum, apiKey),
     onSuccess: () => {
       invalidateStatus();
-      setApiKeyInput('');
-      setReplacingKey(false);
       toast.success('API key saved. Send a test event to check the connection.');
     },
     onError: (error: any) => toast.error(`Could not save the key: ${errorDetail(error)}`),
@@ -124,65 +123,35 @@ export const EarthRangerPage: React.FC = () => {
     return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
   }
 
-  const keyForm = (
-    <form
-      className="flex flex-col gap-2 sm:flex-row sm:items-center"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (apiKeyInput.trim()) configureMutation.mutate(apiKeyInput.trim());
-      }}
-    >
-      <input
-        type="password"
-        value={apiKeyInput}
-        onChange={(e) => setApiKeyInput(e.target.value)}
-        placeholder="Gundi API key"
-        autoComplete="off"
-        className="flex-1 px-3 py-2 border rounded-md text-sm"
-      />
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={configureMutation.isPending || !apiKeyInput.trim()}>
-          {configureMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Save key
-        </Button>
-        {replacingKey && (
-          <Button type="button" size="sm" variant="outline" onClick={() => { setReplacingKey(false); setApiKeyInput(''); }}>
-            Cancel
-          </Button>
-        )}
-      </div>
-    </form>
-  );
+  // Connection status shown on the row: a pill plus a one-line detail.
+  const health = status?.health_status;
+  const pill: { tone: PillTone; label: string } =
+    health === 'healthy' ? { tone: 'success', label: 'Connected' }
+    : health === 'error' ? { tone: 'error', label: 'Error' }
+    : { tone: 'muted', label: 'Untested' };
 
-  const healthLine = (() => {
+  const statusDetail = (() => {
     if (!status) return null;
-    if (status.health_status === 'error') {
-      return (
-        <Callout variant="error" className="mt-3">
-          Last attempt failed{status.last_health_check ? ` on ${formatWhen(status.last_health_check)}` : ''}.
-          {status.last_error ? ` ${status.last_error}` : ''}
-        </Callout>
-      );
+    const hint = status.api_key_hint ? `Key ending ${status.api_key_hint}. ` : '';
+    if (health === 'error') {
+      return `${hint}Last attempt failed${status.last_health_check ? ` on ${formatWhen(status.last_health_check)}` : ''}.${status.last_error ? ` ${status.last_error}` : ''}`;
     }
-    if (status.health_status === 'healthy') {
-      return (
-        <Callout variant="success" className="mt-3">
-          Connection working. Last confirmed {formatWhen(status.last_health_check)}.
-          {status.events_sent > 0 && (
-            <>
-              {' '}Last event sent {formatWhen(status.last_sent_at)}, {status.events_sent} event
-              {status.events_sent !== 1 ? 's' : ''} in total.
-            </>
-          )}
-        </Callout>
-      );
+    if (health === 'healthy') {
+      const events = status.events_sent > 0
+        ? ` Last event sent ${formatWhen(status.last_sent_at)}, ${status.events_sent} event${status.events_sent !== 1 ? 's' : ''} in total.`
+        : '';
+      return `${hint}Last confirmed ${formatWhen(status.last_health_check)}.${events}`;
     }
-    return (
-      <p className="text-sm text-muted-foreground mt-3">
-        Not tested yet. Send a test event to check the key and the route.
-      </p>
-    );
+    return `${hint}Not tested yet. Send a test event to check the key and the route.`;
   })();
+
+  const emptyDescription = (
+    <>
+      Set this up in the Gundi portal, then paste the connection's API key here. The{' '}
+      <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">setup guide</a>{' '}
+      walks you through it, including the EarthRanger event types your site needs.
+    </>
+  );
 
   const ruleRow = (
     label: string,
@@ -191,22 +160,16 @@ export const EarthRangerPage: React.FC = () => {
     buttonLabel: string,
     onOpen: () => void,
   ) => (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-      <div className="w-full sm:w-1/2 sm:shrink-0">
-        <label className="text-sm font-medium block">{label}</label>
-        <p className="text-sm text-muted-foreground mt-1">{description}</p>
-      </div>
-      <div className="flex-1">
-        <Button type="button" variant="outline" size="sm" onClick={onOpen}>
-          {buttonLabel}
-          {count > 0 && (
-            <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-              {count}
-            </span>
-          )}
-        </Button>
-      </div>
-    </div>
+    <SettingRow title={label} description={description}>
+      <Button type="button" variant="outline" size="sm" onClick={onOpen}>
+        {buttonLabel}
+        {count > 0 && (
+          <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+            {count}
+          </span>
+        )}
+      </Button>
+    </SettingRow>
   );
 
   return (
@@ -244,96 +207,71 @@ export const EarthRangerPage: React.FC = () => {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <>
-          <Card>
-            <CardContent className="pt-6">
-              <label className="text-sm font-medium block">Connection</label>
-              {!isConfigured ? (
-                <>
-                  <p className="text-sm text-muted-foreground mt-1 mb-3">
-                    Set this up in the Gundi portal, then paste the connection's API key here. The{' '}
-                    <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
-                      setup guide
-                    </a>{' '}
-                    walks you through it, including the EarthRanger event types your site needs.
-                  </p>
-                  {keyForm}
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    API key ending in {status?.api_key_hint ?? '…'}.
-                  </p>
-                  {healthLine}
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => testMutation.mutate()}
-                      disabled={testMutation.isPending}
-                    >
-                      {testMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Send test event
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => setReplacingKey(true)}>
-                      Replace key
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => setConfirmRemove(true)}>
-                      Disconnect
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    A test event is a real event on the ranger map, titled "Test from AddaxAI
-                    Connect". Resolve it there afterwards. See the{' '}
-                    <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
-                      setup and troubleshooting guide
-                    </a>.
-                  </p>
-                  {replacingKey && <div className="mt-4">{keyForm}</div>}
-                </>
-              )}
-            </CardContent>
-          </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <ApiKeyConnectionRow
+              title="Connection"
+              isConfigured={isConfigured}
+              pill={isConfigured ? pill : null}
+              statusDetail={statusDetail}
+              emptyDescription={emptyDescription}
+              onSaveKey={(key) => configureMutation.mutateAsync(key)}
+              onDisconnect={() => setConfirmRemove(true)}
+              onTest={() => testMutation.mutate()}
+              testing={testMutation.isPending}
+              modalTitle="Connect EarthRanger"
+              keyLabel="Gundi API key"
+              keyPlaceholder="Gundi API key"
+              modalHelp={<>Paste the API key from your Gundi connection. Copy it with the copy button in the portal so no spaces sneak in.</>}
+            />
+            {isConfigured && (
+              <p className="text-xs text-muted-foreground mt-2">
+                A test event is a real event on the ranger map, titled "Test from AddaxAI
+                Connect". Resolve it there afterwards. See the{' '}
+                <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
+                  setup and troubleshooting guide
+                </a>.
+              </p>
+            )}
 
-          <Card className="mt-6">
-            <CardContent className="pt-6">
-              {!isConfigured && (
-                <Callout variant="info" className="mb-6">
-                  No API key is saved, so nothing is sent. The rules below stay as they
-                  are and start working again when a key is saved.
-                </Callout>
-              )}
+            <SettingRowDivider />
 
-              {ruleRow(
-                'Detection events',
-                'Post an event when a selected label is detected. Narrow by site, time of day, or group size, and use the cooldown so one visit gives one event.',
-                activeCount(detectionRules),
-                'Manage detection rules',
-                () => setShowDetectionSheet(true),
-              )}
+            {!isConfigured && (
+              <Callout variant="info" className="mb-6">
+                No API key is saved, so nothing is sent. The rules below stay as they
+                are and start working again when a key is saved.
+              </Callout>
+            )}
 
-              <div className="border-t my-6" />
+            {ruleRow(
+              'Detection events',
+              'Post an event when a selected label is detected. Narrow by site, time of day, or group size, and use the cooldown so one visit gives one event.',
+              activeCount(detectionRules),
+              'Manage detection rules',
+              () => setShowDetectionSheet(true),
+            )}
 
-              {ruleRow(
-                'Camera condition events',
-                'Post an event at the camera\'s site when its battery drops, its SD card fills up, it goes silent, or it sends rejected files. Once per incident.',
-                activeCount(cameraRules),
-                'Manage camera rules',
-                () => setShowCameraSheet(true),
-              )}
+            <SettingRowDivider />
 
-              <div className="border-t my-6" />
+            {ruleRow(
+              'Camera condition events',
+              'Post an event at the camera\'s site when its battery drops, its SD card fills up, it goes silent, or it sends rejected files. Once per incident.',
+              activeCount(cameraRules),
+              'Manage camera rules',
+              () => setShowCameraSheet(true),
+            )}
 
-              {ruleRow(
-                'Theft watch events',
-                'Post an event when a person is unusually close to a camera, or a camera stays silent for longer than its own rhythm. Beta, can raise false alarms.',
-                activeCount(theftRules),
-                'Manage theft watch rules',
-                () => setShowTheftSheet(true),
-              )}
-            </CardContent>
-          </Card>
-        </>
+            <SettingRowDivider />
+
+            {ruleRow(
+              'Theft watch events',
+              'Post an event when a person is unusually close to a camera, or a camera stays silent for longer than its own rhythm. Beta, can raise false alarms.',
+              activeCount(theftRules),
+              'Manage theft watch rules',
+              () => setShowTheftSheet(true),
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <DetectionAlertRulesSheet
