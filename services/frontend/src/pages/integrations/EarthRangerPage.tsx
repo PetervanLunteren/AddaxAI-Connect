@@ -218,7 +218,12 @@ export const EarthRangerPage: React.FC = () => {
         Send detections and camera alerts to an EarthRanger site as events on the ranger map.
       </p>
 
-      <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6 mb-6 rounded-lg border bg-muted/30 px-6 py-5">
+        <img
+          src="/integrations/earthranger-logo.svg"
+          alt="EarthRanger, a product of Ai2"
+          className="h-14 w-auto shrink-0 self-start sm:self-center"
+        />
         <div className="flex-1 space-y-2 text-sm text-muted-foreground">
           <p>
             EarthRanger is a free operations platform for protected areas, used by hundreds of
@@ -233,13 +238,6 @@ export const EarthRangerPage: React.FC = () => {
             it there like any other incident, while the full image record stays here in AddaxAI
             Connect.
           </p>
-        </div>
-        <div className="shrink-0 flex items-center justify-center rounded-lg border bg-muted/30 px-5 py-4 sm:w-52">
-          <img
-            src="/integrations/earthranger-logo.svg"
-            alt="EarthRanger, a product of Ai2"
-            className="h-14 w-auto"
-          />
         </div>
       </div>
 
