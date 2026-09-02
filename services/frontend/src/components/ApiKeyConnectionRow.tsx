@@ -33,29 +33,61 @@ interface ApiKeyConnectionRowProps {
   /** Save a key. Return a promise so the modal closes only on success. */
   onSaveKey: (key: string) => Promise<unknown> | void;
   onDisconnect: () => void;
-  /** Optional test action, e.g. sending a test event. */
-  onTest?: () => void;
-  testing?: boolean;
+  /** Optional test action. Resolve on success, reject with an Error whose
+   *  message is shown in the test modal on failure. Opens a modal with the
+   *  explanation, a send button and the result, so the page stays clean. */
+  onTest?: () => Promise<unknown> | void;
   testLabel?: string;
+  testModalTitle?: string;
+  /** What a test does, shown in the test modal. */
+  testExplanation?: React.ReactNode;
+  /** Shown on a passing test. */
+  testSuccessMessage?: React.ReactNode;
   connectLabel?: string;
   modalTitle: string;
   keyLabel?: string;
   keyPlaceholder?: string;
   /** Help shown above the key field in the modal. */
   modalHelp?: React.ReactNode;
+  /** Troubleshooting link, shown in the test modal. */
+  docsUrl?: string;
+  docsLabel?: string;
 }
 
 export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
   title, isConfigured, pill, statusDetail, emptyDescription, disconnectedNote,
-  onSaveKey, onDisconnect, onTest, testing = false,
-  testLabel = 'Send test event', connectLabel = 'Connect',
+  onSaveKey, onDisconnect, onTest,
+  testLabel = 'Send test event', testModalTitle = 'Send a test event',
+  testExplanation, testSuccessMessage = 'Test passed.',
+  connectLabel = 'Connect',
   modalTitle, keyLabel = 'API key', keyPlaceholder, modalHelp,
+  docsUrl, docsLabel = 'Setup and troubleshooting guide',
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [keyInput, setKeyInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [testPending, setTestPending] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: React.ReactNode } | null>(null);
+
   const openModal = () => { setKeyInput(''); setModalOpen(true); };
+
+  const openTestModal = () => { setTestResult(null); setTestModalOpen(true); };
+
+  const runTest = async () => {
+    if (!onTest) return;
+    try {
+      setTestPending(true);
+      setTestResult(null);
+      await onTest();
+      setTestResult({ ok: true, message: testSuccessMessage });
+    } catch (e) {
+      setTestResult({ ok: false, message: e instanceof Error ? e.message : 'Test failed.' });
+    } finally {
+      setTestPending(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,8 +121,7 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
           ) : (
             <>
               {onTest && (
-                <Button type="button" size="sm" onClick={onTest} disabled={testing}>
-                  {testing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <Button type="button" size="sm" onClick={openTestModal}>
                   {testLabel}
                 </Button>
               )}
@@ -136,6 +167,38 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={testModalOpen} onOpenChange={setTestModalOpen}>
+        <DialogContent onClose={() => setTestModalOpen(false)}>
+          <DialogHeader>
+            <DialogTitle>{testModalTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {testExplanation && (
+              <p className="text-sm text-muted-foreground">{testExplanation}</p>
+            )}
+            {testResult && (
+              <Callout variant={testResult.ok ? 'success' : 'error'}>
+                {testResult.message}
+              </Callout>
+            )}
+            {docsUrl && (
+              <p className="text-sm text-muted-foreground">
+                <a href={docsUrl} target="_blank" rel="noreferrer" className="underline">{docsLabel}</a>
+              </p>
+            )}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setTestModalOpen(false)}>
+                Close
+              </Button>
+              <Button type="button" size="sm" onClick={runTest} disabled={testPending}>
+                {testPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {testLabel}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>

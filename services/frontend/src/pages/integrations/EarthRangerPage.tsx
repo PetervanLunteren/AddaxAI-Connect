@@ -98,14 +98,8 @@ export const EarthRangerPage: React.FC = () => {
 
   const testMutation = useMutation({
     mutationFn: () => integrationsApi.testEarthRanger(projectIdNum),
-    onSuccess: () => {
-      invalidateStatus();
-      toast.success('Test passed. The event should appear on your EarthRanger map within a minute.');
-    },
-    onError: (error: any) => {
-      invalidateStatus();
-      toast.error(`Test event failed: ${errorDetail(error)}`);
-    },
+    // The test modal shows the outcome; refresh the row's health either way.
+    onSettled: () => invalidateStatus(),
   });
 
   const removeMutation = useMutation({
@@ -222,8 +216,16 @@ export const EarthRangerPage: React.FC = () => {
               disconnectedNote="No API key is saved, so nothing is sent. The rules below stay as they are and start working again when a key is saved."
               onSaveKey={(key) => configureMutation.mutateAsync(key)}
               onDisconnect={() => setConfirmRemove(true)}
-              onTest={() => testMutation.mutate()}
-              testing={testMutation.isPending}
+              onTest={async () => {
+                try {
+                  await testMutation.mutateAsync();
+                } catch (e) {
+                  throw new Error(errorDetail(e));
+                }
+              }}
+              testExplanation={<>This posts a real event to your EarthRanger map, titled "Test from AddaxAI Connect", to check that your key and route work. Resolve it on the ranger map afterwards.</>}
+              testSuccessMessage="Test passed. The event should appear on your EarthRanger map within a minute."
+              docsUrl={DOCS_URL}
               modalTitle="Connect EarthRanger"
               keyLabel="Gundi API key"
               keyPlaceholder="Gundi API key"
@@ -231,15 +233,6 @@ export const EarthRangerPage: React.FC = () => {
                 <a href={GUNDI_PORTAL_URL} target="_blank" rel="noreferrer" className="underline">Gundi portal</a>,
                 then its API key section, and paste it here.</>}
             />
-            {isConfigured && (
-              <p className="text-xs text-muted-foreground mt-2">
-                A test event is a real event on the ranger map, titled "Test from AddaxAI
-                Connect". Resolve it there afterwards. See the{' '}
-                <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
-                  setup and troubleshooting guide
-                </a>.
-              </p>
-            )}
 
             <SettingRowDivider />
 
