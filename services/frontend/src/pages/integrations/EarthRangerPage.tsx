@@ -30,7 +30,9 @@ import { cameraAlertRulesApi } from '../../api/cameraAlertRules';
 import { theftWatchApi } from '../../api/theftWatch';
 
 const DOCS_URL = 'https://connect.addaxai.com/integrations/earthranger/';
-const GUNDI_PORTAL_URL = 'https://gundiservice.org/';
+// The connections list, not the portal root: the host serves the SPA under
+// a 404 for this path so it still boots, and it lands one step from the key.
+const GUNDI_PORTAL_URL = 'https://gundiservice.org/connections/';
 const CHANNEL = 'earthranger' as const;
 
 const errorDetail = (error: any): string =>
@@ -225,8 +227,9 @@ export const EarthRangerPage: React.FC = () => {
               modalTitle="Connect EarthRanger"
               keyLabel="Gundi API key"
               keyPlaceholder="Gundi API key"
-              modalHelp={<>You'll find this on your connection in the{' '}
-                <a href={GUNDI_PORTAL_URL} target="_blank" rel="noreferrer" className="underline">Gundi portal</a>.</>}
+              modalHelp={<>Open your connection in the{' '}
+                <a href={GUNDI_PORTAL_URL} target="_blank" rel="noreferrer" className="underline">Gundi portal</a>,
+                then its API key section, and paste it here.</>}
             />
             {isConfigured && (
               <p className="text-xs text-muted-foreground mt-2">
