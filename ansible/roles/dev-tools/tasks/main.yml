@@ -151,6 +151,16 @@
   when: git_repo is defined
   ignore_errors: true
 
+# GitHub over HTTP/2 intermittently truncates the ref advertisement on
+# fetch ("fatal: expected flush after ref listing"), which then fails the
+# whole pull. Forcing HTTP/1.1 for github.com avoids it. Scoped to the
+# host so it never touches other git remotes.
+- name: Force HTTP/1.1 for github.com to avoid truncated fetches
+  command: git config --global http.https://github.com/.version HTTP/1.1
+  become_user: "{{ app_user | default('ubuntu') }}"
+  when: git_repo is defined
+  changed_when: false
+
 # Top level only, same reason as above.
 - name: Ensure app directory ownership is correct
   file:
