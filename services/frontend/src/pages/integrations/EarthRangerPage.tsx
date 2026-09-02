@@ -129,16 +129,23 @@ export const EarthRangerPage: React.FC = () => {
   const statusDetail = (() => {
     if (!status) return null;
     const hint = status.api_key_hint ? `Key ending ${status.api_key_hint}. ` : '';
+    let text: string;
     if (health === 'error') {
-      return `${hint}Last attempt failed${status.last_health_check ? ` on ${formatWhen(status.last_health_check)}` : ''}.${status.last_error ? ` ${status.last_error}` : ''}`;
-    }
-    if (health === 'healthy') {
+      text = `${hint}Last attempt failed${status.last_health_check ? ` on ${formatWhen(status.last_health_check)}` : ''}.${status.last_error ? ` ${status.last_error}` : ''}`;
+    } else if (health === 'healthy') {
       const events = status.events_sent > 0
         ? ` Last event sent ${formatWhen(status.last_sent_at)}, ${status.events_sent} event${status.events_sent !== 1 ? 's' : ''} in total.`
         : '';
-      return `${hint}Last confirmed ${formatWhen(status.last_health_check)}.${events}`;
+      text = `${hint}Last confirmed ${formatWhen(status.last_health_check)}.${events}`;
+    } else {
+      text = `${hint}Not tested yet. Send a test event to check the key and the route.`;
     }
-    return `${hint}Not tested yet. Send a test event to check the key and the route.`;
+    return (
+      <>
+        {text} See the{' '}
+        <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">setup guide</a>.
+      </>
+    );
   })();
 
   const emptyDescription = (

@@ -184,7 +184,7 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
                 {testResult.message}
               </Callout>
             )}
-            {docsUrl && (
+            {docsUrl && testResult && !testResult.ok && (
               <p className="text-sm text-muted-foreground">
                 <a href={docsUrl} target="_blank" rel="noreferrer" className="underline">{docsLabel}</a>
               </p>
