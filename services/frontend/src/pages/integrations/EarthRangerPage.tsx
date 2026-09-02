@@ -218,8 +218,13 @@ export const EarthRangerPage: React.FC = () => {
         Send detections and camera alerts to an EarthRanger site as events on the ranger map.
       </p>
 
-      <div className="flex flex-col-reverse sm:flex-row sm:items-start gap-4 sm:gap-8 mb-6">
-        <div className="flex-1 space-y-2 text-sm text-muted-foreground">
+      <div className="mb-6">
+        <img
+          src="/integrations/earthranger-logo.svg"
+          alt="EarthRanger, a product of Ai2"
+          className="h-14 w-auto mb-3"
+        />
+        <div className="space-y-2 text-sm text-muted-foreground">
           <p>
             EarthRanger is a free operations platform for protected areas, used by hundreds of
             parks and reserves worldwide. It gives ranger teams one live map of their area, with
@@ -234,11 +239,6 @@ export const EarthRangerPage: React.FC = () => {
             Connect.
           </p>
         </div>
-        <img
-          src="/integrations/earthranger-logo.svg"
-          alt="EarthRanger, a product of Ai2"
-          className="h-11 w-auto self-start sm:mt-1"
-        />
       </div>
 
       {isLoading ? (
