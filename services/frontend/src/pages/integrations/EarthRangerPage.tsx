@@ -99,7 +99,7 @@ export const EarthRangerPage: React.FC = () => {
     mutationFn: () => integrationsApi.testEarthRanger(projectIdNum),
     onSuccess: () => {
       invalidateStatus();
-      toast.success('Test event accepted by Gundi. It should appear in EarthRanger within a minute.');
+      toast.success('Test passed. The event should appear on your EarthRanger map within a minute.');
     },
     onError: (error: any) => {
       invalidateStatus();
@@ -166,10 +166,15 @@ export const EarthRangerPage: React.FC = () => {
     }
     if (status.health_status === 'healthy') {
       return (
-        <p className="text-sm text-muted-foreground mt-3">
-          Connected. Last event sent {formatWhen(status.last_sent_at)}, {status.events_sent} event
-          {status.events_sent !== 1 ? 's' : ''} sent in total.
-        </p>
+        <Callout variant="success" className="mt-3">
+          Connection working. Last confirmed {formatWhen(status.last_health_check)}.
+          {status.events_sent > 0 && (
+            <>
+              {' '}Last event sent {formatWhen(status.last_sent_at)}, {status.events_sent} event
+              {status.events_sent !== 1 ? 's' : ''} in total.
+            </>
+          )}
+        </Callout>
       );
     }
     return (
