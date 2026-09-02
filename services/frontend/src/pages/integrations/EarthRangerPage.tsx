@@ -14,7 +14,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Callout } from '../../components/ui/Callout';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
 import { PillTone } from '../../components/ui/StatusPill';
@@ -215,6 +214,7 @@ export const EarthRangerPage: React.FC = () => {
               pill={isConfigured ? pill : null}
               statusDetail={statusDetail}
               emptyDescription={emptyDescription}
+              disconnectedNote="No API key is saved, so nothing is sent. The rules below stay as they are and start working again when a key is saved."
               onSaveKey={(key) => configureMutation.mutateAsync(key)}
               onDisconnect={() => setConfirmRemove(true)}
               onTest={() => testMutation.mutate()}
@@ -235,13 +235,6 @@ export const EarthRangerPage: React.FC = () => {
             )}
 
             <SettingRowDivider />
-
-            {!isConfigured && (
-              <Callout variant="info" className="mb-6">
-                No API key is saved, so nothing is sent. The rules below stay as they
-                are and start working again when a key is saved.
-              </Callout>
-            )}
 
             {ruleRow(
               'Detection events',

@@ -15,6 +15,7 @@ import { Loader2 } from 'lucide-react';
 import { SettingRow } from './ui/SettingRow';
 import { StatusPill, PillTone } from './ui/StatusPill';
 import { Button } from './ui/Button';
+import { Callout } from './ui/Callout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 
 interface ApiKeyConnectionRowProps {
@@ -26,6 +27,9 @@ interface ApiKeyConnectionRowProps {
   statusDetail?: React.ReactNode;
   /** Left-column text when no key is saved. */
   emptyDescription?: React.ReactNode;
+  /** Info callout shown under the row when no key is saved, e.g. to say
+   *  that the rules below stay put and resume once a key is saved. */
+  disconnectedNote?: React.ReactNode;
   /** Save a key. Return a promise so the modal closes only on success. */
   onSaveKey: (key: string) => Promise<unknown> | void;
   onDisconnect: () => void;
@@ -42,7 +46,7 @@ interface ApiKeyConnectionRowProps {
 }
 
 export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
-  title, isConfigured, pill, statusDetail, emptyDescription,
+  title, isConfigured, pill, statusDetail, emptyDescription, disconnectedNote,
   onSaveKey, onDisconnect, onTest, testing = false,
   testLabel = 'Send test event', connectLabel = 'Connect',
   modalTitle, keyLabel = 'API key', keyPlaceholder, modalHelp,
@@ -96,6 +100,10 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
           )}
         </div>
       </SettingRow>
+
+      {!isConfigured && disconnectedNote && (
+        <Callout variant="info" className="mt-4">{disconnectedNote}</Callout>
+      )}
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent onClose={() => setModalOpen(false)}>
