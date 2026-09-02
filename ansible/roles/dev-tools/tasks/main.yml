@@ -34,7 +34,6 @@
   command: git ls-remote --tags --refs --sort=-v:refname {{ git_repo }} 'v*'
   register: newest_release
   changed_when: false
-  failed_when: newest_release.rc != 0 or newest_release.stdout | length == 0
   when:
     - git_repo is defined
     - git_version | default('') | length == 0
@@ -48,9 +47,21 @@
     - git_version | default('') | length > 0
   tags: [env-refresh]
 
+# Only plain vX.Y.Z counts as a release. A pre-release tag like v1.0.0-rc1
+# sorts above v1.0.0 in git's version sort and must never win.
 - name: Use the newest release tag
   set_fact:
-    checkout_ref: "{{ newest_release.stdout_lines | first | regex_replace('^.*refs/tags/', '') }}"
+    checkout_ref: "{{ newest_release.stdout_lines | map('regex_replace', '^.*refs/tags/', '') | select('match', '^v[0-9]+[.][0-9]+[.][0-9]+$') | first | default('') }}"
+  when:
+    - git_repo is defined
+    - git_version | default('') | length == 0
+  tags: [env-refresh]
+
+- name: Refuse to deploy without a release tag
+  assert:
+    that: checkout_ref | length > 0
+    fail_msg: "No vX.Y.Z release tag found at {{ git_repo }}. Tag a release, or set git_version to a branch or commit."
+    quiet: true
   when:
     - git_repo is defined
     - git_version | default('') | length == 0

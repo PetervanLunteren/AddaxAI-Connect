@@ -632,7 +632,7 @@ dev sweep tested against every production dataset; main between tags is work
 in progress. Three places agree on this:
 
 - The playbook checks out `git_version` (`ansible/roles/dev-tools`). Unset,
-  it resolves the newest `v*` tag on the remote at deploy time, so a fresh
+  it resolves the newest `vX.Y.Z` tag on the remote at deploy time, so a fresh
   server always gets the latest release. A tag pins one. `main` is for a dev
   server only, set in its host_vars.
 - An update is `git fetch origin --tags && git checkout vX.Y.Z` plus a
