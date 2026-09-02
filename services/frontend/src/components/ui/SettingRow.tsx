@@ -11,7 +11,7 @@
 import React from 'react';
 
 interface SettingRowProps {
-  title: string;
+  title: React.ReactNode;
   /** Set when the row's control is a labelled input (checkbox, switch). */
   titleFor?: string;
   /** Left-column body. Inline content only, it renders inside a <p>. */

@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { Loader2, Save, MessageCircle, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
+import { SettingRow, SettingRowDivider } from '../components/ui/SettingRow';
 import { Button } from '../components/ui/Button';
 import { Callout } from '../components/ui/Callout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
@@ -278,79 +279,67 @@ export const NotificationsPage: React.FC = () => {
                   can point at one place. */}
               {isTelegramConfigured && (
                 <>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                    <div className="w-full sm:w-1/2 sm:shrink-0">
-                      <label className="text-sm font-medium block">Telegram account</label>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {isTelegramLinked
-                          ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos.'
-                          : 'Link your Telegram account so alert rules can send you instant Telegram messages with photos.'
-                        }
-                      </p>
-                    </div>
-                    <div className="flex-1">
-                      {isTelegramLinked ? (
-                        <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                          Linked
-                        </span>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          type="button"
-                          onClick={handleGenerateLink}
-                          disabled={generateTokenMutation.isPending}
-                          className="whitespace-nowrap"
-                        >
-                          {generateTokenMutation.isPending ? (
-                            <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
-                          ) : (
-                            'Link Telegram'
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                  <SettingRow
+                    title="Telegram account"
+                    description={isTelegramLinked
+                      ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos.'
+                      : 'Link your Telegram account so alert rules can send you instant Telegram messages with photos.'}
+                  >
+                    {isTelegramLinked ? (
+                      <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                        Linked
+                      </span>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={handleGenerateLink}
+                        disabled={generateTokenMutation.isPending}
+                        className="whitespace-nowrap"
+                      >
+                        {generateTokenMutation.isPending ? (
+                          <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
+                        ) : (
+                          'Link Telegram'
+                        )}
+                      </Button>
+                    )}
+                  </SettingRow>
 
-                  {/* Divider */}
-                  <div className="border-t my-6" />
+                  <SettingRowDivider />
                 </>
               )}
 
               {/* Real-time detection alerts row (any member). The slideout
                   holds the rule list plus add / edit / delete. */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Real-time detection alerts</label>
-                  <p className="text-sm text-muted-foreground mt-1">Get an instant email or Telegram message with a photo each time a selected label is detected. Rules can be narrowed by site, time of day, or group size, and quieted with a cooldown. Only you receive your alerts.</p>
-                </div>
-                <div className="flex-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDetectionRulesSheet(true)}
-                  >
-                    Manage detection rules
-                    {activeDetectionRuleCount > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                        {activeDetectionRuleCount}
-                      </span>
-                    )}
-                  </Button>
-                </div>
-              </div>
+              <SettingRow
+                title="Real-time detection alerts"
+                description="Get an instant email or Telegram message with a photo each time a selected label is detected. Rules can be narrowed by site, time of day, or group size, and quieted with a cooldown. Only you receive your alerts."
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDetectionRulesSheet(true)}
+                >
+                  Manage detection rules
+                  {activeDetectionRuleCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                      {activeDetectionRuleCount}
+                    </span>
+                  )}
+                </Button>
+              </SettingRow>
 
-              {/* Divider */}
-              <div className="border-t my-6" />
+              <SettingRowDivider />
 
               {/* Email reports row */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Project updates</label>
-                  <p className="text-sm text-muted-foreground mt-1">Receive a scheduled email with a summary of your project, including the number of new images, species detected, and camera activity since the last report.</p>
-                </div>
-                <div className="flex-1 relative">
+              <SettingRow
+                title="Project updates"
+                description="Receive a scheduled email with a summary of your project, including the number of new images, species detected, and camera activity since the last report."
+              >
+                <div className="relative">
                   <select
                     value={reportFrequency}
                     onChange={(e) => setReportFrequency(e.target.value as 'disabled' | 'daily' | 'weekly' | 'monthly')}
@@ -363,77 +352,70 @@ export const NotificationsPage: React.FC = () => {
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
-              </div>
+              </SettingRow>
 
-              {/* Divider */}
-              <div className="border-t my-6" />
+              <SettingRowDivider />
 
               {/* Species reports row (any member). The slideout holds the
                   report list plus add / edit / delete. */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Species reports</label>
-                  <p className="text-sm text-muted-foreground mt-1">Get a weekly, monthly, or quarterly email with the numbers for selected species. Each report shows a per-site table with counts, trap-days, and detections per 100 trap-days. Only you receive your reports.</p>
-                </div>
-                <div className="flex-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowSpeciesReportsSheet(true)}
-                  >
-                    Manage species reports
-                    {activeSpeciesReportCount > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                        {activeSpeciesReportCount}
-                      </span>
-                    )}
-                  </Button>
-                </div>
-              </div>
+              <SettingRow
+                title="Species reports"
+                description="Get a weekly, monthly, or quarterly email with the numbers for selected species. Each report shows a per-site table with counts, trap-days, and detections per 100 trap-days. Only you receive your reports."
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSpeciesReportsSheet(true)}
+                >
+                  Manage species reports
+                  {activeSpeciesReportCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                      {activeSpeciesReportCount}
+                    </span>
+                  )}
+                </Button>
+              </SettingRow>
 
-              {/* Divider */}
-              <div className="border-t my-6" />
+              <SettingRowDivider />
 
               {/* Theft watch row (any member, beta). The slideout holds
                   the rule list plus add / edit / delete. */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">
+              <SettingRow
+                title={
+                  <>
                     Theft watch
                     <span className="ml-2 align-middle inline-flex items-center px-1.5 h-5 text-[10px] font-semibold uppercase tracking-wide rounded bg-[#882000]/10 text-[#882000]">
                       beta
                     </span>
-                  </label>
-                  <p className="text-sm text-muted-foreground mt-1">An experimental attempt to notice camera theft or tampering. A person unusually close to a camera sends an instant alert, and a camera that stays silent longer than its own normal rhythm sends an alert within hours or days. It can miss real thefts and it can raise false alarms. Only you receive your alerts.</p>
-                </div>
-                <div className="flex-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowTheftWatchSheet(true)}
-                  >
-                    Manage theft watch
-                    {activeTheftWatchCount > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                        {activeTheftWatchCount}
-                      </span>
-                    )}
-                  </Button>
-                </div>
-              </div>
+                  </>
+                }
+                description="An experimental attempt to notice camera theft or tampering. A person unusually close to a camera sends an instant alert, and a camera that stays silent longer than its own normal rhythm sends an alert within hours or days. It can miss real thefts and it can raise false alarms. Only you receive your alerts."
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTheftWatchSheet(true)}
+                >
+                  Manage theft watch
+                  {activeTheftWatchCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                      {activeTheftWatchCount}
+                    </span>
+                  )}
+                </Button>
+              </SettingRow>
 
               {/* Project inactivity alerts row (project admins only) */}
               {canAdminCurrentProject && (
                 <>
-                  <div className="border-t my-6" />
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                    <div className="w-full sm:w-1/2 sm:shrink-0">
-                      <label className="text-sm font-medium block">Project inactivity alert</label>
-                      <p className="text-sm text-muted-foreground mt-1">Receive an email if this project receives zero images in 48 hours. This usually means something is wrong with the server or network.</p>
-                    </div>
-                    <div className="flex-1 relative">
+                  <SettingRowDivider />
+                  <SettingRow
+                    title="Project inactivity alert"
+                    description="Receive an email if this project receives zero images in 48 hours. This usually means something is wrong with the server or network."
+                  >
+                    <div className="relative">
                       <select
                         value={projectInactivityEnabled ? 'enabled' : 'disabled'}
                         onChange={(e) => setProjectInactivityEnabled(e.target.value === 'enabled')}
@@ -444,20 +426,19 @@ export const NotificationsPage: React.FC = () => {
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
-                  </div>
+                  </SettingRow>
                 </>
               )}
 
               {/* SIM expiry alert row (project admins only) */}
               {canAdminCurrentProject && (
                 <>
-                  <div className="border-t my-6" />
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                    <div className="w-full sm:w-1/2 sm:shrink-0">
-                      <label className="text-sm font-medium block">SIM expiry alert</label>
-                      <p className="text-sm text-muted-foreground mt-1">Receive an email on the 1st of every month listing cameras in this project whose SIM card expires within the next two months or has already expired. The email keeps coming every month until the date is updated.</p>
-                    </div>
-                    <div className="flex-1 relative">
+                  <SettingRowDivider />
+                  <SettingRow
+                    title="SIM expiry alert"
+                    description="Receive an email on the 1st of every month listing cameras in this project whose SIM card expires within the next two months or has already expired. The email keeps coming every month until the date is updated."
+                  >
+                    <div className="relative">
                       <select
                         value={simExpiryEnabled ? 'enabled' : 'disabled'}
                         onChange={(e) => setSimExpiryEnabled(e.target.value === 'enabled')}
@@ -468,7 +449,7 @@ export const NotificationsPage: React.FC = () => {
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
-                  </div>
+                  </SettingRow>
                 </>
               )}
 
@@ -478,66 +459,58 @@ export const NotificationsPage: React.FC = () => {
                   rest of the notifications page. */}
               {canAdminCurrentProject && (
                 <>
-                  <div className="border-t my-6" />
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                    <div className="w-full sm:w-1/2 sm:shrink-0">
-                      <label className="text-sm font-medium block">Scheduled reminders</label>
-                      <p className="text-sm text-muted-foreground mt-1">Schedule a one-shot email to your future self. Useful for project end dates, seasonal cleanup deadlines, hardware swaps. The email lands only with you.</p>
-                    </div>
-                    <div className="flex-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowRemindersSheet(true)}
-                      >
-                        Manage reminders
-                        {activeReminderCount > 0 && (
-                          <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                            {activeReminderCount}
-                          </span>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
+                  <SettingRowDivider />
+                  <SettingRow
+                    title="Scheduled reminders"
+                    description="Schedule a one-shot email to your future self. Useful for project end dates, seasonal cleanup deadlines, hardware swaps. The email lands only with you."
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRemindersSheet(true)}
+                    >
+                      Manage reminders
+                      {activeReminderCount > 0 && (
+                        <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                          {activeReminderCount}
+                        </span>
+                      )}
+                    </Button>
+                  </SettingRow>
                 </>
               )}
 
               {/* Camera condition alerts row (any member). The slideout
                   holds the rule list plus add / edit / delete. */}
-              <div className="border-t my-6" />
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Camera condition alerts</label>
-                  <p className="text-sm text-muted-foreground mt-1">Get an email or Telegram message when a camera's battery drops below a threshold, its SD card fills up, or it goes silent for too long. Alerts fire once per incident and re-arm when the camera recovers. Only you receive your alerts.</p>
-                </div>
-                <div className="flex-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAlertRulesSheet(true)}
-                  >
-                    Manage alert rules
-                    {activeAlertRuleCount > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                        {activeAlertRuleCount}
-                      </span>
-                    )}
-                  </Button>
-                </div>
-              </div>
+              <SettingRowDivider />
+              <SettingRow
+                title="Camera condition alerts"
+                description="Get an email or Telegram message when a camera's battery drops below a threshold, its SD card fills up, or it goes silent for too long. Alerts fire once per incident and re-arm when the camera recovers. Only you receive your alerts."
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAlertRulesSheet(true)}
+                >
+                  Manage alert rules
+                  {activeAlertRuleCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                      {activeAlertRuleCount}
+                    </span>
+                  )}
+                </Button>
+              </SettingRow>
 
-              {/* Divider */}
-              <div className="border-t my-6" />
+              <SettingRowDivider />
 
               {/* Excessive image alerts row */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Excessive image alerts</label>
-                  <p className="text-sm text-muted-foreground mt-1">Receive an email alert when a camera exceeds a daily image threshold. This usually indicates a problem like waving grass or direct sunlight triggering the sensor repeatedly.</p>
-                </div>
-                <div className="flex-1 relative">
+              <SettingRow
+                title="Excessive image alerts"
+                description="Receive an email alert when a camera exceeds a daily image threshold. This usually indicates a problem like waving grass or direct sunlight triggering the sensor repeatedly."
+              >
+                <div className="relative">
                   <select
                     value={excessiveImagesThreshold}
                     onChange={(e) => setExcessiveImagesThreshold(Number(e.target.value))}
@@ -552,10 +525,9 @@ export const NotificationsPage: React.FC = () => {
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
-              </div>
+              </SettingRow>
 
-              {/* Divider */}
-              <div className="border-t my-6" />
+              <SettingRowDivider />
 
               {/* Save button */}
               <div className="flex justify-end">

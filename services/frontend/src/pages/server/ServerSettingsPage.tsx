@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Download, Save, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
+import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
 import { Switch } from '../../components/ui/Switch';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
@@ -412,102 +413,85 @@ export const ServerSettingsPage: React.FC = () => {
           <div className="border-t my-6" />
 
           {/* Telegram notifications */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-            <div className="w-full sm:w-1/2 sm:shrink-0">
-              <label className="text-sm font-medium block">Telegram notifications</label>
-              <p className="text-sm text-muted-foreground mt-1">
-                {isTelegramConfigured && telegramConfig
-                  ? <>Bot <code className="text-xs bg-muted px-1 py-0.5 rounded">@{telegramConfig.bot_username}</code> is active. Users link their own chat from project settings. <button onClick={() => setShowProfilePicModal(true)} className="text-primary hover:underline">Add a profile picture</button>.</>
-                  : 'Send alerts to Telegram. One bot per server. Users link their own chat from project settings.'}
-              </p>
-            </div>
-            <div className="flex-1">
-              {telegramLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              ) : isTelegramConfigured ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleUnconfigure}
-                  disabled={unconfigureMutation.isPending}
-                >
-                  {unconfigureMutation.isPending ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Removing...</>
-                  ) : (
-                    'Remove bot'
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowConfigModal(true)}
-                >
-                  Configure bot
-                </Button>
-              )}
-            </div>
-          </div>
+          <SettingRow
+            title="Telegram notifications"
+            description={isTelegramConfigured && telegramConfig
+              ? <>Bot <code className="text-xs bg-muted px-1 py-0.5 rounded">@{telegramConfig.bot_username}</code> is active. Users link their own chat from project settings. <button onClick={() => setShowProfilePicModal(true)} className="text-primary hover:underline">Add a profile picture</button>.</>
+              : 'Send alerts to Telegram. One bot per server. Users link their own chat from project settings.'}
+          >
+            {telegramLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : isTelegramConfigured ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUnconfigure}
+                disabled={unconfigureMutation.isPending}
+              >
+                {unconfigureMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Removing...</>
+                ) : (
+                  'Remove bot'
+                )}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowConfigModal(true)}
+              >
+                Configure bot
+              </Button>
+            )}
+          </SettingRow>
 
-          <div className="border-t my-6" />
+          <SettingRowDivider />
 
           {/* Backup failure alerts */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-            <div className="w-full sm:w-1/2 sm:shrink-0">
-              <label htmlFor="notify-backup-failures" className="text-sm font-medium block cursor-pointer">Backup failure alerts</label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Email server admins when the daily automated backup fails or does not run. Does nothing on servers where automated backup is disabled.
-              </p>
-            </div>
-            <div className="flex-1">
-              <Switch
-                id="notify-backup-failures"
-                checked={notifyBackupFailures}
-                onChange={setNotifyBackupFailures}
-                aria-label="Backup failure alerts"
-              />
-            </div>
-          </div>
+          <SettingRow
+            titleFor="notify-backup-failures"
+            title="Backup failure alerts"
+            description="Email server admins when the daily automated backup fails or does not run. Does nothing on servers where automated backup is disabled."
+          >
+            <Switch
+              id="notify-backup-failures"
+              checked={notifyBackupFailures}
+              onChange={setNotifyBackupFailures}
+              aria-label="Backup failure alerts"
+            />
+          </SettingRow>
 
-          <div className="border-t my-6" />
+          <SettingRowDivider />
 
           {/* Cold-tier failure alerts */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-            <div className="w-full sm:w-1/2 sm:shrink-0">
-              <label htmlFor="notify-cold-tier-failures" className="text-sm font-medium block cursor-pointer">Cold-tier failure alerts</label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Email server admins when the cold-tier watchdog cannot reach the remote bucket, crashes, or stops ticking. Does nothing on servers where the cold tier is disabled.
-              </p>
-            </div>
-            <div className="flex-1">
-              <Switch
-                id="notify-cold-tier-failures"
-                checked={notifyColdTierFailures}
-                onChange={setNotifyColdTierFailures}
-                aria-label="Cold-tier failure alerts"
-              />
-            </div>
-          </div>
+          <SettingRow
+            titleFor="notify-cold-tier-failures"
+            title="Cold-tier failure alerts"
+            description="Email server admins when the cold-tier watchdog cannot reach the remote bucket, crashes, or stops ticking. Does nothing on servers where the cold tier is disabled."
+          >
+            <Switch
+              id="notify-cold-tier-failures"
+              checked={notifyColdTierFailures}
+              onChange={setNotifyColdTierFailures}
+              aria-label="Cold-tier failure alerts"
+            />
+          </SettingRow>
 
-          <div className="border-t my-6" />
+          <SettingRowDivider />
 
           {/* Security check alerts */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-            <div className="w-full sm:w-1/2 sm:shrink-0">
-              <label htmlFor="notify-security-failures" className="text-sm font-medium block cursor-pointer">Security check alerts</label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Email server admins when the daily security check finds a problem, for example the firewall switched off, brute-force protection not running, or password login enabled on SSH. Also emails when the check itself stops running.
-              </p>
-            </div>
-            <div className="flex-1">
-              <Switch
-                id="notify-security-failures"
-                checked={notifySecurityFailures}
-                onChange={setNotifySecurityFailures}
-                aria-label="Security check alerts"
-              />
-            </div>
-          </div>
+          <SettingRow
+            titleFor="notify-security-failures"
+            title="Security check alerts"
+            description="Email server admins when the daily security check finds a problem, for example the firewall switched off, brute-force protection not running, or password login enabled on SSH. Also emails when the check itself stops running."
+          >
+            <Switch
+              id="notify-security-failures"
+              checked={notifySecurityFailures}
+              onChange={setNotifySecurityFailures}
+              aria-label="Security check alerts"
+            />
+          </SettingRow>
 
           {/* Infra save block */}
           {infraError && (
