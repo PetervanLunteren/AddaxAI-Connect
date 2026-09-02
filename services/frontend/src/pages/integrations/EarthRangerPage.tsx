@@ -30,6 +30,7 @@ import { cameraAlertRulesApi } from '../../api/cameraAlertRules';
 import { theftWatchApi } from '../../api/theftWatch';
 
 const DOCS_URL = 'https://connect.addaxai.com/integrations/earthranger/';
+const GUNDI_PORTAL_URL = 'https://gundiservice.org/';
 const CHANNEL = 'earthranger' as const;
 
 const errorDetail = (error: any): string =>
@@ -146,7 +147,9 @@ export const EarthRangerPage: React.FC = () => {
 
   const emptyDescription = (
     <>
-      Set this up in the Gundi portal, then paste the connection's API key here. The{' '}
+      Set this up in the{' '}
+      <a href={GUNDI_PORTAL_URL} target="_blank" rel="noreferrer" className="underline">Gundi portal</a>,
+      then paste the connection's API key here. The{' '}
       <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">setup guide</a>{' '}
       walks you through it, including the EarthRanger event types your site needs.
     </>
@@ -222,7 +225,8 @@ export const EarthRangerPage: React.FC = () => {
               modalTitle="Connect EarthRanger"
               keyLabel="Gundi API key"
               keyPlaceholder="Gundi API key"
-              modalHelp={<>You'll find this on your connection in the Gundi portal.</>}
+              modalHelp={<>You'll find this on your connection in the{' '}
+                <a href={GUNDI_PORTAL_URL} target="_blank" rel="noreferrer" className="underline">Gundi portal</a>.</>}
             />
             {isConfigured && (
               <p className="text-xs text-muted-foreground mt-2">
