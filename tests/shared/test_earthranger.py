@@ -146,6 +146,12 @@ class TestBuildTestEvent:
         assert event["location"] == {"lat": 1.0, "lon": 2.0}
         assert event["recorded_at"].endswith("+00:00")
 
+    def test_no_empty_detail_values(self):
+        # EarthRanger's form validates an empty string against the field
+        # format (URL for the link), which blocks resolving the event
+        event = build_test_event(project_name="Demo", lat=1.0, lon=2.0)
+        assert all(value for value in event["event_details"].values())
+
 
 class TestParseObjectId:
     def test_dict(self):

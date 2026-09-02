@@ -162,11 +162,13 @@ def build_test_event(*, project_name: str, lat: float, lon: float) -> Dict[str, 
         "event_type": EVENT_TYPE_DETECTION,
         "recorded_at": format_recorded_at(datetime.now(timezone.utc)),
         "location": {"lat": lat, "lon": lon},
+        # No link key: EarthRanger's form validates an empty string as a
+        # broken URL, which would block a ranger from resolving the event.
+        # An absent key renders as an empty field and saves fine.
         "event_details": {
             "addaxai_connect_species": "Test",
             "addaxai_connect_category": "animal",
             "addaxai_connect_camera_id": "addaxai-connect-test",
-            "addaxai_connect_link": "",
         },
     }
 
