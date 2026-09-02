@@ -45,7 +45,7 @@ export const EarthRangerPage: React.FC = () => {
 
   const [apiKeyInput, setApiKeyInput] = useState('');
   // null = follow the default (open until a key is saved), boolean = user's choice
-  const [aboutToggled, setAboutToggled] = useState<boolean | null>(null);
+  const [setupToggled, setSetupToggled] = useState<boolean | null>(null);
   const [replacingKey, setReplacingKey] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showDetectionSheet, setShowDetectionSheet] = useState(false);
@@ -215,10 +215,31 @@ export const EarthRangerPage: React.FC = () => {
     <div className="max-w-4xl">
       <h1 className="text-2xl font-bold mb-0">EarthRanger</h1>
       <p className="text-sm text-gray-600 mt-1 mb-6">
-        Send detections and camera alerts to an EarthRanger site as events on the ranger map,
-        through Gundi. Each alert becomes one event with the photo. Events are not updated
-        afterwards, the full record stays here.
+        Send detections and camera alerts to an EarthRanger site as events on the ranger map.
       </p>
+
+      <div className="flex flex-col-reverse sm:flex-row sm:items-start gap-4 sm:gap-8 mb-6">
+        <div className="flex-1 space-y-2 text-sm text-muted-foreground">
+          <p>
+            EarthRanger is a free operations platform for protected areas, used by hundreds of
+            parks and reserves worldwide. It gives ranger teams one live map of their area, with
+            tracked animals, patrols, vehicles, and reported incidents, so they can see what is
+            happening and decide where to act.
+          </p>
+          <p>
+            This integration makes the project one of those report sources. When a rule on this
+            page fires, the alert lands on the ranger map as an event with the annotated photo,
+            placed at the camera's location, within seconds of the image arriving. Rangers handle
+            it there like any other incident, while the full image record stays here in AddaxAI
+            Connect.
+          </p>
+        </div>
+        <img
+          src="/integrations/earthranger-logo.svg"
+          alt="EarthRanger, a product of Ai2"
+          className="h-11 w-auto self-start sm:mt-1"
+        />
+      </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -229,75 +250,50 @@ export const EarthRangerPage: React.FC = () => {
           <Card className="mb-6">
             <CardContent className="pt-6">
               {(() => {
-                const showAbout = aboutToggled ?? !isConfigured;
-                const Chevron = showAbout ? ChevronDown : ChevronRight;
+                const showSetup = setupToggled ?? !isConfigured;
+                const Chevron = showSetup ? ChevronDown : ChevronRight;
                 return (
                   <>
                     <button
                       type="button"
                       className="flex items-center gap-2 text-sm font-medium w-full text-left"
-                      onClick={() => setAboutToggled(!showAbout)}
+                      onClick={() => setSetupToggled(!showSetup)}
                     >
                       <Chevron className="h-4 w-4 text-muted-foreground" />
-                      About this integration
+                      Setting it up
                     </button>
-                    {showAbout && (
-                      <div className="mt-3 space-y-4 text-sm text-muted-foreground">
-                        <div>
-                          <p className="font-medium text-foreground mb-1">What is EarthRanger</p>
-                          <p>
-                            EarthRanger is a free operations platform for protected areas, used by
-                            hundreds of parks and reserves worldwide. It gives ranger teams one
-                            live map of their area, with tracked animals, patrols, vehicles, and
-                            reported incidents, so they can see what is happening and decide where
-                            to act.
-                          </p>
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground mb-1">What this integration does</p>
-                          <p>
-                            It makes this project one of those report sources. When a rule on this
-                            page fires, the alert lands on the ranger map as an event with the
-                            annotated photo, placed at the camera's location, within seconds of the
-                            image arriving. Rangers handle it there like any other incident, while
-                            the full image record stays here in AddaxAI Connect.
-                          </p>
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground mb-1">How the connection works</p>
-                          <p>
-                            Events travel through Gundi, EarthRanger's integration hub. You create
-                            a connection in the Gundi portal that points at your EarthRanger site
-                            and paste its API key here. AddaxAI Connect only ever talks to Gundi,
-                            it never sees your EarthRanger address or login.
-                          </p>
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground mb-1">Setting it up</p>
-                          <ol className="list-decimal ml-5 space-y-1">
-                            <li>
-                              Ask your EarthRanger admin to add the AddaxAI Connect event types to
-                              your site.
-                            </li>
-                            <li>
-                              Create a connection in the Gundi portal, with an API provider and
-                              your EarthRanger site as its destination.
-                            </li>
-                            <li>Copy the connection's API key and save it below.</li>
-                            <li>
-                              Send a test event and look for it on your EarthRanger map, then set
-                              up rules for what to send.
-                            </li>
-                          </ol>
-                          <p className="mt-2">
-                            The{' '}
-                            <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
-                              setup guide
-                            </a>{' '}
-                            covers each step in detail, with the event type definitions and
-                            troubleshooting.
-                          </p>
-                        </div>
+                    {showSetup && (
+                      <div className="mt-3 space-y-3 text-sm text-muted-foreground">
+                        <p>
+                          Events travel through Gundi, EarthRanger's integration hub. You create
+                          a connection in the Gundi portal that points at your EarthRanger site
+                          and paste its API key here. AddaxAI Connect only ever talks to Gundi,
+                          it never sees your EarthRanger address or login, and sent events are
+                          never changed afterwards.
+                        </p>
+                        <ol className="list-decimal ml-5 space-y-1">
+                          <li>
+                            Ask your EarthRanger admin to add the AddaxAI Connect event types to
+                            your site.
+                          </li>
+                          <li>
+                            Create a connection in the Gundi portal, with an API provider and
+                            your EarthRanger site as its destination.
+                          </li>
+                          <li>Copy the connection's API key and save it below.</li>
+                          <li>
+                            Send a test event and look for it on your EarthRanger map, then set
+                            up rules for what to send.
+                          </li>
+                        </ol>
+                        <p>
+                          The{' '}
+                          <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">
+                            setup guide
+                          </a>{' '}
+                          covers each step in detail, with the event type definitions and
+                          troubleshooting.
+                        </p>
                       </div>
                     )}
                   </>
