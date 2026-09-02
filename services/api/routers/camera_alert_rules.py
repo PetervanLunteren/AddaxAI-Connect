@@ -277,7 +277,7 @@ async def update_alert_rule(
     error = validate_rule_fields(next_type, next_threshold, next_channels, next_camera_ids)
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await check_earthranger_channel(db, current_user, project_id, next_channels)
+    await check_earthranger_channel(db, current_user, project_id, next_channels, rule.channels)
 
     if next_camera_ids is not None and next_camera_ids != rule.camera_ids:
         await _check_cameras_in_project(db, project_id, next_camera_ids)

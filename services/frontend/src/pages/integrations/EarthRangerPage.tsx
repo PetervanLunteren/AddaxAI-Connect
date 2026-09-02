@@ -192,7 +192,7 @@ export const EarthRangerPage: React.FC = () => {
         <p className="text-sm text-muted-foreground mt-1">{description}</p>
       </div>
       <div className="flex-1">
-        <Button type="button" variant="outline" size="sm" onClick={onOpen} disabled={!isConfigured}>
+        <Button type="button" variant="outline" size="sm" onClick={onOpen}>
           {buttonLabel}
           {count > 0 && (
             <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
@@ -273,8 +273,8 @@ export const EarthRangerPage: React.FC = () => {
             <CardContent className="pt-6">
               {!isConfigured && (
                 <Callout variant="info" className="mb-6">
-                  Save the API key first. The rules below decide what is sent once the
-                  connection works.
+                  No API key is saved, so nothing is sent. The rules below stay as they
+                  are and start working again when a key is saved.
                 </Callout>
               )}
 

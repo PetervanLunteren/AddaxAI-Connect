@@ -307,7 +307,7 @@ async def update_detection_rule(
     )
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await check_earthranger_channel(db, current_user, project_id, next_channels)
+    await check_earthranger_channel(db, current_user, project_id, next_channels, rule.channels)
 
     if next_site_ids is not None and next_site_ids != rule.site_ids:
         await _check_sites_in_project(db, project_id, next_site_ids)

@@ -81,13 +81,39 @@ async def require_project_admin(
         )
 
 
+def is_project_rule(channels) -> bool:
+    """A rule that sends to EarthRanger belongs to the project (managed on
+    the integration page), not to the person who made it."""
+    return EARTHRANGER in (channels or [])
+
+
 async def check_earthranger_channel(
-    db: AsyncSession, current_user: User, project_id: int, channels
+    db: AsyncSession,
+    current_user: User,
+    project_id: int,
+    channels,
+    current_channels=None,
 ) -> None:
     """A rule that sends to EarthRanger reaches the whole ranger team, not
     its creator, so only project admins may pick that channel, and only on
-    a project whose EarthRanger integration is set up and enabled."""
+    a project whose EarthRanger integration is set up and enabled.
+
+    The channel is exclusive: the notifications page and the integration
+    page are separate worlds, so one rule never mixes personal channels
+    with earthranger.
+
+    A rule that already has the channel skips the integration check, so
+    pausing or editing it keeps working after a disconnect; delivery
+    itself is skipped safely by the worker in that state.
+    """
     if EARTHRANGER not in (channels or []):
+        return
+    if len(channels) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="earthranger cannot be combined with other channels",
+        )
+    if is_project_rule(current_channels):
         return
     await require_project_admin(db, current_user, project_id)
     integration = (await db.execute(
@@ -121,8 +147,7 @@ async def load_rule_row(
         )
     )).scalar_one_or_none()
     if row and row.created_by_user_id != current_user.id:
-        is_project_rule = EARTHRANGER in (row.channels or [])
-        if not (is_project_rule and await can_admin_project(current_user, project_id, db)):
+        if not (is_project_rule(row.channels) and await can_admin_project(current_user, project_id, db)):
             row = None
     if not row:
         raise HTTPException(
@@ -153,5 +178,9 @@ async def list_rule_rows(
         )
     rows = (await db.execute(query.order_by(model.id.asc()))).scalars().all()
     if channel == EARTHRANGER:
-        rows = [r for r in rows if EARTHRANGER in (r.channels or [])]
+        rows = [r for r in rows if is_project_rule(r.channels)]
+    else:
+        # Project rules live on the integration page; the notifications
+        # page is personal and must not show them, not even to their maker
+        rows = [r for r in rows if not is_project_rule(r.channels)]
     return rows
