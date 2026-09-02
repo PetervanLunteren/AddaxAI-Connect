@@ -222,7 +222,7 @@ export const EarthRangerPage: React.FC = () => {
               modalTitle="Connect EarthRanger"
               keyLabel="Gundi API key"
               keyPlaceholder="Gundi API key"
-              modalHelp={<>Paste the API key from your Gundi connection. Copy it with the copy button in the portal so no spaces sneak in.</>}
+              modalHelp={<>You'll find this on your connection in the Gundi portal.</>}
             />
             {isConfigured && (
               <p className="text-xs text-muted-foreground mt-2">
