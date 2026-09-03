@@ -11,7 +11,7 @@
 import React, { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -140,12 +140,7 @@ export const EarthRangerPage: React.FC = () => {
     } else {
       text = `${hint}Not tested yet. Send a test event to check the key and the route.`;
     }
-    return (
-      <>
-        {text} See the{' '}
-        <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">setup guide</a>.
-      </>
-    );
+    return text;
   })();
 
   const emptyDescription = (
@@ -180,9 +175,18 @@ export const EarthRangerPage: React.FC = () => {
   return (
     <div className="max-w-4xl">
       <h1 className="text-2xl font-bold mb-0">EarthRanger</h1>
-      <p className="text-sm text-gray-600 mt-1 mb-6">
+      <p className="text-sm text-gray-600 mt-1 mb-3">
         Send detections and camera alerts to an EarthRanger site as events on the ranger map.
       </p>
+      <a
+        href={DOCS_URL}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline mb-6"
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+        Documentation
+      </a>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6 mb-6 rounded-lg border bg-muted/30 px-6 py-5">
         <img
