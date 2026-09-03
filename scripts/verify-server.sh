@@ -203,6 +203,7 @@ PROVIDED_BY = {
     'notifications': ['notifications'],
     'notifications-email': ['notifications-email'],
     'notifications-telegram': ['notifications-telegram'],
+    'notifications-earthranger': ['notifications-earthranger'],
     'cold-tier-watchdog': ['minio-tier-watchdog'],
 }
 
