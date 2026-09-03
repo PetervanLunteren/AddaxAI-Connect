@@ -27,9 +27,11 @@ interface ApiKeyConnectionRowProps {
   statusDetail?: React.ReactNode;
   /** Left-column text when no key is saved. */
   emptyDescription?: React.ReactNode;
-  /** Info callout shown under the row when no key is saved, e.g. to say
-   *  that the rules below stay put and resume once a key is saved. */
-  disconnectedNote?: React.ReactNode;
+  /** Info callout shown under the row, for a state the pill does not
+   *  cover: no key saved (the rules below stay put and resume once one
+   *  is), or a key saved but no rule active (nothing is sent yet). The
+   *  caller decides which applies; null hides it. */
+  note?: React.ReactNode;
   /** Save a key. Return a promise so the modal closes only on success. */
   onSaveKey: (key: string) => Promise<unknown> | void;
   onDisconnect: () => void;
@@ -58,7 +60,7 @@ interface ApiKeyConnectionRowProps {
 }
 
 export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
-  title, isConfigured, pill, statusDetail, emptyDescription, disconnectedNote,
+  title, isConfigured, pill, statusDetail, emptyDescription, note,
   onSaveKey, onDisconnect, onTest,
   testLabel = 'Send test event', testModalTitle = 'Send a test event',
   testExplanation, testSuccessMessage = 'Test passed.',
@@ -135,8 +137,8 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
         </div>
       </SettingRow>
 
-      {!isConfigured && disconnectedNote && (
-        <Callout variant="info" className="mt-4">{disconnectedNote}</Callout>
+      {note && (
+        <Callout variant="info" className="mt-4">{note}</Callout>
       )}
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

@@ -143,6 +143,18 @@ export const EarthRangerPage: React.FC = () => {
     return text;
   })();
 
+  // The note under the Connection row covers the two idle states the pill
+  // does not: no key, or a key but no active rule. A paused rule sends
+  // nothing either, so this counts active rules. Waits for the three rule
+  // lists so it does not flash on every page open.
+  const rulesLoaded = detectionRules && cameraRules && theftRules;
+  const activeRules = activeCount(detectionRules) + activeCount(cameraRules) + activeCount(theftRules);
+  const note = !isConfigured
+    ? 'No API key is saved, so nothing is sent. The rules below stay as they are and start working again when a key is saved.'
+    : rulesLoaded && activeRules === 0
+      ? 'The key is saved, but no rules are active, so nothing is sent yet. Add a detection, camera or theft watch rule below to start posting events.'
+      : null;
+
   const emptyDescription = (
     <>
       Set this up in the{' '}
@@ -228,7 +240,7 @@ export const EarthRangerPage: React.FC = () => {
               pill={isConfigured ? pill : null}
               statusDetail={statusDetail}
               emptyDescription={emptyDescription}
-              disconnectedNote="No API key is saved, so nothing is sent. The rules below stay as they are and start working again when a key is saved."
+              note={note}
               onSaveKey={(key) => configureMutation.mutateAsync(key)}
               onDisconnect={() => setConfirmRemove(true)}
               onTest={async () => {
