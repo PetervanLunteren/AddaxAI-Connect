@@ -39,7 +39,6 @@ import { LastUpdate } from '../LastUpdate';
 import { InstallAppButton } from '../InstallApp';
 import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
 import { feedApi } from '../../api/feed';
-import { SHOW_INTEGRATIONS_MENU } from '../../lib/featureFlags';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -276,11 +275,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             )}
           </div>
 
-          {/* Integrations section (collapsible, project admins). Hidden
-              behind a temporary flag until the EarthRanger integration is
-              released, see lib/featureFlags.ts. The page stays reachable by
-              URL for testing. */}
-          {SHOW_INTEGRATIONS_MENU && isProjectAdmin && (
+          {/* Integrations section (collapsible, project admins). */}
+          {isProjectAdmin && (
             <div className="mt-2">
               <button
                 onClick={() => setIntegrationsOpen(!integrationsOpen)}
