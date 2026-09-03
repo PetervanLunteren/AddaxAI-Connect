@@ -44,7 +44,10 @@ interface ApiKeyConnectionRowProps {
   /** Shown on a passing test. */
   testSuccessMessage?: React.ReactNode;
   connectLabel?: string;
+  /** Key-modal title when connecting. */
   modalTitle: string;
+  /** Key-modal title when replacing an existing key. Defaults to modalTitle. */
+  replaceModalTitle?: string;
   keyLabel?: string;
   keyPlaceholder?: string;
   /** Help shown above the key field in the modal. */
@@ -60,7 +63,7 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
   testLabel = 'Send test event', testModalTitle = 'Send a test event',
   testExplanation, testSuccessMessage = 'Test passed.',
   connectLabel = 'Connect',
-  modalTitle, keyLabel = 'API key', keyPlaceholder, modalHelp,
+  modalTitle, replaceModalTitle, keyLabel = 'API key', keyPlaceholder, modalHelp,
   docsUrl, docsLabel = 'Setup and troubleshooting guide',
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
@@ -139,7 +142,7 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent onClose={() => setModalOpen(false)}>
           <DialogHeader>
-            <DialogTitle>{modalTitle}</DialogTitle>
+            <DialogTitle>{isConfigured ? (replaceModalTitle ?? modalTitle) : modalTitle}</DialogTitle>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
             {modalHelp && (

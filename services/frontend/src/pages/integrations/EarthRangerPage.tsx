@@ -242,6 +242,7 @@ export const EarthRangerPage: React.FC = () => {
               testSuccessMessage="Test passed. The event should appear on your EarthRanger map within a minute."
               docsUrl={DOCS_URL}
               modalTitle="Connect EarthRanger"
+              replaceModalTitle="Replace the Gundi API key"
               keyLabel="Gundi API key"
               keyPlaceholder="Gundi API key"
               modalHelp={<>Open your connection in the{' '}
