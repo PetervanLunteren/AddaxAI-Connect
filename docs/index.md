@@ -19,6 +19,10 @@ An open-source platform that automatically processes camera trap images with mac
 - [Sites and cameras](sites-and-deployments.md): how images are organised by place, and how camera moves are handled
 - [Install as an app](install-as-app.md): put AddaxAI Connect on your phone or computer
 
+## Integrations
+
+- [EarthRanger](integrations/earthranger.md): send detections and camera alerts to an EarthRanger site as events on the ranger map
+
 ## Running your server
 
 - [Operations and monitoring](operations.md): check service health, view logs, monitor the pipeline

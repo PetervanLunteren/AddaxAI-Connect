@@ -57,8 +57,9 @@ nav:
   - Using the app:
     - Sites and cameras: sites-and-deployments.md
     - Theft watch: theft-watch.md
-    - EarthRanger: integrations/earthranger.md
     - Install as an app: install-as-app.md
+  - Integrations:
+    - EarthRanger: integrations/earthranger.md
   - Running your server:
     - Operations and monitoring: operations.md
     - Update guide: update-guide.md
