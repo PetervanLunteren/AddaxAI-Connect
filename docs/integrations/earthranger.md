@@ -121,6 +121,8 @@ The event type's default priority sets the colour of the dot on the map. People 
 
 *In AddaxAI Connect, by a project admin.*
 
+A saved key on its own sends nothing. Every event comes from a rule, so the last step is to add at least one. Until a rule is active, the page says so under the connection.
+
 The same page has three rule lists.
 
 - Detection rules: which labels, at which sites, at what time of day, minimum group size, cooldown, and an "absent for days" filter for rare visitors. The cooldown starts at the project's independence interval.
@@ -146,4 +148,4 @@ These rules belong to the project, not to you. Any project admin can change them
 - **Gundi returns 403 when saving or testing:** the API key is wrong or was revoked. Copy it again from your connection's `API key` section in Gundi.
 - **The test passes but nothing shows in EarthRanger:** open the connection in Gundi and check its activity log. The usual causes are a missing event type on the site, or the Gundi user without permission on the event category.
 - **Events stop after a while:** the connection shows the last error. A camera without a site or GPS cannot be placed on a map, so its alerts are skipped and logged.
-- **Nothing sends at all:** check that a key is saved. Disconnect forgets the key; the rules stay and resume when a key is saved again.
+- **Nothing sends at all:** check that a key is saved and that at least one rule is active; the page shows a note when either is missing. Disconnect forgets the key; the rules stay and resume when a key is saved again.
