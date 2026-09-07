@@ -17,6 +17,8 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     Use any cloud provider you like (DigitalOcean, Hetzner, AWS, etc.). You need Ubuntu with at least 8 GB RAM and enough storage for your images (tested on DigitalOcean's `Ubuntu 24.04 (LTS) x64 (Premium Intel) - 8GB / 2 Intel CPUs / 160GB NVMe SSD ($48/mo)`). Add your SSH public key during creation and note the IPv4 address. All the following steps happen on your local machine, not on the server.
 
+    A server in your own network works too, but it must be reachable from the internet. Let's Encrypt needs port 80, the web interface uses 443, and the cameras upload over ports 21, 990 and 40000 to 50000. Forward those on your router and point your domain at your public IP. If the server cannot be reached from outside, set `enable_ssl: false` in `ansible/group_vars/all/main.yml`, but keep `domain_name` filled in, since the email links and the storage settings use it.
+
 2.  **Clone this repo**
 
     ```bash
@@ -41,6 +43,8 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `myserver` | `cam-01` | Name of your server. The `host_vars` file must match it. |
     | `your_vm_ipv4` | `123.456.789.01` | IPv4 address of your server |
     | `your_ssh_key` | `~/.ssh/id_rsa` | Path to your private SSH key |
+
+    The example inventory connects as `root`, which is what cloud VMs give you. If your server is a normal Ubuntu install where you log in with your own user, put that username in `ansible_user` and add `-K` to every `ansible-playbook` command in this guide. It asks for your sudo password once per run. Without it the playbook stops at the first task with `sudo: interactive authentication is required`. Also set `app_user` in `ansible/group_vars/all/main.yml` to that same username, so the playbook does not create a second account.
 
 5.  **Configure your settings**
 

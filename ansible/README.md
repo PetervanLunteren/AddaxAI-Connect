@@ -56,6 +56,10 @@ Always name a target. The playbook covers every server in your inventory, so
 without `--limit` it would try to deploy all of them at once. A guard refuses
 that rather than letting it happen quietly.
 
+Every command below assumes `ansible_user` is `root`. When you connect as your
+own user instead, add `-K` so ansible can ask for your sudo password, or give
+that user passwordless sudo on the server.
+
 ```bash
 # one server, the normal case
 ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --limit myserver

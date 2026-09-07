@@ -16,7 +16,9 @@
 all:
   vars:
     # The user ansible connects as. Ubuntu VMs usually start with root, and the
-    # playbook creates the unprivileged app user itself.
+    # playbook creates the unprivileged app user itself. Connecting as your own
+    # user works too, but that user needs sudo, so add -K to every
+    # ansible-playbook command, or give it passwordless sudo on the server.
     ansible_user: root
     ansible_ssh_private_key_file: ~/.ssh/id_rsa
     ansible_python_interpreter: /usr/bin/python3
