@@ -16,6 +16,13 @@
 # than in this file: Dependabot alerts, Dependabot security updates, and secret
 # scanning with push protection.
 #
+# One catch, learned on 27 Aug 2026. Closing a version-update pull request
+# makes Dependabot promise not to open it again for that release, and that
+# promise also covers a later security update to the same version. So when the
+# aiosmtplib 5.1.2 advisory landed a week after PRs 75 and 78 were closed, no
+# pull request followed and the alert just sat open. An open alert with no
+# pull request behind it is this, not a glitch. Bump the pin by hand.
+#
 # `groups` stays, because some packages cannot move alone and a security update
 # that ships half a pair is broken on arrival. Each group says
 # `applies-to: security-updates`, since that is the only kind of pull request
