@@ -12,13 +12,14 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.models import Project, ProjectIntegration, User
+from shared.project_channels import LABELS, PROJECT_CHANNELS, project_channel_of
 from auth.permissions import can_access_project, can_admin_project
 
 # Delivery channels a rule may name. Email and Telegram reach the rule's
-# creator; earthranger reaches the project's EarthRanger site through Gundi
-# and is therefore a project-level choice (see check_earthranger_channel).
-EARTHRANGER = "earthranger"
-VALID_CHANNELS = {"email", "telegram", EARTHRANGER}
+# creator; a project channel (EarthRanger, Sensing Clues) reaches the
+# project's integration and is therefore a project-level choice (see
+# check_project_channel).
+VALID_CHANNELS = {"email", "telegram"} | set(PROJECT_CHANNELS)
 
 
 async def require_project_access(
@@ -82,51 +83,54 @@ async def require_project_admin(
 
 
 def is_project_rule(channels) -> bool:
-    """A rule that sends to EarthRanger belongs to the project (managed on
-    the integration page), not to the person who made it."""
-    return EARTHRANGER in (channels or [])
+    """A rule that sends to a project channel belongs to the project
+    (managed on the integration page), not to the person who made it."""
+    return project_channel_of(channels) is not None
 
 
-async def check_earthranger_channel(
+async def check_project_channel(
     db: AsyncSession,
     current_user: User,
     project_id: int,
     channels,
     current_channels=None,
 ) -> None:
-    """A rule that sends to EarthRanger reaches the whole ranger team, not
-    its creator, so only project admins may pick that channel, and only on
-    a project whose EarthRanger integration is set up and enabled.
+    """A rule on a project channel reaches the whole team behind the
+    integration, not its creator, so only project admins may pick that
+    channel, and only on a project whose integration of that kind is set
+    up and enabled.
 
     The channel is exclusive: the notifications page and the integration
-    page are separate worlds, so one rule never mixes personal channels
-    with earthranger.
+    pages are separate worlds, so one rule never mixes personal channels
+    with a project channel, nor two project channels.
 
     A rule that already has the channel skips the integration check, so
     pausing or editing it keeps working after a disconnect; delivery
-    itself is skipped safely by the worker in that state.
+    itself is skipped safely by the worker in that state. Switching a
+    rule to another project channel is a new choice and is checked.
     """
-    if EARTHRANGER not in (channels or []):
+    kind = project_channel_of(channels)
+    if kind is None:
         return
     if len(channels) > 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="earthranger cannot be combined with other channels",
+            detail=f"{kind} cannot be combined with other channels",
         )
-    if is_project_rule(current_channels):
+    if project_channel_of(current_channels) == kind:
         return
     await require_project_admin(db, current_user, project_id)
     integration = (await db.execute(
         select(ProjectIntegration).where(
             ProjectIntegration.project_id == project_id,
-            ProjectIntegration.kind == EARTHRANGER,
+            ProjectIntegration.kind == kind,
             ProjectIntegration.is_enabled == True,
         )
     )).scalar_one_or_none()
     if not integration:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="EarthRanger is not set up for this project",
+            detail=f"{LABELS[kind]} is not set up for this project",
         )
 
 
@@ -138,9 +142,9 @@ async def load_rule_row(
     current_user: User,
     not_found_detail: str,
 ):
-    """Like load_own_row, but a rule with the earthranger channel is a
-    project rule: any project admin may edit or delete it, whoever made
-    it. Other people's personal rules stay a 404."""
+    """Like load_own_row, but a rule on a project channel is a project
+    rule: any project admin may edit or delete it, whoever made it.
+    Other people's personal rules stay a 404."""
     row = (await db.execute(
         select(model).where(
             and_(model.id == row_id, model.project_id == project_id)
@@ -161,14 +165,15 @@ async def list_rule_rows(
     db: AsyncSession, model, project_id: int, current_user: User, channel
 ):
     """Rows for a rule list. Without a channel filter, the caller's own
-    rules. With channel=earthranger, every rule of the project on that
-    channel, for the integration page; project admins only."""
+    rules. With a project channel (earthranger, sensingclues), every rule
+    of the project on that channel, for its integration page; project
+    admins only."""
     if channel is None:
         query = select(model).where(
             model.project_id == project_id,
             model.created_by_user_id == current_user.id,
         )
-    elif channel == EARTHRANGER:
+    elif channel in PROJECT_CHANNELS:
         await require_project_admin(db, current_user, project_id)
         query = select(model).where(model.project_id == project_id)
     else:
@@ -177,10 +182,10 @@ async def list_rule_rows(
             detail=f"unknown channel {channel}",
         )
     rows = (await db.execute(query.order_by(model.id.asc()))).scalars().all()
-    if channel == EARTHRANGER:
-        rows = [r for r in rows if is_project_rule(r.channels)]
+    if channel in PROJECT_CHANNELS:
+        rows = [r for r in rows if project_channel_of(r.channels) == channel]
     else:
-        # Project rules live on the integration page; the notifications
+        # Project rules live on their integration page; the notifications
         # page is personal and must not show them, not even to their maker
         rows = [r for r in rows if not is_project_rule(r.channels)]
     return rows

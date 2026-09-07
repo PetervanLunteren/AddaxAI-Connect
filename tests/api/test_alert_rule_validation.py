@@ -24,6 +24,7 @@ class TestRuleType:
         ok("sd_full", 90, ["telegram"], None)
         ok("camera_silent", 10, ["email", "telegram"], None)
         ok("camera_silent", 10, ["earthranger"], None)
+        ok("camera_silent", 10, ["sensingclues"], None)
         ok("rejections", 1, ["email"], None)
 
     def test_unknown_type_rejected(self):

@@ -25,7 +25,7 @@ from auth.users import current_verified_user
 from auth.project_access import get_allowed_site_ids
 from routers.rule_helpers import (
     VALID_CHANNELS,
-    check_earthranger_channel,
+    check_project_channel,
     list_rule_rows,
     load_rule_row,
     require_project_access,
@@ -157,7 +157,7 @@ async def list_theft_watch_rules(
     channel: Optional[str] = None,
 ):
     """List the current user's own rules for a project. With
-    channel=earthranger (project admins), every rule of the project that
+    channel=earthranger or sensingclues (project admins), every rule of the project that
     sends to EarthRanger, for the integration page."""
     await require_project_access(db, current_user, project_id)
     rows = await list_rule_rows(db, TheftWatchRule, project_id, current_user, channel)
@@ -184,7 +184,7 @@ async def create_theft_watch_rule(
     )
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await check_earthranger_channel(db, current_user, project_id, request.channels)
+    await check_project_channel(db, current_user, project_id, request.channels)
 
     if request.site_ids is not None:
         await _check_sites_in_project(db, project_id, request.site_ids)
@@ -245,7 +245,7 @@ async def update_theft_watch_rule(
     error = validate_rule_fields(next_sensitivity, next_site_ids, next_channels)
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await check_earthranger_channel(db, current_user, project_id, next_channels, rule.channels)
+    await check_project_channel(db, current_user, project_id, next_channels, rule.channels)
 
     if next_site_ids is not None and next_site_ids != rule.site_ids:
         await _check_sites_in_project(db, project_id, next_site_ids)

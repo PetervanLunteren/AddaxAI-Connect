@@ -27,7 +27,7 @@ from auth.users import current_verified_user
 from auth.project_access import get_allowed_site_ids
 from routers.rule_helpers import (
     VALID_CHANNELS,
-    check_earthranger_channel,
+    check_project_channel,
     list_rule_rows,
     load_rule_row,
     require_project_access,
@@ -191,7 +191,7 @@ async def list_alert_rules(
     channel: Optional[str] = None,
 ):
     """List the current user's own rules for a project. With
-    channel=earthranger (project admins), every rule of the project that
+    channel=earthranger or sensingclues (project admins), every rule of the project that
     sends to EarthRanger, for the integration page."""
     await require_project_access(db, current_user, project_id)
     rows = await list_rule_rows(db, CameraAlertRule, project_id, current_user, channel)
@@ -218,7 +218,7 @@ async def create_alert_rule(
     )
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await check_earthranger_channel(db, current_user, project_id, request.channels)
+    await check_project_channel(db, current_user, project_id, request.channels)
 
     if request.camera_ids is not None:
         await _check_cameras_in_project(db, project_id, request.camera_ids)
@@ -277,7 +277,7 @@ async def update_alert_rule(
     error = validate_rule_fields(next_type, next_threshold, next_channels, next_camera_ids)
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await check_earthranger_channel(db, current_user, project_id, next_channels, rule.channels)
+    await check_project_channel(db, current_user, project_id, next_channels, rule.channels)
 
     if next_camera_ids is not None and next_camera_ids != rule.camera_ids:
         await _check_cameras_in_project(db, project_id, next_camera_ids)
