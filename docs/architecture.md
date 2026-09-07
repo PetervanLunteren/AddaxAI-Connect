@@ -78,6 +78,8 @@ Ingestion also groups images into cameras, sites, and deployments from their GPS
 - **Notifications** evaluates rules and runs scheduled jobs
 - **Notifications-email** delivers emails via SMTP
 - **Notifications-telegram** delivers messages via Telegram Bot API
+- **Notifications-earthranger** posts events to an EarthRanger site through Gundi
+- **Notifications-sensingclues** posts observations into a Sensing Clues group through Central
 
 ## Docker Compose profiles
 

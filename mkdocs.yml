@@ -60,6 +60,7 @@ nav:
     - Install as an app: install-as-app.md
   - Integrations:
     - EarthRanger: integrations/earthranger.md
+    - Sensing Clues: integrations/sensingclues.md
   - Running your server:
     - Operations and monitoring: operations.md
     - Update guide: update-guide.md

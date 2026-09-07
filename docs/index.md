@@ -22,6 +22,7 @@ An open-source platform that automatically processes camera trap images with mac
 ## Integrations
 
 - [EarthRanger](integrations/earthranger.md): send detections and camera alerts to an EarthRanger site as events on the ranger map
+- [Sensing Clues](integrations/sensingclues.md): send detections and camera alerts to a Sensing Clues group as observations in the Cluey app
 
 ## Running your server
 

@@ -190,3 +190,7 @@ Restarting a worker is safe. It will pick up where it left off since messages st
 **Emails not sending:** check `docker compose logs notifications-email --tail 20`. Verify SMTP settings in `.env`. Some cloud providers block outbound SMTP ports by default (see the email tip at the end of the [deployment guide](deployment.md)).
 
 **Telegram not working:** check `docker compose logs notifications-telegram --tail 20`. The bot token must be configured in Server settings, and each user must link their account from the Notifications page.
+
+**EarthRanger events not arriving:** check `docker compose logs notifications-earthranger --tail 20`. The integration page shows the last error under the connection. A 403 from Gundi means the API key is wrong or revoked.
+
+**Sensing Clues observations not arriving:** check `docker compose logs notifications-sensingclues --tail 20`. The worker needs the service account in `.env` (`SENSINGCLUES_BASE_URL`, `SENSINGCLUES_USERNAME`, `SENSINGCLUES_PASSWORD`, `SENSINGCLUES_USER_ID`); without them the integration page says Sensing Clues is not enabled on this server. A 404 from Sensing Clues saying the user is not a member means `addax_service` was not invited into the group or the group id is wrong.

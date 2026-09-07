@@ -122,6 +122,7 @@ addaxai-connect/
 │   │   ├── project_inactivity.py      # Project inactivity alerts
 │   │   ├── disk_usage_alert.py        # Disk usage alerts
 │   │   ├── delivery_liveness.py       # Worker heartbeat and queue depth alerts
+│   │   ├── integration_channel.py     # Project channel dispatch (EarthRanger, Sensing Clues) and queueing
 │   │   ├── infra_alert.py             # Infrastructure health alerts
 │   │   ├── sim_expiry.py              # SIM card expiry alerts
 │   │   ├── reminders.py               # Project reminder digests
@@ -141,6 +142,10 @@ addaxai-connect/
 │   │
 │   ├── notifications-earthranger/     # EarthRanger delivery via the Gundi sensors API
 │   │   ├── worker.py                  # Entry point (posts the event, attaches the image)
+│   │   └── db_operations.py           # Log status and integration health
+│   │
+│   ├── notifications-sensingclues/    # Sensing Clues delivery via the Central API
+│   │   ├── worker.py                  # Entry point (posts the observation, attaches a thumbnail)
 │   │   └── db_operations.py           # Log status and integration health
 │   │
 │   ├── minio-init/                    # One-shot MinIO bootstrap (buckets, ILM rules)
@@ -186,7 +191,7 @@ addaxai-connect/
 │   │   │   ├── logs.py                # Notification log queries
 │   │   │   ├── notifications.py       # Notification preference management
 │   │   │   ├── camera_alert_rules.py  # Camera condition alert rules
-│   │   │   ├── integrations.py        # Project integrations (EarthRanger key, status, test event)
+│   │   │   ├── integrations.py        # Project integrations (EarthRanger key, Sensing Clues group id, status, test)
 │   │   │   ├── detection_alert_rules.py # Real-time detection alert rules
 │   │   │   ├── scheduled_reports.py   # Scheduled species report rules
 │   │   │   ├── rule_helpers.py        # Shared helpers for the rule routers
@@ -246,6 +251,10 @@ addaxai-connect/
 │       ├── email_renderer.py          # Jinja2 email template rendering
 │       ├── camera_status.py           # Camera liveness rule (active / inactive / never_reported)
 │       ├── earthranger.py             # Gundi event payloads and client for the EarthRanger channel
+│       ├── sensingclues.py            # Cluey observation payloads and client for the Sensing Clues channel
+│       ├── project_channels.py        # The project channels (earthranger, sensingclues) and their labels
+│       ├── timestamps.py              # ISO 8601 with offset, for the outbound integrations
+│       ├── classification_models.py   # Classifier display names, for the About page and the payloads
 │       ├── notify_guard.py            # Development server allow-lists for outbound notifications
 │       ├── device.py                  # The one rule for cpu vs cuda in the ML workers
 │       ├── taxonomy.py                # Species taxonomy utilities
@@ -335,6 +344,7 @@ FTPS upload → Ingestion → [image-ingested]
                                                                         → Notifications → [notification-email]
                                                                                         → [notification-telegram]
                                                                                         → [notification-earthranger]
+                                                                                        → [notification-sensingclues]
 
 Bulk upload → API stages files → [bulk-upload-job-process]
                                      → Bulk-upload worker → [image-ingested-bulk]
@@ -354,6 +364,7 @@ Queue names (defined in `shared/shared/queue.py`):
 - `notification-email` carries email messages to the email worker
 - `notification-telegram` carries Telegram messages to the Telegram worker
 - `notification-earthranger` carries Gundi events to the EarthRanger worker
+- `notification-sensingclues` carries Cluey observations to the Sensing Clues worker
 - `image-ingested-bulk` and `detection-complete-bulk` are the lower-priority bulk-upload variants of the two pipeline queues
 - `bulk-upload-job` and `bulk-upload-job-process` carry bulk-upload jobs to the bulk-upload worker (the process variant jumps ahead of pending jobs)
 - `failed-jobs` is the dead-letter queue
@@ -442,52 +453,94 @@ Rules:
 - When serializing a camera-clock value to ISO 8601, localize first with `.replace(tzinfo=ZoneInfo(server_tz))` so the output carries the correct DST-aware offset.
 - Server wall-clock filters stay aware UTC as before.
 
-## EarthRanger channel
+## Outbound integrations
 
-EarthRanger is a third delivery channel next to email and Telegram, not a
-mirror of the database. A rule with `earthranger` in `channels` posts one
-Gundi event per alert (per camera for camera alerts), with the annotated
-image attached; Gundi forwards it to the EarthRanger site the project's
-Gundi connection points at. Sent events are never updated or deleted, and
-nothing is backfilled. User docs: `docs/integrations/earthranger.md`.
+EarthRanger (via Gundi) and Sensing Clues (via Central) are delivery
+channels next to email and Telegram, not mirrors of the database. A rule
+with a project channel in `channels` posts one payload per alert (per
+camera for camera alerts), with the annotated image attached, and the
+platform shows it to the team behind the integration. Sent payloads are
+never updated or deleted, and nothing is backfilled. User docs:
+`docs/integrations/earthranger.md` and `docs/integrations/sensingclues.md`.
 
-- The channel is project level. Only project admins may put `earthranger`
-  on a rule, and only when the project has an enabled row in
-  `project_integrations` (kind `earthranger`, the Gundi API key in
-  `config`). `check_earthranger_channel` in `routers/rule_helpers.py` is
-  the one check. Rule lists take `?channel=earthranger` to show every
-  project rule on that channel, and `load_rule_row` lets any admin edit
-  those whoever made them.
+What the two share:
+
+- The channel is project level. The set of project channels lives in
+  `shared/shared/project_channels.py`, and `check_project_channel` in
+  `routers/rule_helpers.py` is the one check: only project admins may put a
+  project channel on a rule, only when the project has an enabled row in
+  `project_integrations` of that kind, and never together with another
+  channel. Rule lists take `?channel=<kind>` to show every project rule on
+  that channel, `load_rule_row` lets any admin edit those whoever made
+  them, and the personal notifications page never shows them.
+- `project_integrations` holds one row per project and kind. `config`
+  carries the kind's one setting (`api_key` for earthranger, `group_id`
+  for sensingclues) and the delivery worker stamps `last_sent_at`,
+  `events_sent`, `last_error` and `health_status` on it.
+  `routers/integrations.py` serves status, get and delete for any kind,
+  and configure and test per kind.
+- `services/notifications/integration_channel.py` is the coordinator side:
+  the site, camera and taxonomy lookups, `build_detection_payload` and
+  `build_camera_payload` that pick the vendor builder for the kind, and
+  `queue_event`, which writes the notification log row (`channel=<kind>`,
+  user = the rule creator) and publishes `{notification_log_id,
+  project_id, event, attachment_minio_path}` on the kind's queue. The three
+  alert modules have one project-channel block each. A payload without
+  coordinates is skipped, nobody can act on it.
+- Each kind has its own delivery worker with its own queue, heartbeat,
+  health row and liveness alert, shaped like the email and Telegram
+  workers: no retry, a failed send is logged with the reason and dropped.
+- Development servers: `scripts/restore.sh` deletes the restored
+  `project_integrations` rows on a dev box, the same way it drops the
+  Telegram bot config, so dev only holds what someone set up there on
+  purpose.
+
+### EarthRanger
+
+- The Gundi API key is per project, in `config`. Gundi forwards each event
+  to the EarthRanger site the project's Gundi connection points at.
 - Payloads are built by the pure functions in `shared/shared/earthranger.py`
   (`build_detection_event`, `build_camera_event`, `build_test_event`), so the
   coordinator, the worker and the API test endpoint agree. `recorded_at`
   is the naive camera-clock `captured_at` localised with
   `ServerSettings.timezone`; a naive timestamp would be read as UTC by
-  Gundi. Events without coordinates are skipped, a ranger cannot act on
-  them.
-- `services/notifications/earthranger_channel.py` writes the notification
-  log row (`channel="earthranger"`, user = the rule creator) and queues
-  `{notification_log_id, project_id, event, attachment_minio_path}`. The
-  worker posts the event, then the attachment from `thumbnails/annotated/`,
-  and stamps `last_sent_at`, `events_sent`, `last_error` and
-  `health_status` on the integration row. No retry, like the other
-  delivery workers; Gundi itself retries delivery to EarthRanger.
+  Gundi.
 - Gundi's own dedupe is a one hour content hash, and it stores no id in
   EarthRanger, so the notification log is the record of what was sent.
-- Development servers: `scripts/restore.sh` deletes the restored
-  `project_integrations` rows on a dev box, the same way it drops the
-  Telegram bot config. A restored production database carries real Gundi
-  keys, and an alert fired on dev would land on a real ranger map. No
-  allow-list, dev only holds keys pasted there on purpose.
-- Event type slugs (`addaxai_connect_detection`, `addaxai_connect_camera_alert`) are
-  constants in `shared/earthranger.py` and must exist on the EarthRanger
-  site with the schema from the user docs. Type and detail keys carry the
-  `addaxai_connect_` prefix (EarthRanger's one-namespace-per-source
-  convention). The plain `addaxai_` namespace stays reserved for the
-  desktop AddaxAI, whose events will carry verified labels and updates and
-  so get their own type. `project_integrations` is
-  generic on purpose: the next outbound integrations (each with its own
-  page under the Integrations menu) get a row kind, not a table each.
+  Gundi itself retries delivery to EarthRanger.
+- Event type slugs (`addaxai_connect_detection`, `addaxai_connect_camera_alert`)
+  are constants in `shared/earthranger.py` and must exist on the
+  EarthRanger site with the schema from the user docs. Type and detail
+  keys carry the `addaxai_connect_` prefix (EarthRanger's
+  one-namespace-per-source convention). The plain `addaxai_` namespace
+  stays reserved for the desktop AddaxAI, whose events will carry verified
+  labels and updates and so get their own type.
+- A restored production database carries real Gundi keys, which is why
+  restore.sh clears the rows on dev.
+
+### Sensing Clues
+
+- One service account per server (`SENSINGCLUES_BASE_URL`, `_USERNAME`,
+  `_PASSWORD`, `_USER_ID` in `.env`, read by the api and the worker) posts
+  into every Cluey group that invited it. The group id is the only
+  per-project setting. `is_available` in the status says whether the
+  server offers the integration; without the account the page says so and
+  the configure and test endpoints answer 400. Changing the credentials
+  needs a restart of api and the worker, the worker keeps its client and
+  token.
+- Payloads are built in `shared/shared/sensingclues.py`. An animal is an
+  `animal_sighting` with the generic `species` field plus `latinName` (we
+  never know the class of a label, so the class-specific fields are not
+  used); person and vehicle are `human_activity` with a transport; camera
+  alerts are a `point_of_interest` alert with our trigger name in
+  `values.addaxAI.alert`. The observation id is ours (`uuid4().hex`), so a
+  redelivered message updates the same observation. The client adds
+  `pid`, `user` and `userid`. Facts confirmed against central-test are in
+  the module docstring.
+- The worker downscales the annotated image to 800 px before attaching
+  it (Cluey wants about 100 KB), logs in lazily, keeps the token, and on a
+  401 logs in again once. The dev server points at the Sensing Clues test
+  host with the test account, so nothing from dev reaches a real group.
 
 ## Camera liveness status
 
