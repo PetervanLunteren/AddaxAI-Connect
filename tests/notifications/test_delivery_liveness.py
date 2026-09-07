@@ -135,6 +135,7 @@ class TestWorkerRegistry:
             "notifications-email",
             "notifications-telegram",
             "notifications-earthranger",
+            "notifications-sensingclues",
         }
 
     def test_depth_alert_only_where_a_queue_exists(self):
@@ -145,7 +146,8 @@ class TestWorkerRegistry:
     def test_only_the_delivery_workers_alert_on_depth(self):
         alerting = {w.name for w in WORKERS if w.depth_alert is not None}
         assert alerting == {
-            "notifications-email", "notifications-telegram", "notifications-earthranger",
+            "notifications-email", "notifications-telegram",
+            "notifications-earthranger", "notifications-sensingclues",
         }
 
 
@@ -223,7 +225,7 @@ class TestProbeIsolation:
         # and alerted for its missing heartbeat
         assert alerted == [
             "classification", "detection", "ingestion",
-            "notifications-earthranger", "notifications-telegram",
+            "notifications-earthranger", "notifications-sensingclues", "notifications-telegram",
         ]
         assert "notifications-email" not in fake_client.stored[dl.STATE_REDIS_KEY]
 
@@ -256,7 +258,8 @@ class TestProbeIsolation:
         assert "ingestion" not in asked
         assert set(asked) == {
             "image-ingested", "detection-complete",
-            "notification-email", "notification-telegram", "notification-earthranger",
+            "notification-email", "notification-telegram",
+            "notification-earthranger", "notification-sensingclues",
         }
 
 

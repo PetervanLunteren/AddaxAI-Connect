@@ -9,7 +9,7 @@ worker that is alive but stuck. Without it a dead worker is invisible:
 the queues accept publishes with no consumer, and messages pile up
 silently (it happened twice before this existed).
 
-The queue-depth trigger applies to the two delivery workers only. For the
+The queue-depth trigger applies to the delivery workers only. For the
 pipeline workers a deep queue is normal, not a fault: fifty cameras
 sending fifty images each puts thousands into image-ingested while
 detection works through them exactly as designed. Their heartbeat covers
@@ -50,12 +50,14 @@ from shared.queue import (
     QUEUE_NOTIFICATION_EMAIL,
     QUEUE_NOTIFICATION_TELEGRAM,
     QUEUE_NOTIFICATION_EARTHRANGER,
+    QUEUE_NOTIFICATION_SENSINGCLUES,
     HEARTBEAT_KEY_INGESTION,
     HEARTBEAT_KEY_DETECTION,
     HEARTBEAT_KEY_CLASSIFICATION,
     HEARTBEAT_KEY_NOTIFICATIONS_EMAIL,
     HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
     HEARTBEAT_KEY_NOTIFICATIONS_EARTHRANGER,
+    HEARTBEAT_KEY_NOTIFICATIONS_SENSINGCLUES,
     HEARTBEAT_STALE_AFTER_MINUTES,
     parse_heartbeat,
 )
@@ -104,6 +106,10 @@ WORKERS = [
     Worker(
         "notifications-earthranger", HEARTBEAT_KEY_NOTIFICATIONS_EARTHRANGER,
         "EarthRanger delivery worker", QUEUE_NOTIFICATION_EARTHRANGER, QUEUE_DEPTH_ALERT,
+    ),
+    Worker(
+        "notifications-sensingclues", HEARTBEAT_KEY_NOTIFICATIONS_SENSINGCLUES,
+        "Sensing Clues delivery worker", QUEUE_NOTIFICATION_SENSINGCLUES, QUEUE_DEPTH_ALERT,
     ),
 ]
 

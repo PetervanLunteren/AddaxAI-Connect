@@ -57,9 +57,8 @@ from shared.models import (
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 from shared.email_renderer import render_email
-from shared.earthranger import build_camera_event
 
-import earthranger_channel as er
+import integration_channel as ic
 from camera_alerts import next_notified_state, split_incidents
 from detection_alerts import (
     _load_event_image,
@@ -615,39 +614,42 @@ def _notify_person(
             queued += 1
             logger.info("Queued theft watch person telegram", rule_id=rule.id, log_id=log_id)
 
-    if "earthranger" in rule.channels:
+    channel = ic.project_channel_of(rule.channels)
+    if channel:
         location = event.get('camera_location') or {}
         lat, lon = location.get('lat'), location.get('lon')
         if lat is None or lon is None:
-            lat, lon = er.site_location(db, site_id)
+            lat, lon = ic.site_location(db, site_id)
         occurred_at = (
             captured_at.replace(tzinfo=get_server_timezone(db))
             if captured_at else datetime.now(timezone.utc)
         )
+        facts = dict(
+            device_id=event.get('camera_name') or str(event.get('camera_id')),
+            alert="theft_watch_person",
+            summary=f"A person was detected at {site_label}. {reason}",
+            occurred_at=occurred_at,
+            lat=lat,
+            lon=lon,
+            site_name=site_name,
+            camera_url=images_url,
+        )
         try:
-            er_event = build_camera_event(
-                device_id=event.get('camera_name') or str(event.get('camera_id')),
-                alert="theft_watch_person",
-                summary=f"A person was detected at {site_label}. {reason}",
-                occurred_at=occurred_at,
-                lat=lat,
-                lon=lon,
-                site_name=site_name,
-                camera_url=images_url,
-            )
+            payload = ic.build_camera_payload(channel, facts)
         except ValueError as exc:
             logger.warning(
-                "Skipping earthranger channel", rule_id=rule.id, reason=str(exc),
+                "Skipping project channel", kind=channel, rule_id=rule.id, reason=str(exc),
             )
         else:
-            if er.queue_event(
+            if ic.queue_event(
                 db,
+                kind=channel,
                 project_id=project.id,
                 rule_id=rule.id,
                 user_id=user.id,
                 notification_type="theft_watch_person",
                 trigger_data=trigger_data,
-                event=er_event,
+                event=payload,
                 attachment_minio_path=(
                     event.get('annotated_minio_path')
                     or raw_attachment(thumbnail_path, project)
@@ -1115,40 +1117,43 @@ def _notify_silence(
             queued += 1
             logger.info("Queued theft watch silence telegram", rule_id=rule.id, log_id=log_id)
 
-    if "earthranger" in rule.channels:
-        # One event per silent camera at its own coordinates. cameras is in
-        # new_camera_ids order.
+    channel = ic.project_channel_of(rule.channels)
+    if channel:
+        # One payload per silent camera at its own coordinates. cameras is
+        # in new_camera_ids order.
         now_utc = datetime.now(timezone.utc)
         for camera_id, cam in zip(new_camera_ids, cameras):
             state = states[camera_id]
             summary = f"{cam['name']} silent for longer than usual: {cam['value_label']}"
             if cam['nearby_label']:
                 summary = f"{summary} {cam['nearby_label']}"
+            facts = dict(
+                device_id=cam['name'],
+                alert="theft_watch_silence",
+                summary=summary,
+                occurred_at=now_utc,
+                lat=state.lat,
+                lon=state.lon,
+                site_name=state.site_name,
+                camera_url=images_url,
+            )
             try:
-                er_event = build_camera_event(
-                    device_id=cam['name'],
-                    alert="theft_watch_silence",
-                    summary=summary,
-                    occurred_at=now_utc,
-                    lat=state.lat,
-                    lon=state.lon,
-                    site_name=state.site_name,
-                    camera_url=images_url,
-                )
+                payload = ic.build_camera_payload(channel, facts)
             except ValueError as exc:
                 logger.warning(
-                    "Skipping earthranger channel for camera",
-                    rule_id=rule.id, camera_id=camera_id, reason=str(exc),
+                    "Skipping project channel for camera",
+                    kind=channel, rule_id=rule.id, camera_id=camera_id, reason=str(exc),
                 )
                 continue
-            if er.queue_event(
+            if ic.queue_event(
                 db,
+                kind=channel,
                 project_id=project.id,
                 rule_id=rule.id,
                 user_id=user.id,
                 notification_type="theft_watch_silence",
                 trigger_data={**trigger_data, "camera_id": camera_id},
-                event=er_event,
+                event=payload,
             ):
                 queued += 1
 
