@@ -1,14 +1,15 @@
 /**
- * A connection row for an integration that is set up by pasting an API key.
+ * A connection row for an integration that is set up by entering one value,
+ * an API key or an id.
  *
  * Built on SettingRow so it lines up with every other settings row. The left
  * side shows a status pill and a one-line description; the right side shows the
  * actions. Empty, there is one Connect button; connected, there is an optional
- * test button plus Replace key and Disconnect. The key itself is entered in a
+ * test button plus a replace button and Disconnect. The value is entered in a
  * modal, the way the Telegram bot token is, never inline.
  *
- * EarthRanger is the first user; the next API-key integrations (Sensing Clues,
- * Wildbook, GBIF) reuse it by passing their own status, labels and handlers.
+ * EarthRanger (a Gundi API key) and Sensing Clues (a Cluey group id, entered
+ * with secret={false}) use it by passing their own status, labels and handlers.
  */
 import React, { useState } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -46,12 +47,24 @@ interface ApiKeyConnectionRowProps {
   /** Shown on a passing test. */
   testSuccessMessage?: React.ReactNode;
   connectLabel?: string;
+  /** Disables Connect, for when the server side is not set up. The caller
+   *  says why through note. */
+  connectDisabled?: boolean;
+  /** Label of the button that opens the modal again once connected. */
+  replaceLabel?: string;
   /** Key-modal title when connecting. */
   modalTitle: string;
   /** Key-modal title when replacing an existing key. Defaults to modalTitle. */
   replaceModalTitle?: string;
   keyLabel?: string;
   keyPlaceholder?: string;
+  /** False when the value is not a secret (a group id): a plain text input
+   *  without the mono font. */
+  secret?: boolean;
+  /** Keyboard hint for the modal input, numeric for an id. */
+  inputMode?: React.InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  /** Submit button in the modal. */
+  saveLabel?: string;
   /** Help shown above the key field in the modal. */
   modalHelp?: React.ReactNode;
   /** Troubleshooting link, shown in the test modal. */
@@ -64,8 +77,9 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
   onSaveKey, onDisconnect, onTest,
   testLabel = 'Send test event', testModalTitle = 'Send a test event',
   testExplanation, testSuccessMessage = 'Test passed.',
-  connectLabel = 'Connect',
-  modalTitle, replaceModalTitle, keyLabel = 'API key', keyPlaceholder, modalHelp,
+  connectLabel = 'Connect', connectDisabled = false, replaceLabel = 'Replace key',
+  modalTitle, replaceModalTitle, keyLabel = 'API key', keyPlaceholder,
+  secret = true, inputMode, saveLabel = 'Save key', modalHelp,
   docsUrl, docsLabel = 'Setup and troubleshooting guide',
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
@@ -122,7 +136,7 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
       <SettingRow title={title} description={description}>
         <div className="flex flex-wrap gap-2">
           {!isConfigured ? (
-            <Button type="button" size="sm" onClick={openModal}>{connectLabel}</Button>
+            <Button type="button" size="sm" onClick={openModal} disabled={connectDisabled}>{connectLabel}</Button>
           ) : (
             <>
               {onTest && (
@@ -130,7 +144,7 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
                   {testLabel}
                 </Button>
               )}
-              <Button type="button" size="sm" variant="outline" onClick={openModal}>Replace key</Button>
+              <Button type="button" size="sm" variant="outline" onClick={openModal}>{replaceLabel}</Button>
               <Button type="button" size="sm" variant="outline" onClick={onDisconnect}>Disconnect</Button>
             </>
           )}
@@ -153,13 +167,14 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
             <div>
               <label className="block text-sm font-medium mb-2">{keyLabel}</label>
               <input
-                type="password"
+                type={secret ? 'password' : 'text'}
+                inputMode={inputMode}
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
                 placeholder={keyPlaceholder}
                 autoComplete="off"
                 autoFocus
-                className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+                className={`w-full px-3 py-2 border rounded-md text-sm${secret ? ' font-mono' : ''}`}
               />
             </div>
             <div className="flex justify-end gap-3 pt-2">
@@ -168,7 +183,7 @@ export const ApiKeyConnectionRow: React.FC<ApiKeyConnectionRowProps> = ({
               </Button>
               <Button type="submit" size="sm" disabled={submitting || !keyInput.trim()}>
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Save key
+                {saveLabel}
               </Button>
             </div>
           </form>

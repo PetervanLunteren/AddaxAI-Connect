@@ -69,6 +69,7 @@ const PROJECT_ROUTES = [
   'settings',
   'users',
   'integrations/earthranger',
+  'integrations/sensingclues',
   'manage-images',
   'bulk-upload',
 ];

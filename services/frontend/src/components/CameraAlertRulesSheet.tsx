@@ -14,7 +14,7 @@ import { Button } from './ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { MultiSelect, type Option } from './ui/MultiSelect';
-import { channelLabel } from '../utils/channels';
+import { channelLabel, PROJECT_SHEET_COPY, type ProjectChannel } from '../utils/channels';
 import { useToast } from './ui/Toaster';
 import { camerasApi } from '../api/cameras';
 import {
@@ -29,9 +29,10 @@ interface CameraAlertRulesSheetProps {
   onClose: () => void;
   projectId: number;
   telegramLinked: boolean;
-  // Set to list and edit the project's EarthRanger rules instead of your
-  // own; the dialog then locks the channel and hides the picker.
-  channel?: 'earthranger';
+  // Set to list and edit the project's rules on one integration channel
+  // instead of your own; the dialog then locks the channel and hides the
+  // picker. The header copy comes from PROJECT_SHEET_COPY.
+  channel?: ProjectChannel;
 }
 
 type DialogMode =
@@ -155,11 +156,11 @@ export const CameraAlertRulesSheet: React.FC<CameraAlertRulesSheetProps> = ({
         <SheetContent>
           <SheetHeader>
             <SheetTitle>
-              {channel ? 'Camera condition events for EarthRanger' : 'Camera condition alerts'}
+              {channel ? PROJECT_SHEET_COPY[channel].camera.title : 'Camera condition alerts'}
             </SheetTitle>
             <SheetDescription>
               {channel
-                ? 'Each camera that needs attention posts one event at its site on the ranger map, once per incident. Rules are checked once a day and re-arm when the camera recovers. These rules belong to the project and any admin can change them.'
+                ? PROJECT_SHEET_COPY[channel].camera.description
                 : 'Get a message when a camera needs attention. Rules are checked once a day, alert once per incident, and re-arm when the camera recovers. Only you receive your alerts. Battery and SD rules need cameras that send daily health reports; the silent rule counts any sign of life reaching the server, reports or live images.'}
             </SheetDescription>
           </SheetHeader>

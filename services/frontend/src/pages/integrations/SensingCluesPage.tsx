@@ -1,12 +1,13 @@
 /**
- * EarthRanger integration page (project admins).
+ * Sensing Clues integration page (project admins).
  *
- * EarthRanger is a notification channel for the project: when one of the
- * rules on this page fires, one event with the photo is posted to the
- * ranger map through Gundi. The page holds the Gundi API key and what the
- * delivery worker recorded about the connection, and opens the three rule
- * sheets in their EarthRanger mode. Sent events are never changed again;
- * the record stays here in Connect.
+ * Sensing Clues is a notification channel for the project: when one of the
+ * rules on this page fires, one observation with the photo is posted into
+ * the project's Cluey group. The account that posts is server level (a
+ * service account owned by Addax), so the page only holds the group id and
+ * what the delivery worker recorded about the connection, and opens the
+ * three rule sheets in their Sensing Clues mode. Sent observations are
+ * never changed again; the record stays here in Connect.
  */
 import React, { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
@@ -29,13 +30,11 @@ import { cameraAlertRulesApi } from '../../api/cameraAlertRules';
 import { theftWatchApi } from '../../api/theftWatch';
 import { connectionDetail, connectionPill, errorDetail } from '../../utils/integrationStatus';
 
-const DOCS_URL = 'https://connect.addaxai.com/integrations/earthranger/';
-// The connections list, not the portal root: the host serves the SPA under
-// a 404 for this path so it still boots, and it lands one step from the key.
-const GUNDI_PORTAL_URL = 'https://gundiservice.org/connections/';
-const CHANNEL = 'earthranger' as const;
+const DOCS_URL = 'https://connect.addaxai.com/integrations/sensingclues/';
+const CENTRAL_URL = 'https://central.sensingclues.org/';
+const CHANNEL = 'sensingclues' as const;
 
-export const EarthRangerPage: React.FC = () => {
+export const SensingCluesPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = projectId ? Number(projectId) : 0;
   const { selectedProject, canAdminCurrentProject } = useProject();
@@ -52,17 +51,20 @@ export const EarthRangerPage: React.FC = () => {
   );
 
   const { data: status, isLoading } = useQuery({
-    queryKey: ['integration-earthranger', projectIdNum],
-    queryFn: () => integrationsApi.getEarthRanger(projectIdNum),
+    queryKey: ['integration-sensingclues', projectIdNum],
+    queryFn: () => integrationsApi.getSensingClues(projectIdNum),
     enabled: projectIdNum > 0 && canAdminCurrentProject,
   });
   const isConfigured = status?.is_configured ?? false;
+  // True while loading, so the unavailable note never flashes on a server
+  // that does offer the integration
+  const isAvailable = status?.is_available ?? true;
 
   const invalidateStatus = () =>
-    queryClient.invalidateQueries({ queryKey: ['integration-earthranger', projectIdNum] });
+    queryClient.invalidateQueries({ queryKey: ['integration-sensingclues', projectIdNum] });
 
   // Rule counts for the three rows. Same keys as the sheets in their
-  // EarthRanger mode, so edits there refresh these badges.
+  // Sensing Clues mode, so edits there refresh these badges.
   const { data: detectionRules } = useQuery({
     queryKey: ['detection-alert-rules', projectIdNum, CHANNEL],
     queryFn: () => detectionAlertRulesApi.list(projectIdNum, CHANNEL),
@@ -82,30 +84,36 @@ export const EarthRangerPage: React.FC = () => {
     (rules || []).filter((r) => r.is_active).length;
 
   const configureMutation = useMutation({
-    mutationFn: (apiKey: string) => integrationsApi.configureEarthRanger(projectIdNum, apiKey),
+    mutationFn: (value: string) => {
+      const groupId = Number(value);
+      if (!Number.isInteger(groupId) || groupId <= 0) {
+        throw new Error('The group id is a whole number, for example 3523928.');
+      }
+      return integrationsApi.configureSensingClues(projectIdNum, groupId);
+    },
     onSuccess: () => {
       invalidateStatus();
-      toast.success('API key saved. Send a test event to check the connection.');
+      toast.success('Group id saved. Send a test observation to check the connection.');
     },
-    onError: (error: any) => toast.error(`Could not save the key: ${errorDetail(error)}`),
+    onError: (error: any) => toast.error(`Could not save the group id. ${errorDetail(error)}`),
   });
 
   const testMutation = useMutation({
-    mutationFn: () => integrationsApi.testEarthRanger(projectIdNum),
+    mutationFn: () => integrationsApi.testSensingClues(projectIdNum),
     // The test modal shows the outcome; refresh the row's health either way.
     onSettled: () => invalidateStatus(),
   });
 
   const removeMutation = useMutation({
-    mutationFn: () => integrationsApi.removeEarthRanger(projectIdNum),
+    mutationFn: () => integrationsApi.removeSensingClues(projectIdNum),
     onSuccess: () => {
       invalidateStatus();
       setConfirmRemove(false);
-      toast.success('EarthRanger disconnected');
+      toast.success('Sensing Clues disconnected');
     },
     onError: (error: any) => {
       setConfirmRemove(false);
-      toast.error(`Could not disconnect: ${errorDetail(error)}`);
+      toast.error(`Could not disconnect. ${errorDetail(error)}`);
     },
   });
 
@@ -118,31 +126,40 @@ export const EarthRangerPage: React.FC = () => {
   const statusDetail = status
     ? connectionDetail(
         status,
-        status.api_key_hint ? `Key ending ${status.api_key_hint}. ` : '',
-        'event',
-        'Not tested yet. Send a test event to check the key and the route.',
+        status.group_id != null ? `Group ${status.group_id}. ` : '',
+        'observation',
+        'Not tested yet. Send a test observation to check the group id.',
       )
     : null;
 
-  // The note under the Connection row covers the two idle states the pill
-  // does not: no key, or a key but no active rule. A paused rule sends
-  // nothing either, so this counts active rules. Waits for the three rule
-  // lists so it does not flash on every page open.
+  // The note under the Connection row covers the idle states the pill does
+  // not: the server has no account, no group id saved, or a group id but
+  // no active rule. A paused rule sends nothing either, so this counts
+  // active rules. Waits for the three rule lists so it does not flash on
+  // every page open.
   const rulesLoaded = detectionRules && cameraRules && theftRules;
   const activeRules = activeCount(detectionRules) + activeCount(cameraRules) + activeCount(theftRules);
-  const note = !isConfigured
-    ? 'No API key is saved, so nothing is sent. The rules below stay as they are and start working again when a key is saved.'
-    : rulesLoaded && activeRules === 0
-      ? 'The key is saved, but no rules are active, so nothing is sent yet. Add a detection, camera or theft watch rule below to start posting events.'
-      : null;
+  const note = !isAvailable
+    ? (
+      <>
+        Sensing Clues is not enabled on this server yet. Ask your server admin to switch it on, the{' '}
+        <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">setup guide</a>{' '}
+        explains how.
+      </>
+    )
+    : !isConfigured
+      ? 'No group id is saved, so nothing is sent. The rules below stay as they are and start working again when a group id is saved.'
+      : rulesLoaded && activeRules === 0
+        ? 'The group id is saved, but no rules are active, so nothing is sent yet. Add a detection, camera or theft watch rule below to start posting observations.'
+        : null;
 
   const emptyDescription = (
     <>
-      Set this up in the{' '}
-      <a href={GUNDI_PORTAL_URL} target="_blank" rel="noreferrer" className="underline">Gundi portal</a>,
-      then paste the connection's API key here. The{' '}
+      Make a group in Cluey or{' '}
+      <a href={CENTRAL_URL} target="_blank" rel="noreferrer" className="underline">Central</a>,
+      invite the user addax_service into it, then enter the group id here. The{' '}
       <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">setup guide</a>{' '}
-      walks you through it, including the EarthRanger event types your site needs.
+      walks you through it.
     </>
   );
 
@@ -169,9 +186,9 @@ export const EarthRangerPage: React.FC = () => {
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold mb-0">EarthRanger</h1>
+          <h1 className="text-2xl font-bold mb-0">Sensing Clues</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Send detections and camera alerts to an EarthRanger site as events on the ranger map.
+            Send detections and camera alerts to a Sensing Clues group as observations in the Cluey app.
           </p>
         </div>
         <a
@@ -187,23 +204,23 @@ export const EarthRangerPage: React.FC = () => {
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-6 mb-6 rounded-lg border bg-muted/30 px-6 py-5">
         <img
-          src="/integrations/earthranger-logo.svg"
-          alt="EarthRanger, a product of Ai2"
+          src="/integrations/sensingclues-logo.svg"
+          alt="Sensing Clues"
           className="h-14 w-auto shrink-0 self-start sm:self-center"
         />
         <div className="flex-1 space-y-2 text-sm text-muted-foreground">
           <p>
-            EarthRanger is a free operations platform for protected areas, used by hundreds of
-            parks and reserves worldwide. It gives ranger teams one live map of their area, with
-            tracked animals, patrols, vehicles, and reported incidents, so they can see what is
-            happening and decide where to act.
+            Sensing Clues is a conservation technology platform from a non-profit foundation. Its
+            field app Cluey lets rangers and researchers record observations into shared groups, so
+            a team sees on one map what everyone recorded. Groups and their members are managed in
+            Central, the web app.
           </p>
           <p>
-            This integration makes the project one of those report sources. When a rule on this
-            page fires, the alert lands on the ranger map as an event with the annotated photo,
-            placed at the camera's location, within seconds of the image arriving. Rangers handle
-            it there like any other incident, while the full image record stays here in AddaxAI
-            Connect.
+            This integration makes the project one of those group members. When a rule on this
+            page fires, the alert lands in your group as an observation with the annotated photo,
+            placed at the camera's location, within seconds of the image arriving. The team handles
+            it in Cluey like any other observation, while the full image record stays here in
+            AddaxAI Connect.
           </p>
         </div>
       </div>
@@ -222,7 +239,8 @@ export const EarthRangerPage: React.FC = () => {
               statusDetail={statusDetail}
               emptyDescription={emptyDescription}
               note={note}
-              onSaveKey={(key) => configureMutation.mutateAsync(key)}
+              connectDisabled={!isAvailable}
+              onSaveKey={(value) => configureMutation.mutateAsync(value)}
               onDisconnect={() => setConfirmRemove(true)}
               onTest={async () => {
                 try {
@@ -231,23 +249,30 @@ export const EarthRangerPage: React.FC = () => {
                   throw new Error(errorDetail(e));
                 }
               }}
-              testExplanation={<>This posts a real event to your EarthRanger map, titled "Test from AddaxAI Connect", to check that your key and route work. Resolve it on the ranger map afterwards.</>}
-              testSuccessMessage="Test passed. The event should appear on your EarthRanger map within a minute."
+              testLabel="Send test observation"
+              testModalTitle="Send a test observation"
+              testExplanation={<>This posts a real observation to your Sensing Clues group, titled "Test from AddaxAI Connect", to check that the group id is right and that addax_service is a member. It stays in the group like any other observation.</>}
+              testSuccessMessage="Test passed. The observation should appear in your Cluey group within a minute."
               docsUrl={DOCS_URL}
-              modalTitle="Connect EarthRanger"
-              replaceModalTitle="Replace the Gundi API key"
-              keyLabel="Gundi API key"
-              keyPlaceholder="Gundi API key"
-              modalHelp={<>Open your connection in the{' '}
-                <a href={GUNDI_PORTAL_URL} target="_blank" rel="noreferrer" className="underline">Gundi portal</a>,
-                then its API key section, and paste it here.</>}
+              modalTitle="Connect Sensing Clues"
+              replaceModalTitle="Change the group id"
+              replaceLabel="Change group id"
+              saveLabel="Save"
+              keyLabel="Group id"
+              keyPlaceholder="3523928"
+              secret={false}
+              inputMode="numeric"
+              modalHelp={<>Open the group in{' '}
+                <a href={CENTRAL_URL} target="_blank" rel="noreferrer" className="underline">Central</a>{' '}
+                and copy the number shown with its details. The user addax_service must already be
+                a member of that group.</>}
             />
 
             <SettingRowDivider />
 
             {ruleRow(
-              'Detection events',
-              'Post an event when a selected label is detected. Narrow by site, time of day, or group size, and use the cooldown so one visit gives one event.',
+              'Detection observations',
+              'Post an observation when a selected label is detected. Narrow by site, time of day, or group size, and use the cooldown so one visit gives one observation.',
               activeCount(detectionRules),
               'Manage detection rules',
               () => setShowDetectionSheet(true),
@@ -256,8 +281,8 @@ export const EarthRangerPage: React.FC = () => {
             <SettingRowDivider />
 
             {ruleRow(
-              'Camera condition events',
-              'Post an event at the camera\'s site when its battery drops, its SD card fills up, it goes silent, or it sends rejected files. Once per incident.',
+              'Camera condition observations',
+              'Post an observation at the camera\'s site when its battery drops, its SD card fills up, it goes silent, or it sends rejected files. Once per incident.',
               activeCount(cameraRules),
               'Manage camera rules',
               () => setShowCameraSheet(true),
@@ -266,8 +291,8 @@ export const EarthRangerPage: React.FC = () => {
             <SettingRowDivider />
 
             {ruleRow(
-              'Theft watch events',
-              'Post an event when a person is unusually close to a camera, or a camera stays silent for longer than its own rhythm. Beta, can raise false alarms.',
+              'Theft watch observations',
+              'Post an observation when a person is unusually close to a camera, or a camera stays silent for longer than its own rhythm. Beta, can raise false alarms.',
               activeCount(theftRules),
               'Manage theft watch rules',
               () => setShowTheftSheet(true),
@@ -306,8 +331,8 @@ export const EarthRangerPage: React.FC = () => {
         open={confirmRemove}
         onClose={() => setConfirmRemove(false)}
         onConfirm={() => removeMutation.mutate()}
-        title="Disconnect EarthRanger?"
-        body="The API key is forgotten and no more events are sent. The rules stay and start working again when a key is saved."
+        title="Disconnect Sensing Clues?"
+        body="The group id is forgotten and no more observations are sent. The rules stay and start working again when a group id is saved."
         confirmLabel="Disconnect"
         cancelLabel="Keep it"
         variant="destructive"

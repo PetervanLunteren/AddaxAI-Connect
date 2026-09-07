@@ -15,7 +15,7 @@ import { Button } from './ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { MultiSelect, type Option } from './ui/MultiSelect';
-import { channelLabel } from '../utils/channels';
+import { channelLabel, PROJECT_SHEET_COPY, type ProjectChannel } from '../utils/channels';
 import { useToast } from './ui/Toaster';
 import { normalizeLabel } from '../utils/labels';
 import {
@@ -32,9 +32,10 @@ interface DetectionAlertRulesSheetProps {
   speciesOptions: Option[];
   siteOptions: Option[];
   defaultCooldownMinutes: number;
-  // Set to list and edit the project's EarthRanger rules instead of your
-  // own; the dialog then locks the channel and hides the picker.
-  channel?: 'earthranger';
+  // Set to list and edit the project's rules on one integration channel
+  // instead of your own; the dialog then locks the channel and hides the
+  // picker. The header copy comes from PROJECT_SHEET_COPY.
+  channel?: ProjectChannel;
 }
 
 type DialogMode =
@@ -150,11 +151,11 @@ export const DetectionAlertRulesSheet: React.FC<DetectionAlertRulesSheetProps> =
         <SheetContent>
           <SheetHeader>
             <SheetTitle>
-              {channel ? 'Detection events for EarthRanger' : 'Real-time detection alerts'}
+              {channel ? PROJECT_SHEET_COPY[channel].detection.title : 'Real-time detection alerts'}
             </SheetTitle>
             <SheetDescription>
               {channel
-                ? 'Each match posts one event with the photo on the ranger map. Rules can be narrowed by site, time of day, or group size, and quieted with a cooldown so one visit gives one event. These rules belong to the project and any admin can change them.'
+                ? PROJECT_SHEET_COPY[channel].detection.description
                 : 'Get an instant email or Telegram message with a photo when one of your selected labels is detected. Each rule can be narrowed by site, time of day, or group size, quieted with a cooldown, or limited to species that return after a long absence. Only you receive your alerts.'}
             </SheetDescription>
           </SheetHeader>

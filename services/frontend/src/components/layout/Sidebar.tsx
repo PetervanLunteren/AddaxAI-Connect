@@ -31,6 +31,7 @@ import {
   Table2,
   Plug,
   Radio,
+  Footprints,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useProject } from '../../contexts/ProjectContext';
@@ -125,6 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // whether it is set up or not, so people discover what exists.
   const integrationItems = [
     { to: `/projects/${projectId}/integrations/earthranger`, icon: Radio, label: 'EarthRanger' },
+    { to: `/projects/${projectId}/integrations/sensingclues`, icon: Footprints, label: 'Sensing Clues' },
   ];
 
   // Admin tools - visible to project admins and server admins. The

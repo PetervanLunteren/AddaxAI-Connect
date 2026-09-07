@@ -15,7 +15,7 @@ import { Button } from './ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { MultiSelect, type Option } from './ui/MultiSelect';
-import { channelLabel } from '../utils/channels';
+import { channelLabel, PROJECT_SHEET_COPY, type ProjectChannel } from '../utils/channels';
 import { useToast } from './ui/Toaster';
 import {
   theftWatchApi,
@@ -30,9 +30,10 @@ interface TheftWatchSheetProps {
   projectId: number;
   telegramLinked: boolean;
   siteOptions: Option[];
-  // Set to list and edit the project's EarthRanger rules instead of your
-  // own; the dialog then locks the channel and hides the picker.
-  channel?: 'earthranger';
+  // Set to list and edit the project's rules on one integration channel
+  // instead of your own; the dialog then locks the channel and hides the
+  // picker. The header copy comes from PROJECT_SHEET_COPY.
+  channel?: ProjectChannel;
 }
 
 type DialogMode =
@@ -134,14 +135,14 @@ export const TheftWatchSheet: React.FC<TheftWatchSheetProps> = ({
         <SheetContent>
           <SheetHeader>
             <SheetTitle>
-              {channel ? 'Theft watch events for EarthRanger' : 'Theft watch'}
+              {channel ? PROJECT_SHEET_COPY[channel].theft.title : 'Theft watch'}
               <span className="ml-2 align-middle inline-flex items-center px-1.5 h-5 text-[10px] font-semibold uppercase tracking-wide rounded bg-[#882000]/10 text-[#882000]">
                 beta
               </span>
             </SheetTitle>
             <SheetDescription>
               {channel
-                ? 'A person unusually close to a camera, or a camera silent for longer than its own rhythm, posts one event at the site on the ranger map. A new or moved camera first learns its normal pattern for 14 days. This feature is in beta and can raise false alarms. These rules belong to the project and any admin can change them.'
+                ? PROJECT_SHEET_COPY[channel].theft.description
                 : 'Two triggers watch your cameras. A person unusually close to a camera alerts you right away. Where people pass often, only a much closer person than usual counts, and where people are rare, any person counts. A camera that stays silent longer than its own normal rhythm alerts you within hours or days. A new or moved camera first learns its normal pattern for 14 days before alerts start. This feature is in beta. It can miss real thefts and it can raise false alarms. Only you receive your alerts.'}
             </SheetDescription>
           </SheetHeader>

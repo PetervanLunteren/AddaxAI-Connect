@@ -37,6 +37,7 @@ import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 import { ManageImagesPage } from './pages/admin/ManageImagesPage';
 import { BulkUploadPage } from './pages/admin/BulkUploadPage';
 import { EarthRangerPage } from './pages/integrations/EarthRangerPage';
+import { SensingCluesPage } from './pages/integrations/SensingCluesPage';
 import { NaiveOccupancyPage } from './pages/insights/NaiveOccupancyPage';
 import { InsightsMapPage } from './pages/insights/MapPage';
 import { ConfusionMatrixPage } from './pages/insights/ConfusionMatrixPage';
@@ -173,6 +174,7 @@ function App() {
                 <Route path="manage-images" element={<ManageImagesPage />} />
                 <Route path="bulk-upload" element={<BulkUploadPage />} />
                 <Route path="integrations/earthranger" element={<EarthRangerPage />} />
+                <Route path="integrations/sensingclues" element={<SensingCluesPage />} />
               </Route>
 
               {/* Redirect root to projects */}
