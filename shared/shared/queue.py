@@ -225,6 +225,7 @@ QUEUE_NOTIFICATION_EVENTS = "notification-events"  # Core service listens here
 QUEUE_NOTIFICATION_TELEGRAM = "notification-telegram"  # Telegram worker listens here
 QUEUE_NOTIFICATION_EMAIL = "notification-email"  # Email worker listens here
 QUEUE_NOTIFICATION_EARTHRANGER = "notification-earthranger"  # EarthRanger (Gundi) worker listens here
+QUEUE_NOTIFICATION_SENSINGCLUES = "notification-sensingclues"  # Sensing Clues (Cluey) worker listens here
 
 def parse_heartbeat(raw: Optional[str]) -> Optional[datetime]:
     """Parse a stored heartbeat stamp. None on missing or garbage.
@@ -254,6 +255,7 @@ HEARTBEAT_KEY_NOTIFICATIONS = "heartbeat:notifications"
 HEARTBEAT_KEY_NOTIFICATIONS_EMAIL = "heartbeat:notifications-email"
 HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM = "heartbeat:notifications-telegram"
 HEARTBEAT_KEY_NOTIFICATIONS_EARTHRANGER = "heartbeat:notifications-earthranger"
+HEARTBEAT_KEY_NOTIFICATIONS_SENSINGCLUES = "heartbeat:notifications-sensingclues"
 HEARTBEAT_KEY_INGESTION = "heartbeat:ingestion"
 HEARTBEAT_KEY_DETECTION = "heartbeat:detection"
 # One key for both classifiers. A server runs deepfaune or speciesnet,

@@ -14,28 +14,10 @@ from shared.earthranger import (
     build_detection_event,
     build_test_event,
     category_of,
-    format_recorded_at,
     parse_object_id,
 )
 
 AMS = ZoneInfo("Europe/Amsterdam")
-
-
-class TestFormatRecordedAt:
-    def test_naive_camera_time_gets_server_offset(self):
-        # Summer time in Amsterdam is UTC+2; the offset must be in the string
-        assert format_recorded_at(datetime(2026, 7, 1, 8, 30), AMS) == "2026-07-01T08:30:00+02:00"
-
-    def test_winter_offset(self):
-        assert format_recorded_at(datetime(2026, 1, 1, 8, 30), AMS) == "2026-01-01T08:30:00+01:00"
-
-    def test_aware_passes_through(self):
-        moment = datetime(2026, 7, 1, 6, 30, tzinfo=timezone.utc)
-        assert format_recorded_at(moment) == "2026-07-01T06:30:00+00:00"
-
-    def test_naive_without_timezone_raises(self):
-        with pytest.raises(ValueError):
-            format_recorded_at(datetime(2026, 7, 1, 8, 30))
 
 
 class TestCategoryOf:

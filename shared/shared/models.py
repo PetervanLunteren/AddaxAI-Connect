@@ -982,11 +982,11 @@ class UserInvitation(Base):
 
 class ProjectIntegration(Base):
     """
-    One outbound integration of a project (EarthRanger via Gundi first,
-    more to follow). One row per project and kind; the row existing means
-    the integration is configured. Credentials live in config (plain, the
-    same trade-off as TelegramConfig.bot_token) and are never returned by
-    the API. The status columns feed the integration page: the delivery
+    One outbound integration of a project (EarthRanger via Gundi, Sensing
+    Clues via Central). One row per project and kind; the row existing
+    means the integration is configured. A credential in config is plain
+    (the same trade-off as TelegramConfig.bot_token) and is never returned
+    by the API. The status columns feed the integration page: the delivery
     worker stamps them after every attempt.
     """
     __tablename__ = "project_integrations"
@@ -996,8 +996,8 @@ class ProjectIntegration(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
-    kind = Column(String(50), nullable=False)  # earthranger
-    config = Column(JSON, nullable=False)  # earthranger: {"api_key": str}
+    kind = Column(String(50), nullable=False)  # earthranger | sensingclues
+    config = Column(JSON, nullable=False)  # earthranger: {"api_key": str}, sensingclues: {"group_id": int}
     is_enabled = Column(Boolean, nullable=False, server_default="true")
     health_status = Column(String(50), nullable=True)  # healthy | error
     last_health_check = Column(DateTime(timezone=True), nullable=True)

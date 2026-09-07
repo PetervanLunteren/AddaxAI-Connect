@@ -24,6 +24,8 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from .timestamps import isoformat_with_offset
+
 GUNDI_BASE_URL = "https://sensors.api.gundiservice.org/v2"
 
 # EarthRanger event type slugs. They must exist on the destination site,
@@ -53,16 +55,6 @@ class GundiError(Exception):
     def is_permanent(self) -> bool:
         """A 4xx means the payload or key is wrong; a retry cannot help."""
         return self.status is not None and 400 <= self.status < 500
-
-
-def format_recorded_at(moment: datetime, tz: Optional[ZoneInfo] = None) -> str:
-    """ISO 8601 with offset. A naive moment is a camera-clock reading and
-    needs the server timezone; an aware one is passed through."""
-    if moment.tzinfo is None:
-        if tz is None:
-            raise ValueError("naive datetime needs a timezone")
-        moment = moment.replace(tzinfo=tz)
-    return moment.isoformat(timespec="seconds")
 
 
 def category_of(species: str) -> str:
@@ -110,7 +102,7 @@ def build_detection_event(
         "source": device_id,
         "title": f"{species_display} at {where}",
         "event_type": EVENT_TYPE_DETECTION,
-        "recorded_at": format_recorded_at(captured_at, tz),
+        "recorded_at": isoformat_with_offset(captured_at, tz),
         "location": {"lat": lat, "lon": lon},
         "event_details": details,
     }
@@ -147,7 +139,7 @@ def build_camera_event(
         "source": device_id,
         "title": f"Camera alert at {where}",
         "event_type": EVENT_TYPE_CAMERA_ALERT,
-        "recorded_at": format_recorded_at(occurred_at),
+        "recorded_at": isoformat_with_offset(occurred_at),
         "location": {"lat": lat, "lon": lon},
         "event_details": details,
     }
@@ -160,7 +152,7 @@ def build_test_event(*, project_name: str, lat: float, lon: float) -> Dict[str, 
         "source": "addaxai-connect-test",
         "title": f"Test from AddaxAI Connect ({project_name})",
         "event_type": EVENT_TYPE_DETECTION,
-        "recorded_at": format_recorded_at(datetime.now(timezone.utc)),
+        "recorded_at": isoformat_with_offset(datetime.now(timezone.utc)),
         "location": {"lat": lat, "lon": lon},
         # No link key: EarthRanger's form validates an empty string as a
         # broken URL, which would block a ranger from resolving the event.

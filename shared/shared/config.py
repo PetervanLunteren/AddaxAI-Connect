@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     mail_from: Optional[str] = None
     domain_name: Optional[str] = None  # For constructing verification links
 
+    # Sensing Clues service account (API and notifications-sensingclues).
+    # One account posts into every Cluey group that invited it; the group
+    # id is per project. Unset means the integration is not offered on
+    # this server and the integration page says so.
+    sensingclues_base_url: Optional[str] = None
+    sensingclues_username: Optional[str] = None
+    sensingclues_password: Optional[str] = None
+    sensingclues_user_id: Optional[str] = None
+
     # API (for internal service-to-service communication)
     api_host: Optional[str] = "api:8000"  # Internal API endpoint for workers
 
