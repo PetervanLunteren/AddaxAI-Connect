@@ -138,6 +138,11 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN_NAME: ${DOMAIN_NAME}
+      # Sensing Clues service account, for the integration status and test. Empty on a server that does not offer it.
+      SENSINGCLUES_BASE_URL: ${SENSINGCLUES_BASE_URL:-}
+      SENSINGCLUES_USERNAME: ${SENSINGCLUES_USERNAME:-}
+      SENSINGCLUES_PASSWORD: ${SENSINGCLUES_PASSWORD:-}
+      SENSINGCLUES_USER_ID: ${SENSINGCLUES_USER_ID:-}
       DEMO_MODE: ${DEMO_MODE:-false}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
       CLASSIFICATION_MODEL: ${CLASSIFICATION_MODEL:-deepfaune}
@@ -344,6 +349,8 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       DOMAIN_NAME: ${DOMAIN_NAME}
+      # Names the classifier in outbound integration payloads (shared/classification_models.py)
+      CLASSIFICATION_MODEL: ${CLASSIFICATION_MODEL:-deepfaune}
       DISK_ALERT_THRESHOLDS: ${DISK_ALERT_THRESHOLDS:-80,90,95}
       # For infra_alert.py. ADMIN_EMAIL is needed for the TEMP success mails.
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
@@ -483,6 +490,8 @@ services:
     networks:
       - addaxai-network
 
+  # EarthRanger delivery via Gundi: posts one event per alert with the
+  # project's own API key (see services/notifications-earthranger)
   notifications-earthranger:
     build:
       context: .
@@ -496,6 +505,40 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      notifications:
+        condition: service_started
+    networks:
+      - addaxai-network
+
+  # Sensing Clues delivery via Central: posts one observation per alert into
+  # the project's Cluey group with the server's service account (see
+  # services/notifications-sensingclues). Runs on every server; without the
+  # account it idles and heartbeats.
+  notifications-sensingclues:
+    build:
+      context: .
+      dockerfile: services/notifications-sensingclues/Dockerfile
+    container_name: addaxai-notifications-sensingclues
+    restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SENSINGCLUES_BASE_URL: ${SENSINGCLUES_BASE_URL:-}
+      SENSINGCLUES_USERNAME: ${SENSINGCLUES_USERNAME:-}
+      SENSINGCLUES_PASSWORD: ${SENSINGCLUES_PASSWORD:-}
+      SENSINGCLUES_USER_ID: ${SENSINGCLUES_USER_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-production}

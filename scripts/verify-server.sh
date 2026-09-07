@@ -204,6 +204,7 @@ PROVIDED_BY = {
     'notifications-email': ['notifications-email'],
     'notifications-telegram': ['notifications-telegram'],
     'notifications-earthranger': ['notifications-earthranger'],
+    'notifications-sensingclues': ['notifications-sensingclues'],
     'cold-tier-watchdog': ['minio-tier-watchdog'],
 }
 

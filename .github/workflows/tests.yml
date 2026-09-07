@@ -41,6 +41,8 @@ jobs:
             reqs: -r services/notifications-telegram/requirements.txt
           - dir: tests/notifications_earthranger
             reqs: -r services/notifications-earthranger/requirements.txt
+          - dir: tests/notifications_sensingclues
+            reqs: -r services/notifications-sensingclues/requirements.txt
           # Only the shared package itself, no service.
           - dir: tests/shared
             reqs: ""

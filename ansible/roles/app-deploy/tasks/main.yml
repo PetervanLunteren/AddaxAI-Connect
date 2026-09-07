@@ -121,6 +121,10 @@
       when: "{{ not (demo_mode | default(false)) }}"
     - service: notifications-email
       when: "{{ not (demo_mode | default(false)) }}"
+    - service: notifications-earthranger
+      when: "{{ not (demo_mode | default(false)) }}"
+    - service: notifications-sensingclues
+      when: "{{ not (demo_mode | default(false)) }}"
   async: 1800  # 30 minutes per service (first build downloads base images + deps)
   poll: 10
 

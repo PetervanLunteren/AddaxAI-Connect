@@ -165,6 +165,8 @@ WORKER_ROWS = {
     "notifications",
     "notifications-email",
     "notifications-telegram",
+    "notifications-earthranger",
+    "notifications-sensingclues",
 }
 
 
@@ -211,6 +213,8 @@ class TestServicesEndpoint:
                 "heartbeat:notifications": fresh,
                 "heartbeat:notifications-email": fresh,
                 "heartbeat:notifications-telegram": fresh,
+                "heartbeat:notifications-earthranger": fresh,
+                "heartbeat:notifications-sensingclues": fresh,
                 "cold_tier:status": json.dumps({"status": "idle"}),
             },
         )
@@ -230,6 +234,8 @@ class TestServicesEndpoint:
                 "heartbeat:notifications": fresh,
                 "heartbeat:notifications-email": fresh,
                 "heartbeat:notifications-telegram": fresh,
+                "heartbeat:notifications-earthranger": fresh,
+                "heartbeat:notifications-sensingclues": fresh,
             },
         )
         assert statuses["detection"] == "unhealthy"

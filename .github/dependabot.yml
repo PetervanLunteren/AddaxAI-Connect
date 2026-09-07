@@ -53,6 +53,8 @@ updates:
       - /services/notifications
       - /services/notifications-email
       - /services/notifications-telegram
+      - /services/notifications-earthranger
+      - /services/notifications-sensingclues
     schedule:
       interval: weekly
       day: monday

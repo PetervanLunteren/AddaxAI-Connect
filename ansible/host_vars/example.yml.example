@@ -111,3 +111,13 @@ backup_bucket: ""
 backup_region: "eu-central-1"
 backup_access_key: ""
 backup_secret_key: ""
+
+# --- Sensing Clues (optional) -------------------------------------------
+# The service account this server posts observations with, given by Sensing
+# Clues. Leave all four empty to keep the integration off; project admins
+# then see on the integration page that the server does not offer it. The
+# base url differs between their test and production environment.
+sensingclues_base_url: ""
+sensingclues_username: ""
+sensingclues_password: ""
+sensingclues_user_id: ""

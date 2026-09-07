@@ -175,16 +175,17 @@ log "Schema is at HEAD"
 # whoever tests on dev to configure a separate dev bot. A real prod-to-prod
 # disaster recovery keeps the config, that server IS the one bot owner.
 #
-# Same for the project integrations (EarthRanger via Gundi). A restored
-# database carries every project's Gundi API key, and an alert fired on dev
-# would post to a real ranger map. Clearing the rows means dev only holds
-# keys someone pasted on dev on purpose.
+# Same for the project integrations (EarthRanger via Gundi, Sensing Clues
+# via Central). A restored database carries every project's Gundi API key
+# and Cluey group id, and an alert fired on dev would post to a real ranger
+# map or group. Clearing the rows means dev only holds what someone set up
+# on dev on purpose.
 ENVIRONMENT="$(env_get ENVIRONMENT)"
 if [ "$ENVIRONMENT" = "development" ]; then
   log "Dev server: clearing restored Telegram bot config so it cannot fight the source bot"
   docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
     -c 'DELETE FROM telegram_config;' > /dev/null
-  log "Dev server: clearing restored EarthRanger (Gundi) keys so dev cannot post to real ranger maps"
+  log "Dev server: clearing restored integration rows (EarthRanger keys, Sensing Clues group ids) so dev cannot post to real destinations"
   docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
     -c 'DELETE FROM project_integrations;' > /dev/null
 fi
