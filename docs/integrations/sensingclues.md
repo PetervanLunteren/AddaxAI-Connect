@@ -54,11 +54,11 @@ Make a Sensing Clues account for AddaxAI Connect to post with, and invite it int
 
 2. In AddaxAI Connect, open `Integrations > Sensing Clues` and click `Connect`. Fill in four things: the Sensing Clues address (already filled in, leave it unless Sensing Clues told you otherwise), the username and password of the account from step 2, and the group id.
 
-Saving checks both halves with Sensing Clues first. If the password is wrong, or the account is not a member of that group, nothing is stored and the page says which of the two it is, naming the groups the account does belong to.
+Saving signs in with the account first, so a wrong address, username or password is refused and nothing is stored. Whether the group is right is checked by the test in the next step.
 
 <!-- screenshot: the Sensing Clues integration page in AddaxAI Connect, connected -->
 
-3. Click `Send test observation`. It posts a real observation titled "Test from AddaxAI Connect" at the centre of your project area or your first site, and shows the result. Check that it appears in the group.
+3. Click `Send test observation`. It posts a real observation titled "Test from AddaxAI Connect" at the centre of your project area or your first site, and shows the result. This is what proves the group id and the membership, so do not skip it. Check that the observation appears in the group.
 
 To change anything later, click `Change connection`. The password is never shown, so you type it again even when you only change the group.
 
@@ -92,6 +92,6 @@ These rules belong to the project, not to you. Any project admin can change them
 ## When something does not arrive
 
 - **Saving says it could not sign in:** the address, the username or the password is wrong. Check them in Central, and mind that a pasted password can carry a space.
-- **Saving says the account is not a member of the group:** the group id is wrong, or the account was not invited into that group. The message names the groups the account does belong to, which usually tells you which of the two it is.
+- **The test says Sensing Clues refused the group:** the group id is wrong, or the account was not invited into that group. Check both in Central, the group id is on the group's own page.
 - **Observations stop after a while:** the connection shows the last error. A camera without a site or GPS cannot be placed on a map, so its alerts are skipped and logged. A changed password on the Sensing Clues side also stops delivery until you connect again.
 - **Nothing sends at all:** check that an account is connected and that at least one rule is active; the page shows a note when either is missing. Disconnect forgets the account and the group; the rules stay and resume when an account is connected again.

@@ -98,7 +98,7 @@ export const SensingCluesPage: React.FC = () => {
     },
     onSuccess: () => {
       invalidateStatus();
-      toast.success('Connected to Sensing Clues.');
+      toast.success('Connected. Send a test observation to see one arrive in your group.');
     },
     onError: (error: any) => toast.error(`Could not connect. ${errorDetail(error)}`),
   });
@@ -281,13 +281,13 @@ export const SensingCluesPage: React.FC = () => {
               }}
               testLabel="Send test observation"
               testModalTitle="Send a test observation"
-              testExplanation={<>This posts a real observation to your Sensing Clues group, titled "Test from AddaxAI Connect", so you can see one arrive. It stays in the group like any other observation.</>}
+              testExplanation={<>This posts a real observation to your Sensing Clues group, titled "Test from AddaxAI Connect", which is also how you check that the group id is right and that the account is a member of it. It stays in the group like any other observation.</>}
               testSuccessMessage="Test passed. The observation should appear in your Cluey group within a minute."
               docsUrl={DOCS_URL}
               modalTitle="Connect Sensing Clues"
               replaceModalTitle="Change the connection"
               replaceLabel="Change connection"
-              modalHelp={<>The account signs in to Sensing Clues for you, so it must already be a member of the group. Saving checks both before anything is stored.</>}
+              modalHelp={<>The account signs in to Sensing Clues for you, so it must already be a member of the group. Saving checks the account, and the test observation checks the group.</>}
             />
 
             <SettingRowDivider />

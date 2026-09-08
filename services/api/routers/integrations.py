@@ -11,11 +11,10 @@ per kind because what is stored and what a test does differ:
   real event, because Gundi has no ping.
 - Sensing Clues stores a Cluey account (address, username, password) and
   the group id it posts into. The password is never returned; the page
-  sees the address, the username and the group. Saving checks both halves
-  against Sensing Clues first, a login for the account and the group
-  listing for the membership, so a setting that cannot work is refused
-  rather than failing silently later. The test posts a real observation
-  into the group.
+  sees the address, the username and the group. Saving signs in first, so
+  a wrong account is refused rather than stored. The group is proven by
+  the test, which posts a real observation into it; Cluey has no read
+  call we may use for that, see the note in shared/sensingclues.py.
 
 Routes are mounted under /api/projects/{project_id}/integrations/{kind}
 and are project admin only.
@@ -297,11 +296,14 @@ def validate_group_id(group_id: int) -> None:
 
 
 def user_detail(error: SensingCluesError) -> str:
-    """What the page shows for a failed call. A 401 always means the
-    account, and Cluey's own word for it ("Unauthenticated") tells a user
-    nothing; every other status carries its own explanation."""
+    """What the page shows for a failed call. Cluey answers both cases a
+    user can actually fix with a bare status and its own wording, which
+    tells them nothing, so those two get a sentence."""
     if error.status == 401:
         return "Could not sign in to Sensing Clues. Check the address, the username and the password."
+    if error.status == 404:
+        return ("Sensing Clues refused the group. Check that the group id is right and that the "
+                "account is a member of it.")
     return str(error)
 
 
@@ -314,10 +316,11 @@ async def configure_sensingclues(
 ):
     """Save the Cluey account and the group it posts into.
 
-    Both halves are checked against Sensing Clues before anything is
-    stored: the login proves the account, the group listing proves it may
-    post there. Saving a setting that cannot work would only show up as a
-    lost alert days later.
+    The account is checked before anything is stored, by signing in with
+    it. The group is not checked here: their only call that would prove a
+    membership is a GET, and a GET leaves the account unable to log in for
+    a few seconds, which would break the test button right after saving.
+    So the test observation proves the group instead.
     """
     validate_group_id(request.group_id)
     config = {
@@ -337,14 +340,11 @@ async def configure_sensingclues(
         )
     try:
         # httpx sync client off the event loop, like the statistics fits
-        await asyncio.to_thread(client.verify, request.group_id)
+        await asyncio.to_thread(client.login)
     except SensingCluesError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=user_detail(e))
 
     integration = await save_config(db, SENSINGCLUES, project_id, config)
-    # The account and the membership were just confirmed, so the row is
-    # healthy from the start; a failed delivery later flips it to error.
-    await record_health(db, integration, None)
     return status_of(SENSINGCLUES, integration)
 
 

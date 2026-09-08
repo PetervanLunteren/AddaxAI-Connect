@@ -134,14 +134,19 @@ class TestSensingCluesValidation:
         detail = user_detail(SensingCluesError("Sensing Clues login failed with 401", status=401))
         assert "Check the address, the username and the password" in detail
 
+    def test_a_404_becomes_a_sentence_about_the_group(self):
+        # Their message for it names our own account back at the user
+        detail = user_detail(SensingCluesError("returned 404: IS NOT A MEMBER", status=404))
+        assert "group id is right" in detail
+
     def test_any_other_failure_keeps_its_own_message(self):
-        error = SensingCluesError("The account x is not a member of group 1.")
-        assert user_detail(error) == "The account x is not a member of group 1."
+        error = SensingCluesError("Sensing Clues request failed: timed out")
+        assert user_detail(error) == "Sensing Clues request failed: timed out"
 
 
 class TestSensingCluesSave:
-    """Nothing may reach the database until Cluey has confirmed both the
-    account and the group, so these run with db None."""
+    """Nothing may reach the database until Cluey has accepted the
+    account, so these run with db None."""
 
     def _request(self, **overrides):
         values = dict(
@@ -155,7 +160,7 @@ class TestSensingCluesSave:
 
     def _refuse(self, monkeypatch, error):
         class FakeClient:
-            def verify(self, group_id):
+            def login(self):
                 raise error
 
         monkeypatch.setattr(integrations, "client_from_config", lambda config: FakeClient())
@@ -169,15 +174,12 @@ class TestSensingCluesSave:
         assert "username and the password" in info.value.detail
 
     @pytest.mark.asyncio
-    async def test_a_group_the_account_cannot_reach_is_refused(self, monkeypatch):
-        self._refuse(monkeypatch, SensingCluesError(
-            "The account addax_service is not a member of group 1. It is a member of Test (99)."
-        ))
+    async def test_an_unreachable_server_keeps_its_own_message(self, monkeypatch):
+        self._refuse(monkeypatch, SensingCluesError("Sensing Clues request failed: timed out"))
         with pytest.raises(HTTPException) as info:
-            await configure_sensingclues(1, self._request(group_id=1), user=None, db=None)
+            await configure_sensingclues(1, self._request(), user=None, db=None)
         assert info.value.status_code == 400
-        assert "not a member of group 1" in info.value.detail
-        assert "Test (99)" in info.value.detail
+        assert "timed out" in info.value.detail
 
     @pytest.mark.asyncio
     async def test_an_empty_value_is_refused_before_any_call(self, monkeypatch):

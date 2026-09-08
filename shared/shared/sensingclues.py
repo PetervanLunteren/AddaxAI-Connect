@@ -13,11 +13,19 @@ delivery worker and the API test endpoint all produce the same shape and
 tests can check it without a network.
 
 Cluey API (test host https://central-test.sensingclues.org/v1/, production
-host to follow):
+host https://central.sensingclues.org/v1/):
     POST {base}/users/login                    {"identifier", "password"} -> {"token": JWT, "user": {...}}
-    GET  {base}/projects                       the groups this account belongs to
     POST {base}/projects/{pid}/alerts          JSON observation -> the alert object, with "id"
     POST {base}/alerts/{id}/media/{filename}   raw JPEG body
+
+Only these three, on purpose. An authenticated GET on their API leaves
+the account unable to log in for the next few seconds: measured on
+8 September 2026, a GET /projects makes every login fail with a 401 for
+between two and five seconds, while logins on their own and posted
+observations never do. So checking a group by listing the account's
+groups would break the test button a user presses right after saving.
+Reported to Sensing Clues; until it is fixed, we make no GET at all.
+
 Every call but login sends the token as the x-access-token header. The
 token lasts a year; a 401 means log in again. In the API an observation
 is called an alert (legacy naming); "type": "alert" is a separate
@@ -39,14 +47,12 @@ timestampClassification may be absent; a wrong group id, or a group that
 did not invite the account, is a 404 whose message names the account and
 the group; the media call answers with the alert object; human_activity
 is stored under their internal type "offence"; the count for the generic
-species field is nAnimal, a string like their own number fields; the
-login answers {"user": {"username": "<numeric account id>"}}; and the
-group listing needs an appVersion header, ours is accepted, without one
-it is a 401.
+species field is nAnimal, a string like their own number fields; and the
+login answers {"user": {"username": "<numeric account id>"}}.
 """
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -314,8 +320,11 @@ class SensingCluesClient:
         self._user_id: Optional[str] = None
 
     def login(self) -> str:
-        response = _http_request(
-            "POST",
+        """Signing in is also how the settings screen checks an account:
+        it is the only call that proves the credentials without writing
+        anything, and repeated logins are safe (see the module docstring
+        for the calls that are not)."""
+        response = _http_post(
             f"{self._base_url}/users/login",
             headers={},
             json={"identifier": self._username, "password": self._password},
@@ -339,39 +348,6 @@ class SensingCluesClient:
         self._user_id = str(user_id)
         return token
 
-    def list_groups(self) -> List[Dict[str, str]]:
-        """The groups this account is a member of, id and name each. Cluey
-        wants an appVersion header here and answers 401 without one."""
-        response = self._request(
-            "GET", f"{self._base_url}/projects", headers={"appVersion": APP_VERSION}
-        )
-        body = response.json()
-        rows = body if isinstance(body, list) else [body]
-        return [
-            {"id": str(row["id"]), "name": row.get("name") or ""}
-            for row in rows
-            if isinstance(row, dict) and row.get("id")
-        ]
-
-    def verify(self, group_id: int) -> None:
-        """Check that the account works and may post into the group. Used
-        when the settings are saved, so a wrong password or an uninvited
-        account is refused before it is stored. The message is written for
-        the user, because the API hands it straight to them."""
-        groups = self.list_groups()
-        if any(group["id"] == str(group_id) for group in groups):
-            return
-        if not groups:
-            raise SensingCluesError(
-                f"The account {self._username} is not a member of any group yet. "
-                f"Invite it into your group in Cluey or Central first."
-            )
-        known = ", ".join(f"{group['name']} ({group['id']})" for group in groups)
-        raise SensingCluesError(
-            f"The account {self._username} is not a member of group {group_id}. "
-            f"It is a member of {known}."
-        )
-
     def create_observation(self, group_id: int, observation: Dict[str, Any]) -> str:
         # Log in first: the account id comes from the login and the body
         # needs it, and a post without userid is refused with a 401.
@@ -382,12 +358,11 @@ class SensingCluesClient:
             "user": self._username,
             "userid": self._user_id,
         }
-        response = self._request("POST", f"{self._base_url}/projects/{group_id}/alerts", json=body)
+        response = self._post(f"{self._base_url}/projects/{group_id}/alerts", json=body)
         return parse_alert_id(response)
 
     def attach_image(self, alert_id: str, filename: str, data: bytes) -> None:
-        self._request(
-            "POST",
+        self._post(
             f"{self._base_url}/alerts/{alert_id}/media/{filename}",
             content=data,
             headers={"content-type": "image/jpeg"},
@@ -397,16 +372,14 @@ class SensingCluesClient:
         if self._token is None:
             self.login()
 
-    def _request(
-        self, method: str, url: str, headers: Optional[Dict[str, str]] = None, **kwargs: Any
-    ) -> httpx.Response:
+    def _post(self, url: str, headers: Optional[Dict[str, str]] = None, **kwargs: Any) -> httpx.Response:
         self._ensure_token()
-        response = self._send(method, url, headers, **kwargs)
+        response = self._send(url, headers, **kwargs)
         if response.status_code == 401:
             # The token expired or the password was rotated: one fresh
             # login, one retry. A second 401 is final and raised below.
             self.login()
-            response = self._send(method, url, headers, **kwargs)
+            response = self._send(url, headers, **kwargs)
         if response.status_code >= 400:
             raise SensingCluesError(
                 f"Sensing Clues returned {response.status_code}: {response.text[:300]}",
@@ -414,16 +387,12 @@ class SensingCluesClient:
             )
         return response
 
-    def _send(
-        self, method: str, url: str, headers: Optional[Dict[str, str]], **kwargs: Any
-    ) -> httpx.Response:
-        return _http_request(
-            method, url, headers={"x-access-token": self._token or "", **(headers or {})}, **kwargs
-        )
+    def _send(self, url: str, headers: Optional[Dict[str, str]], **kwargs: Any) -> httpx.Response:
+        return _http_post(url, headers={"x-access-token": self._token or "", **(headers or {})}, **kwargs)
 
 
-def _http_request(method: str, url: str, headers: Dict[str, str], **kwargs: Any) -> httpx.Response:
+def _http_post(url: str, headers: Dict[str, str], **kwargs: Any) -> httpx.Response:
     try:
-        return httpx.request(method, url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS, **kwargs)
+        return httpx.post(url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS, **kwargs)
     except httpx.HTTPError as e:
         raise SensingCluesError(f"Sensing Clues request failed: {e}") from e
