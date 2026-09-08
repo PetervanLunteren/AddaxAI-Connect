@@ -1,6 +1,5 @@
 """Tests for the Sensing Clues (Cluey) observation builders and client."""
 from datetime import datetime, timezone
-from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -18,8 +17,8 @@ from shared.sensingclues import (
     build_camera_observation,
     build_detection_observation,
     build_test_observation,
-    client_from_settings,
-    is_available,
+    client_from_config,
+    is_configured,
     new_observation_id,
     parse_alert_id,
 )
@@ -194,32 +193,40 @@ class TestParseAlertId:
                 parse_alert_id(response)
 
 
-class TestAvailability:
-    def _settings(self, **overrides):
-        values = dict(
-            sensingclues_base_url="https://central-test.sensingclues.org/v1/",
-            sensingclues_username="addax_service",
-            sensingclues_password="fake-test-password",
-            sensingclues_user_id="1234567890123456789",
-        )
-        values.update(overrides)
-        return SimpleNamespace(**values)
+def _config(**overrides):
+    values = dict(
+        base_url="https://central-test.sensingclues.org/v1/",
+        username="addax_service",
+        password="fake-test-password",
+        group_id=3523928,
+    )
+    values.update(overrides)
+    return values
 
-    def test_all_four_required(self):
-        assert is_available(self._settings())
-        for key in ("sensingclues_base_url", "sensingclues_username",
-                    "sensingclues_password", "sensingclues_user_id"):
-            assert not is_available(self._settings(**{key: None}))
 
-    def test_empty_string_counts_as_unset(self):
-        # compose passes ${VAR:-} through as "", which must read as off
-        assert not is_available(self._settings(sensingclues_password=""))
+class TestConfig:
+    def test_all_four_values_required(self):
+        assert is_configured(_config())
+        for key in ("base_url", "username", "password", "group_id"):
+            assert not is_configured(_config(**{key: None}))
 
-    def test_client_from_settings(self):
-        client = client_from_settings(self._settings())
-        assert isinstance(client, SensingCluesClient)
+    def test_missing_row_is_not_configured(self):
+        assert not is_configured(None)
+        assert not is_configured({})
+
+    def test_client_from_config(self):
+        assert isinstance(client_from_config(_config()), SensingCluesClient)
+
+    def test_client_from_an_incomplete_row_raises(self):
+        for key in ("base_url", "username", "password"):
+            with pytest.raises(ValueError):
+                client_from_config(_config(**{key: ""}))
         with pytest.raises(ValueError):
-            client_from_settings(self._settings(sensingclues_username=""))
+            client_from_config(None)
+
+    def test_the_group_id_is_not_needed_to_build_a_client(self):
+        # The group is an argument of every call, not part of the account
+        assert isinstance(client_from_config(_config(group_id=None)), SensingCluesClient)
 
 
 def test_new_observation_id_is_32_hex():
@@ -230,57 +237,63 @@ def test_new_observation_id_is_32_hex():
 
 
 class FakeHttp:
-    """A scripted httpx.post: one response per call, in order, and a record
-    of every call made."""
+    """A scripted httpx.request: one response per call, in order, and a
+    record of every call made."""
 
     def __init__(self, *responses):
         self.responses = list(responses)
         self.calls = []
 
-    def __call__(self, url, headers=None, timeout=None, **kwargs):
-        self.calls.append({"url": url, "headers": headers, **kwargs})
+    def __call__(self, method, url, headers=None, timeout=None, **kwargs):
+        self.calls.append({"method": method, "url": url, "headers": headers, **kwargs})
         return self.responses.pop(0)
 
 
 def _client():
-    return SensingCluesClient(
-        "https://cluey.test/v1/", "addax_service", "fake-test-password", "999"
-    )
+    return SensingCluesClient("https://cluey.test/v1/", "addax_service", "fake-test-password")
 
 
-LOGIN_OK = lambda: httpx.Response(200, json={"token": "tok-1", "user": {"userName": "addax_service"}})  # noqa: E731
+# Their login answers with the account's numeric id under user.username
+LOGIN_OK = lambda token="tok-1": httpx.Response(  # noqa: E731
+    200, json={"token": token, "user": {"username": "999"}}
+)
 ALERT_OK = lambda: httpx.Response(200, json={"id": "n12b8e8d9c64912ea", "pid": "3523928"})  # noqa: E731
+GROUPS_OK = lambda: httpx.Response(  # noqa: E731
+    200, json=[{"id": "3523928", "name": "Addax_testgroup"}, {"id": "77", "name": "Other"}]
+)
 
 
 class TestClient:
     def test_incomplete_credentials_rejected(self):
         with pytest.raises(ValueError):
-            SensingCluesClient("https://cluey.test/v1/", "", "pw", "999")
+            SensingCluesClient("https://cluey.test/v1/", "", "pw")
 
     def test_login_posts_identifier_and_password_and_caches_token(self, monkeypatch):
         http = FakeHttp(LOGIN_OK())
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         client = _client()
         assert client.login() == "tok-1"
+        assert http.calls[0]["method"] == "POST"
         assert http.calls[0]["url"] == "https://cluey.test/v1/users/login"
         assert http.calls[0]["json"] == {"identifier": "addax_service", "password": "fake-test-password"}
         assert "x-access-token" not in http.calls[0]["headers"]
 
     def test_create_observation_adds_identity_and_token(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), ALERT_OK())
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         alert_id = _client().create_observation(3523928, {"description": "x"})
         assert alert_id == "n12b8e8d9c64912ea"
         call = http.calls[1]
         assert call["url"] == "https://cluey.test/v1/projects/3523928/alerts"
         assert call["headers"]["x-access-token"] == "tok-1"
+        # userid comes from the login, nothing stored and nothing typed
         assert call["json"] == {
             "description": "x", "pid": "3523928", "user": "addax_service", "userid": "999",
         }
 
     def test_lazy_login_happens_once_across_calls(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), ALERT_OK(), ALERT_OK())
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         client = _client()
         client.create_observation(1, {})
         client.create_observation(1, {})
@@ -288,20 +301,15 @@ class TestClient:
         assert len(logins) == 1
 
     def test_401_logs_in_again_and_retries_once(self, monkeypatch):
-        http = FakeHttp(
-            LOGIN_OK(),
-            httpx.Response(401, text="expired"),
-            httpx.Response(200, json={"token": "tok-2"}),
-            ALERT_OK(),
-        )
-        monkeypatch.setattr(httpx, "post", http)
+        http = FakeHttp(LOGIN_OK(), httpx.Response(401, text="expired"), LOGIN_OK("tok-2"), ALERT_OK())
+        monkeypatch.setattr(httpx, "request", http)
         assert _client().create_observation(1, {}) == "n12b8e8d9c64912ea"
         assert [c["url"].rsplit("/", 1)[-1] for c in http.calls] == ["login", "alerts", "login", "alerts"]
         assert http.calls[3]["headers"]["x-access-token"] == "tok-2"
 
     def test_second_401_is_raised_as_permanent(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), httpx.Response(401), LOGIN_OK(), httpx.Response(401, text="still"))
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert info.value.status == 401
@@ -310,7 +318,7 @@ class TestClient:
 
     def test_attach_image_posts_raw_bytes_with_jpeg_content_type(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), httpx.Response(201, json={"id": "n1"}))
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         _client().attach_image("n1", "img-1.jpg", b"jpegbytes")
         call = http.calls[1]
         assert call["url"] == "https://cluey.test/v1/alerts/n1/media/img-1.jpg"
@@ -319,23 +327,31 @@ class TestClient:
         assert call["headers"]["x-access-token"] == "tok-1"
 
     def test_login_failure_raises(self, monkeypatch):
-        monkeypatch.setattr(httpx, "post", FakeHttp(httpx.Response(401, text="Unauthenticated")))
+        monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(401, text="Unauthenticated")))
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert info.value.status == 401
 
     def test_login_without_token_raises(self, monkeypatch):
-        monkeypatch.setattr(httpx, "post", FakeHttp(httpx.Response(200, json={"user": {}})))
+        monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(200, json={"user": {}})))
         with pytest.raises(SensingCluesError):
             _client().login()
 
+    def test_login_without_account_id_raises(self, monkeypatch):
+        # Without it every observation would be refused with a 401, so it
+        # is better to fail here than to post something that cannot land
+        monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(200, json={"token": "t"})))
+        with pytest.raises(SensingCluesError) as info:
+            _client().login()
+        assert "account id" in str(info.value)
+
     def test_4xx_is_permanent_5xx_is_not(self, monkeypatch):
-        monkeypatch.setattr(httpx, "post", FakeHttp(LOGIN_OK(), httpx.Response(404, text="no group")))
+        monkeypatch.setattr(httpx, "request", FakeHttp(LOGIN_OK(), httpx.Response(404, text="no group")))
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert info.value.is_permanent and info.value.status == 404
 
-        monkeypatch.setattr(httpx, "post", FakeHttp(LOGIN_OK(), httpx.Response(502, text="")))
+        monkeypatch.setattr(httpx, "request", FakeHttp(LOGIN_OK(), httpx.Response(502, text="")))
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert not info.value.is_permanent
@@ -344,8 +360,56 @@ class TestClient:
         def boom(*a, **k):
             raise httpx.ConnectError("down")
 
-        monkeypatch.setattr(httpx, "post", boom)
+        monkeypatch.setattr(httpx, "request", boom)
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert not info.value.is_permanent
         assert info.value.status is None
+
+
+class TestListGroups:
+    def test_gets_the_groups_with_the_app_version_header(self, monkeypatch):
+        http = FakeHttp(LOGIN_OK(), GROUPS_OK())
+        monkeypatch.setattr(httpx, "request", http)
+        groups = _client().list_groups()
+        call = http.calls[1]
+        assert call["method"] == "GET"
+        assert call["url"] == "https://cluey.test/v1/projects"
+        # Cluey answers 401 without this header
+        assert call["headers"]["appVersion"] == APP_VERSION
+        assert groups == [
+            {"id": "3523928", "name": "Addax_testgroup"},
+            {"id": "77", "name": "Other"},
+        ]
+
+    def test_rows_without_an_id_are_ignored(self, monkeypatch):
+        http = FakeHttp(LOGIN_OK(), httpx.Response(200, json=[{"name": "nameless"}, {"id": 5}]))
+        monkeypatch.setattr(httpx, "request", http)
+        assert _client().list_groups() == [{"id": "5", "name": ""}]
+
+
+class TestVerify:
+    def test_passes_when_the_account_is_a_member(self, monkeypatch):
+        monkeypatch.setattr(httpx, "request", FakeHttp(LOGIN_OK(), GROUPS_OK()))
+        assert _client().verify(3523928) is None
+
+    def test_names_the_groups_the_account_does_belong_to(self, monkeypatch):
+        monkeypatch.setattr(httpx, "request", FakeHttp(LOGIN_OK(), GROUPS_OK()))
+        with pytest.raises(SensingCluesError) as info:
+            _client().verify(1)
+        message = str(info.value)
+        assert "not a member of group 1" in message
+        assert "Addax_testgroup (3523928)" in message
+        assert "Other (77)" in message
+
+    def test_says_so_when_the_account_has_no_groups(self, monkeypatch):
+        monkeypatch.setattr(httpx, "request", FakeHttp(LOGIN_OK(), httpx.Response(200, json=[])))
+        with pytest.raises(SensingCluesError) as info:
+            _client().verify(3523928)
+        assert "not a member of any group" in str(info.value)
+
+    def test_a_wrong_password_surfaces_as_the_login_error(self, monkeypatch):
+        monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(401, text="Unauthenticated")))
+        with pytest.raises(SensingCluesError) as info:
+            _client().verify(3523928)
+        assert info.value.status == 401

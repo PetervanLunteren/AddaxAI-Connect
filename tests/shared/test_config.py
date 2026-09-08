@@ -21,11 +21,6 @@ class TestSettings:
         assert s.jwt_secret is None
         assert s.mail_server is None
         assert s.demo_mode is False
-        # Sensing Clues is off on a server that never set the account
-        assert s.sensingclues_base_url is None
-        assert s.sensingclues_username is None
-        assert s.sensingclues_password is None
-        assert s.sensingclues_user_id is None
 
     def test_minio_fields(self):
         """MinIO fields are loaded correctly."""
