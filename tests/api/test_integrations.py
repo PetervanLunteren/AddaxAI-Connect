@@ -1,10 +1,10 @@
 """The integration endpoints' pure parts.
 
 A credential must never leave the server: status_of exposes a key hint at
-most, and the EarthRanger request model takes the key only. Sensing Clues
-stores no credential per project, only the group id, and the status says
-whether this server offers the integration at all. The database-backed
-handlers are covered by the dev server checks in the plan, not here.
+most for EarthRanger and never the Sensing Clues password. Saving a
+Sensing Clues account checks it against Cluey first, and the refusal path
+is covered here because it must never reach the database. The rest of the
+database-backed handlers are covered by the dev server checks.
 """
 import os
 import sys
@@ -20,18 +20,29 @@ from fastapi import HTTPException  # noqa: E402
 import routers.integrations as integrations  # noqa: E402
 from routers.integrations import (  # noqa: E402
     IntegrationStatus,
+    SensingCluesConfigRequest,
+    configure_sensingclues,
     key_hint,
     known_kind,
-    require_sensingclues_available,
     status_of,
+    user_detail,
     validate_group_id,
 )
+from shared.sensingclues import SensingCluesError  # noqa: E402
 import routers.rule_helpers as rule_helpers  # noqa: E402
 from routers.rule_helpers import (  # noqa: E402
     VALID_CHANNELS,
     check_project_channel,
     is_project_rule,
 )
+
+
+_SC_CONFIG = {
+    "base_url": "https://central-test.sensingclues.org/v1/",
+    "username": "addax_service",
+    "password": "fake-test-password",
+    "group_id": 3523928,
+}
 
 
 def _row(config, **overrides):
@@ -68,27 +79,20 @@ class TestStatusOf:
     def test_earthranger_row_without_key_is_not_configured(self):
         assert status_of("earthranger", _row({}, health_status=None, events_sent=0)).is_configured is False
 
-    def test_sensingclues_row_reports_group_id(self, monkeypatch):
-        monkeypatch.setattr(integrations, "is_available", lambda settings: True)
-        out = status_of("sensingclues", _row({"group_id": 3523928}))
-        assert out.is_available is True
+    def test_sensingclues_row_reports_the_account_but_never_the_password(self):
+        out = status_of("sensingclues", _row(_SC_CONFIG))
         assert out.is_configured is True
         assert out.group_id == 3523928
+        assert out.username == "addax_service"
+        assert out.base_url == "https://central-test.sensingclues.org/v1/"
         assert out.api_key_hint is None
+        assert "fake-test-password" not in out.model_dump_json()
 
-    def test_sensingclues_without_server_account_is_unavailable(self, monkeypatch):
-        monkeypatch.setattr(integrations, "is_available", lambda settings: False)
-        out = status_of("sensingclues", None)
-        assert out.is_available is False
-        assert out.is_configured is False
-        # A row saved before the account was removed stays visible, and unavailable
-        out = status_of("sensingclues", _row({"group_id": 1}))
-        assert out.is_available is False
-        assert out.is_configured is True
-
-    def test_sensingclues_row_without_group_id_is_not_configured(self, monkeypatch):
-        monkeypatch.setattr(integrations, "is_available", lambda settings: True)
-        assert status_of("sensingclues", _row({})).is_configured is False
+    def test_sensingclues_row_missing_a_value_is_not_configured(self):
+        assert status_of("sensingclues", None).is_configured is False
+        for key in ("base_url", "username", "password", "group_id"):
+            row = _row({**_SC_CONFIG, key: None})
+            assert status_of("sensingclues", row).is_configured is False, key
 
 
 class TestKinds:
@@ -125,16 +129,75 @@ class TestSensingCluesValidation:
                 validate_group_id(bad)
             assert info.value.status_code == 400
 
-    def test_server_without_account_is_a_400(self, monkeypatch):
-        monkeypatch.setattr(integrations, "is_available", lambda settings: False)
-        with pytest.raises(HTTPException) as info:
-            require_sensingclues_available()
-        assert info.value.status_code == 400
-        assert info.value.detail == "Sensing Clues is not enabled on this server"
+    def test_a_401_becomes_a_sentence_about_the_account(self):
+        # "Unauthenticated" is their word for it and means nothing to a user
+        detail = user_detail(SensingCluesError("Sensing Clues login failed with 401", status=401))
+        assert "Check the address, the username and the password" in detail
 
-    def test_server_with_account_passes(self, monkeypatch):
-        monkeypatch.setattr(integrations, "is_available", lambda settings: True)
-        assert require_sensingclues_available() is None
+    def test_any_other_failure_keeps_its_own_message(self):
+        error = SensingCluesError("The account x is not a member of group 1.")
+        assert user_detail(error) == "The account x is not a member of group 1."
+
+
+class TestSensingCluesSave:
+    """Nothing may reach the database until Cluey has confirmed both the
+    account and the group, so these run with db None."""
+
+    def _request(self, **overrides):
+        values = dict(
+            base_url="https://central-test.sensingclues.org/v1/",
+            username="addax_service",
+            password="fake-test-password",
+            group_id=3523928,
+        )
+        values.update(overrides)
+        return SensingCluesConfigRequest(**values)
+
+    def _refuse(self, monkeypatch, error):
+        class FakeClient:
+            def verify(self, group_id):
+                raise error
+
+        monkeypatch.setattr(integrations, "client_from_config", lambda config: FakeClient())
+
+    @pytest.mark.asyncio
+    async def test_a_wrong_account_is_refused_before_saving(self, monkeypatch):
+        self._refuse(monkeypatch, SensingCluesError("login failed with 401", status=401))
+        with pytest.raises(HTTPException) as info:
+            await configure_sensingclues(1, self._request(), user=None, db=None)
+        assert info.value.status_code == 400
+        assert "username and the password" in info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_a_group_the_account_cannot_reach_is_refused(self, monkeypatch):
+        self._refuse(monkeypatch, SensingCluesError(
+            "The account addax_service is not a member of group 1. It is a member of Test (99)."
+        ))
+        with pytest.raises(HTTPException) as info:
+            await configure_sensingclues(1, self._request(group_id=1), user=None, db=None)
+        assert info.value.status_code == 400
+        assert "not a member of group 1" in info.value.detail
+        assert "Test (99)" in info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_an_empty_value_is_refused_before_any_call(self, monkeypatch):
+        called = []
+        monkeypatch.setattr(
+            integrations, "client_from_config",
+            lambda config: called.append(config) or (_ for _ in ()).throw(ValueError()),
+        )
+        with pytest.raises(HTTPException) as info:
+            await configure_sensingclues(1, self._request(username="   "), user=None, db=None)
+        assert info.value.status_code == 400
+        assert "Fill in" in info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_the_group_id_is_checked_first(self, monkeypatch):
+        monkeypatch.setattr(integrations, "client_from_config", lambda config: 1 / 0)
+        with pytest.raises(HTTPException) as info:
+            await configure_sensingclues(1, self._request(group_id=0), user=None, db=None)
+        assert info.value.status_code == 400
+        assert "positive whole number" in info.value.detail
 
 
 class TestProjectRuleSeparation:

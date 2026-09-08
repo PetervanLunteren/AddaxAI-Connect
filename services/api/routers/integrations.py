@@ -9,10 +9,13 @@ per kind because what is stored and what a test does differ:
   returned; the page sees that a key is set, its last characters, and what
   the delivery worker recorded about the connection. The test posts a
   real event, because Gundi has no ping.
-- Sensing Clues stores only the Cluey group id. The account that posts is
-  a server-level service account (SENSINGCLUES_* in the environment), so
-  the status also says whether this server offers the integration at all.
-  The test posts a real observation into the group.
+- Sensing Clues stores a Cluey account (address, username, password) and
+  the group id it posts into. The password is never returned; the page
+  sees the address, the username and the group. Saving checks both halves
+  against Sensing Clues first, a login for the account and the group
+  listing for the membership, so a setting that cannot work is refused
+  rather than failing silently later. The test posts a real observation
+  into the group.
 
 Routes are mounted under /api/projects/{project_id}/integrations/{kind}
 and are project admin only.
@@ -26,7 +29,6 @@ from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.config import get_settings
 from shared.database import get_async_session
 from shared.earthranger import GundiClient, GundiError, build_test_event
 from shared.models import Project, ProjectIntegration, User
@@ -34,8 +36,8 @@ from shared.project_channels import EARTHRANGER, PROJECT_CHANNELS, SENSINGCLUES
 from shared.sensingclues import (
     SensingCluesError,
     build_test_observation,
-    client_from_settings,
-    is_available,
+    client_from_config,
+    is_configured,
     new_observation_id,
 )
 from auth.permissions import require_project_admin_access
@@ -46,17 +48,17 @@ router = APIRouter(
     tags=["integrations"],
 )
 
-SENSINGCLUES_NOT_ON_SERVER = "Sensing Clues is not enabled on this server"
-
 
 class IntegrationStatus(BaseModel):
-    """What the integration page shows. One model for every kind; the two
-    vendor fields are simply null for the other kind."""
-    is_available: bool = True  # false when this server does not offer the kind (Sensing Clues without an account)
+    """What the integration page shows. One model for every kind; a
+    vendor's own fields are simply null for the other kind. No credential
+    is ever in here."""
     is_configured: bool
     is_enabled: bool = False
     api_key_hint: Optional[str] = None  # earthranger: last characters, to recognise the key
     group_id: Optional[int] = None  # sensingclues: the Cluey group
+    username: Optional[str] = None  # sensingclues: the account that posts
+    base_url: Optional[str] = None  # sensingclues: which Cluey environment
     health_status: Optional[str] = None  # healthy | error | None (never tried)
     last_health_check: Optional[datetime] = None
     last_sent_at: Optional[datetime] = None
@@ -69,6 +71,9 @@ class EarthRangerConfigRequest(BaseModel):
 
 
 class SensingCluesConfigRequest(BaseModel):
+    base_url: str
+    username: str
+    password: str
     group_id: int
 
 
@@ -115,9 +120,10 @@ def status_of(kind: str, integration: Optional[ProjectIntegration]) -> Integrati
             **recorded,
         )
     return IntegrationStatus(
-        is_available=is_available(get_settings()),
-        is_configured=config.get("group_id") is not None,
+        is_configured=is_configured(config),
         group_id=config.get("group_id"),
+        username=config.get("username"),
+        base_url=config.get("base_url"),
         **recorded,
     )
 
@@ -277,6 +283,9 @@ async def send_test_event(
 
 # ---- Sensing Clues ----
 
+SENSINGCLUES_NOT_SET_UP = "Sensing Clues is not set up for this project"
+
+
 def validate_group_id(group_id: int) -> None:
     """An explicit 400 with a readable detail, like the API key checks,
     rather than a pydantic 422 the page cannot show."""
@@ -287,11 +296,13 @@ def validate_group_id(group_id: int) -> None:
         )
 
 
-def require_sensingclues_available() -> None:
-    """400 on a server without the service account. The page shows the
-    same state from is_available in the status."""
-    if not is_available(get_settings()):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=SENSINGCLUES_NOT_ON_SERVER)
+def user_detail(error: SensingCluesError) -> str:
+    """What the page shows for a failed call. A 401 always means the
+    account, and Cluey's own word for it ("Unauthenticated") tells a user
+    nothing; every other status carries its own explanation."""
+    if error.status == 401:
+        return "Could not sign in to Sensing Clues. Check the address, the username and the password."
+    return str(error)
 
 
 @router.put("/sensingclues", response_model=IntegrationStatus)
@@ -301,11 +312,39 @@ async def configure_sensingclues(
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Save the Cluey group id (the group that invited addax_service) and
-    enable the integration."""
-    require_sensingclues_available()
+    """Save the Cluey account and the group it posts into.
+
+    Both halves are checked against Sensing Clues before anything is
+    stored: the login proves the account, the group listing proves it may
+    post there. Saving a setting that cannot work would only show up as a
+    lost alert days later.
+    """
     validate_group_id(request.group_id)
-    integration = await save_config(db, SENSINGCLUES, project_id, {"group_id": request.group_id})
+    config = {
+        "base_url": request.base_url.strip(),
+        "username": request.username.strip(),
+        # The password is stored as typed: trimming it would silently
+        # break a password that really ends in a space.
+        "password": request.password,
+        "group_id": request.group_id,
+    }
+    try:
+        client = client_from_config(config)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fill in the address, the username and the password",
+        )
+    try:
+        # httpx sync client off the event loop, like the statistics fits
+        await asyncio.to_thread(client.verify, request.group_id)
+    except SensingCluesError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=user_detail(e))
+
+    integration = await save_config(db, SENSINGCLUES, project_id, config)
+    # The account and the membership were just confirmed, so the row is
+    # healthy from the start; a failed delivery later flips it to error.
+    await record_health(db, integration, None)
     return status_of(SENSINGCLUES, integration)
 
 
@@ -315,17 +354,14 @@ async def send_test_observation(
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Post one real test observation into the group and record the outcome
-    as the connection's health. 400 with Cluey's reason when it fails: a
-    403 or 404 from Cluey means addax_service is not in the group or the
-    group id is wrong."""
-    require_sensingclues_available()
+    """Post one real test observation into the group and record the
+    outcome as the connection's health. 400 with Cluey's reason when it
+    fails."""
     integration = await load_integration(db, SENSINGCLUES, project_id)
-    group_id = (integration.config or {}).get("group_id") if integration else None
-    if not integration or not group_id:
+    config = (integration.config or {}) if integration else {}
+    if not integration or not is_configured(config):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Sensing Clues is not set up for this project",
+            status_code=status.HTTP_400_BAD_REQUEST, detail=SENSINGCLUES_NOT_SET_UP,
         )
     lat, lon = await require_test_location(db, project_id, "observation")
     project = await db.get(Project, project_id)
@@ -333,11 +369,13 @@ async def send_test_observation(
         observation_id=new_observation_id(), project_name=project.name, lat=lat, lon=lon,
     )
     # A fresh client per test: one login per click, no token kept in the API
-    client = client_from_settings(get_settings())
+    client = client_from_config(config)
     try:
-        alert_id = await asyncio.to_thread(client.create_observation, group_id, observation)
+        alert_id = await asyncio.to_thread(
+            client.create_observation, config["group_id"], observation
+        )
     except SensingCluesError as e:
         await record_health(db, integration, str(e))
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=user_detail(e))
     await record_health(db, integration, None)
     return TestObservationResponse(alert_id=alert_id)
