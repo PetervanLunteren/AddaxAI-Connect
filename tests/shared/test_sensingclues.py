@@ -331,10 +331,30 @@ class TestClient:
         assert call["headers"]["x-access-token"] == "tok-1"
 
     def test_login_failure_raises(self, monkeypatch):
-        monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(401, text="Unauthenticated")))
+        # Twice, because the first login of a call gets the same one retry
+        # every call gets, for the window their group list opens
+        http = FakeHttp(httpx.Response(401, text="Unauthenticated"), httpx.Response(401))
+        monkeypatch.setattr(httpx, "request", http)
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert info.value.status == 401
+        assert len(http.calls) == 2
+
+    def test_a_login_refused_inside_the_window_is_tried_again(self, monkeypatch):
+        # The test button right after someone picks a group: a brand new
+        # client whose very first login lands in the window
+        http = FakeHttp(httpx.Response(401), LOGIN_OK(), ALERT_OK())
+        monkeypatch.setattr(httpx, "request", http)
+        assert _client().create_observation(1, {}) == "n12b8e8d9c64912ea"
+
+    def test_a_login_refused_for_another_reason_is_not_tried_again(self, monkeypatch):
+        # A wrong address answering 405 is not going to get better
+        http = FakeHttp(httpx.Response(405, text="<html>"))
+        monkeypatch.setattr(httpx, "request", http)
+        with pytest.raises(SensingCluesError) as info:
+            _client().create_observation(1, {})
+        assert info.value.status == 405
+        assert len(http.calls) == 1
 
     def test_login_without_token_raises(self, monkeypatch):
         monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(200, json={"user": {}})))

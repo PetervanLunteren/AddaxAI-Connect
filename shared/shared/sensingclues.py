@@ -413,7 +413,20 @@ class SensingCluesClient:
         )
 
     def _ensure_token(self) -> None:
-        if self._token is None:
+        """The first login of a call, with the same one retry the call
+        itself gets. Without it a client built inside the window their
+        group list opens would fail on its very first login, which is
+        exactly what the test button does right after someone picks a
+        group. A save checking a typed password calls login() directly and
+        so still fails fast on a wrong one."""
+        if self._token is not None:
+            return
+        try:
+            self.login()
+        except SensingCluesError as e:
+            if e.status != 401:
+                raise
+            time.sleep(RETRY_AFTER_401_SECONDS)
             self.login()
 
     def _request(
