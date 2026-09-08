@@ -10,9 +10,8 @@ You need:
 
 - A Sensing Clues account and a group. Cluey is the field app, [Central ↗](https://central.sensingclues.org/){:target="_blank"} is the web app where groups and members are managed.
 - Project admin access in AddaxAI Connect.
-- A server where the server admin has enabled Sensing Clues. The integration page says so when that is not the case, see the [deployment guide](../deployment.md).
 
-AddaxAI Connect posts with its own Sensing Clues user, `addax_service`. You never enter a password; you invite that user into your group.
+Use a separate Sensing Clues account for this, not your own login. AddaxAI Connect signs in as that account to post, so its password is kept on your server, and a separate account makes it clear in Cluey who posted what.
 
 ## How it works
 
@@ -37,13 +36,13 @@ Make a group for the camera trap alerts in Cluey or in Central, or pick an exist
 
 <!-- screenshot: the group in Central -->
 
-### 2. Invite addax_service
+### 2. Make an account for AddaxAI Connect
 
 *On the Sensing Clues side, one time.*
 
-Invite the user `addax_service` into the group, the same way you invite a colleague. This is the account AddaxAI Connect posts with. Without it, every post is refused.
+Make a Sensing Clues account for AddaxAI Connect to post with, and invite it into the group the same way you invite a colleague. Any account works, but a separate one keeps your own password out of it.
 
-<!-- screenshot: the invite dialog with addax_service -->
+<!-- screenshot: the invite dialog with the account -->
 
 ### 3. Connect the project
 
@@ -53,17 +52,21 @@ Invite the user `addax_service` into the group, the same way you invite a collea
 
 <!-- screenshot: the group details in Central with the id -->
 
-2. In AddaxAI Connect, open `Integrations > Sensing Clues`, click `Connect`, enter the group id, and save.
+2. In AddaxAI Connect, open `Integrations > Sensing Clues` and click `Connect`. Fill in four things: the Sensing Clues address (already filled in, leave it unless Sensing Clues told you otherwise), the username and password of the account from step 2, and the group id.
+
+Saving checks both halves with Sensing Clues first. If the password is wrong, or the account is not a member of that group, nothing is stored and the page says which of the two it is, naming the groups the account does belong to.
 
 <!-- screenshot: the Sensing Clues integration page in AddaxAI Connect, connected -->
 
 3. Click `Send test observation`. It posts a real observation titled "Test from AddaxAI Connect" at the centre of your project area or your first site, and shows the result. Check that it appears in the group.
 
+To change anything later, click `Change connection`. The password is never shown, so you type it again even when you only change the group.
+
 ### 4. Choose what to send
 
 *In AddaxAI Connect, by a project admin.*
 
-A saved group id on its own sends nothing. Every observation comes from a rule, so the last step is to add at least one. Until a rule is active, the page says so under the connection.
+A connected account on its own sends nothing. Every observation comes from a rule, so the last step is to add at least one. Until a rule is active, the page says so under the connection.
 
 The same page has three rule lists.
 
@@ -88,7 +91,7 @@ These rules belong to the project, not to you. Any project admin can change them
 
 ## When something does not arrive
 
-- **Saving or testing fails with a message that addax_service is not a member:** the group id is wrong, or `addax_service` was not invited into that group. Check both in Central.
-- **The page says Sensing Clues is not enabled on this server:** the server admin has to add the service account, see the [deployment guide](../deployment.md). Until then the Connect button stays off.
-- **Observations stop after a while:** the connection shows the last error. A camera without a site or GPS cannot be placed on a map, so its alerts are skipped and logged.
-- **Nothing sends at all:** check that a group id is saved and that at least one rule is active; the page shows a note when either is missing. Disconnect forgets the group id; the rules stay and resume when one is saved again.
+- **Saving says it could not sign in:** the address, the username or the password is wrong. Check them in Central, and mind that a pasted password can carry a space.
+- **Saving says the account is not a member of the group:** the group id is wrong, or the account was not invited into that group. The message names the groups the account does belong to, which usually tells you which of the two it is.
+- **Observations stop after a while:** the connection shows the last error. A camera without a site or GPS cannot be placed on a map, so its alerts are skipped and logged. A changed password on the Sensing Clues side also stops delivery until you connect again.
+- **Nothing sends at all:** check that an account is connected and that at least one rule is active; the page shows a note when either is missing. Disconnect forgets the account and the group; the rules stay and resume when an account is connected again.

@@ -520,14 +520,21 @@ What the two share:
 
 ### Sensing Clues
 
-- One service account per server (`SENSINGCLUES_BASE_URL`, `_USERNAME`,
-  `_PASSWORD`, `_USER_ID` in `.env`, read by the api and the worker) posts
-  into every Cluey group that invited it. The group id is the only
-  per-project setting. `is_available` in the status says whether the
-  server offers the integration; without the account the page says so and
-  the configure and test endpoints answer 400. Changing the credentials
-  needs a restart of api and the worker, the worker keeps its client and
-  token.
+- Everything is per project, in the integration row's `config`: the Cluey
+  address, the account that posts (username and password) and the group
+  id. Nothing is server level, so a deployment nobody at Addax touches can
+  use the integration, and one project cannot post with another project's
+  account. The password sits in the row like the Gundi key; their API has
+  no application token for the alerts path, only a user login, which is
+  why the page and the docs advise a separate account.
+- Saving checks both halves before storing anything: `SensingCluesClient.verify`
+  logs in (which proves the account) and lists the groups (which proves
+  the membership), and the API turns a 401 into a sentence about the
+  account and passes any other message through. A saved row is therefore
+  healthy from the start.
+- The account's numeric id, which every observation must carry as
+  `userid`, comes from the login response (`user.username`, despite the
+  name), so nobody types or stores it.
 - Payloads are built in `shared/shared/sensingclues.py`. An animal is an
   `animal_sighting` with the generic `species` field plus `latinName` (we
   never know the class of a label, so the class-specific fields are not
@@ -537,10 +544,12 @@ What the two share:
   redelivered message updates the same observation. The client adds
   `pid`, `user` and `userid`. Facts confirmed against central-test are in
   the module docstring.
-- The worker downscales the annotated image to 800 px before attaching
-  it (Cluey wants about 100 KB), logs in lazily, keeps the token, and on a
-  401 logs in again once. The dev server points at the Sensing Clues test
-  host with the test account, so nothing from dev reaches a real group.
+- The worker downscales the annotated image to 800 px before attaching it
+  (Cluey wants about 100 KB) and builds one client per message from the
+  project's row. So it logs in once per observation and keeps no token
+  between messages: a changed account takes effect on the next one with no
+  restart, and a token cannot go stale. Point a dev project at
+  `central-test.sensingclues.org` so nothing from dev reaches a real group.
 
 ## Camera liveness status
 

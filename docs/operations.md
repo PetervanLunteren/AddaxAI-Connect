@@ -193,4 +193,4 @@ Restarting a worker is safe. It will pick up where it left off since messages st
 
 **EarthRanger events not arriving:** check `docker compose logs notifications-earthranger --tail 20`. The integration page shows the last error under the connection. A 403 from Gundi means the API key is wrong or revoked.
 
-**Sensing Clues observations not arriving:** check `docker compose logs notifications-sensingclues --tail 20`. The worker needs the service account in `.env` (`SENSINGCLUES_BASE_URL`, `SENSINGCLUES_USERNAME`, `SENSINGCLUES_PASSWORD`, `SENSINGCLUES_USER_ID`); without them the integration page says Sensing Clues is not enabled on this server. A 404 from Sensing Clues saying the user is not a member means `addax_service` was not invited into the group or the group id is wrong.
+**Sensing Clues observations not arriving:** check `docker compose logs notifications-sensingclues --tail 20`. The account and the group are set per project on its Sensing Clues integration page, which also shows the last error. A 401 means the password changed on the Sensing Clues side, a 404 saying the user is not a member means the account was removed from the group.

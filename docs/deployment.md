@@ -163,17 +163,6 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `backup_access_key` | `"AKIA..."` | Access key for the backup bucket. |
     | `backup_secret_key` | `"secret..."` | Secret key for the backup bucket. |
 
-    **Sensing Clues (optional)**
-
-    These settings let project admins send alerts to a Sensing Clues group as observations, see the [Sensing Clues integration](integrations/sensingclues.md). The account is given by Sensing Clues and is shared by every project on the server; each project only enters its own group id. Leave all four empty to keep the integration off; the integration page then says the server does not offer it.
-
-    | Variable | Example | Description |
-    |---------|---------|-------------|
-    | `sensingclues_base_url` | `"https://central.sensingclues.org/v1/"` | Their API. The test environment is `central-test.sensingclues.org`. |
-    | `sensingclues_username` | `"addax_service"` | The account the server posts with. |
-    | `sensingclues_password` | `"securepassword"` | Its password. |
-    | `sensingclues_user_id` | `"1234567890123456789"` | The numeric id of that account, given with it. |
-
 6.  **Add server to known_hosts**
 
     ```bash
