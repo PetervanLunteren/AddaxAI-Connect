@@ -421,8 +421,10 @@ async def configure_sensingclues(
         config["group_name"] = request.group_name.strip()
     client = client_or_400(config)
     try:
-        # httpx sync client off the event loop, like the statistics fits
-        await asyncio.to_thread(client.login)
+        # httpx sync client off the event loop, like the statistics fits.
+        # ensure_token, not login: a save lands right after the page read
+        # the group list, which leaves the account refused for a moment.
+        await asyncio.to_thread(client.ensure_token)
     except SensingCluesError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=user_detail(e))
 

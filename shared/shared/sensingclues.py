@@ -394,7 +394,7 @@ class SensingCluesClient:
     def create_observation(self, group_id: int, observation: Dict[str, Any]) -> str:
         # Log in first: the account id comes from the login and the body
         # needs it, and a post without userid is refused with a 401.
-        self._ensure_token()
+        self.ensure_token()
         body = {
             **observation,
             "pid": str(group_id),
@@ -412,13 +412,18 @@ class SensingCluesClient:
             headers={"content-type": "image/jpeg"},
         )
 
-    def _ensure_token(self) -> None:
-        """The first login of a call, with the same one retry the call
-        itself gets. Without it a client built inside the window their
-        group list opens would fail on its very first login, which is
-        exactly what the test button does right after someone picks a
-        group. A save checking a typed password calls login() directly and
-        so still fails fast on a wrong one."""
+    def ensure_token(self) -> None:
+        """Sign in unless this client already did, with the same one retry
+        every call gets.
+
+        This is what everything outside the class should use to check an
+        account, rather than login(). A client built inside the window
+        their group list opens fails on its very first login, and that is
+        exactly what saving and the test button do right after someone
+        picks a group. A wrong password costs the wait and a second
+        attempt before it is reported, which is a fair price for a setup
+        screen that works.
+        """
         if self._token is not None:
             return
         try:
@@ -432,7 +437,7 @@ class SensingCluesClient:
     def _request(
         self, method: str, url: str, headers: Optional[Dict[str, str]] = None, **kwargs: Any
     ) -> httpx.Response:
-        self._ensure_token()
+        self.ensure_token()
         response = self._send(method, url, headers, **kwargs)
         if response.status_code == 401:
             # Three things look the same here: the token expired, the

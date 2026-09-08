@@ -347,6 +347,18 @@ class TestClient:
         monkeypatch.setattr(httpx, "request", http)
         assert _client().create_observation(1, {}) == "n12b8e8d9c64912ea"
 
+    def test_ensure_token_is_the_way_in_and_retries_too(self, monkeypatch):
+        # Saving an account calls this, and a save lands right after the
+        # page read the group list
+        http = FakeHttp(httpx.Response(401), LOGIN_OK())
+        monkeypatch.setattr(httpx, "request", http)
+        client = _client()
+        client.ensure_token()
+        assert len(http.calls) == 2
+        # Already signed in, so a second call asks nothing
+        client.ensure_token()
+        assert len(http.calls) == 2
+
     def test_a_login_refused_for_another_reason_is_not_tried_again(self, monkeypatch):
         # A wrong address answering 405 is not going to get better
         http = FakeHttp(httpx.Response(405, text="<html>"))

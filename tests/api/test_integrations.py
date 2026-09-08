@@ -174,7 +174,7 @@ class TestSensingCluesSave:
 
     def _refuse(self, monkeypatch, error):
         class FakeClient:
-            def login(self):
+            def ensure_token(self):
                 raise error
 
         monkeypatch.setattr(integrations, "client_from_config", lambda config: FakeClient())
@@ -341,8 +341,8 @@ class TestSensingCluesGroupName:
 
     def _accept(self, monkeypatch):
         class FakeClient:
-            def login(self):
-                return "token"
+            def ensure_token(self):
+                return None
 
         monkeypatch.setattr(integrations, "client_from_config", lambda config: FakeClient())
 
