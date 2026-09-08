@@ -15,6 +15,7 @@ export interface IntegrationStatus {
   is_enabled: boolean;
   api_key_hint: string | null;
   group_id: number | null;
+  group_name: string | null;
   username: string | null;
   base_url: string | null;
   health_status: 'healthy' | 'error' | null;
@@ -29,6 +30,19 @@ export interface SensingCluesConfig {
   username: string;
   password: string;
   group_id: number;
+  group_name?: string;
+}
+
+/** The account fields on their own, before anything is saved. */
+export interface SensingCluesAccount {
+  base_url: string;
+  username: string;
+  password: string;
+}
+
+export interface SensingCluesGroup {
+  id: number;
+  name: string;
 }
 
 export const integrationsApi = {
@@ -73,6 +87,19 @@ export const integrationsApi = {
       config,
     );
     return response.data;
+  },
+
+  /** The groups the account can post into, for the setup dropdown. Asked
+   *  while the form is being filled, so the account travels in the body and
+   *  nothing is stored. */
+  listSensingCluesGroups: async (
+    projectId: number, account: SensingCluesAccount,
+  ): Promise<SensingCluesGroup[]> => {
+    const response = await apiClient.post<{ groups: SensingCluesGroup[] }>(
+      `/api/projects/${projectId}/integrations/sensingclues/groups`,
+      account,
+    );
+    return response.data.groups;
   },
 
   removeSensingClues: async (projectId: number): Promise<void> => {

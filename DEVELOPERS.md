@@ -191,7 +191,7 @@ addaxai-connect/
 │   │   │   ├── logs.py                # Notification log queries
 │   │   │   ├── notifications.py       # Notification preference management
 │   │   │   ├── camera_alert_rules.py  # Camera condition alert rules
-│   │   │   ├── integrations.py        # Project integrations (EarthRanger key, Sensing Clues group id, status, test)
+│   │   │   ├── integrations.py        # Project integrations (EarthRanger key, Sensing Clues account and group, status, test)
 │   │   │   ├── detection_alert_rules.py # Real-time detection alert rules
 │   │   │   ├── scheduled_reports.py   # Scheduled species report rules
 │   │   │   ├── rule_helpers.py        # Shared helpers for the rule routers
@@ -527,11 +527,23 @@ What the two share:
   account. The password sits in the row like the Gundi key; their API has
   no application token for the alerts path, only a user login, which is
   why the page and the docs advise a separate account.
-- Saving checks both halves before storing anything: `SensingCluesClient.verify`
-  logs in (which proves the account) and lists the groups (which proves
-  the membership), and the API turns a 401 into a sentence about the
-  account and passes any other message through. A saved row is therefore
-  healthy from the start.
+- The setup modal fills its own group field. Once the address, username
+  and password are there the page posts them to
+  `POST .../integrations/sensingclues/groups`, which signs in and calls
+  `SensingCluesClient.list_groups`, and the group becomes a dropdown of
+  Cluey's own names. Nothing is stored by that call, so the account
+  travels in the body. Saving then only signs in again, because the group
+  came from Cluey's list and is already proven. The API turns a 401 into a
+  sentence about the account and never echoes a vendor body back, since a
+  wrong address can answer with a whole web page.
+- `GET /projects` is the only read we make, and it costs something: for
+  roughly one to five seconds afterwards every call by that account is
+  refused with a 401, a fresh login included. Measured against
+  central-test on 8 September 2026 and reported to Sensing Clues. So it is
+  called from the setup screen only, never on the delivery path, and
+  `SensingCluesClient._request` waits `RETRY_AFTER_401_SECONDS` and tries
+  once more on a 401 so an observation sent inside that window is not
+  lost.
 - The account's numeric id, which every observation must carry as
   `userid`, comes from the login response (`user.username`, despite the
   name), so nobody types or stores it.

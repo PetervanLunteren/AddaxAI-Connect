@@ -48,17 +48,17 @@ Make a Sensing Clues account for AddaxAI Connect to post with, and invite it int
 
 *By a project admin.*
 
-1. Find the group id. Open the group in Central; the id is the number shown with the group's details (Sensing Clues calls it the PID). Cluey shows the same number in the group's information.
+1. In AddaxAI Connect, open `Integrations > Sensing Clues` and click `Connect`. Fill in the Sensing Clues address, which is already there and stays as it is unless Sensing Clues told you otherwise, then the username and password of the account from step 2.
 
-<!-- screenshot: the group details in Central with the id -->
+2. Pick your group. Once the three account fields are filled, AddaxAI Connect asks Sensing Clues which groups that account belongs to and lists them by name. So you never look a group number up. If the list is empty, the account is not in a group yet; invite it in Central and try again.
 
-2. In AddaxAI Connect, open `Integrations > Sensing Clues` and click `Connect`. Fill in four things: the Sensing Clues address (already filled in, leave it unless Sensing Clues told you otherwise), the username and password of the account from step 2, and the group id.
+<!-- screenshot: the connect modal with the group dropdown open -->
 
-Saving signs in with the account first, so a wrong address, username or password is refused and nothing is stored. Whether the group is right is checked by the test in the next step.
+3. Click `Save`. Saving signs in with the account, so a wrong address, username or password is refused and nothing is stored. The group came from Sensing Clues' own list, so it needs no further check.
 
 <!-- screenshot: the Sensing Clues integration page in AddaxAI Connect, connected -->
 
-3. Click `Send test observation`. It posts a real observation titled "Test from AddaxAI Connect" at the centre of your project area or your first site, and shows the result. This is what proves the group id and the membership, so do not skip it. Check that the observation appears in the group.
+4. Click `Send test observation`. It posts a real observation titled "Test from AddaxAI Connect" at the centre of your project area or your first site. Check that it appears in the group, so you have seen one arrive before the first real alert.
 
 To change anything later, click `Change connection`. The password is never shown, so you type it again even when you only change the group.
 
@@ -92,6 +92,6 @@ These rules belong to the project, not to you. Any project admin can change them
 ## When something does not arrive
 
 - **Saving says it could not sign in:** the address, the username or the password is wrong. Check them in Central, and mind that a pasted password can carry a space.
-- **The test says Sensing Clues refused the group:** the group id is wrong, or the account was not invited into that group. Check both in Central, the group id is on the group's own page.
+- **The group list stays empty:** the account is not a member of any group. Invite it into one in Central, the same way you invite a colleague, then open the connect window again.
 - **Observations stop after a while:** the connection shows the last error. A camera without a site or GPS cannot be placed on a map, so its alerts are skipped and logged. A changed password on the Sensing Clues side also stops delivery until you connect again.
 - **Nothing sends at all:** check that an account is connected and that at least one rule is active; the page shows a note when either is missing. Disconnect forgets the account and the group; the rules stay and resume when an account is connected again.

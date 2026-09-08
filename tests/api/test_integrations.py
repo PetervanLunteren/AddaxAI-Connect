@@ -20,10 +20,12 @@ from fastapi import HTTPException  # noqa: E402
 import routers.integrations as integrations  # noqa: E402
 from routers.integrations import (  # noqa: E402
     IntegrationStatus,
+    SensingCluesAccountRequest,
     SensingCluesConfigRequest,
     configure_sensingclues,
     key_hint,
     known_kind,
+    list_sensingclues_groups,
     status_of,
     user_detail,
     validate_group_id,
@@ -42,6 +44,7 @@ _SC_CONFIG = {
     "username": "addax_service",
     "password": "fake-test-password",
     "group_id": 3523928,
+    "group_name": "Addax_testgroup",
 }
 
 
@@ -83,6 +86,7 @@ class TestStatusOf:
         out = status_of("sensingclues", _row(_SC_CONFIG))
         assert out.is_configured is True
         assert out.group_id == 3523928
+        assert out.group_name == "Addax_testgroup"
         assert out.username == "addax_service"
         assert out.base_url == "https://central-test.sensingclues.org/v1/"
         assert out.api_key_hint is None
@@ -139,9 +143,19 @@ class TestSensingCluesValidation:
         detail = user_detail(SensingCluesError("returned 404: IS NOT A MEMBER", status=404))
         assert "group id is right" in detail
 
-    def test_any_other_failure_keeps_its_own_message(self):
+    def test_a_network_failure_keeps_its_own_message(self):
         error = SensingCluesError("Sensing Clues request failed: timed out")
         assert user_detail(error) == "Sensing Clues request failed: timed out"
+
+    def test_another_status_never_echoes_the_body_back(self):
+        # An address pointing at some other web server answers with a whole
+        # HTML page, which has no business in a toast
+        error = SensingCluesError(
+            "Sensing Clues login failed with 405: <!doctype html><html>...", status=405
+        )
+        detail = user_detail(error)
+        assert "html" not in detail
+        assert "405" in detail and "address" in detail
 
 
 class TestSensingCluesSave:
@@ -253,3 +267,120 @@ class TestProjectRuleSeparation:
                 None, None, 1, ["sensingclues"], current_channels=["earthranger"]
             )
         assert info.value.status_code == 403
+
+
+class TestSensingCluesGroups:
+    """The dropdown the setup screen shows. Nothing is stored here: the
+    account arrives in the body because the page asks before saving."""
+
+    def _request(self, **overrides):
+        values = dict(
+            base_url="https://central-test.sensingclues.org/v1/",
+            username="addax_service",
+            password="fake-test-password",
+        )
+        values.update(overrides)
+        return SensingCluesAccountRequest(**values)
+
+    def _client(self, monkeypatch, groups=None, error=None):
+        class FakeClient:
+            def list_groups(self):
+                if error is not None:
+                    raise error
+                return groups
+
+        monkeypatch.setattr(integrations, "client_from_config", lambda config: FakeClient())
+
+    @pytest.mark.asyncio
+    async def test_the_groups_come_back_with_their_names(self, monkeypatch):
+        self._client(monkeypatch, groups=[
+            {"id": "3523928", "name": "Addax_testgroup"},
+            {"id": "77", "name": "Serengeti rangers"},
+        ])
+        out = await list_sensingclues_groups(1, self._request(), user=None, db=None)
+        assert [(g.id, g.name) for g in out.groups] == [
+            (3523928, "Addax_testgroup"), (77, "Serengeti rangers"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_group_id_that_is_not_a_number_is_left_out(self, monkeypatch):
+        # Their ids are numeric strings; anything else we could not save
+        self._client(monkeypatch, groups=[{"id": "abc", "name": "odd one"}])
+        out = await list_sensingclues_groups(1, self._request(), user=None, db=None)
+        assert out.groups == []
+
+    @pytest.mark.asyncio
+    async def test_an_account_in_no_group_is_an_empty_list(self, monkeypatch):
+        self._client(monkeypatch, groups=[])
+        out = await list_sensingclues_groups(1, self._request(), user=None, db=None)
+        assert out.groups == []
+
+    @pytest.mark.asyncio
+    async def test_a_wrong_account_is_a_400_about_the_account(self, monkeypatch):
+        self._client(monkeypatch, error=SensingCluesError("login failed", status=401))
+        with pytest.raises(HTTPException) as info:
+            await list_sensingclues_groups(1, self._request(), user=None, db=None)
+        assert info.value.status_code == 400
+        assert "username and the password" in info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_an_empty_value_is_refused_before_any_call(self, monkeypatch):
+        monkeypatch.setattr(
+            integrations, "client_from_config",
+            lambda config: (_ for _ in ()).throw(ValueError()),
+        )
+        with pytest.raises(HTTPException) as info:
+            await list_sensingclues_groups(1, self._request(password=""), user=None, db=None)
+        assert info.value.status_code == 400
+        assert "Fill in" in info.value.detail
+
+
+class TestSensingCluesGroupName:
+    """The group's name travels with the save so the page can name the
+    group rather than number it."""
+
+    def _accept(self, monkeypatch):
+        class FakeClient:
+            def login(self):
+                return "token"
+
+        monkeypatch.setattr(integrations, "client_from_config", lambda config: FakeClient())
+
+    def _request(self, **overrides):
+        values = dict(
+            base_url="https://central-test.sensingclues.org/v1/",
+            username="addax_service",
+            password="fake-test-password",
+            group_id=3523928,
+        )
+        values.update(overrides)
+        return SensingCluesConfigRequest(**values)
+
+    @pytest.mark.asyncio
+    async def test_the_name_is_stored_with_the_group(self, monkeypatch):
+        self._accept(monkeypatch)
+        saved = {}
+
+        async def capture(db, kind, project_id, config):
+            saved.update(config)
+            return _row(config)
+
+        monkeypatch.setattr(integrations, "save_config", capture)
+        await configure_sensingclues(
+            1, self._request(group_name="  Addax_testgroup  "), user=None, db=None,
+        )
+        assert saved["group_name"] == "Addax_testgroup"
+
+    @pytest.mark.asyncio
+    async def test_a_save_without_a_name_still_works(self, monkeypatch):
+        self._accept(monkeypatch)
+        saved = {}
+
+        async def capture(db, kind, project_id, config):
+            saved.update(config)
+            return _row(config)
+
+        monkeypatch.setattr(integrations, "save_config", capture)
+        await configure_sensingclues(1, self._request(), user=None, db=None)
+        assert "group_name" not in saved
+        assert saved["group_id"] == 3523928

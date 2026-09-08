@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import httpx
 import pytest
 
+import shared.sensingclues as sensingclues
 from shared.sensingclues import (
     APP_VERSION,
     OBSERVATION_TYPE_ANIMAL,
@@ -21,6 +22,7 @@ from shared.sensingclues import (
     is_configured,
     new_observation_id,
     parse_alert_id,
+    parse_groups,
 )
 
 AMS = ZoneInfo("Europe/Amsterdam")
@@ -237,15 +239,15 @@ def test_new_observation_id_is_32_hex():
 
 
 class FakeHttp:
-    """A scripted httpx.post: one response per call, in order, and a record
-    of every call made."""
+    """A scripted httpx.request: one response per call, in order, and a
+    record of every call made."""
 
     def __init__(self, *responses):
         self.responses = list(responses)
         self.calls = []
 
-    def __call__(self, url, headers=None, timeout=None, **kwargs):
-        self.calls.append({"url": url, "headers": headers, **kwargs})
+    def __call__(self, method, url, headers=None, timeout=None, **kwargs):
+        self.calls.append({"method": method, "url": url, "headers": headers, **kwargs})
         return self.responses.pop(0)
 
 
@@ -261,13 +263,19 @@ ALERT_OK = lambda: httpx.Response(200, json={"id": "n12b8e8d9c64912ea", "pid": "
 
 
 class TestClient:
+    @pytest.fixture(autouse=True)
+    def no_waiting(self, monkeypatch):
+        """The retry sits out their group list window; no test needs the
+        real wait, and one test below checks that it is applied."""
+        monkeypatch.setattr(sensingclues, "RETRY_AFTER_401_SECONDS", 0)
+
     def test_incomplete_credentials_rejected(self):
         with pytest.raises(ValueError):
             SensingCluesClient("https://cluey.test/v1/", "", "pw")
 
     def test_login_posts_identifier_and_password_and_caches_token(self, monkeypatch):
         http = FakeHttp(LOGIN_OK())
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         client = _client()
         assert client.login() == "tok-1"
         assert http.calls[0]["url"] == "https://cluey.test/v1/users/login"
@@ -276,7 +284,7 @@ class TestClient:
 
     def test_create_observation_adds_identity_and_token(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), ALERT_OK())
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         alert_id = _client().create_observation(3523928, {"description": "x"})
         assert alert_id == "n12b8e8d9c64912ea"
         call = http.calls[1]
@@ -289,7 +297,7 @@ class TestClient:
 
     def test_lazy_login_happens_once_across_calls(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), ALERT_OK(), ALERT_OK())
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         client = _client()
         client.create_observation(1, {})
         client.create_observation(1, {})
@@ -298,14 +306,14 @@ class TestClient:
 
     def test_401_logs_in_again_and_retries_once(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), httpx.Response(401, text="expired"), LOGIN_OK("tok-2"), ALERT_OK())
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         assert _client().create_observation(1, {}) == "n12b8e8d9c64912ea"
         assert [c["url"].rsplit("/", 1)[-1] for c in http.calls] == ["login", "alerts", "login", "alerts"]
         assert http.calls[3]["headers"]["x-access-token"] == "tok-2"
 
     def test_second_401_is_raised_as_permanent(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), httpx.Response(401), LOGIN_OK(), httpx.Response(401, text="still"))
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert info.value.status == 401
@@ -314,7 +322,7 @@ class TestClient:
 
     def test_attach_image_posts_raw_bytes_with_jpeg_content_type(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), httpx.Response(201, json={"id": "n1"}))
-        monkeypatch.setattr(httpx, "post", http)
+        monkeypatch.setattr(httpx, "request", http)
         _client().attach_image("n1", "img-1.jpg", b"jpegbytes")
         call = http.calls[1]
         assert call["url"] == "https://cluey.test/v1/alerts/n1/media/img-1.jpg"
@@ -323,31 +331,31 @@ class TestClient:
         assert call["headers"]["x-access-token"] == "tok-1"
 
     def test_login_failure_raises(self, monkeypatch):
-        monkeypatch.setattr(httpx, "post", FakeHttp(httpx.Response(401, text="Unauthenticated")))
+        monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(401, text="Unauthenticated")))
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert info.value.status == 401
 
     def test_login_without_token_raises(self, monkeypatch):
-        monkeypatch.setattr(httpx, "post", FakeHttp(httpx.Response(200, json={"user": {}})))
+        monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(200, json={"user": {}})))
         with pytest.raises(SensingCluesError):
             _client().login()
 
     def test_login_without_account_id_raises(self, monkeypatch):
         # Without it every observation would be refused with a 401, so it
         # is better to fail here than to post something that cannot land
-        monkeypatch.setattr(httpx, "post", FakeHttp(httpx.Response(200, json={"token": "t"})))
+        monkeypatch.setattr(httpx, "request", FakeHttp(httpx.Response(200, json={"token": "t"})))
         with pytest.raises(SensingCluesError) as info:
             _client().login()
         assert "account id" in str(info.value)
 
     def test_4xx_is_permanent_5xx_is_not(self, monkeypatch):
-        monkeypatch.setattr(httpx, "post", FakeHttp(LOGIN_OK(), httpx.Response(404, text="no group")))
+        monkeypatch.setattr(httpx, "request", FakeHttp(LOGIN_OK(), httpx.Response(404, text="no group")))
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert info.value.is_permanent and info.value.status == 404
 
-        monkeypatch.setattr(httpx, "post", FakeHttp(LOGIN_OK(), httpx.Response(502, text="")))
+        monkeypatch.setattr(httpx, "request", FakeHttp(LOGIN_OK(), httpx.Response(502, text="")))
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert not info.value.is_permanent
@@ -356,8 +364,106 @@ class TestClient:
         def boom(*a, **k):
             raise httpx.ConnectError("down")
 
-        monkeypatch.setattr(httpx, "post", boom)
+        monkeypatch.setattr(httpx, "request", boom)
         with pytest.raises(SensingCluesError) as info:
             _client().create_observation(1, {})
         assert not info.value.is_permanent
         assert info.value.status is None
+
+
+GROUPS_OK = lambda: httpx.Response(  # noqa: E731
+    200,
+    json=[
+        {
+            "id": "3523928",
+            "name": "Addax_testgroup",
+            "description": "Test group",
+            "members": [{"name": "jankees"}, {"name": "addax_service"}],
+            "sensors": [],
+        },
+        {"id": "77", "name": "Serengeti rangers"},
+    ],
+)
+
+
+class TestParseGroups:
+    """Only the id and the name travel on; the members list is theirs and
+    has no business in our settings screen."""
+
+    def test_id_and_name_only(self):
+        assert parse_groups(GROUPS_OK()) == [
+            {"id": "3523928", "name": "Addax_testgroup"},
+            {"id": "77", "name": "Serengeti rangers"},
+        ]
+
+    def test_a_group_without_a_name_falls_back_to_its_id(self):
+        groups = parse_groups(httpx.Response(200, json=[{"id": "42"}]))
+        assert groups == [{"id": "42", "name": "42"}]
+
+    def test_entries_without_an_id_are_dropped(self):
+        assert parse_groups(httpx.Response(200, json=[{"name": "nameless"}])) == []
+
+    def test_no_groups_is_an_empty_list_not_an_error(self):
+        assert parse_groups(httpx.Response(200, json=[])) == []
+
+    def test_anything_but_a_list_raises(self):
+        for body in ({"id": "1"}, "3523928"):
+            with pytest.raises(SensingCluesError):
+                parse_groups(httpx.Response(200, json=body))
+
+    def test_a_non_json_answer_raises(self):
+        with pytest.raises(SensingCluesError):
+            parse_groups(httpx.Response(200, text="<html>nope</html>"))
+
+
+class TestListGroups:
+    @pytest.fixture(autouse=True)
+    def no_waiting(self, monkeypatch):
+        monkeypatch.setattr(sensingclues, "RETRY_AFTER_401_SECONDS", 0)
+
+    def test_it_is_a_get_with_the_app_version_header(self, monkeypatch):
+        # Without appVersion they answer 401, unlike every other call
+        http = FakeHttp(LOGIN_OK(), GROUPS_OK())
+        monkeypatch.setattr(httpx, "request", http)
+        groups = _client().list_groups()
+        assert [g["name"] for g in groups] == ["Addax_testgroup", "Serengeti rangers"]
+        call = http.calls[1]
+        assert call["method"] == "GET"
+        assert call["url"] == "https://cluey.test/v1/projects"
+        assert call["headers"]["appVersion"] == APP_VERSION
+        assert call["headers"]["x-access-token"] == "tok-1"
+
+    def test_a_failure_carries_its_status(self, monkeypatch):
+        monkeypatch.setattr(
+            httpx, "request", FakeHttp(LOGIN_OK(), httpx.Response(403, text="nope"))
+        )
+        with pytest.raises(SensingCluesError) as info:
+            _client().list_groups()
+        assert info.value.status == 403
+
+
+class TestRetryWindow:
+    """Their group list leaves the account refused for about a second.
+    Every call waits once and tries again, so an observation posted in
+    that same second is not lost."""
+
+    def test_the_retry_waits_before_logging_in_again(self, monkeypatch):
+        waited = []
+        monkeypatch.setattr(sensingclues.time, "sleep", lambda s: waited.append(s))
+        monkeypatch.setattr(
+            httpx, "request",
+            FakeHttp(LOGIN_OK(), httpx.Response(401), LOGIN_OK("tok-2"), ALERT_OK()),
+        )
+        assert _client().create_observation(1, {}) == "n12b8e8d9c64912ea"
+        assert waited == [sensingclues.RETRY_AFTER_401_SECONDS]
+        assert waited[0] > 0
+
+    def test_a_post_survives_the_window(self, monkeypatch):
+        monkeypatch.setattr(sensingclues, "RETRY_AFTER_401_SECONDS", 0)
+        monkeypatch.setattr(
+            httpx, "request",
+            FakeHttp(LOGIN_OK(), GROUPS_OK(), httpx.Response(401), LOGIN_OK("tok-2"), ALERT_OK()),
+        )
+        client = _client()
+        client.list_groups()
+        assert client.create_observation(1, {}) == "n12b8e8d9c64912ea"

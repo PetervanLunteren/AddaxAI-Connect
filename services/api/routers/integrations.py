@@ -12,9 +12,13 @@ per kind because what is stored and what a test does differ:
 - Sensing Clues stores a Cluey account (address, username, password) and
   the group id it posts into. The password is never returned; the page
   sees the address, the username and the group. Saving signs in first, so
-  a wrong account is refused rather than stored. The group is proven by
-  the test, which posts a real observation into it; Cluey has no read
-  call we may use for that, see the note in shared/sensingclues.py.
+  a wrong account is refused rather than stored. The group is picked from
+  a list: once the account fields are filled the page asks the groups
+  endpoint below, which signs in and reads the groups that account
+  belongs to, so nobody types a group number. That read leaves the
+  account refused for about a second, which is why it happens while a
+  person fills in a form and never on the delivery path; the note in
+  shared/sensingclues.py has the measurements.
 
 Routes are mounted under /api/projects/{project_id}/integrations/{kind}
 and are project admin only.
@@ -56,6 +60,7 @@ class IntegrationStatus(BaseModel):
     is_enabled: bool = False
     api_key_hint: Optional[str] = None  # earthranger: last characters, to recognise the key
     group_id: Optional[int] = None  # sensingclues: the Cluey group
+    group_name: Optional[str] = None  # sensingclues: that group's name, as Cluey gave it
     username: Optional[str] = None  # sensingclues: the account that posts
     base_url: Optional[str] = None  # sensingclues: which Cluey environment
     health_status: Optional[str] = None  # healthy | error | None (never tried)
@@ -74,6 +79,28 @@ class SensingCluesConfigRequest(BaseModel):
     username: str
     password: str
     group_id: int
+    # Cluey's own name for the group, carried along from the list the page
+    # showed so the settings page can name the group instead of numbering
+    # it. Optional: a save made without the page still works.
+    group_name: Optional[str] = None
+
+
+class SensingCluesAccountRequest(BaseModel):
+    """The account fields alone, before anything is saved. The groups
+    endpoint takes these to sign in and read what that account can post
+    into."""
+    base_url: str
+    username: str
+    password: str
+
+
+class SensingCluesGroup(BaseModel):
+    id: int
+    name: str
+
+
+class SensingCluesGroupsResponse(BaseModel):
+    groups: list[SensingCluesGroup]
 
 
 class TestEventResponse(BaseModel):
@@ -121,6 +148,7 @@ def status_of(kind: str, integration: Optional[ProjectIntegration]) -> Integrati
     return IntegrationStatus(
         is_configured=is_configured(config),
         group_id=config.get("group_id"),
+        group_name=config.get("group_name"),
         username=config.get("username"),
         base_url=config.get("base_url"),
         **recorded,
@@ -296,15 +324,75 @@ def validate_group_id(group_id: int) -> None:
 
 
 def user_detail(error: SensingCluesError) -> str:
-    """What the page shows for a failed call. Cluey answers both cases a
+    """What the page shows for a failed call. Cluey answers the cases a
     user can actually fix with a bare status and its own wording, which
-    tells them nothing, so those two get a sentence."""
+    tells them nothing, so those get a sentence. Anything else keeps its
+    own message, shortened, because a wrong address can answer with a
+    whole web page."""
     if error.status == 401:
         return "Could not sign in to Sensing Clues. Check the address, the username and the password."
     if error.status == 404:
         return ("Sensing Clues refused the group. Check that the group id is right and that the "
                 "account is a member of it.")
+    if error.status is not None:
+        return (f"Sensing Clues answered {error.status}. Check that the address points at Sensing "
+                "Clues and try again.")
     return str(error)
+
+
+def account_from_request(base_url: str, username: str, password: str) -> Dict[str, Any]:
+    """The three account fields as the client wants them. The password is
+    stored and sent as typed: trimming it would silently break a password
+    that really ends in a space."""
+    return {
+        "base_url": base_url.strip(),
+        "username": username.strip(),
+        "password": password,
+    }
+
+
+def client_or_400(config: Dict[str, Any]):
+    try:
+        return client_from_config(config)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fill in the address, the username and the password",
+        )
+
+
+@router.post("/sensingclues/groups", response_model=SensingCluesGroupsResponse)
+async def list_sensingclues_groups(
+    project_id: int,
+    request: SensingCluesAccountRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """The groups an account can post into, for the setup screen's
+    dropdown.
+
+    Nothing is stored: the page calls this while someone is still filling
+    the form, so the account arrives in the body rather than from a saved
+    row. Signing in proves the account and the list proves the
+    membership, which together is everything a save needs to be sure of.
+
+    A project admin can read the groups of any account whose password
+    they know, which is the account they are about to connect anyway.
+    """
+    config = account_from_request(request.base_url, request.username, request.password)
+    client = client_or_400(config)
+    try:
+        # httpx sync client off the event loop, like the statistics fits
+        groups = await asyncio.to_thread(client.list_groups)
+    except SensingCluesError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=user_detail(e))
+    return SensingCluesGroupsResponse(
+        groups=[
+            SensingCluesGroup(id=int(g["id"]), name=g["name"])
+            for g in groups
+            if g["id"].isdigit()
+        ]
+    )
 
 
 @router.put("/sensingclues", response_model=IntegrationStatus)
@@ -317,27 +405,21 @@ async def configure_sensingclues(
     """Save the Cluey account and the group it posts into.
 
     The account is checked before anything is stored, by signing in with
-    it. The group is not checked here: their only call that would prove a
-    membership is a GET, and a GET leaves the account unable to log in for
-    a few seconds, which would break the test button right after saving.
-    So the test observation proves the group instead.
+    it. The group is not checked again here. The page picked it from the
+    list this account answered a moment ago, so the membership is already
+    proven, and reading the list once more would leave the account
+    refused for the next second, exactly when someone presses the test
+    button. A save made outside the page, with a group the account cannot
+    reach, is caught by the test observation instead.
     """
     validate_group_id(request.group_id)
     config = {
-        "base_url": request.base_url.strip(),
-        "username": request.username.strip(),
-        # The password is stored as typed: trimming it would silently
-        # break a password that really ends in a space.
-        "password": request.password,
+        **account_from_request(request.base_url, request.username, request.password),
         "group_id": request.group_id,
     }
-    try:
-        client = client_from_config(config)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Fill in the address, the username and the password",
-        )
+    if request.group_name:
+        config["group_name"] = request.group_name.strip()
+    client = client_or_400(config)
     try:
         # httpx sync client off the event loop, like the statistics fits
         await asyncio.to_thread(client.login)

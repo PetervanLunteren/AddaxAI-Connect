@@ -9,17 +9,27 @@
  * modal, the way the Telegram bot token is, never inline.
  *
  * EarthRanger uses it with one secret field, Sensing Clues with an address, an
- * account and a group id. A secret is never prefilled, so changing anything
- * else means typing the password again; that keeps one rule instead of an
- * "empty means keep the old one" branch.
+ * account and a group picked from a list. A secret is never prefilled, so
+ * changing anything else means typing the password again; that keeps one rule
+ * instead of an "empty means keep the old one" branch.
+ *
+ * A field with options renders as a dropdown. Filling those options is the
+ * page's job, not this component's: onValuesChange reports what has been typed
+ * so far, the page fetches whatever that allows, and hands back a new field
+ * list. So this component stays a form and knows nothing about any vendor.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { SettingRow } from './ui/SettingRow';
 import { StatusPill, PillTone } from './ui/StatusPill';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
+
+export interface ConnectionOption {
+  value: string;
+  label: string;
+}
 
 export interface ConnectionField {
   /** Key in the object handed to onSave. */
@@ -33,6 +43,14 @@ export interface ConnectionField {
   defaultValue?: string;
   /** One line under the field. */
   help?: React.ReactNode;
+  /** Present, even empty, turns the field into a dropdown. A value that is
+   *  no longer in the list is cleared, so the form cannot save a choice the
+   *  page has since found out is gone. */
+  options?: ConnectionOption[];
+  disabled?: boolean;
+  /** A line under the field for what is happening right now, such as
+   *  checking an account or why a list came back empty. */
+  status?: React.ReactNode;
 }
 
 interface ConnectionRowProps {
@@ -51,6 +69,13 @@ interface ConnectionRowProps {
   note?: React.ReactNode;
   /** What the modal asks for. */
   fields: ConnectionField[];
+  /** Every change to the form, and the values the modal opens with. Lets the
+   *  page fetch what the entered values allow, such as the groups an account
+   *  belongs to. */
+  onValuesChange?: (values: Record<string, string>) => void;
+  /** Called when the modal opens and when it closes, so the page can drop
+   *  anything it fetched for it. */
+  onModalOpenChange?: (open: boolean) => void;
   /** Save the form. Return a promise so the modal closes only on success. */
   onSave: (values: Record<string, string>) => Promise<unknown> | void;
   onDisconnect: () => void;
@@ -82,7 +107,7 @@ interface ConnectionRowProps {
 
 export const ConnectionRow: React.FC<ConnectionRowProps> = ({
   title, isConfigured, pill, statusDetail, emptyDescription, note,
-  fields, onSave, onDisconnect, onTest,
+  fields, onValuesChange, onModalOpenChange, onSave, onDisconnect, onTest,
   testLabel = 'Send test event', testModalTitle = 'Send a test event',
   testExplanation, testSuccessMessage = 'Test passed.',
   connectLabel = 'Connect', replaceLabel = 'Replace key',
@@ -101,8 +126,40 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
     setValues(Object.fromEntries(
       fields.map((field) => [field.name, field.secret ? '' : field.defaultValue ?? '']),
     ));
-    setModalOpen(true);
+    changeModal(true);
   };
+
+  const changeModal = (open: boolean) => {
+    setModalOpen(open);
+    onModalOpenChange?.(open);
+  };
+
+  // The page decides what the entered values make possible. Reported on
+  // every change and once when the modal opens, so a change modal that
+  // already carries an account can fetch straight away.
+  useEffect(() => {
+    if (modalOpen) onValuesChange?.(values);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalOpen, values]);
+
+  // A dropdown whose choice has disappeared from the list, because the
+  // account changed under it, must not stay selected. An empty list means
+  // the page has nothing to offer yet, which is not the same as knowing
+  // the choice is gone, so that leaves the value alone.
+  useEffect(() => {
+    const stale = fields.filter(
+      (field) => field.options
+        && field.options.length > 0
+        && values[field.name]
+        && !field.options.some((option) => option.value === values[field.name]),
+    );
+    if (stale.length === 0) return;
+    setValues((prev) => ({
+      ...prev,
+      ...Object.fromEntries(stale.map((field) => [field.name, ''])),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields]);
 
   const openTestModal = () => { setTestResult(null); setTestModalOpen(true); };
 
@@ -134,7 +191,7 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
     try {
       setSubmitting(true);
       await onSave(cleaned);
-      setModalOpen(false);
+      changeModal(false);
     } catch {
       // The caller surfaces the error as a toast; keep the modal open.
     } finally {
@@ -173,8 +230,8 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
         <Callout variant="info" className="mt-4">{note}</Callout>
       )}
 
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent onClose={() => setModalOpen(false)}>
+      <Dialog open={modalOpen} onOpenChange={changeModal}>
+        <DialogContent onClose={() => changeModal(false)}>
           <DialogHeader>
             <DialogTitle>{isConfigured ? (replaceModalTitle ?? modalTitle) : modalTitle}</DialogTitle>
           </DialogHeader>
@@ -185,23 +242,42 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
             {fields.map((field, index) => (
               <div key={field.name}>
                 <label className="block text-sm font-medium mb-2">{field.label}</label>
-                <input
-                  type={field.secret ? 'password' : 'text'}
-                  inputMode={field.inputMode}
-                  value={values[field.name] ?? ''}
-                  onChange={(e) => setValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
-                  placeholder={field.placeholder}
-                  autoComplete="off"
-                  autoFocus={index === 0}
-                  className={`w-full px-3 py-2 border rounded-md text-sm${field.secret ? ' font-mono' : ''}`}
-                />
+                {field.options ? (
+                  <select
+                    value={values[field.name] ?? ''}
+                    onChange={(e) => setValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                    disabled={field.disabled || field.options.length === 0}
+                    autoFocus={index === 0}
+                    className="w-full px-3 py-2 border rounded-md text-sm bg-background disabled:opacity-50"
+                  >
+                    <option value="">{field.placeholder ?? 'Choose one'}</option>
+                    {field.options.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type={field.secret ? 'password' : 'text'}
+                    inputMode={field.inputMode}
+                    value={values[field.name] ?? ''}
+                    onChange={(e) => setValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    disabled={field.disabled}
+                    autoComplete="off"
+                    autoFocus={index === 0}
+                    className={`w-full px-3 py-2 border rounded-md text-sm${field.secret ? ' font-mono' : ''}`}
+                  />
+                )}
+                {field.status && (
+                  <p className="text-xs text-muted-foreground mt-1">{field.status}</p>
+                )}
                 {field.help && (
                   <p className="text-xs text-muted-foreground mt-1">{field.help}</p>
                 )}
               </div>
             ))}
             <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setModalOpen(false)}>
+              <Button type="button" variant="outline" size="sm" onClick={() => changeModal(false)}>
                 Cancel
               </Button>
               <Button type="submit" size="sm" disabled={submitting || !canSubmit}>

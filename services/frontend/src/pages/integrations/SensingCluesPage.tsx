@@ -8,8 +8,16 @@
  * connection, and opens the three rule sheets in their Sensing Clues mode.
  * Sent observations are never changed again; the record stays here in
  * Connect.
+ *
+ * The setup modal fills itself in. As soon as the address, the username
+ * and the password are there it asks Sensing Clues which groups that
+ * account belongs to, and the group becomes a dropdown of their names. So
+ * nobody looks a group number up in Central, and a group that would be
+ * refused is never offered. That lookup leaves the account refused for
+ * about a second, which is why it happens here while someone is typing
+ * and never while alerts are going out.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Loader2 } from 'lucide-react';
@@ -24,7 +32,7 @@ import { CameraAlertRulesSheet } from '../../components/CameraAlertRulesSheet';
 import { TheftWatchSheet } from '../../components/TheftWatchSheet';
 import { useProject } from '../../contexts/ProjectContext';
 import { useRuleOptions } from '../../hooks/useRuleOptions';
-import { integrationsApi } from '../../api/integrations';
+import { integrationsApi, SensingCluesAccount, SensingCluesGroup } from '../../api/integrations';
 import { detectionAlertRulesApi } from '../../api/detectionAlertRules';
 import { cameraAlertRulesApi } from '../../api/cameraAlertRules';
 import { theftWatchApi } from '../../api/theftWatch';
@@ -45,6 +53,14 @@ export const SensingCluesPage: React.FC = () => {
   const toast = useToast();
 
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // What the setup modal has found out about the account being typed.
+  const [groups, setGroups] = useState<SensingCluesGroup[] | null>(null);
+  const [groupsPending, setGroupsPending] = useState(false);
+  const [groupsError, setGroupsError] = useState<string | null>(null);
+  // The account the last lookup was for, so the same three values are not
+  // asked twice, and so a late answer for an account the user has already
+  // typed past is thrown away.
+  const askedFor = useRef<string>('');
   const [showDetectionSheet, setShowDetectionSheet] = useState(false);
   const [showCameraSheet, setShowCameraSheet] = useState(false);
   const [showTheftSheet, setShowTheftSheet] = useState(false);
@@ -83,17 +99,74 @@ export const SensingCluesPage: React.FC = () => {
   const activeCount = (rules: { is_active: boolean }[] | undefined) =>
     (rules || []).filter((r) => r.is_active).length;
 
+  // Ask which groups an account can post into, once the three account
+  // fields are filled. Debounced, because this runs on every keystroke and
+  // it signs in to Sensing Clues.
+  const [pendingAccount, setPendingAccount] = useState<SensingCluesAccount | null>(null);
+
+  const onValuesChange = (values: Record<string, string>) => {
+    const account = {
+      base_url: (values.base_url || '').trim(),
+      username: (values.username || '').trim(),
+      password: values.password || '',
+    };
+    if (!account.base_url || !account.username || !account.password) {
+      // Nothing to ask with yet. Clear an older list so a half typed
+      // account can never leave a group from another one selectable.
+      askedFor.current = '';
+      setPendingAccount(null);
+      setGroups(null);
+      setGroupsError(null);
+      return;
+    }
+    setPendingAccount(account);
+  };
+
+  useEffect(() => {
+    if (!pendingAccount) return;
+    const key = JSON.stringify(pendingAccount);
+    if (key === askedFor.current) return;
+    const timer = setTimeout(async () => {
+      askedFor.current = key;
+      setGroupsPending(true);
+      setGroupsError(null);
+      try {
+        const found = await integrationsApi.listSensingCluesGroups(projectIdNum, pendingAccount);
+        // Someone typed on while this was in flight; their answer wins.
+        if (askedFor.current !== key) return;
+        setGroups(found);
+      } catch (error: any) {
+        if (askedFor.current !== key) return;
+        setGroups(null);
+        setGroupsError(errorDetail(error));
+      } finally {
+        setGroupsPending(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [pendingAccount, projectIdNum]);
+
+  const forgetGroups = (open: boolean) => {
+    if (open) return;
+    askedFor.current = '';
+    setPendingAccount(null);
+    setGroups(null);
+    setGroupsError(null);
+    setGroupsPending(false);
+  };
+
   const configureMutation = useMutation({
     mutationFn: (values: Record<string, string>) => {
       const groupId = Number(values.group_id);
       if (!Number.isInteger(groupId) || groupId <= 0) {
-        throw new Error('The group id is a whole number, for example 3523928.');
+        throw new Error('Pick the group this project posts into.');
       }
       return integrationsApi.configureSensingClues(projectIdNum, {
         base_url: values.base_url,
         username: values.username,
         password: values.password,
         group_id: groupId,
+        group_name: groups?.find((g) => g.id === groupId)?.name,
       });
     },
     onSuccess: () => {
@@ -131,7 +204,9 @@ export const SensingCluesPage: React.FC = () => {
   const statusDetail = status
     ? connectionDetail(
         status,
-        status.group_id != null ? `Group ${status.group_id} as ${status.username}. ` : '',
+        status.group_id != null
+          ? `${status.group_name || `Group ${status.group_id}`} as ${status.username}. `
+          : '',
         'observation',
         'Not checked yet. Send a test observation to see one land in your group.',
       )
@@ -148,6 +223,22 @@ export const SensingCluesPage: React.FC = () => {
     : rulesLoaded && activeRules === 0
       ? 'The account is connected, but no rules are active, so nothing is sent yet. Add a detection, camera or theft watch rule below to start posting observations.'
       : null;
+
+  const savedGroupOption = status?.group_id != null
+    ? [{ value: String(status.group_id), label: status.group_name || `Group ${status.group_id}` }]
+    : [];
+
+  // One line under the group dropdown saying what is happening, so an
+  // empty list is never a mystery.
+  const groupStatus = groupsPending
+    ? 'Checking the account with Sensing Clues...'
+    : groupsError
+      ? groupsError
+      : groups === null
+        ? 'The groups appear once the address, the username and the password are filled in.'
+        : groups.length === 0
+          ? 'This account is not a member of any group yet. Invite it into a group in Central, then try again.'
+          : null;
 
   const emptyDescription = (
     <>
@@ -180,16 +271,22 @@ export const SensingCluesPage: React.FC = () => {
     },
     {
       name: 'group_id',
-      label: 'Group id',
-      placeholder: '3523928',
-      inputMode: 'numeric' as const,
+      label: 'Group',
+      placeholder: groups === null ? 'Fill in the account first' : 'Choose a group',
       defaultValue: status?.group_id != null ? String(status.group_id) : '',
-      help: (
-        <>
-          The number shown with the group in{' '}
-          <a href={CENTRAL_URL} target="_blank" rel="noreferrer" className="underline">Central</a>.
-        </>
-      ),
+      // Always an array, so the field is a dropdown from the start and
+      // never turns from a text box into one under the user's hands.
+      // Before a list arrives, the group already saved stands in for it,
+      // so changing the connection shows the current group rather than an
+      // empty box.
+      options: groups
+        ? groups.map((group) => ({ value: String(group.id), label: group.name }))
+        : savedGroupOption,
+      disabled: groupsPending,
+      status: groupStatus,
+      help: groups && groups.length > 0
+        ? 'Everyone in this group sees the observations.'
+        : undefined,
     },
   ];
 
@@ -270,6 +367,8 @@ export const SensingCluesPage: React.FC = () => {
               emptyDescription={emptyDescription}
               note={note}
               fields={fields}
+              onValuesChange={onValuesChange}
+              onModalOpenChange={forgetGroups}
               onSave={(values) => configureMutation.mutateAsync(values)}
               onDisconnect={() => setConfirmRemove(true)}
               onTest={async () => {
@@ -281,13 +380,13 @@ export const SensingCluesPage: React.FC = () => {
               }}
               testLabel="Send test observation"
               testModalTitle="Send a test observation"
-              testExplanation={<>This posts a real observation to your Sensing Clues group, titled "Test from AddaxAI Connect", which is also how you check that the group id is right and that the account is a member of it. It stays in the group like any other observation.</>}
+              testExplanation={<>This posts a real observation to your Sensing Clues group, titled "Test from AddaxAI Connect", so you can see one arrive the way a real alert will. It stays in the group like any other observation.</>}
               testSuccessMessage="Test passed. The observation should appear in your Cluey group within a minute."
               docsUrl={DOCS_URL}
               modalTitle="Connect Sensing Clues"
               replaceModalTitle="Change the connection"
               replaceLabel="Change connection"
-              modalHelp={<>The account signs in to Sensing Clues for you, so it must already be a member of the group. Saving checks the account, and the test observation checks the group.</>}
+              modalHelp={<>The account signs in to Sensing Clues for you. Fill it in and the groups it belongs to appear below, so you do not have to look a group number up.</>}
             />
 
             <SettingRowDivider />
