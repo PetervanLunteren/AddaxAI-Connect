@@ -138,11 +138,6 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN_NAME: ${DOMAIN_NAME}
-      # Sensing Clues service account, for the integration status and test. Empty on a server that does not offer it.
-      SENSINGCLUES_BASE_URL: ${SENSINGCLUES_BASE_URL:-}
-      SENSINGCLUES_USERNAME: ${SENSINGCLUES_USERNAME:-}
-      SENSINGCLUES_PASSWORD: ${SENSINGCLUES_PASSWORD:-}
-      SENSINGCLUES_USER_ID: ${SENSINGCLUES_USER_ID:-}
       DEMO_MODE: ${DEMO_MODE:-false}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
       CLASSIFICATION_MODEL: ${CLASSIFICATION_MODEL:-deepfaune}
@@ -519,9 +514,8 @@ services:
       - addaxai-network
 
   # Sensing Clues delivery via Central: posts one observation per alert into
-  # the project's Cluey group with the server's service account (see
-  # services/notifications-sensingclues). Runs on every server; without the
-  # account it idles and heartbeats.
+  # the project's Cluey group with the account saved on that project (see
+  # services/notifications-sensingclues)
   notifications-sensingclues:
     build:
       context: .
@@ -535,10 +529,6 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      SENSINGCLUES_BASE_URL: ${SENSINGCLUES_BASE_URL:-}
-      SENSINGCLUES_USERNAME: ${SENSINGCLUES_USERNAME:-}
-      SENSINGCLUES_PASSWORD: ${SENSINGCLUES_PASSWORD:-}
-      SENSINGCLUES_USER_ID: ${SENSINGCLUES_USER_ID:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-production}

@@ -177,7 +177,7 @@ log "Schema is at HEAD"
 #
 # Same for the project integrations (EarthRanger via Gundi, Sensing Clues
 # via Central). A restored database carries every project's Gundi API key
-# and Cluey group id, and an alert fired on dev would post to a real ranger
+# and Cluey account, and an alert fired on dev would post to a real ranger
 # map or group. Clearing the rows means dev only holds what someone set up
 # on dev on purpose.
 ENVIRONMENT="$(env_get ENVIRONMENT)"
@@ -185,7 +185,7 @@ if [ "$ENVIRONMENT" = "development" ]; then
   log "Dev server: clearing restored Telegram bot config so it cannot fight the source bot"
   docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
     -c 'DELETE FROM telegram_config;' > /dev/null
-  log "Dev server: clearing restored integration rows (EarthRanger keys, Sensing Clues group ids) so dev cannot post to real destinations"
+  log "Dev server: clearing restored integration rows (EarthRanger keys, Sensing Clues accounts) so dev cannot post to real destinations"
   docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
     -c 'DELETE FROM project_integrations;' > /dev/null
 fi
