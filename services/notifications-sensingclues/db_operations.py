@@ -6,7 +6,7 @@ project's integration row records the state of the connection as a whole,
 which is what the integration page shows.
 """
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from sqlalchemy import select
 
@@ -28,14 +28,15 @@ def _integration(session, project_id: int) -> Optional[ProjectIntegration]:
     ).scalar_one_or_none()
 
 
-def load_group_id(project_id: int) -> Optional[int]:
-    """The project's Cluey group id, or None when the integration is
-    missing, disabled, or has no group id."""
+def load_config(project_id: int) -> Optional[Dict[str, Any]]:
+    """The project's Sensing Clues account and group, or None when the
+    integration is missing or disabled. Read per message, so a changed
+    account takes effect on the next observation."""
     with get_sync_session() as session:
         integration = _integration(session, project_id)
         if not integration or not integration.is_enabled:
             return None
-        return (integration.config or {}).get("group_id") or None
+        return integration.config or None
 
 
 def record_success(project_id: int) -> None:

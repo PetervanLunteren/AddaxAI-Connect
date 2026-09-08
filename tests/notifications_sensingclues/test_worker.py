@@ -34,16 +34,28 @@ class FakeClient:
         self.images.append((alert_id, filename, data))
 
 
+CONFIG = {
+    "base_url": "https://cluey.test/v1/",
+    "username": "addax_service",
+    "password": "fake-test-password",
+    "group_id": 3523928,
+}
+
+
 @pytest.fixture
 def spies(monkeypatch):
     """Stub every boundary and hand back what was recorded."""
     rec = SimpleNamespace(
         statuses=[], successes=[], failures=[], client=FakeClient(),
-        available=True, group_id=3523928, attachment=b"jpeg",
+        config=dict(CONFIG), built=[], attachment=b"jpeg",
     )
-    monkeypatch.setattr(worker, "is_available", lambda settings: rec.available)
-    monkeypatch.setattr(worker, "get_client", lambda: rec.client)
-    monkeypatch.setattr(worker, "load_group_id", lambda pid: rec.group_id)
+
+    def fake_client_from_config(config):
+        rec.built.append(config)
+        return rec.client
+
+    monkeypatch.setattr(worker, "client_from_config", fake_client_from_config)
+    monkeypatch.setattr(worker, "load_config", lambda pid: rec.config)
     monkeypatch.setattr(worker, "record_success", lambda pid: rec.successes.append(pid))
     monkeypatch.setattr(worker, "record_failure", lambda pid, err: rec.failures.append((pid, err)))
     monkeypatch.setattr(
@@ -119,20 +131,21 @@ def test_observation_failure_marks_log_and_integration(spies):
     assert spies.successes == []
 
 
-def test_missing_group_id_fails_without_posting(spies):
-    spies.group_id = None
+def test_a_project_without_an_integration_fails_without_posting(spies):
+    spies.config = None
     worker.process_message(_message())
     assert spies.client.observations == []
-    assert spies.statuses[0][:2] == (42, "failed")
-    assert "not enabled" in spies.statuses[0][2]
+    assert spies.statuses == [(42, "failed", "Sensing Clues is not set up for this project")]
     assert spies.failures == []
 
 
-def test_missing_server_account_fails_without_posting(spies):
-    spies.available = False
+@pytest.mark.parametrize("missing", ["base_url", "username", "password", "group_id"])
+def test_a_half_filled_row_fails_without_posting(spies, missing):
+    spies.config = {**CONFIG, missing: None}
     worker.process_message(_message())
+    assert spies.built == []
     assert spies.client.observations == []
-    assert spies.statuses == [(42, "failed", "Sensing Clues is not enabled on this server")]
+    assert spies.statuses[0][:2] == (42, "failed")
 
 
 def test_invalid_message_is_dropped(spies):
@@ -142,13 +155,18 @@ def test_invalid_message_is_dropped(spies):
     assert spies.statuses == []
 
 
-def test_client_is_built_once(monkeypatch):
-    built = []
-    monkeypatch.setattr(worker, "_client", None)
-    monkeypatch.setattr(worker, "client_from_settings", lambda settings: built.append(settings) or object())
-    first = worker.get_client()
-    assert worker.get_client() is first
-    assert len(built) == 1
+def test_a_client_is_built_per_message_from_the_project_row(spies):
+    # No client is kept between messages, so a changed account takes
+    # effect on the next observation without a restart
+    worker.process_message(_message())
+    worker.process_message(_message())
+    assert spies.built == [CONFIG, CONFIG]
+
+
+def test_the_observation_and_the_image_share_one_client(spies):
+    worker.process_message(_message())
+    assert len(spies.built) == 1
+    assert len(spies.client.observations) == 1 and len(spies.client.images) == 1
 
 
 def _jpeg(width, height, mode="RGB"):
