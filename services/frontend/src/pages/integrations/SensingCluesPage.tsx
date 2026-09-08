@@ -235,7 +235,12 @@ export const SensingCluesPage: React.FC = () => {
     : groupsError
       ? groupsError
       : groups === null
-        ? 'The groups appear once the address, the username and the password are filled in.'
+        ? (isConfigured
+            // The change modal already shows the saved group by name, so
+            // saying the groups still have to appear would read as a
+            // contradiction.
+            ? 'Type the password to see the other groups this account can post into.'
+            : 'The groups appear once the address, the username and the password are filled in.')
         : groups.length === 0
           ? 'This account is not a member of any group yet. Invite it into a group in Central, then try again.'
           : null;
