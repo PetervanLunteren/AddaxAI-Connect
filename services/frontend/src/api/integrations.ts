@@ -2,25 +2,33 @@
  * Project integrations API client. EarthRanger (via Gundi) and Sensing
  * Clues (via Central).
  *
- * Project admins save the integration's one setting (a Gundi API key, a
- * Cluey group id), read the connection's recorded state, remove it, and
- * send a test. A key never comes back from the server, only its last
- * characters. For Sensing Clues the account is server level, so the status
- * also says whether this server offers the integration at all.
+ * Project admins save what the integration needs (a Gundi API key, or a
+ * Cluey account and the group it posts into), read the connection's
+ * recorded state, remove it, and send a test. A credential never comes
+ * back from the server: for EarthRanger only the key's last characters,
+ * for Sensing Clues the address, the username and the group.
  */
 import apiClient from './client';
 
 export interface IntegrationStatus {
-  is_available: boolean;
   is_configured: boolean;
   is_enabled: boolean;
   api_key_hint: string | null;
   group_id: number | null;
+  username: string | null;
+  base_url: string | null;
   health_status: 'healthy' | 'error' | null;
   last_health_check: string | null;
   last_sent_at: string | null;
   last_error: string | null;
   events_sent: number;
+}
+
+export interface SensingCluesConfig {
+  base_url: string;
+  username: string;
+  password: string;
+  group_id: number;
 }
 
 export const integrationsApi = {
@@ -57,10 +65,12 @@ export const integrationsApi = {
     return response.data;
   },
 
-  configureSensingClues: async (projectId: number, groupId: number): Promise<IntegrationStatus> => {
+  configureSensingClues: async (
+    projectId: number, config: SensingCluesConfig,
+  ): Promise<IntegrationStatus> => {
     const response = await apiClient.put<IntegrationStatus>(
       `/api/projects/${projectId}/integrations/sensingclues`,
-      { group_id: groupId },
+      config,
     );
     return response.data;
   },

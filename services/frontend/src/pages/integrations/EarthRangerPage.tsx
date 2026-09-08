@@ -16,7 +16,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Button, buttonVariants } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
-import { ApiKeyConnectionRow } from '../../components/ApiKeyConnectionRow';
+import { ConnectionRow } from '../../components/ConnectionRow';
 import { useToast } from '../../components/ui/Toaster';
 import { DetectionAlertRulesSheet } from '../../components/DetectionAlertRulesSheet';
 import { CameraAlertRulesSheet } from '../../components/CameraAlertRulesSheet';
@@ -215,14 +215,15 @@ export const EarthRangerPage: React.FC = () => {
       ) : (
         <Card>
           <CardContent className="pt-6">
-            <ApiKeyConnectionRow
+            <ConnectionRow
               title="Connection"
               isConfigured={isConfigured}
               pill={isConfigured ? pill : null}
               statusDetail={statusDetail}
               emptyDescription={emptyDescription}
               note={note}
-              onSaveKey={(key) => configureMutation.mutateAsync(key)}
+              fields={[{ name: 'api_key', label: 'Gundi API key', placeholder: 'Gundi API key', secret: true }]}
+              onSave={(values) => configureMutation.mutateAsync(values.api_key)}
               onDisconnect={() => setConfirmRemove(true)}
               onTest={async () => {
                 try {
@@ -236,8 +237,7 @@ export const EarthRangerPage: React.FC = () => {
               docsUrl={DOCS_URL}
               modalTitle="Connect EarthRanger"
               replaceModalTitle="Replace the Gundi API key"
-              keyLabel="Gundi API key"
-              keyPlaceholder="Gundi API key"
+              saveLabel="Save key"
               modalHelp={<>Open your connection in the{' '}
                 <a href={GUNDI_PORTAL_URL} target="_blank" rel="noreferrer" className="underline">Gundi portal</a>,
                 then its API key section, and paste it here.</>}

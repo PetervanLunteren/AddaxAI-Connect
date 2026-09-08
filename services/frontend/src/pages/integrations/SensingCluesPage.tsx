@@ -3,11 +3,11 @@
  *
  * Sensing Clues is a notification channel for the project: when one of the
  * rules on this page fires, one observation with the photo is posted into
- * the project's Cluey group. The account that posts is server level (a
- * service account owned by Addax), so the page only holds the group id and
- * what the delivery worker recorded about the connection, and opens the
- * three rule sheets in their Sensing Clues mode. Sent observations are
- * never changed again; the record stays here in Connect.
+ * the project's Cluey group. The page holds the Cluey account that posts,
+ * the group it posts into and what the delivery worker recorded about the
+ * connection, and opens the three rule sheets in their Sensing Clues mode.
+ * Sent observations are never changed again; the record stays here in
+ * Connect.
  */
 import React, { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
@@ -17,7 +17,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Button, buttonVariants } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
-import { ApiKeyConnectionRow } from '../../components/ApiKeyConnectionRow';
+import { ConnectionRow } from '../../components/ConnectionRow';
 import { useToast } from '../../components/ui/Toaster';
 import { DetectionAlertRulesSheet } from '../../components/DetectionAlertRulesSheet';
 import { CameraAlertRulesSheet } from '../../components/CameraAlertRulesSheet';
@@ -32,6 +32,9 @@ import { connectionDetail, connectionPill, errorDetail } from '../../utils/integ
 
 const DOCS_URL = 'https://connect.addaxai.com/integrations/sensingclues/';
 const CENTRAL_URL = 'https://central.sensingclues.org/';
+// Their production API, the same service as the test host one version back.
+// A test deployment overrides it in the field with central-test.
+const DEFAULT_BASE_URL = 'https://central.sensingclues.org/v1/';
 const CHANNEL = 'sensingclues' as const;
 
 export const SensingCluesPage: React.FC = () => {
@@ -56,9 +59,6 @@ export const SensingCluesPage: React.FC = () => {
     enabled: projectIdNum > 0 && canAdminCurrentProject,
   });
   const isConfigured = status?.is_configured ?? false;
-  // True while loading, so the unavailable note never flashes on a server
-  // that does offer the integration
-  const isAvailable = status?.is_available ?? true;
 
   const invalidateStatus = () =>
     queryClient.invalidateQueries({ queryKey: ['integration-sensingclues', projectIdNum] });
@@ -84,18 +84,23 @@ export const SensingCluesPage: React.FC = () => {
     (rules || []).filter((r) => r.is_active).length;
 
   const configureMutation = useMutation({
-    mutationFn: (value: string) => {
-      const groupId = Number(value);
+    mutationFn: (values: Record<string, string>) => {
+      const groupId = Number(values.group_id);
       if (!Number.isInteger(groupId) || groupId <= 0) {
         throw new Error('The group id is a whole number, for example 3523928.');
       }
-      return integrationsApi.configureSensingClues(projectIdNum, groupId);
+      return integrationsApi.configureSensingClues(projectIdNum, {
+        base_url: values.base_url,
+        username: values.username,
+        password: values.password,
+        group_id: groupId,
+      });
     },
     onSuccess: () => {
       invalidateStatus();
-      toast.success('Group id saved. Send a test observation to check the connection.');
+      toast.success('Connected to Sensing Clues.');
     },
-    onError: (error: any) => toast.error(`Could not save the group id. ${errorDetail(error)}`),
+    onError: (error: any) => toast.error(`Could not connect. ${errorDetail(error)}`),
   });
 
   const testMutation = useMutation({
@@ -126,42 +131,67 @@ export const SensingCluesPage: React.FC = () => {
   const statusDetail = status
     ? connectionDetail(
         status,
-        status.group_id != null ? `Group ${status.group_id}. ` : '',
+        status.group_id != null ? `Group ${status.group_id} as ${status.username}. ` : '',
         'observation',
-        'Not tested yet. Send a test observation to check the group id.',
+        'Not checked yet. Send a test observation to see one land in your group.',
       )
     : null;
 
-  // The note under the Connection row covers the idle states the pill does
-  // not: the server has no account, no group id saved, or a group id but
-  // no active rule. A paused rule sends nothing either, so this counts
-  // active rules. Waits for the three rule lists so it does not flash on
-  // every page open.
+  // The note under the Connection row covers the two idle states the pill
+  // does not: nothing connected, or connected but no active rule. A paused
+  // rule sends nothing either, so this counts active rules. Waits for the
+  // three rule lists so it does not flash on every page open.
   const rulesLoaded = detectionRules && cameraRules && theftRules;
   const activeRules = activeCount(detectionRules) + activeCount(cameraRules) + activeCount(theftRules);
-  const note = !isAvailable
-    ? (
-      <>
-        Sensing Clues is not enabled on this server yet. Ask your server admin to switch it on, the{' '}
-        <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">setup guide</a>{' '}
-        explains how.
-      </>
-    )
-    : !isConfigured
-      ? 'No group id is saved, so nothing is sent. The rules below stay as they are and start working again when a group id is saved.'
-      : rulesLoaded && activeRules === 0
-        ? 'The group id is saved, but no rules are active, so nothing is sent yet. Add a detection, camera or theft watch rule below to start posting observations.'
-        : null;
+  const note = !isConfigured
+    ? 'No account is connected, so nothing is sent. The rules below stay as they are and start working again when one is connected.'
+    : rulesLoaded && activeRules === 0
+      ? 'The account is connected, but no rules are active, so nothing is sent yet. Add a detection, camera or theft watch rule below to start posting observations.'
+      : null;
 
   const emptyDescription = (
     <>
       Make a group in Cluey or{' '}
       <a href={CENTRAL_URL} target="_blank" rel="noreferrer" className="underline">Central</a>,
-      invite the user addax_service into it, then enter the group id here. The{' '}
+      then connect a Sensing Clues account that is a member of that group. The{' '}
       <a href={DOCS_URL} target="_blank" rel="noreferrer" className="underline">setup guide</a>{' '}
       walks you through it.
     </>
   );
+
+  const fields = [
+    {
+      name: 'base_url',
+      label: 'Sensing Clues address',
+      defaultValue: status?.base_url || DEFAULT_BASE_URL,
+      help: 'Leave this as it is unless Sensing Clues told you otherwise.',
+    },
+    {
+      name: 'username',
+      label: 'Username',
+      placeholder: 'your Sensing Clues account',
+      defaultValue: status?.username || '',
+    },
+    {
+      name: 'password',
+      label: 'Password',
+      secret: true,
+      help: 'Kept on this server so it can post for you. A separate account for AddaxAI Connect is safer than your own login.',
+    },
+    {
+      name: 'group_id',
+      label: 'Group id',
+      placeholder: '3523928',
+      inputMode: 'numeric' as const,
+      defaultValue: status?.group_id != null ? String(status.group_id) : '',
+      help: (
+        <>
+          The number shown with the group in{' '}
+          <a href={CENTRAL_URL} target="_blank" rel="noreferrer" className="underline">Central</a>.
+        </>
+      ),
+    },
+  ];
 
   const ruleRow = (
     label: string,
@@ -232,15 +262,15 @@ export const SensingCluesPage: React.FC = () => {
       ) : (
         <Card>
           <CardContent className="pt-6">
-            <ApiKeyConnectionRow
+            <ConnectionRow
               title="Connection"
               isConfigured={isConfigured}
               pill={isConfigured ? pill : null}
               statusDetail={statusDetail}
               emptyDescription={emptyDescription}
               note={note}
-              connectDisabled={!isAvailable}
-              onSaveKey={(value) => configureMutation.mutateAsync(value)}
+              fields={fields}
+              onSave={(values) => configureMutation.mutateAsync(values)}
               onDisconnect={() => setConfirmRemove(true)}
               onTest={async () => {
                 try {
@@ -251,21 +281,13 @@ export const SensingCluesPage: React.FC = () => {
               }}
               testLabel="Send test observation"
               testModalTitle="Send a test observation"
-              testExplanation={<>This posts a real observation to your Sensing Clues group, titled "Test from AddaxAI Connect", to check that the group id is right and that addax_service is a member. It stays in the group like any other observation.</>}
+              testExplanation={<>This posts a real observation to your Sensing Clues group, titled "Test from AddaxAI Connect", so you can see one arrive. It stays in the group like any other observation.</>}
               testSuccessMessage="Test passed. The observation should appear in your Cluey group within a minute."
               docsUrl={DOCS_URL}
               modalTitle="Connect Sensing Clues"
-              replaceModalTitle="Change the group id"
-              replaceLabel="Change group id"
-              saveLabel="Save"
-              keyLabel="Group id"
-              keyPlaceholder="3523928"
-              secret={false}
-              inputMode="numeric"
-              modalHelp={<>Open the group in{' '}
-                <a href={CENTRAL_URL} target="_blank" rel="noreferrer" className="underline">Central</a>{' '}
-                and copy the number shown with its details. The user addax_service must already be
-                a member of that group.</>}
+              replaceModalTitle="Change the connection"
+              replaceLabel="Change connection"
+              modalHelp={<>The account signs in to Sensing Clues for you, so it must already be a member of the group. Saving checks both before anything is stored.</>}
             />
 
             <SettingRowDivider />
@@ -332,7 +354,7 @@ export const SensingCluesPage: React.FC = () => {
         onClose={() => setConfirmRemove(false)}
         onConfirm={() => removeMutation.mutate()}
         title="Disconnect Sensing Clues?"
-        body="The group id is forgotten and no more observations are sent. The rules stay and start working again when a group id is saved."
+        body="The account and the group are forgotten and no more observations are sent. The rules stay and start working again when an account is connected."
         confirmLabel="Disconnect"
         cancelLabel="Keep it"
         variant="destructive"
