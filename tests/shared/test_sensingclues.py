@@ -70,6 +70,7 @@ class TestBuildDetectionObservation:
         assert _detection()["values"] == {
             "species": "Red fox",
             "latinName": "Vulpes vulpes",
+            "nAnimal": "2",
             "addaxAI": {
                 "cameraId": "CAM-012",
                 "link": "https://connect.example.org/projects/1/images?image=abc",
@@ -87,6 +88,7 @@ class TestBuildDetectionObservation:
         assert obs["values"]["transport"] == "On Foot"
         assert "species" not in obs["values"]
         assert "latinName" not in obs["values"]
+        assert "nAnimal" not in obs["values"]
 
     def test_vehicle_is_unspecified_vehicle(self):
         obs = _detection(species="vehicle", species_display="Vehicle", scientific_name=None)
@@ -96,6 +98,7 @@ class TestBuildDetectionObservation:
     def test_optional_fields_omitted(self):
         obs = _detection(count=None, confidence=None, scientific_name=None, site_name=None)
         assert "latinName" not in obs["values"]
+        assert "nAnimal" not in obs["values"]
         ours = obs["values"]["addaxAI"]
         assert "count" not in ours
         assert "confidence" not in ours

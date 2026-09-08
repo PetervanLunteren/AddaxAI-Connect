@@ -35,9 +35,10 @@ id as plain text; a timestamp with an offset is stored as sent; appVersion,
 autoTimestamp, classifier and timestampClassification may be absent; a
 wrong group id, or a group that did not invite the account, is a 404
 whose message names the account and the group; the media call answers
-with the alert object. Open: an observation with observation_type
-human_activity was refused with a 401 for this account, asked Sensing
-Clues.
+with the alert object. human_activity was refused with a 401 until Sensing
+Clues enabled the new values on 8 September 2026; since then it is stored
+under their internal type "offence". The count for the generic species
+field is nAnimal, a string like their own number fields.
 """
 import uuid
 from datetime import datetime, timezone
@@ -192,6 +193,10 @@ def build_detection_observation(
         values = {"species": species_display}
         if scientific_name:
             values["latinName"] = scientific_name
+        if count is not None:
+            # Their count field for the generic species, a string like
+            # their own number fields
+            values["nAnimal"] = str(count)
     values["addaxAI"] = ours
 
     observation = _observation(
