@@ -54,10 +54,13 @@ is stored under their internal type "offence"; the count for the generic
 species field is nAnimal, a string like their own number fields; and the
 login answers {"user": {"username": "<numeric account id>"}}.
 """
+import ipaddress
+import socket
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -109,6 +112,37 @@ def is_configured(config: Optional[Dict[str, Any]]) -> bool:
     """A project is set up when its row carries an account and a group."""
     config = config or {}
     return all(config.get(key) for key in CONFIG_KEYS)
+
+
+def address_problem(base_url: str) -> Optional[str]:
+    """Why this address may not be used, or None when it is fine.
+
+    A project admin types the address and the server then makes requests
+    to it, so a bad one could aim the server at its own network (SSRF). We
+    allow only https to a public host. The scheme rules out file and plain
+    http probes, and resolving the host and refusing loopback, private and
+    other non-public addresses rules out reaching anything inside. Real
+    Sensing Clues hosts are public https, so nobody legitimate is turned
+    away. This resolves DNS, so run it off the event loop.
+    """
+    parsed = urlparse((base_url or "").strip())
+    if parsed.scheme != "https":
+        return "The address must start with https://."
+    try:
+        host = parsed.hostname
+    except ValueError:
+        host = None
+    if not host:
+        return "The address needs a host, like https://central.sensingclues.org/v1/."
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError):
+        return "The address could not be found. Check the host name."
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global or ip.is_multicast:
+            return "That address points at a private network and cannot be used."
+    return None
 
 
 def client_from_config(config: Optional[Dict[str, Any]]) -> "SensingCluesClient":

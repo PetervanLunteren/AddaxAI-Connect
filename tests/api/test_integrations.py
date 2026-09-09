@@ -48,6 +48,14 @@ _SC_CONFIG = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _allow_any_address(monkeypatch):
+    """The address check resolves DNS, which the save and groups tests do
+    not want. Off by default; the address tests turn it back on. Its own
+    behaviour is covered in tests/shared."""
+    monkeypatch.setattr(integrations, "address_problem", lambda base_url: None)
+
+
 def _row(config, **overrides):
     values = dict(
         config=config, is_enabled=True, health_status="healthy", last_health_check=None,
@@ -333,6 +341,55 @@ class TestSensingCluesGroups:
             await list_sensingclues_groups(1, self._request(password=""), user=None, db=None)
         assert info.value.status_code == 400
         assert "Fill in" in info.value.detail
+
+
+class TestSensingCluesAddress:
+    """A bad address must be refused before the server ever fetches it, on
+    both the groups lookup and the save. The check's own rules are tested
+    in tests/shared; here it only has to be wired in and to run first."""
+
+    def _account(self, **overrides):
+        values = dict(
+            base_url="https://central-test.sensingclues.org/v1/",
+            username="addax_service",
+            password="fake-test-password",
+        )
+        values.update(overrides)
+        return SensingCluesAccountRequest(**values)
+
+    def _config(self, **overrides):
+        values = dict(
+            base_url="https://central-test.sensingclues.org/v1/",
+            username="addax_service",
+            password="fake-test-password",
+            group_id=3523928,
+        )
+        values.update(overrides)
+        return SensingCluesConfigRequest(**values)
+
+    def _refuse_address(self, monkeypatch):
+        monkeypatch.setattr(
+            integrations, "address_problem",
+            lambda base_url: "That address points at a private network and cannot be used.",
+        )
+        # The vendor client must never be built if the address is refused
+        monkeypatch.setattr(integrations, "client_from_config", lambda config: 1 / 0)
+
+    @pytest.mark.asyncio
+    async def test_groups_refuses_a_bad_address_before_any_call(self, monkeypatch):
+        self._refuse_address(monkeypatch)
+        with pytest.raises(HTTPException) as info:
+            await list_sensingclues_groups(1, self._account(), user=None, db=None)
+        assert info.value.status_code == 400
+        assert "private network" in info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_save_refuses_a_bad_address_before_any_call(self, monkeypatch):
+        self._refuse_address(monkeypatch)
+        with pytest.raises(HTTPException) as info:
+            await configure_sensingclues(1, self._config(), user=None, db=None)
+        assert info.value.status_code == 400
+        assert "private network" in info.value.detail
 
 
 class TestSensingCluesGroupName:

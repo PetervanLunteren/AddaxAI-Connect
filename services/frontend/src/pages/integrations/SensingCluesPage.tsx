@@ -277,7 +277,11 @@ export const SensingCluesPage: React.FC = () => {
     {
       name: 'group_id',
       label: 'Group',
-      placeholder: groups === null ? 'Fill in the account first' : 'Choose a group',
+      placeholder: groups !== null
+        ? 'Choose a group'
+        // On a change, the account is already there and only the password
+        // is blank, so asking to fill in the account would be wrong.
+        : isConfigured ? 'Type the password' : 'Fill in the account first',
       defaultValue: status?.group_id != null ? String(status.group_id) : '',
       // Always an array, so the field is a dropdown from the start and
       // never turns from a text box into one under the user's hands.

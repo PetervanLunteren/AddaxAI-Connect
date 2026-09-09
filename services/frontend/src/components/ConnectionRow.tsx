@@ -143,13 +143,14 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
   }, [modalOpen, values]);
 
   // A dropdown whose choice has disappeared from the list, because the
-  // account changed under it, must not stay selected. An empty list means
-  // the page has nothing to offer yet, which is not the same as knowing
-  // the choice is gone, so that leaves the value alone.
+  // account changed under it, must not stay selected. An empty list has no
+  // valid choice either, so it clears too: the browser already shows the
+  // placeholder, and leaving the old value only in React state would keep
+  // Save enabled with nothing picked. Both callers seed their opening
+  // value from a list that contains it, so a fresh open never clears.
   useEffect(() => {
     const stale = fields.filter(
       (field) => field.options
-        && field.options.length > 0
         && values[field.name]
         && !field.options.some((option) => option.value === values[field.name]),
     );

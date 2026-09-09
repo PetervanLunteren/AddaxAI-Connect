@@ -38,6 +38,7 @@ from shared.models import Project, ProjectIntegration, User
 from shared.project_channels import EARTHRANGER, PROJECT_CHANNELS, SENSINGCLUES
 from shared.sensingclues import (
     SensingCluesError,
+    address_problem,
     build_test_observation,
     client_from_config,
     is_configured,
@@ -361,6 +362,14 @@ def client_or_400(config: Dict[str, Any]):
         )
 
 
+async def check_address_or_400(base_url: str) -> None:
+    """Refuse an address the server should not fetch, before it fetches
+    it. Off the event loop because the check resolves DNS."""
+    problem = await asyncio.to_thread(address_problem, base_url)
+    if problem:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
+
+
 @router.post("/sensingclues/groups", response_model=SensingCluesGroupsResponse)
 async def list_sensingclues_groups(
     project_id: int,
@@ -379,6 +388,7 @@ async def list_sensingclues_groups(
     A project admin can read the groups of any account whose password
     they know, which is the account they are about to connect anyway.
     """
+    await check_address_or_400(request.base_url)
     config = account_from_request(request.base_url, request.username, request.password)
     client = client_or_400(config)
     try:
@@ -413,6 +423,7 @@ async def configure_sensingclues(
     reach, is caught by the test observation instead.
     """
     validate_group_id(request.group_id)
+    await check_address_or_400(request.base_url)
     config = {
         **account_from_request(request.base_url, request.username, request.password),
         "group_id": request.group_id,
