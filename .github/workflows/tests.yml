@@ -73,8 +73,16 @@ jobs:
 
       - name: Install libmagic
         # services/ingestion/validators.py uses python-magic, a binding around
-        # the system libmagic that fails to import without it.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmagic1
+        # the system libmagic that fails to import without it. libmagic1 comes
+        # from the Ubuntu main archive. The runner image also preconfigures a
+        # Google Chrome apt repo that now and then serves a bad index ("Hash
+        # Sum mismatch"), which failed apt-get update and the whole suite. Retry
+        # once, then tolerate a partial update, so a flaky third-party repo does
+        # not fail the build; the install itself still fails loudly if libmagic1
+        # cannot be fetched.
+        run: |
+          sudo apt-get update || sudo apt-get update || true
+          sudo apt-get install -y --no-install-recommends libmagic1
 
       - name: Install dependencies
         # Same order as the service Dockerfiles: the service requirements
