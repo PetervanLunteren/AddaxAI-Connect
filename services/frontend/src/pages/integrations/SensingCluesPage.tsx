@@ -57,6 +57,11 @@ export const SensingCluesPage: React.FC = () => {
   const [groups, setGroups] = useState<SensingCluesGroup[] | null>(null);
   const [groupsPending, setGroupsPending] = useState(false);
   const [groupsError, setGroupsError] = useState<string | null>(null);
+  // The account identity (address + username) currently typed in the
+  // modal. The saved group is only worth offering while this still
+  // matches the connected account; once it changes, the saved group
+  // belongs to a different account and must not stay selectable.
+  const [typedAccount, setTypedAccount] = useState<{ base_url: string; username: string } | null>(null);
   // The account the last lookup was for, so the same three values are not
   // asked twice, and so a late answer for an account the user has already
   // typed past is thrown away.
@@ -110,6 +115,7 @@ export const SensingCluesPage: React.FC = () => {
       username: (values.username || '').trim(),
       password: values.password || '',
     };
+    setTypedAccount({ base_url: account.base_url, username: account.username });
     if (!account.base_url || !account.username || !account.password) {
       // Nothing to ask with yet. Clear an older list so a half typed
       // account can never leave a group from another one selectable.
@@ -153,7 +159,18 @@ export const SensingCluesPage: React.FC = () => {
     setGroups(null);
     setGroupsError(null);
     setGroupsPending(false);
+    setTypedAccount(null);
   };
+
+  // Whether the account typed in the modal still is the connected one.
+  // On open the modal is seeded with the saved address and username, so
+  // this is true until the user edits either. While it holds, the saved
+  // group stands in for the list before a fresh lookup; once it stops
+  // holding, only a fresh lookup may offer a group.
+  const accountUnchanged = isConfigured
+    && typedAccount !== null
+    && typedAccount.base_url === (status?.base_url ?? '')
+    && typedAccount.username === (status?.username ?? '');
 
   const configureMutation = useMutation({
     mutationFn: (values: Record<string, string>) => {
@@ -161,12 +178,17 @@ export const SensingCluesPage: React.FC = () => {
       if (!Number.isInteger(groupId) || groupId <= 0) {
         throw new Error('Pick the group this project posts into.');
       }
+      // The name from the fresh list if there is one, else the saved name
+      // when this is still the saved group, so saving without a relookup
+      // does not blank the name the page shows.
+      const groupName = groups?.find((g) => g.id === groupId)?.name
+        ?? (status?.group_id === groupId ? status?.group_name ?? undefined : undefined);
       return integrationsApi.configureSensingClues(projectIdNum, {
         base_url: values.base_url,
         username: values.username,
         password: values.password,
         group_id: groupId,
-        group_name: groups?.find((g) => g.id === groupId)?.name,
+        group_name: groupName,
       });
     },
     onSuccess: () => {
@@ -235,10 +257,11 @@ export const SensingCluesPage: React.FC = () => {
     : groupsError
       ? groupsError
       : groups === null
-        ? (isConfigured
-            // The change modal already shows the saved group by name, so
-            // saying the groups still have to appear would read as a
-            // contradiction.
+        ? (accountUnchanged
+            // Reopened on the same account, which still shows its saved
+            // group; the password brings up the rest. Once the account is
+            // edited this no longer holds, so fall through to the general
+            // line.
             ? 'Type the password to see the other groups this account can post into.'
             : 'The groups appear once the address, the username and the password are filled in.')
         : groups.length === 0
@@ -284,13 +307,14 @@ export const SensingCluesPage: React.FC = () => {
         : isConfigured ? 'Type the password' : 'Fill in the account first',
       defaultValue: status?.group_id != null ? String(status.group_id) : '',
       // Always an array, so the field is a dropdown from the start and
-      // never turns from a text box into one under the user's hands.
-      // Before a list arrives, the group already saved stands in for it,
-      // so changing the connection shows the current group rather than an
-      // empty box.
+      // never turns from a text box into one under the user's hands. A
+      // fresh list wins; before one arrives the saved group stands in,
+      // but only while the typed account is still the connected one. Edit
+      // the account and the saved group falls away, so Save cannot store
+      // a group that belongs to the previous account.
       options: groups
         ? groups.map((group) => ({ value: String(group.id), label: group.name }))
-        : savedGroupOption,
+        : accountUnchanged ? savedGroupOption : [],
       disabled: groupsPending,
       status: groupStatus,
       help: groups && groups.length > 0
