@@ -40,7 +40,7 @@ Make a group for the camera trap alerts in Cluey or on the [Groups page in Centr
 
 *On the Sensing Clues side, one time.*
 
-Make a Sensing Clues account for AddaxAI Connect to post with, and invite it into the group on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"}, the same way you invite a colleague. Any account works, but a separate one, for example AddaxAI Connect, keeps your own password out of it.
+Make a Sensing Clues account for AddaxAI Connect to post with, and invite it into the group on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"}, the same way you invite a colleague. Use a separate account, not your own login, so your password stays out of it and Cluey shows clearly who posted. The account name has to be unique across all of Sensing Clues, so build it from your organisation and project, for example `wwf-nl-serengeti-addaxai-connect`.
 
 ![The Group members page in Central, showing the account as a member.](https://github.com/user-attachments/assets/d2bd926a-61d3-4f3f-87b9-c7113a950b4a){ .screenshot }
 
