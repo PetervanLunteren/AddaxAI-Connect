@@ -8,7 +8,7 @@ default, and what lets any detection rule be left open to all labels.
 Only widens the column to nullable. Existing rows keep their explicit
 label lists; nothing is backfilled or rewritten.
 
-Revision ID: 20260911_detection_rule_all_species
+Revision ID: 20260911_species_nullable
 Revises: 20260829_project_integrations
 Create Date: 2026-09-11
 
@@ -17,7 +17,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = '20260911_detection_rule_all_species'
+revision = '20260911_species_nullable'
 down_revision = '20260829_project_integrations'
 branch_labels = None
 depends_on = None
