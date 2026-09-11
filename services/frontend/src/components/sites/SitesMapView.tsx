@@ -16,7 +16,7 @@ import { latLngBounds } from 'leaflet';
 import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
 import { FullscreenControl } from '../map/FullscreenControl';
-import { BaseLayersControl, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
+import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { SpiderLegLine } from '../map/SpiderLegLine';
 import { useSpiderfied } from '../../hooks/useSpiderfied';
 import { getLegendItems, type ColorByMetric } from '../../utils/camera-colors';
@@ -191,8 +191,10 @@ export function SitesMapView({ sites, onSiteClick, colorMode, siteHealth }: Site
         zoom={12}
         maxZoom={MAP_MAX_ZOOM}
         style={{ height: '500px', width: '100%', zIndex: 0 }}
+        attributionControl={false}
         className="rounded-lg border border-gray-200"
       >
+        <MapAttribution />
         <BaseLayersControl />
         <FitBounds points={points} />
         <SpiderfiedSiteLayer

@@ -167,29 +167,12 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
-/* Collapse the map attribution into a small information icon so it stops
-   eating map space. Leaflet writes the attribution as raw text inside the
-   control, so font-size: 0 on the container is what hides it (child selectors
-   cannot reach text nodes); the icon is drawn with ::before at its own size.
-   Hover or keyboard focus reveals the full text. The attribution stays in the
-   DOM, so Esri and OpenStreetMap are still credited, the same collapsed-icon
-   pattern Google and Mapbox use. */
+/* The credit line stays readable. The OSM attribution guideline only allows
+   hiding it behind an interaction on maps under 500px wide, and ours are
+   wider than that, so it is shown. Kept small and quiet instead: the strings
+   themselves are trimmed to what the tile providers require, and every map
+   puts the control in the bottom left, the one corner nothing else uses. */
 .leaflet-control-attribution {
-  font-size: 0 !important;
+  font-size: 11px;
   max-width: 70vw;
-  cursor: help;
-  transition: font-size 0.15s ease;
-}
-.leaflet-control-attribution::before {
-  content: "\24D8"; /* circled information source: the i icon */
-  font-size: 13px;
-  vertical-align: middle;
-}
-.leaflet-control-attribution:hover,
-.leaflet-control-attribution:focus-within {
-  font-size: 11px !important;
-}
-.leaflet-control-attribution:hover::before,
-.leaflet-control-attribution:focus-within::before {
-  margin-right: 4px;
 }

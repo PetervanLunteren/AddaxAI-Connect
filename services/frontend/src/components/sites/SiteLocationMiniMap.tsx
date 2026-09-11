@@ -8,7 +8,7 @@
  */
 import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 import L from 'leaflet';
-import { SATELLITE_LAYER as SATELLITE } from '../map/BaseLayersControl';
+import { MapAttribution, SATELLITE_LAYER as SATELLITE } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
 
 const SITE_COLOR = '#0f6064'; // primary teal, matches the other site maps
@@ -38,7 +38,9 @@ export function SiteLocationMiniMap({ latitude, longitude, height = 200 }: Props
         zoom={15}
         scrollWheelZoom={false}
         style={{ height: '100%', width: '100%', zIndex: 0 }}
+        attributionControl={false}
       >
+        <MapAttribution />
         <TileLayer url={SATELLITE.url} attribution={SATELLITE.attribution} />
         <Marker position={[latitude, longitude]} icon={siteIcon} />
       </MapContainer>

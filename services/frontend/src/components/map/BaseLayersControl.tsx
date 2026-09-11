@@ -14,7 +14,7 @@
  * fall back to the Street raster tiles.
  */
 import { lazy, Suspense } from 'react';
-import { LayersControl, TileLayer, useMapEvents } from 'react-leaflet';
+import { AttributionControl, LayersControl, TileLayer, useMapEvents } from 'react-leaflet';
 
 // Loaded only when a map actually renders, keeps maplibre-gl out of the
 // main bundle.
@@ -35,18 +35,21 @@ const LIGHT_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
 // Hardcoded on purpose, like the two raster layers below. The plugin hands
 // this to Leaflet's attribution control, which writes it with innerHTML and
-// sanitises nothing, so it must never come from the style server. Copied
-// verbatim from what https://tiles.openfreemap.org/planet serves today; if
-// OpenFreeMap ever changes what it asks for, update it here.
+// sanitises nothing, so it must never come from the style server.
+//
+// Trimmed to what openfreemap.org asks for minus the part they call optional,
+// their own name. What is left is required: OpenMapTiles built the tiles and
+// OpenStreetMap is the data.
 const LIGHT_ATTRIBUTION =
-  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
   '<a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> ' +
   'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
 
 export const SATELLITE_LAYER = {
   url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  attribution:
-    'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+  // Esri's service hands back a 130-character list of its imagery suppliers.
+  // Shortened to the credit itself, which is the common practice and keeps the
+  // line quiet. Restore the full list if Esri ever asks for it.
+  attribution: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank">Esri</a>',
 };
 
 export const STREET_LAYER = {
@@ -74,6 +77,19 @@ function supportsWebGL2(): boolean {
     }
   }
   return hasWebGL2;
+}
+
+/**
+ * The credit line for any map. Bottom left because every map already uses the
+ * bottom right for something: the insights legend, and the dashboard card's own
+ * "Open the full map" pill. Leaflet's own name is dropped, it is a courtesy
+ * credit and not one the tile providers ask for.
+ *
+ * Give the MapContainer `attributionControl={false}` and render this instead,
+ * so all maps agree on the corner and the wording.
+ */
+export function MapAttribution() {
+  return <AttributionControl position="bottomleft" prefix={false} />;
 }
 
 /**

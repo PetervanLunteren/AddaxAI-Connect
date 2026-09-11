@@ -18,7 +18,7 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { MapContainer, CircleMarker, AttributionControl } from 'react-leaflet';
+import { MapContainer, CircleMarker } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
@@ -26,7 +26,7 @@ import {
   getDetectionRateColor,
   calculateColorScaleDomain,
 } from '../../utils/color-scale';
-import { LightBaseLayer, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
+import { LightBaseLayer, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
 
 interface MiniMapCardProps {
@@ -133,12 +133,7 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
               {/* Light base layer always, the blobs are the message and they
                   read best on the quietest background. The user's stored
                   base-layer choice applies to the real maps, not here. */}
-              {/* Bottom left, not Leaflet's default bottom right, where the
-                  "Open the full map" pill would sit on top of it. The card-wide
-                  link covers the map, so this icon cannot expand on hover the
-                  way it does on the other maps; it marks that credits exist and
-                  the full map one click away spells them out. */}
-              <AttributionControl position="bottomleft" />
+              <MapAttribution />
               <LightBaseLayer />
               {features.map((feature) => {
                 const [lon, lat] = feature.geometry.coordinates;

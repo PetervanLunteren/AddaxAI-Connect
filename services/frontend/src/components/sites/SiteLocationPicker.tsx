@@ -12,7 +12,7 @@ import { MapContainer, Marker, Tooltip, useMap, useMapEvents } from 'react-leafl
 import { latLngBounds } from 'leaflet';
 import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
-import { BaseLayersControl, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
+import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
 
 const SELECTED_COLOR = '#882000'; // destructive-ish, stands out from existing sites
@@ -117,7 +117,9 @@ export function SiteLocationPicker({ value, onChange, sites, excludeSiteId, heig
         zoom={13}
         maxZoom={MAP_MAX_ZOOM}
         style={{ height: '100%', width: '100%', zIndex: 0 }}
+        attributionControl={false}
       >
+        <MapAttribution />
         <BaseLayersControl />
         <ClickToSet onChange={onChange} />
         <AutoCenter value={value} points={points} />
