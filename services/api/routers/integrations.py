@@ -34,8 +34,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.earthranger import GundiClient, GundiError, build_test_event
-from shared.models import Project, ProjectIntegration, User
-from shared.project_channels import EARTHRANGER, PROJECT_CHANNELS, SENSINGCLUES
+from shared.models import DetectionAlertRule, Project, ProjectIntegration, User
+from shared.project_channels import (
+    EARTHRANGER,
+    PROJECT_CHANNELS,
+    SENSINGCLUES,
+    project_channel_of,
+)
 from shared.sensingclues import (
     SensingCluesError,
     address_problem,
@@ -440,7 +445,38 @@ async def configure_sensingclues(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=user_detail(e))
 
     integration = await save_config(db, SENSINGCLUES, project_id, config)
+    await ensure_default_sensingclues_rule(db, project_id, user.id)
     return status_of(SENSINGCLUES, integration)
+
+
+async def ensure_default_sensingclues_rule(
+    db: AsyncSession, project_id: int, user_id: int
+) -> None:
+    """Give a newly connected project one detection rule that posts every
+    label above threshold to Sensing Clues, so connecting is enough and no
+    admin has to build a rule by hand. Only when the project has no Sensing
+    Clues detection rule yet, so a cleared default stays cleared unless the
+    project reconnects fresh. Camera and theft watch stay empty, which is
+    already their "off". The cooldown is the project's independence interval
+    (30 when disabled), matching the rule editor's default, so one visit
+    gives one observation.
+    """
+    rows = (await db.execute(
+        select(DetectionAlertRule).where(DetectionAlertRule.project_id == project_id)
+    )).scalars().all()
+    if any(project_channel_of(r.channels) == SENSINGCLUES for r in rows):
+        return
+    project = await db.get(Project, project_id)
+    db.add(DetectionAlertRule(
+        project_id=project_id,
+        created_by_user_id=user_id,
+        species=None,  # all labels
+        site_ids=None,  # all sites
+        channels=[SENSINGCLUES],
+        cooldown_minutes=(project.independence_interval_minutes or 30),
+        cooldown_state={},
+    ))
+    await db.commit()
 
 
 @router.post("/sensingclues/test", response_model=TestObservationResponse)

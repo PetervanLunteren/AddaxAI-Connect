@@ -11,7 +11,7 @@ import apiClient from './client';
 
 export interface DetectionRule {
   id: number;
-  species: string[];            // labels, including person/vehicle
+  species: string[] | null;     // labels (incl. person/vehicle); null = all labels
   site_ids: number[] | null;    // null = all sites of the project
   channels: string[];           // subset of ['email', 'telegram', 'earthranger']
   hour_from: number | null;     // half-open window, wraps past midnight
@@ -24,7 +24,7 @@ export interface DetectionRule {
 }
 
 export interface DetectionRulePayload {
-  species: string[];
+  species: string[] | null;     // null = all labels
   site_ids: number[] | null;
   channels: string[];
   hour_from: number | null;

@@ -516,9 +516,10 @@ class DetectionAlertRule(Base):
         nullable=False,
         index=True,
     )
-    # Non-empty list of label strings. A rule always names its labels,
-    # there is no "all species" form.
-    species = Column(JSON, nullable=False)
+    # null means all labels (every species plus person and vehicle), else a
+    # non-empty list of label strings. An empty list is rejected by the API so
+    # "all" has one form, null, exactly like site_ids below.
+    species = Column(JSON, nullable=True)
     # null means all sites of the project, else a non-empty list of site
     # ids. An empty list is rejected by the API so one meaning has one form.
     site_ids = Column(JSON, nullable=True)

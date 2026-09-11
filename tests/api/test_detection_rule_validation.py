@@ -10,11 +10,14 @@ if _api not in sys.path:
 from routers.detection_alert_rules import validate_rule_fields
 
 
-def check(species=None, site_ids=None, channels=None, hour_from=None,
+_UNSET = object()  # so a test can pass species=None (all labels) explicitly
+
+
+def check(species=_UNSET, site_ids=None, channels=None, hour_from=None,
           hour_to=None, min_group_size=None, cooldown_minutes=None,
           rarity_days=None):
     return validate_rule_fields(
-        species if species is not None else ["wolf"],
+        ["wolf"] if species is _UNSET else species,
         site_ids,
         channels if channels is not None else ["telegram"],
         hour_from, hour_to, min_group_size, cooldown_minutes, rarity_days,
@@ -26,7 +29,12 @@ class TestSpecies:
         assert check() is None
         assert check(species=["wolf", "wild_boar", "person"]) is None
 
+    def test_null_is_all_labels(self):
+        # null means every label, exactly like null site_ids means all sites
+        assert check(species=None) is None
+
     def test_empty_rejected(self):
+        # "all labels" has exactly one representation, null
         assert check(species=[]) is not None
 
     def test_non_string_rejected(self):

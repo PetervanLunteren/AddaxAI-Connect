@@ -403,6 +403,13 @@ class TestSensingCluesGroupName:
 
         monkeypatch.setattr(integrations, "client_from_config", lambda config: FakeClient())
 
+        # Seeding the default rule is tested separately; these tests are
+        # about the group name travelling with the save.
+        async def _noop_seed(db, project_id, user_id):
+            return None
+
+        monkeypatch.setattr(integrations, "ensure_default_sensingclues_rule", _noop_seed)
+
     def _request(self, **overrides):
         values = dict(
             base_url="https://central-test.sensingclues.org/v1/",
@@ -424,7 +431,8 @@ class TestSensingCluesGroupName:
 
         monkeypatch.setattr(integrations, "save_config", capture)
         await configure_sensingclues(
-            1, self._request(group_name="  Addax_testgroup  "), user=None, db=None,
+            1, self._request(group_name="  Addax_testgroup  "),
+            user=SimpleNamespace(id=1), db=None,
         )
         assert saved["group_name"] == "Addax_testgroup"
 
@@ -438,6 +446,79 @@ class TestSensingCluesGroupName:
             return _row(config)
 
         monkeypatch.setattr(integrations, "save_config", capture)
-        await configure_sensingclues(1, self._request(), user=None, db=None)
+        await configure_sensingclues(
+            1, self._request(), user=SimpleNamespace(id=1), db=None,
+        )
         assert "group_name" not in saved
         assert saved["group_id"] == 3523928
+
+
+class TestDefaultSensingCluesRule:
+    """Connecting seeds one all-labels detection rule, once, so a fresh
+    project posts every detection without an admin building a rule by hand."""
+
+    class _Result:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def scalars(self):
+            return self
+
+        def all(self):
+            return self._rows
+
+    class _DB:
+        def __init__(self, rows, project):
+            self._rows = rows
+            self._project = project
+            self.added = []
+            self.committed = False
+
+        async def execute(self, query):
+            return TestDefaultSensingCluesRule._Result(self._rows)
+
+        async def get(self, model, pid):
+            return self._project
+
+        def add(self, obj):
+            self.added.append(obj)
+
+        async def commit(self):
+            self.committed = True
+
+    def _project(self, interval=45):
+        return SimpleNamespace(independence_interval_minutes=interval)
+
+    @pytest.mark.asyncio
+    async def test_seeds_when_no_sensingclues_rule(self):
+        db = self._DB(rows=[], project=self._project(interval=45))
+        await integrations.ensure_default_sensingclues_rule(db, 1, 7)
+        assert len(db.added) == 1
+        rule = db.added[0]
+        assert rule.species is None          # all labels
+        assert rule.site_ids is None         # all sites
+        assert rule.channels == ["sensingclues"]
+        assert rule.created_by_user_id == 7
+        assert rule.cooldown_minutes == 45   # the project's independence interval
+        assert db.committed is True
+
+    @pytest.mark.asyncio
+    async def test_interval_zero_falls_back_to_30(self):
+        db = self._DB(rows=[], project=self._project(interval=0))
+        await integrations.ensure_default_sensingclues_rule(db, 1, 7)
+        assert db.added[0].cooldown_minutes == 30
+
+    @pytest.mark.asyncio
+    async def test_other_channel_rules_do_not_count(self):
+        rows = [SimpleNamespace(channels=["email"]), SimpleNamespace(channels=["telegram"])]
+        db = self._DB(rows=rows, project=self._project())
+        await integrations.ensure_default_sensingclues_rule(db, 1, 7)
+        assert len(db.added) == 1
+
+    @pytest.mark.asyncio
+    async def test_skips_when_a_sensingclues_rule_exists(self):
+        rows = [SimpleNamespace(channels=["sensingclues"])]
+        db = self._DB(rows=rows, project=self._project())
+        await integrations.ensure_default_sensingclues_rule(db, 1, 7)
+        assert db.added == []
+        assert db.committed is False

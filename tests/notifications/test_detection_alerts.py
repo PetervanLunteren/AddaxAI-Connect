@@ -148,6 +148,13 @@ class TestRuleMatches:
         assert _matches(_rule(species=["wolf", "red_fox"]), _facts()) is True
         assert _matches(_rule(species=["red_fox"]), _facts()) is False
 
+    def test_species_null_is_all_labels(self):
+        # A null species list matches any label, the same way null site_ids
+        # matches any site.
+        assert _matches(_rule(species=None), _facts(species="wolf")) is True
+        assert _matches(_rule(species=None), _facts(species="anything")) is True
+        assert _matches(_rule(species=None), _facts(species="person")) is True
+
     def test_site_scope_null_is_all_sites(self):
         assert _matches(_rule(site_ids=None), _facts(site_id=None)) is True
 

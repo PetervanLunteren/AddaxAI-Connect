@@ -176,7 +176,8 @@ def rule_matches(
     (but still reaches rules without a scope). A rule with an hour window
     fails closed when the capture hour is unknown, the window exists to
     suppress."""
-    if facts.species not in (rule.species or []):
+    # A null species list means all labels; only a set list narrows.
+    if rule.species is not None and facts.species not in rule.species:
         return False
     if site_scope is not None:
         if facts.site_id is None or facts.site_id not in site_scope:

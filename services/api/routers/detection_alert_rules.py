@@ -38,7 +38,7 @@ router = APIRouter(prefix="/api/projects", tags=["detection-alert-rules"])
 
 
 def validate_rule_fields(
-    species: List[str],
+    species: Optional[List[str]],
     site_ids: Optional[List[int]],
     channels: List[str],
     hour_from: Optional[int],
@@ -54,12 +54,15 @@ def validate_rule_fields(
     endpoints. Species strings are not checked against the model's label
     list; an unknown label simply never matches an event.
     """
-    if not species:
-        return "at least one label is required"
-    if not all(isinstance(s, str) and s for s in species):
-        return "labels must be non-empty strings"
-    if len(species) != len(set(species)):
-        return "labels must not repeat"
+    if species is not None:
+        # null means all labels; an empty list is rejected so "all" has
+        # exactly one form, null, matching site_ids below.
+        if not species:
+            return "species must be null for all labels, or a non-empty list"
+        if not all(isinstance(s, str) and s for s in species):
+            return "labels must be non-empty strings"
+        if len(species) != len(set(species)):
+            return "labels must not repeat"
 
     if site_ids is not None:
         # An empty list is rejected so "all sites" has exactly one
@@ -101,7 +104,7 @@ def validate_rule_fields(
 
 class DetectionRuleResponse(BaseModel):
     id: int
-    species: List[str]
+    species: Optional[List[str]] = None  # null means all labels
     site_ids: Optional[List[int]] = None
     channels: List[str]
     hour_from: Optional[int] = None
@@ -114,7 +117,7 @@ class DetectionRuleResponse(BaseModel):
 
 
 class CreateDetectionRuleRequest(BaseModel):
-    species: List[str]
+    species: Optional[List[str]] = None  # null means all labels
     site_ids: Optional[List[int]] = None
     channels: List[str]
     hour_from: Optional[int] = None
@@ -289,11 +292,7 @@ async def update_detection_rule(
     next_cooldown_minutes = _next('cooldown_minutes', rule.cooldown_minutes)
     next_rarity_days = _next('rarity_days', rule.rarity_days)
 
-    if next_species is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="species cannot be null",
-        )
+    # next_species may be null, meaning all labels (validated below).
     if next_channels is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

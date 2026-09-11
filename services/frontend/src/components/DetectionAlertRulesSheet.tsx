@@ -46,7 +46,9 @@ type DialogMode =
 const formatHour = (hour: number): string => `${String(hour).padStart(2, '0')}h`;
 
 const ruleTitle = (rule: DetectionRule): string =>
-  rule.species.map(normalizeLabel).join(', ');
+  rule.species === null
+    ? 'All species'
+    : rule.species.map(normalizeLabel).join(', ');
 
 const ruleSummary = (rule: DetectionRule): string => {
   const parts: string[] = [];
@@ -351,7 +353,6 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
   const telegramOnlyUnlinked =
     !fixedChannels && channels.length === 1 && channels[0] === 'telegram' && !telegramLinked;
   const canConfirm =
-    selectedSpecies.length > 0 &&
     channels.length > 0 &&
     !telegramOnlyUnlinked &&
     hoursConsistent && groupSizeValid && cooldownValid && rarityValid;
@@ -372,16 +373,16 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
             <label className="text-xs text-muted-foreground">Labels</label>
             {/* No selectedNoun: with it the trigger would always show a
                 count and the placeholder would never appear. An empty
-                sites selection means all sites, so the trigger must say
-                "All sites", not "0 sites selected". */}
+                selection means all labels, so the trigger must say
+                "All species", not "0 labels selected". Same for sites. */}
             <MultiSelect
               options={speciesOptions}
               value={selectedSpecies}
               onChange={setSelectedSpecies}
-              placeholder="Select labels"
+              placeholder="All species"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              At least one label is required.
+              Leave empty for all species.
             </p>
           </div>
           <div>
@@ -543,7 +544,10 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
           <Button
             onClick={() =>
               onConfirm({
-                species: selectedSpecies.map((opt) => String(opt.value)),
+                species:
+                  selectedSpecies.length > 0
+                    ? selectedSpecies.map((opt) => String(opt.value))
+                    : null,
                 site_ids:
                   selectedSites.length > 0
                     ? selectedSites.map((opt) => Number(opt.value))
