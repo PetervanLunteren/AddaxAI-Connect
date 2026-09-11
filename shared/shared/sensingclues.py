@@ -17,7 +17,7 @@ host https://central.sensingclues.org/v1/):
     POST {base}/users/login                    {"identifier", "password"} -> {"token": JWT, "user": {...}}
     GET  {base}/projects                       -> the groups the account belongs to
     POST {base}/projects/{pid}/alerts          JSON observation -> the alert object, with "id"
-    POST {base}/alerts/{id}/media/{filename}   raw JPEG body
+    POST {base}/alerts/{id}/image/{filename}   raw JPEG body
 
 The group list is what the setup screen offers as a dropdown, so nobody
 has to look a group number up in Central. It is the only GET we make, and
@@ -49,7 +49,7 @@ the update answers with the bare id as plain text; a timestamp with an
 offset is stored as sent; appVersion, autoTimestamp, classifier and
 timestampClassification may be absent; a wrong group id, or a group that
 did not invite the account, is a 404 whose message names the account and
-the group; the media call answers with the alert object; human_activity
+the group; human_activity
 is stored under their internal type "offence"; the count for the generic
 species field is nAnimal, a string like their own number fields; and the
 login answers {"user": {"username": "<numeric account id>"}}.
@@ -330,7 +330,7 @@ def build_test_observation(
 def parse_alert_id(response: httpx.Response) -> str:
     """Cluey answers a create with the alert object as JSON and an update
     (the same id posted again) with the bare id as plain text; the id is
-    what the media call needs. Anything else is a contract change worth
+    what the image call needs. Anything else is a contract change worth
     crashing on."""
     try:
         body: Any = response.json()
@@ -439,9 +439,13 @@ class SensingCluesClient:
         return parse_alert_id(response)
 
     def attach_image(self, alert_id: str, filename: str, data: bytes) -> None:
+        # The /image/ endpoint, so Central shows the photo in the gallery
+        # instead of only as a document. Was /media/ before; the /media/
+        # response shape is confirmed against central-test, /image/ is not
+        # yet, so verify in Central before treating this as settled.
         self._request(
             "POST",
-            f"{self._base_url}/alerts/{alert_id}/media/{filename}",
+            f"{self._base_url}/alerts/{alert_id}/image/{filename}",
             content=data,
             headers={"content-type": "image/jpeg"},
         )
