@@ -36,6 +36,7 @@ from shared.queue import (
     QUEUE_NOTIFICATION_SENSINGCLUES,
     HEARTBEAT_KEY_NOTIFICATIONS_SENSINGCLUES,
 )
+from shared.config import get_settings
 from shared.sensingclues import SensingCluesError, client_from_config, is_configured
 from shared.storage import StorageClient, BUCKET_THUMBNAILS
 
@@ -116,9 +117,10 @@ def process_message(message: Dict[str, Any]) -> None:
         update_notification_status(log_id, 'failed', error_message=NOT_SET_UP)
         return
 
-    # One client per message, from the project's own account. It logs in
-    # once for this observation and its image, and keeps nothing after.
-    client = client_from_config(config)
+    # One client per message, from the project's own account plus the
+    # server's address. It logs in once for this observation and its image,
+    # and keeps nothing after.
+    client = client_from_config(config, get_settings().sensingclues_base_url)
     try:
         alert_id = client.create_observation(config["group_id"], observation)
     except SensingCluesError as e:

@@ -44,7 +44,7 @@ loaded with production data will contact real people.
 | No Telegram polling | With no chat ids listed, the server does not poll for `/start`. Telegram allows one client per bot token, so a copy would otherwise steal messages from the real server. |
 | Bot config cleared on restore | `restore.sh` deletes the restored Telegram bot token, so the copy cannot fight the original over it. |
 | Integration rows cleared on restore | `restore.sh` also deletes the restored project integrations (Gundi API keys and Sensing Clues accounts), so a copy never posts to a real ranger map or Cluey group. Set them up on the dev server on purpose to test. |
-| Sensing Clues test environment | Connect the dev projects to `https://central-test.sensingclues.org/v1/` with a test account, so an alert from dev lands in the Sensing Clues test group and never in a real one. The address is a field on the integration page. |
+| Sensing Clues test environment | The address is a server setting, so point the whole dev box at central-test with `sensingclues_base_url: "https://central-test.sensingclues.org/v1/"` in the dev host_vars (it writes `SENSINGCLUES_BASE_URL` to `.env`). Then connect the dev projects with a test account, so an alert from dev lands in the Sensing Clues test group and never in a real one. |
 
 `dev_notify_emails` defaults to `admin_email`, so alerts you trigger yourself
 still arrive while everyone else is protected. Both workers say what they are

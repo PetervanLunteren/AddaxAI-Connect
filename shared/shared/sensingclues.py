@@ -35,8 +35,9 @@ token lasts a year; a 401 means log in again. In the API an observation
 is called an alert (legacy naming); "type": "alert" is a separate
 information type.
 
-The account is per project: a Cluey login and a group id, both stored in
-the project's integration row. The client adds the identity fields (pid,
+The account (a Cluey login) and the group id are per project, stored in
+the project's integration row; the address is a server setting
+(config.sensingclues_base_url). The client adds the identity fields (pid,
 user, userid) so the builders and the coordinator never touch
 credentials, and it learns its own user id from the login, so nobody has
 to look that number up.
@@ -54,13 +55,10 @@ is stored under their internal type "offence"; the count for the generic
 species field is nAnimal, a string like their own number fields; and the
 login answers {"user": {"username": "<numeric account id>"}}.
 """
-import ipaddress
-import socket
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -104,8 +102,9 @@ class SensingCluesError(Exception):
 
 
 # What a project's integration row holds for this kind. The password is
-# stored like the Gundi API key and never leaves the server.
-CONFIG_KEYS = ("base_url", "username", "password", "group_id")
+# stored like the Gundi API key and never leaves the server. The address is
+# a server setting (config.sensingclues_base_url), not part of the row.
+CONFIG_KEYS = ("username", "password", "group_id")
 
 
 def is_configured(config: Optional[Dict[str, Any]]) -> bool:
@@ -114,43 +113,15 @@ def is_configured(config: Optional[Dict[str, Any]]) -> bool:
     return all(config.get(key) for key in CONFIG_KEYS)
 
 
-def address_problem(base_url: str) -> Optional[str]:
-    """Why this address may not be used, or None when it is fine.
-
-    A project admin types the address and the server then makes requests
-    to it, so a bad one could aim the server at its own network (SSRF). We
-    allow only https to a public host. The scheme rules out file and plain
-    http probes, and resolving the host and refusing loopback, private and
-    other non-public addresses rules out reaching anything inside. Real
-    Sensing Clues hosts are public https, so nobody legitimate is turned
-    away. This resolves DNS, so run it off the event loop.
-    """
-    parsed = urlparse((base_url or "").strip())
-    if parsed.scheme != "https":
-        return "The address must start with https://."
-    try:
-        host = parsed.hostname
-    except ValueError:
-        host = None
-    if not host:
-        return "The address needs a host, like https://central.sensingclues.org/v1/."
-    try:
-        infos = socket.getaddrinfo(host, None)
-    except (socket.gaierror, UnicodeError):
-        return "The address could not be found. Check the host name."
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if not ip.is_global or ip.is_multicast:
-            return "That address points at a private network and cannot be used."
-    return None
-
-
-def client_from_config(config: Optional[Dict[str, Any]]) -> "SensingCluesClient":
-    """A client from the project's integration row. Raises ValueError on
-    an incomplete row, which the caller reports as not set up."""
+def client_from_config(
+    config: Optional[Dict[str, Any]], base_url: str
+) -> "SensingCluesClient":
+    """A client from the project's integration row plus the server's
+    address. Raises ValueError on an incomplete row, which the caller
+    reports as not set up."""
     config = config or {}
     return SensingCluesClient(
-        config.get("base_url") or "",
+        base_url,
         config.get("username") or "",
         config.get("password") or "",
     )

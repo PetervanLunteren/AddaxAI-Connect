@@ -67,8 +67,14 @@ interface ConnectionRowProps {
    *  something is), or saved but no rule active (nothing is sent yet). The
    *  caller decides which applies; null hides it. */
   note?: React.ReactNode;
-  /** What the modal asks for. */
-  fields: ConnectionField[];
+  /** What the modal asks for. Omitted when renderConnectModal supplies a
+   *  custom connect modal (Sensing Clues does this for its two-step flow). */
+  fields?: ConnectionField[];
+  /** A custom connect modal body, rendered inside the shared Dialog in
+   *  place of the default fields form. Call onDone() to close on success.
+   *  isReplace is true when changing an existing connection. The row, pill,
+   *  test and disconnect stay shared. */
+  renderConnectModal?: (props: { onDone: () => void; isReplace: boolean }) => React.ReactNode;
   /** Every change to the form, and the values the modal opens with. Lets the
    *  page fetch what the entered values allow, such as the groups an account
    *  belongs to. */
@@ -76,8 +82,9 @@ interface ConnectionRowProps {
   /** Called when the modal opens and when it closes, so the page can drop
    *  anything it fetched for it. */
   onModalOpenChange?: (open: boolean) => void;
-  /** Save the form. Return a promise so the modal closes only on success. */
-  onSave: (values: Record<string, string>) => Promise<unknown> | void;
+  /** Save the default fields form. Return a promise so the modal closes only
+   *  on success. Not needed when renderConnectModal handles its own save. */
+  onSave?: (values: Record<string, string>) => Promise<unknown> | void;
   onDisconnect: () => void;
   /** Optional test action. Resolve on success, reject with an Error whose
    *  message is shown in the test modal on failure. Opens a modal with the
@@ -107,7 +114,8 @@ interface ConnectionRowProps {
 
 export const ConnectionRow: React.FC<ConnectionRowProps> = ({
   title, isConfigured, pill, statusDetail, emptyDescription, note,
-  fields, onValuesChange, onModalOpenChange, onSave, onDisconnect, onTest,
+  fields = [], renderConnectModal, onValuesChange, onModalOpenChange,
+  onSave, onDisconnect, onTest,
   testLabel = 'Send test event', testModalTitle = 'Send a test event',
   testExplanation, testSuccessMessage = 'Test passed.',
   connectLabel = 'Connect', replaceLabel = 'Replace key',
@@ -191,7 +199,7 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
     if (!canSubmit) return;
     try {
       setSubmitting(true);
-      await onSave(cleaned);
+      await onSave?.(cleaned);
       changeModal(false);
     } catch {
       // The caller surfaces the error as a toast; keep the modal open.
@@ -236,6 +244,9 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
           <DialogHeader>
             <DialogTitle>{isConfigured ? (replaceModalTitle ?? modalTitle) : modalTitle}</DialogTitle>
           </DialogHeader>
+          {renderConnectModal ? (
+            renderConnectModal({ onDone: () => changeModal(false), isReplace: isConfigured })
+          ) : (
           <form onSubmit={submit} className="space-y-4">
             {modalHelp && (
               <p className="text-sm text-muted-foreground">{modalHelp}</p>
@@ -287,6 +298,7 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
               </Button>
             </div>
           </form>
+          )}
         </DialogContent>
       </Dialog>
 

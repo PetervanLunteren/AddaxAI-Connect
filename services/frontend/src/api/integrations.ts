@@ -17,7 +17,6 @@ export interface IntegrationStatus {
   group_id: number | null;
   group_name: string | null;
   username: string | null;
-  base_url: string | null;
   health_status: 'healthy' | 'error' | null;
   last_health_check: string | null;
   last_sent_at: string | null;
@@ -26,7 +25,6 @@ export interface IntegrationStatus {
 }
 
 export interface SensingCluesConfig {
-  base_url: string;
   username: string;
   password: string;
   group_id: number;
@@ -35,7 +33,6 @@ export interface SensingCluesConfig {
 
 /** The account fields on their own, before anything is saved. */
 export interface SensingCluesAccount {
-  base_url: string;
   username: string;
   password: string;
 }

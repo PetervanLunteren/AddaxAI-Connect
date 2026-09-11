@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     mail_from: Optional[str] = None
     domain_name: Optional[str] = None  # For constructing verification links
 
+    # Sensing Clues (API and notifications-sensingclues). One address per
+    # server; the posting account and group stay per project. Dev overrides
+    # this to central-test.
+    sensingclues_base_url: str = "https://central.sensingclues.org/v1/"
+
     # API (for internal service-to-service communication)
     api_host: Optional[str] = "api:8000"  # Internal API endpoint for workers
 

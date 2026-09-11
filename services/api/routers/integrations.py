@@ -9,13 +9,14 @@ per kind because what is stored and what a test does differ:
   returned; the page sees that a key is set, its last characters, and what
   the delivery worker recorded about the connection. The test posts a
   real event, because Gundi has no ping.
-- Sensing Clues stores a Cluey account (address, username, password) and
-  the group id it posts into. The password is never returned; the page
-  sees the address, the username and the group. Saving signs in first, so
-  a wrong account is refused rather than stored. The group is picked from
-  a list: once the account fields are filled the page asks the groups
-  endpoint below, which signs in and reads the groups that account
-  belongs to, so nobody types a group number. That read leaves the
+- Sensing Clues stores a Cluey account (username, password) and the group
+  id it posts into; the address is a server setting
+  (config.sensingclues_base_url), not per project. The password is never
+  returned; the page sees the username and the group. Saving signs in
+  first, so a wrong account is refused rather than stored. The group is
+  picked from a list: the page logs in with the account and asks the
+  groups endpoint below, which reads the groups that account belongs to,
+  so nobody types a group number. That read leaves the
   account refused for about a second, which is why it happens while a
   person fills in a form and never on the delivery path; the note in
   shared/sensingclues.py has the measurements.
@@ -32,6 +33,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.config import get_settings
 from shared.database import get_async_session
 from shared.earthranger import GundiClient, GundiError, build_test_event
 from shared.models import DetectionAlertRule, Project, ProjectIntegration, User
@@ -43,7 +45,6 @@ from shared.project_channels import (
 )
 from shared.sensingclues import (
     SensingCluesError,
-    address_problem,
     build_test_observation,
     client_from_config,
     is_configured,
@@ -68,7 +69,6 @@ class IntegrationStatus(BaseModel):
     group_id: Optional[int] = None  # sensingclues: the Cluey group
     group_name: Optional[str] = None  # sensingclues: that group's name, as Cluey gave it
     username: Optional[str] = None  # sensingclues: the account that posts
-    base_url: Optional[str] = None  # sensingclues: which Cluey environment
     health_status: Optional[str] = None  # healthy | error | None (never tried)
     last_health_check: Optional[datetime] = None
     last_sent_at: Optional[datetime] = None
@@ -81,7 +81,6 @@ class EarthRangerConfigRequest(BaseModel):
 
 
 class SensingCluesConfigRequest(BaseModel):
-    base_url: str
     username: str
     password: str
     group_id: int
@@ -95,7 +94,6 @@ class SensingCluesAccountRequest(BaseModel):
     """The account fields alone, before anything is saved. The groups
     endpoint takes these to sign in and read what that account can post
     into."""
-    base_url: str
     username: str
     password: str
 
@@ -156,7 +154,6 @@ def status_of(kind: str, integration: Optional[ProjectIntegration]) -> Integrati
         group_id=config.get("group_id"),
         group_name=config.get("group_name"),
         username=config.get("username"),
-        base_url=config.get("base_url"),
         **recorded,
     )
 
@@ -346,12 +343,11 @@ def user_detail(error: SensingCluesError) -> str:
     return str(error)
 
 
-def account_from_request(base_url: str, username: str, password: str) -> Dict[str, Any]:
-    """The three account fields as the client wants them. The password is
-    stored and sent as typed: trimming it would silently break a password
-    that really ends in a space."""
+def account_from_request(username: str, password: str) -> Dict[str, Any]:
+    """The account fields as the client wants them. The password is stored
+    and sent as typed: trimming it would silently break a password that
+    really ends in a space. The address is a server setting."""
     return {
-        "base_url": base_url.strip(),
         "username": username.strip(),
         "password": password,
     }
@@ -359,20 +355,12 @@ def account_from_request(base_url: str, username: str, password: str) -> Dict[st
 
 def client_or_400(config: Dict[str, Any]):
     try:
-        return client_from_config(config)
+        return client_from_config(config, get_settings().sensingclues_base_url)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Fill in the address, the username and the password",
+            detail="Fill in the username and the password",
         )
-
-
-async def check_address_or_400(base_url: str) -> None:
-    """Refuse an address the server should not fetch, before it fetches
-    it. Off the event loop because the check resolves DNS."""
-    problem = await asyncio.to_thread(address_problem, base_url)
-    if problem:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=problem)
 
 
 @router.post("/sensingclues/groups", response_model=SensingCluesGroupsResponse)
@@ -393,8 +381,7 @@ async def list_sensingclues_groups(
     A project admin can read the groups of any account whose password
     they know, which is the account they are about to connect anyway.
     """
-    await check_address_or_400(request.base_url)
-    config = account_from_request(request.base_url, request.username, request.password)
+    config = account_from_request(request.username, request.password)
     client = client_or_400(config)
     try:
         # httpx sync client off the event loop, like the statistics fits
@@ -428,9 +415,8 @@ async def configure_sensingclues(
     reach, is caught by the test observation instead.
     """
     validate_group_id(request.group_id)
-    await check_address_or_400(request.base_url)
     config = {
-        **account_from_request(request.base_url, request.username, request.password),
+        **account_from_request(request.username, request.password),
         "group_id": request.group_id,
     }
     if request.group_name:
@@ -500,7 +486,7 @@ async def send_test_observation(
         observation_id=new_observation_id(), project_name=project.name, lat=lat, lon=lon,
     )
     # A fresh client per test: one login per click, no token kept in the API
-    client = client_from_config(config)
+    client = client_or_400(config)
     try:
         alert_id = await asyncio.to_thread(
             client.create_observation, config["group_id"], observation

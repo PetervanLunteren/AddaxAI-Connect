@@ -15,7 +15,6 @@ from shared.sensingclues import (
     TYPE_DETECTION,
     SensingCluesClient,
     SensingCluesError,
-    address_problem,
     build_camera_observation,
     build_detection_observation,
     build_test_observation,
@@ -26,57 +25,6 @@ from shared.sensingclues import (
     parse_groups,
 )
 
-
-def _resolves_to(monkeypatch, ip):
-    """Pin DNS so the address check needs no network and no real host."""
-    monkeypatch.setattr(
-        sensingclues.socket, "getaddrinfo",
-        lambda host, *a, **k: [(None, None, None, "", (ip, 0))],
-    )
-
-
-class TestAddressProblem:
-    """The server fetches whatever address a project admin types, so the
-    address must be a public https host before it does. None means fine."""
-
-    def test_only_https_is_allowed(self):
-        assert "https" in address_problem("http://central.sensingclues.org/v1/")
-        assert "https" in address_problem("file:///etc/passwd")
-        assert "https" in address_problem("ftp://central.sensingclues.org/")
-
-    def test_an_address_without_a_host_is_refused(self):
-        assert "host" in address_problem("https:///v1/")
-
-    def test_ip_literals_inside_the_network_are_refused(self):
-        # getaddrinfo returns an IP literal as-is, so these need no network
-        for bad in (
-            "https://127.0.0.1/v1/", "https://10.0.0.1/", "https://192.168.1.1/",
-            "https://169.254.169.254/latest/meta-data/", "https://[::1]/v1/",
-            "https://0.0.0.0/",
-        ):
-            assert address_problem(bad) is not None, bad
-
-    def test_a_public_https_host_is_accepted(self, monkeypatch):
-        _resolves_to(monkeypatch, "8.8.8.8")
-        assert address_problem("https://central.sensingclues.org/v1/") is None
-
-    def test_whitespace_around_the_address_is_ignored(self, monkeypatch):
-        _resolves_to(monkeypatch, "8.8.8.8")
-        assert address_problem("  https://central.sensingclues.org/v1/  ") is None
-
-    def test_a_public_name_that_resolves_inside_is_refused(self, monkeypatch):
-        # DNS pointed at an internal address is the SSRF this guards against
-        _resolves_to(monkeypatch, "10.1.2.3")
-        assert address_problem("https://sneaky.example.com/") is not None
-
-    def test_an_unresolvable_host_is_refused_not_crashed(self, monkeypatch):
-        import socket as _socket
-
-        def boom(*a, **k):
-            raise _socket.gaierror("nope")
-
-        monkeypatch.setattr(sensingclues.socket, "getaddrinfo", boom)
-        assert "could not be found" in address_problem("https://nope.invalid/")
 
 AMS = ZoneInfo("Europe/Amsterdam")
 OBS_ID = "3f2a9c1e6d0b4d2f9a1b7c8d9e0f1a2b"
@@ -248,9 +196,11 @@ class TestParseAlertId:
                 parse_alert_id(response)
 
 
+SC_BASE = "https://central-test.sensingclues.org/v1/"
+
+
 def _config(**overrides):
     values = dict(
-        base_url="https://central-test.sensingclues.org/v1/",
         username="addax_service",
         password="fake-test-password",
         group_id=3523928,
@@ -260,9 +210,9 @@ def _config(**overrides):
 
 
 class TestConfig:
-    def test_all_four_values_required(self):
+    def test_the_account_and_group_are_required(self):
         assert is_configured(_config())
-        for key in ("base_url", "username", "password", "group_id"):
+        for key in ("username", "password", "group_id"):
             assert not is_configured(_config(**{key: None}))
 
     def test_missing_row_is_not_configured(self):
@@ -270,18 +220,21 @@ class TestConfig:
         assert not is_configured({})
 
     def test_client_from_config(self):
-        assert isinstance(client_from_config(_config()), SensingCluesClient)
+        assert isinstance(client_from_config(_config(), SC_BASE), SensingCluesClient)
 
     def test_client_from_an_incomplete_row_raises(self):
-        for key in ("base_url", "username", "password"):
+        for key in ("username", "password"):
             with pytest.raises(ValueError):
-                client_from_config(_config(**{key: ""}))
+                client_from_config(_config(**{key: ""}), SC_BASE)
         with pytest.raises(ValueError):
-            client_from_config(None)
+            client_from_config(None, SC_BASE)
+        # A blank server address is an ops error, also a ValueError
+        with pytest.raises(ValueError):
+            client_from_config(_config(), "")
 
     def test_the_group_id_is_not_needed_to_build_a_client(self):
         # The group is an argument of every call, not part of the account
-        assert isinstance(client_from_config(_config(group_id=None)), SensingCluesClient)
+        assert isinstance(client_from_config(_config(group_id=None), SC_BASE), SensingCluesClient)
 
 
 def test_new_observation_id_is_32_hex():

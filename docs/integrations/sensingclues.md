@@ -48,19 +48,21 @@ Make a Sensing Clues account for AddaxAI Connect to post with, and invite it int
 
 *By a project admin.*
 
-1. In AddaxAI Connect, open `Integrations > Sensing Clues` and click `Connect`. The Sensing Clues address is already filled in, so leave it unless Sensing Clues told you otherwise. Enter the username and password of the account from step 2.
+1. In AddaxAI Connect, open `Integrations > Sensing Clues` and click `Connect`. Log in with the username and password of the account from step 2. The Sensing Clues address is set once on the server, so you do not enter it here.
 
-2. Pick your group. Once the account is filled in, your groups appear in the list, which can take a few seconds. Choose the one for these alerts. If the list stays empty, the account is not in a group yet; invite it on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"} and try again.
+<!-- screenshot: the connect window, step 1, log in -->
 
-![The Connect window in AddaxAI Connect, with the address, account and group filled in.](https://github.com/user-attachments/assets/571b318f-1796-47fd-ba3d-6d956f213c6d){ .screenshot width="440" }
+2. Pick your group. After you log in, the groups that account can post into appear in a dropdown. Choose the one for these alerts and click `Save`. If the list is empty, the account is not a member of any group yet; invite it on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"} and log in again.
 
-3. Click `Save`. If the account is right, it connects and you are done here. If the address, username or password is wrong, a message tells you it could not sign in and nothing is saved, so you can correct it and try again.
+<!-- screenshot: the connect window, step 2, choose the group -->
 
-![The Sensing Clues page in AddaxAI Connect, connected, with the rule lists below.](https://github.com/user-attachments/assets/fb46c2e6-83bb-4750-8fe2-73de5b210954){ .screenshot }
+3. If the username or password is wrong, a message tells you it could not sign in and you stay on the login step, so you can correct it and try again.
 
 4. Click `Send test observation`. It posts a real observation titled "Test from AddaxAI Connect" at the centre of your project area or your first site. Check that it appears in the group, so you have seen one arrive before the first real alert.
 
-To change anything later, click `Change connection`. The password is never shown, so you type it again even when you only change the group.
+![The Sensing Clues page in AddaxAI Connect, connected, with the rule lists below.](https://github.com/user-attachments/assets/fb46c2e6-83bb-4750-8fe2-73de5b210954){ .screenshot }
+
+To change the group later, click `Change connection` and log in again. The password is never shown, so you enter it again even when you only change the group.
 
 ### 4. Choose what to send
 
@@ -91,7 +93,7 @@ These rules belong to the project, not to you. Any project admin can change them
 
 ## When something does not arrive
 
-- **Saving says it could not sign in:** the address, the username or the password is wrong. Check them by signing in at [Central ↗](https://central.sensingclues.org/){:target="_blank"}, and mind that a pasted password can carry a space.
+- **Logging in says it could not sign in:** the username or the password is wrong. Check them by signing in at [Central ↗](https://central.sensingclues.org/){:target="_blank"}, and mind that a pasted password can carry a space.
 - **The group list stays empty:** the account is not a member of any group. Invite it into one on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"}, the same way you invite a colleague, then open the connect window again.
 - **Observations stop after a while:** the connection shows the last error. A camera without a site or GPS cannot be placed on a map, so its alerts are skipped and logged. A changed password on the Sensing Clues side also stops delivery until you connect again.
 - **Nothing sends at all:** check that an account is connected and that at least one rule is active; the page shows a note when either is missing. Disconnect forgets the account and the group; the rules stay and resume when an account is connected again.

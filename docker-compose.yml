@@ -138,6 +138,7 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN_NAME: ${DOMAIN_NAME}
+      SENSINGCLUES_BASE_URL: ${SENSINGCLUES_BASE_URL:-https://central.sensingclues.org/v1/}
       DEMO_MODE: ${DEMO_MODE:-false}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
       CLASSIFICATION_MODEL: ${CLASSIFICATION_MODEL:-deepfaune}
@@ -529,6 +530,7 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SENSINGCLUES_BASE_URL: ${SENSINGCLUES_BASE_URL:-https://central.sensingclues.org/v1/}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-production}

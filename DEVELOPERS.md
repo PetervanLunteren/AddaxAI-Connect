@@ -520,22 +520,26 @@ What the two share:
 
 ### Sensing Clues
 
-- Everything is per project, in the integration row's `config`: the Cluey
-  address, the account that posts (username and password) and the group
-  id. Nothing is server level, so a deployment nobody at Addax touches can
-  use the integration, and one project cannot post with another project's
-  account. The password sits in the row like the Gundi key; their API has
-  no application token for the alerts path, only a user login, which is
-  why the page and the docs advise a separate account.
-- The setup modal fills its own group field. Once the address, username
-  and password are there the page posts them to
-  `POST .../integrations/sensingclues/groups`, which signs in and calls
-  `SensingCluesClient.list_groups`, and the group becomes a dropdown of
-  Cluey's own names. Nothing is stored by that call, so the account
-  travels in the body. Saving then only signs in again, because the group
-  came from Cluey's list and is already proven. The API turns a 401 into a
-  sentence about the account and never echoes a vendor body back, since a
-  wrong address can answer with a whole web page.
+- The account that posts (username and password) and the group id are per
+  project, in the integration row's `config`. The address is one server
+  setting, `config.sensingclues_base_url` (env `SENSINGCLUES_BASE_URL`,
+  default the production URL, dev overrides to central-test), because a
+  deployment talks to one Sensing Clues and no project needs a different
+  one. `client_from_config(config, base_url)` takes the address as an
+  argument, so the API and the worker inject the settings value and the
+  shared lib stays free of config. One project still cannot post with
+  another project's account. The password sits in the row like the Gundi
+  key; their API has no application token for the alerts path, only a user
+  login, which is why the page and the docs advise a separate account.
+- Connecting is a two-step modal (`SensingCluesConnectModal`, slotted into
+  the shared `ConnectionRow` via `renderConnectModal`). Step 1 logs in and
+  posts the account to `POST .../integrations/sensingclues/groups`, which
+  signs in and calls `SensingCluesClient.list_groups`; step 2 is a dropdown
+  of the account's groups. Nothing is stored by the groups call, so the
+  account travels in the body. Saving then only signs in again, because the
+  group came from Cluey's list and is already proven. The API turns a 401
+  into a sentence about the account. The address is server-set, so there is
+  no per-request address validation any more.
 - `GET /projects` is the only read we make, and it costs something: for
   roughly one to five seconds afterwards every call by that account is
   refused with a 401, a fresh login included. Measured against

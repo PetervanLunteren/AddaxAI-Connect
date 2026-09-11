@@ -45,3 +45,9 @@ letsencrypt_email: "you@example.com"
 # playbook then installs the container toolkit and the ML workers run on the
 # GPU. See the deployment guide.
 use_gpu: false
+
+# Sensing Clues address, for the optional Sensing Clues integration. One
+# address per server; each project fills in its own account and group in the
+# web interface. Leave the default for production. A dev/test server points at
+# central-test in its own host_vars.
+sensingclues_base_url: "https://central.sensingclues.org/v1/"
