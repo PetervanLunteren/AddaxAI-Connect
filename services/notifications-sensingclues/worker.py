@@ -137,8 +137,7 @@ def process_message(message: Dict[str, Any]) -> None:
         data = download_attachment(attachment_path)
         if data is not None:
             try:
-                filename = attachment_path.rsplit('/', 1)[-1]
-                client.attach_image(alert_id, filename, downscale(data))
+                client.attach_image(alert_id, downscale(data))
             except (SensingCluesError, OSError) as e:
                 # The observation is in the group already; a lost photo is
                 # not a failed delivery, but it is worth seeing in the logs.

@@ -376,9 +376,9 @@ class TestClient:
     def test_attach_image_posts_raw_bytes_with_jpeg_content_type(self, monkeypatch):
         http = FakeHttp(LOGIN_OK(), httpx.Response(201, json={"id": "n1"}))
         monkeypatch.setattr(httpx, "request", http)
-        _client().attach_image("n1", "img-1.jpg", b"jpegbytes")
+        _client().attach_image("n1", b"jpegbytes")
         call = http.calls[1]
-        assert call["url"] == "https://cluey.test/v1/alerts/n1/image/img-1.jpg"
+        assert call["url"] == "https://cluey.test/v1/alerts/n1/images"
         assert call["content"] == b"jpegbytes"
         assert call["headers"]["content-type"] == "image/jpeg"
         assert call["headers"]["x-access-token"] == "tok-1"

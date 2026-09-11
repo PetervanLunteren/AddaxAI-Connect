@@ -28,10 +28,10 @@ class FakeClient:
         self.observations.append((group_id, observation))
         return "n978ec2a438c68b97"
 
-    def attach_image(self, alert_id, filename, data):
+    def attach_image(self, alert_id, data):
         if self.fail_image:
             raise self.fail_image
-        self.images.append((alert_id, filename, data))
+        self.images.append((alert_id, data))
 
 
 CONFIG = {
@@ -80,7 +80,7 @@ def _message(**overrides):
 def test_observation_and_image_are_posted_and_recorded(spies):
     worker.process_message(_message())
     assert spies.client.observations == [(3523928, _message()["event"])]
-    assert spies.client.images == [("n978ec2a438c68b97", "img-1.jpg", b"small")]
+    assert spies.client.images == [("n978ec2a438c68b97", b"small")]
     assert spies.statuses == [(42, "sent", None)]
     assert spies.successes == [1]
     assert spies.failures == []
