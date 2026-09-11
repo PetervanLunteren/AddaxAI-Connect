@@ -36,12 +36,16 @@ window.addEventListener('unhandledrejection', (event) => {
 //
 // Once per tab, on purpose. If the chunk is genuinely missing rather than
 // renamed, the second attempt has to fail visibly instead of reloading forever.
+//
+// Claim the attempt before preventDefault: if storage throws, Vite still
+// rethrows and the user gets the error screen, instead of the failure being
+// swallowed into a map that never appears.
 const CHUNK_RELOAD_KEY = 'chunk-reload-attempted';
 
 window.addEventListener('vite:preloadError', (event) => {
   if (sessionStorage.getItem(CHUNK_RELOAD_KEY)) return;
-  event.preventDefault();
   sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+  event.preventDefault();
   window.location.reload();
 });
 

@@ -837,12 +837,11 @@ it, and that difference only shows up in a production build, so check
 was requested. It catches a missing `setWorkerUrl`, but not the `?url` mistake,
 because the dev server it runs against tolerates both.
 
-One thing to know when checking this by hand or in any page-level tool: the
-tile requests themselves are made by the worker, and a worker's requests do not
-appear in the page's resource timing or in most automation's request listeners.
-DevTools shows them, `performance.getEntriesByType('resource')` does not. The
-glyph `.pbf` is the one that is visible from the page, because the worker asks
-the main thread to fetch it, and it only happens when the worker is alive.
+One trap when checking this by hand: the tile requests are made by the worker,
+and `performance.getEntriesByType('resource')` in the page does not list a
+worker's requests, so a working map looks like a map that fetches nothing.
+DevTools and playwright both read them through CDP and do show them, so use
+those and not resource timing.
 
 ## Running tests
 

@@ -79,12 +79,15 @@ const PROJECT_ROUTES = [
 // screenshot cannot show that, so check the requests instead. One route is
 // enough: every map shares the same lazy MapLibreGLLayer.
 //
-// What we can actually see here is the glyph .pbf, not the tiles. MapLibre
-// fetches vector tiles inside the worker, and a worker's requests never reach
-// a page-level listener. Glyphs are fetched by the main thread after the
-// worker asks for them, so they are visible, and they only ever happen when
-// the worker is alive. That makes them the signal: on the broken build the
-// style and the sprites still loaded and the glyphs did not.
+// Both the vector tiles and the font glyphs are .pbf, and playwright sees both:
+// its request event comes from CDP, which reports a worker's requests too.
+// Measured against a deliberately broken worker, the style and the sprites
+// still load and .pbf drops to zero, which is the whole signal.
+//
+// Checking this by hand is where it gets confusing:
+// performance.getEntriesByType('resource') does not list the worker's
+// requests, so a working map looks like a map that fetches nothing. Use the
+// DevTools network panel.
 const MAP_ROUTE = 'insights/map';
 
 function readEnvLocal() {

@@ -122,7 +122,6 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
               boundsOptions={{ padding: [24, 24], maxZoom: 12 }}
               style={{ height: '100%', width: '100%', zIndex: 0 }}
               zoomControl={false}
-              attributionControl={false}
               dragging={false}
               scrollWheelZoom={false}
               doubleClickZoom={false}
