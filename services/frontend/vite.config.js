@@ -10,25 +10,32 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const target = env.VITE_PROXY_TARGET || 'http://api:8000'
   const entry = { target, changeOrigin: true }
+  const proxy = {
+    '/api': entry,
+    '/auth': entry,
+    '/users': entry,
+    // Served by the frontend container's nginx in deployments (static
+    // mount), so the local loop must proxy it to the remote too or
+    // project cover images look broken during local dev.
+    '/project-images': entry,
+    '/ws': {
+      target: target.replace(/^http/, 'ws'),
+      ws: true,
+      changeOrigin: true,
+    },
+  }
   return {
     plugins: [react()],
     server: {
       host: '0.0.0.0',
       port: 5173,
-      proxy: {
-        '/api': entry,
-        '/auth': entry,
-        '/users': entry,
-        // Served by the frontend container's nginx in deployments (static
-        // mount), so the local loop must proxy it to the remote too or
-        // project cover images look broken during local dev.
-        '/project-images': entry,
-        '/ws': {
-          target: target.replace(/^http/, 'ws'),
-          ws: true,
-          changeOrigin: true,
-        },
-      },
+      proxy,
+    },
+    // `vite preview` does not inherit server.proxy, so without this the
+    // production build cannot reach an API and the one check that catches a
+    // blank map (see the verification gate in DEVELOPERS.md) is impossible.
+    preview: {
+      proxy,
     },
   }
 })

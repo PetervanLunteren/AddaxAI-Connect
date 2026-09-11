@@ -814,6 +814,29 @@ the only thing standing between a type error and production. A tolerated pile
 of errors hides real bugs: the verification panel silently erased sex and
 age-class data for months while `tsc` reported it on every run.
 
+### The map is not covered by any of that
+
+After touching maplibre or the base layers, open a map in a browser and check
+the network panel for `.pbf` requests. Nothing else catches a blank map.
+
+MapLibre fetches vector tiles and font glyphs inside a web worker, while the
+style, the TileJSON and the sprites come from the main thread. So a worker that
+never starts leaves a map that loads its style, sizes its canvas correctly,
+logs nothing, and draws nothing. `npm run build`, CI, the sweep screenshots and
+`verify-server.sh` all stay green. That is what happened on the first attempt at
+maplibre 6 (commit `42904028`), and it cost a revert.
+
+Since maplibre 6 the worker URL has to be given to the library, because it can
+no longer find its own under a bundler. `MapLibreGLLayer.tsx` does that with
+`setWorkerUrl` and a `?worker&url` import. It must be `?worker&url`, never plain
+`?url`: the worker imports a sibling module that `?url` does not emit next to
+it, and that difference only shows up in a production build, so check
+`npm run preview` and not only `npm run dev`.
+
+`npm run sweep` flags `NO-VECTOR-TILES` on the insights map route when no `.pbf`
+was requested. It catches a missing `setWorkerUrl`, but not the `?url` mistake,
+because the dev server it runs against tolerates both.
+
 ## Running tests
 
 ```bash

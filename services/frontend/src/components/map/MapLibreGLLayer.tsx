@@ -29,7 +29,22 @@ import {
   type LayerProps,
 } from '@react-leaflet/core';
 import { MaplibreGL } from '@maplibre/maplibre-gl-leaflet';
+import { setWorkerUrl } from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
+
+// maplibre 6 no longer finds its own worker under a bundler. It derives the
+// URL from import.meta.url, which Vite resolves to our own chunk, so it asks
+// for a file that was never emitted. new Worker() on a 404 fails without
+// throwing, and the vector tiles and the font glyphs are both fetched inside
+// that worker, so every map draws blank with nothing in the console while the
+// build, CI and the canvas size all stay correct. This one call prevents that,
+// and this module is the only place maplibre is loaded, so once is enough.
+//
+// It must be ?worker&url, never plain ?url: the worker imports its sibling
+// maplibre-gl-shared.mjs, which ?url does not emit alongside it, and that
+// failure only shows up in a production build.
+setWorkerUrl(workerUrl);
 
 interface MapLibreGLLayerProps extends LayerProps {
   /** URL of the MapLibre style JSON. */

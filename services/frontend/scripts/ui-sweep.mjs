@@ -74,6 +74,13 @@ const PROJECT_ROUTES = [
   'bulk-upload',
 ];
 
+// The one route that draws the MapLibre vector base layer. MapLibre fetches
+// its tiles and glyphs (both .pbf) inside a web worker, so a worker that never
+// starts leaves the map blank with no console error and a green build. That is
+// invisible to a screenshot, so check the requests instead. One route is
+// enough: every map shares the same lazy MapLibreGLLayer.
+const VECTOR_TILE_ROUTE = 'insights/map';
+
 function readEnvLocal() {
   const file = path.join(FRONTEND_DIR, '.env.local');
   if (!fs.existsSync(file)) return {};
@@ -172,13 +179,20 @@ async function main() {
 
     const page = await context.newPage();
     let consoleErrors = [];
+    let pbfRequests = 0;
     page.on('console', (msg) => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
     });
     page.on('pageerror', (error) => consoleErrors.push(String(error)));
+    // Count requests issued, not responses, so a slow tile server cannot make
+    // this flap inside SETTLE_MS.
+    page.on('request', (request) => {
+      if (request.url().endsWith('.pbf')) pbfRequests += 1;
+    });
 
     for (const route of routes) {
       consoleErrors = [];
+      pbfRequests = 0;
       const name = `${viewport.name}/${slug(route)}`;
       try {
         await page.goto(`${BASE}${route}`, { waitUntil: 'load', timeout: 30000 });
@@ -190,6 +204,7 @@ async function main() {
         const flags = [];
         if (overflow) flags.push('HORIZONTAL-OVERFLOW');
         if (consoleErrors.length) flags.push(`CONSOLE-ERRORS=${consoleErrors.length}`);
+        if (route.endsWith(VECTOR_TILE_ROUTE) && pbfRequests === 0) flags.push('NO-VECTOR-TILES');
         reportLines.push(`${flags.length ? 'WARN' : 'ok  '} ${name}${flags.length ? '  ' + flags.join(' ') : ''}`);
         for (const error of consoleErrors) reportLines.push(`       ${error.slice(0, 300)}`);
       } catch (error) {
