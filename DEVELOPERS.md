@@ -833,9 +833,16 @@ no longer find its own under a bundler. `MapLibreGLLayer.tsx` does that with
 it, and that difference only shows up in a production build, so check
 `npm run preview` and not only `npm run dev`.
 
-`npm run sweep` flags `NO-VECTOR-TILES` on the insights map route when no `.pbf`
+`npm run sweep` flags `NO-MAP-TILES` on the insights map route when no `.pbf`
 was requested. It catches a missing `setWorkerUrl`, but not the `?url` mistake,
 because the dev server it runs against tolerates both.
+
+One thing to know when checking this by hand or in any page-level tool: the
+tile requests themselves are made by the worker, and a worker's requests do not
+appear in the page's resource timing or in most automation's request listeners.
+DevTools shows them, `performance.getEntriesByType('resource')` does not. The
+glyph `.pbf` is the one that is visible from the page, because the worker asks
+the main thread to fetch it, and it only happens when the worker is alive.
 
 ## Running tests
 

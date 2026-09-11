@@ -74,12 +74,18 @@ const PROJECT_ROUTES = [
   'bulk-upload',
 ];
 
-// The one route that draws the MapLibre vector base layer. MapLibre fetches
-// its tiles and glyphs (both .pbf) inside a web worker, so a worker that never
-// starts leaves the map blank with no console error and a green build. That is
-// invisible to a screenshot, so check the requests instead. One route is
+// The one route that draws the MapLibre vector base layer. A worker that never
+// starts leaves the map blank with no console error and a green build, and a
+// screenshot cannot show that, so check the requests instead. One route is
 // enough: every map shares the same lazy MapLibreGLLayer.
-const VECTOR_TILE_ROUTE = 'insights/map';
+//
+// What we can actually see here is the glyph .pbf, not the tiles. MapLibre
+// fetches vector tiles inside the worker, and a worker's requests never reach
+// a page-level listener. Glyphs are fetched by the main thread after the
+// worker asks for them, so they are visible, and they only ever happen when
+// the worker is alive. That makes them the signal: on the broken build the
+// style and the sprites still loaded and the glyphs did not.
+const MAP_ROUTE = 'insights/map';
 
 function readEnvLocal() {
   const file = path.join(FRONTEND_DIR, '.env.local');
@@ -204,7 +210,7 @@ async function main() {
         const flags = [];
         if (overflow) flags.push('HORIZONTAL-OVERFLOW');
         if (consoleErrors.length) flags.push(`CONSOLE-ERRORS=${consoleErrors.length}`);
-        if (route.endsWith(VECTOR_TILE_ROUTE) && pbfRequests === 0) flags.push('NO-VECTOR-TILES');
+        if (route.endsWith(MAP_ROUTE) && pbfRequests === 0) flags.push('NO-MAP-TILES');
         reportLines.push(`${flags.length ? 'WARN' : 'ok  '} ${name}${flags.length ? '  ' + flags.join(' ') : ''}`);
         for (const error of consoleErrors) reportLines.push(`       ${error.slice(0, 300)}`);
       } catch (error) {
