@@ -14,9 +14,14 @@
  * must declare one itself. The vector data stops at z14 and MapLibre
  * overzooms it, so rendering stays crisp all the way down.
  *
- * Attribution is handled by the plugin: once the GL style loads, it adds the
- * attribution declared by the style's sources (OpenFreeMap, OpenMapTiles,
- * OpenStreetMap) to Leaflet's attribution control.
+ * Attribution is ours, never the style's. The plugin turns MapLibre's own
+ * attribution control off and hands the string to Leaflet's control instead,
+ * which writes it straight into innerHTML and sanitises nothing. Reading that
+ * string from the style server would let whoever serves the tiles run script
+ * in every user's browser. customAttribution makes the plugin return the
+ * string below rather than the one it fetched, so the remote value never
+ * reaches the DOM. Street and Satellite hardcode theirs the same way, in
+ * BaseLayersControl.
  */
 import {
   createElementObject,
@@ -31,13 +36,19 @@ interface MapLibreGLLayerProps extends LayerProps {
   styleUrl: string;
   /** Leaflet zoom limit, same default as a raster TileLayer. */
   maxZoom?: number;
+  /** Credit line to show. Required, so it can never fall back to the style's. */
+  attribution: string;
 }
 
 const MapLibreGLLayer = createLayerComponent<
   InstanceType<typeof MaplibreGL>,
   MapLibreGLLayerProps
->(({ styleUrl, maxZoom = 18 }, ctx) => {
-  const layer = new MaplibreGL({ style: styleUrl, maxZoom });
+>(({ styleUrl, maxZoom = 18, attribution }, ctx) => {
+  const layer = new MaplibreGL({
+    style: styleUrl,
+    maxZoom,
+    attributionControl: { customAttribution: attribution },
+  });
   return createElementObject(layer, ctx);
 });
 

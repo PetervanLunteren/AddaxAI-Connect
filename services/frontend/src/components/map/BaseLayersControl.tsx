@@ -33,6 +33,16 @@ export const MAP_MAX_ZOOM = 18;
 
 const LIGHT_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
+// Hardcoded on purpose, like the two raster layers below. The plugin hands
+// this to Leaflet's attribution control, which writes it with innerHTML and
+// sanitises nothing, so it must never come from the style server. Copied
+// verbatim from what https://tiles.openfreemap.org/planet serves today; if
+// OpenFreeMap ever changes what it asks for, update it here.
+const LIGHT_ATTRIBUTION =
+  '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> ' +
+  '<a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> ' +
+  'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>';
+
 export const SATELLITE_LAYER = {
   url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   attribution:
@@ -77,7 +87,11 @@ export function LightBaseLayer() {
   }
   return (
     <Suspense fallback={null}>
-      <MapLibreGLLayer styleUrl={LIGHT_STYLE_URL} maxZoom={MAP_MAX_ZOOM} />
+      <MapLibreGLLayer
+        styleUrl={LIGHT_STYLE_URL}
+        maxZoom={MAP_MAX_ZOOM}
+        attribution={LIGHT_ATTRIBUTION}
+      />
     </Suspense>
   );
 }
