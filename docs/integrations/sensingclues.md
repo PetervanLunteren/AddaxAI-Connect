@@ -84,7 +84,7 @@ These rules belong to the project, not to you. Any project admin can change them
 
 | Field | Animal detection | Person or vehicle | Camera alert |
 |---|---|---|---|
-| Kind | Animal sighting | Human activity | Point of interest, alert |
+| Kind | Animal sighting, detection | Human activity, detection | Point of interest, note |
 | Headline | "Red fox at Site 4" | "Person at Site 4" or "Vehicle at Site 4" | The alert text, for example "CAM-012 with battery below 20%: 12%" |
 | Time | Capture time of the image, in the server timezone | Same | Time of the check |
 | Location | The image's GPS, or the site | Same | The camera's current site |

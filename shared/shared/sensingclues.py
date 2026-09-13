@@ -32,8 +32,9 @@ Reported to Sensing Clues.
 
 Every call but login sends the token as the x-access-token header. The
 token lasts a year; a 401 means log in again. In the API an observation
-is called an alert (legacy naming); "type": "alert" is a separate
-information type.
+is called an alert (legacy naming); "type" is their observationClass,
+"detection" for what a camera saw and "note" for our camera and theft
+watch alerts.
 
 The account (a Cluey login) and the group id are per project, stored in
 the project's integration row; the address is a server setting
@@ -73,7 +74,10 @@ OBSERVATION_TYPE_ANIMAL = "animal_sighting"
 OBSERVATION_TYPE_HUMAN = "human_activity"
 OBSERVATION_TYPE_POI = "point_of_interest"
 TYPE_DETECTION = "detection"
-TYPE_ALERT = "alert"
+# Their observationClass: "detection" for what a camera saw (animal,
+# person, vehicle), "note" for camera and theft watch alerts and the
+# test observation. Agreed with Sensing Clues, September 2026.
+TYPE_NOTE = "note"
 # MegaDetector only says person or vehicle. Cluey wants a human activity
 # and a transport; "Vehicle ns" is their value for an unspecified vehicle.
 HUMAN_ACTIVITY = "Person in camera"
@@ -267,7 +271,7 @@ def build_camera_observation(
     observation = _observation(
         observation_id=observation_id,
         observation_type=OBSERVATION_TYPE_POI,
-        information_type=TYPE_ALERT,
+        information_type=TYPE_NOTE,
         timestamp=isoformat_with_offset(occurred_at),
         description=summary,
         lat=lat,
@@ -287,7 +291,7 @@ def build_test_observation(
     observation = _observation(
         observation_id=observation_id,
         observation_type=OBSERVATION_TYPE_POI,
-        information_type=TYPE_ALERT,
+        information_type=TYPE_NOTE,
         timestamp=isoformat_with_offset(datetime.now(timezone.utc)),
         description=f"Test from AddaxAI Connect ({project_name})",
         lat=lat,

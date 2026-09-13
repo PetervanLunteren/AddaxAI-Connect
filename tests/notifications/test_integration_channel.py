@@ -333,7 +333,7 @@ class TestCameraBranch:
         assert sent[0]["kind"] == "sensingclues"
         observation = sent[0]["event"]
         assert observation["observation_type"] == "point_of_interest"
-        assert observation["type"] == "alert"
+        assert observation["type"] == "note"
         assert observation["geometry"]["coordinates"] == [2.0, 1.0]
         assert observation["values"]["addaxAI"]["alert"] == "battery_low"
         assert observation["values"]["addaxAI"]["cameraId"] == "CAM-011"

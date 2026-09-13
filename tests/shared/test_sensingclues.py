@@ -11,7 +11,7 @@ from shared.sensingclues import (
     OBSERVATION_TYPE_ANIMAL,
     OBSERVATION_TYPE_HUMAN,
     OBSERVATION_TYPE_POI,
-    TYPE_ALERT,
+    TYPE_NOTE,
     TYPE_DETECTION,
     SensingCluesClient,
     SensingCluesError,
@@ -142,7 +142,7 @@ class TestBuildCameraObservation:
     def test_shape(self):
         obs = self._camera()
         assert obs["observation_type"] == OBSERVATION_TYPE_POI
-        assert obs["type"] == TYPE_ALERT
+        assert obs["type"] == TYPE_NOTE
         assert obs["timestamp"] == "2026-07-01T06:00:00+00:00"
         assert obs["description"] == "CAM-012 with battery below 20%: 12%"
         assert obs["values"] == {
@@ -169,7 +169,7 @@ class TestBuildTestObservation:
         obs = build_test_observation(observation_id=OBS_ID, project_name="Demo", lat=1.0, lon=2.0)
         assert obs["description"] == "Test from AddaxAI Connect (Demo)"
         assert obs["observation_type"] == OBSERVATION_TYPE_POI
-        assert obs["type"] == TYPE_ALERT
+        assert obs["type"] == TYPE_NOTE
         assert obs["geometry"]["coordinates"] == [2.0, 1.0]
         assert obs["timestamp"].endswith("+00:00")
         assert obs["values"] == {"addaxAI": {"alert": "test", "cameraId": "addaxai-connect-test"}}
