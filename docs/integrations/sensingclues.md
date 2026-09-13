@@ -68,11 +68,11 @@ To change the group later, click `Change connection` and log in again. The passw
 
 *In AddaxAI Connect, by a project admin.*
 
-A connected account on its own sends nothing. Every observation comes from a rule, so the last step is to add at least one. Until a rule is active, the page says so under the connection.
+A connected project starts with one detection rule already in place. It posts every label above the project's thresholds, all species and also people and vehicles, at all sites, with the project's independence interval as cooldown. So detections flow from the moment you connect. Camera and theft watch observations start off. Narrow or pause that default rule, or add camera and theft watch rules, in the lists below. If no rule is active, the page says so under the connection.
 
 The same page has three rule lists.
 
-- Detection rules: which labels, at which sites, at what time of day, minimum group size, cooldown, and an "absent for days" filter for rare visitors. The cooldown starts at the project's independence interval.
+- Detection rules: which labels (leave the labels empty for all species, which is what the default rule does), at which sites, at what time of day, minimum group size, cooldown, and an "absent for days" filter for rare visitors. The cooldown starts at the project's independence interval.
 - Camera rules: battery below, SD card above, silent for more than, rejected files per day. Once per incident.
 - Theft watch rules: a person unusually close to a camera, or a camera silent longer than its own rhythm.
 
@@ -80,7 +80,7 @@ These rules belong to the project, not to you. Any project admin can change them
 
 ## What an observation contains
 
-![A detection open in Central, showing the fields and the photo under Documents.](https://github.com/user-attachments/assets/938ba2ac-853e-4c56-9b52-99adbb5b34c4){ .screenshot }
+<!-- screenshot: a detection open in Central, showing the fields and the photo in the Images gallery -->
 
 | Field | Animal detection | Person or vehicle | Camera alert |
 |---|---|---|---|
@@ -96,4 +96,4 @@ These rules belong to the project, not to you. Any project admin can change them
 - **Logging in says it could not sign in:** the username or the password is wrong. Check them by signing in at [Central ↗](https://central.sensingclues.org/){:target="_blank"}, and mind that a pasted password can carry a space.
 - **The group list stays empty:** the account is not a member of any group. Invite it into one on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"}, the same way you invite a colleague, then open the connect window again.
 - **Observations stop after a while:** the connection shows the last error. A camera without a site or GPS cannot be placed on a map, so its alerts are skipped and logged. A changed password on the Sensing Clues side also stops delivery until you connect again.
-- **Nothing sends at all:** check that an account is connected and that at least one rule is active; the page shows a note when either is missing. Disconnect forgets the account and the group; the rules stay and resume when an account is connected again.
+- **Nothing sends at all:** check that an account is connected and that at least one rule is active, the default rule may have been paused or deleted; the page shows a note when either is missing. Disconnect forgets the account and the group; the rules stay and resume when an account is connected again.

@@ -474,8 +474,9 @@ What the two share:
   that channel, `load_rule_row` lets any admin edit those whoever made
   them, and the personal notifications page never shows them.
 - `project_integrations` holds one row per project and kind. `config`
-  carries the kind's one setting (`api_key` for earthranger, `group_id`
-  for sensingclues) and the delivery worker stamps `last_sent_at`,
+  carries the kind's settings (`api_key` for earthranger; `username`,
+  `password`, `group_id` and `group_name` for sensingclues) and the
+  delivery worker stamps `last_sent_at`,
   `events_sent`, `last_error` and `health_status` on it.
   `routers/integrations.py` serves status, get and delete for any kind,
   and configure and test per kind.
@@ -540,6 +541,17 @@ What the two share:
   group came from Cluey's list and is already proven. The API turns a 401
   into a sentence about the account. The address is server-set, so there is
   no per-request address validation any more.
+- Connecting seeds one detection rule (`ensure_default_sensingclues_rule`
+  in `routers/integrations.py`): species `null`, all sites, channel
+  sensingclues, cooldown the project's independence interval (30 when it
+  is off), and only when the project has no Sensing Clues detection rule
+  yet. A `null` species list on any detection rule means every label, the
+  same way a `null` `site_ids` means every site; the matcher, the validator
+  and the rule editor all treat an empty labels selection as all.
+- Their `type` (observationClass) is `detection` for what a camera saw
+  (animal, person, vehicle) and `note` for camera condition alerts, theft
+  watch and the test observation. Agreed with Sensing Clues, September
+  2026.
 - `GET /projects` is the only read we make, and it costs something: for
   roughly one to five seconds afterwards every call by that account is
   refused with a 401, a fresh login included. Measured against
