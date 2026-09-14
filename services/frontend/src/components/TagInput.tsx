@@ -73,17 +73,24 @@ export const TagInput: React.FC<TagInputProps> = ({
 
   const suggestionsOpen = showSuggestions && filteredSuggestions.length > 0;
 
+  // Enter and blur do the same thing: pick the highlighted suggestion when
+  // the list is open, else add the typed text as a new tag. Escape first
+  // to type a tag that is a prefix of an existing one. Blur commits too
+  // because a parent form reads only `value`: text left in the box when
+  // the user clicked Save used to be thrown away, and in the site sheet
+  // the Save button did not even appear for it.
+  const commitInput = () => {
+    if (suggestionsOpen) {
+      addTag(filteredSuggestions[activeIndex]);
+    } else if (inputValue.trim()) {
+      addTag(inputValue);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // Enter picks the highlighted suggestion when the list is open,
-      // else adds the typed text as a new tag. Escape first to type a
-      // tag that is a prefix of an existing one.
-      if (suggestionsOpen) {
-        addTag(filteredSuggestions[activeIndex]);
-      } else if (inputValue.trim()) {
-        addTag(inputValue);
-      }
+      commitInput();
     } else if (e.key === 'ArrowDown' && suggestionsOpen) {
       e.preventDefault();
       setActiveIndex((i) => (i + 1) % filteredSuggestions.length);
@@ -135,6 +142,7 @@ export const TagInput: React.FC<TagInputProps> = ({
               setShowSuggestions(true);
             }}
             onFocus={() => setShowSuggestions(true)}
+            onBlur={commitInput}
             onKeyDown={handleKeyDown}
             placeholder={value.length === 0 ? placeholder : ''}
             className="flex-1 min-w-[80px] text-sm bg-transparent outline-none placeholder:text-muted-foreground"
@@ -150,6 +158,9 @@ export const TagInput: React.FC<TagInputProps> = ({
             <button
               key={suggestion}
               type="button"
+              // Keep focus in the input, or the blur above would add the
+              // typed prefix as a tag before this click adds the suggestion
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => addTag(suggestion)}
               onMouseEnter={() => setActiveIndex(index)}
               className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent ${
