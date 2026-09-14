@@ -119,8 +119,16 @@ def process_message(message: Dict[str, Any]) -> None:
 
     # One client per message, from the project's own account plus the
     # server's address. It logs in once for this observation and its image,
-    # and keeps nothing after.
-    client = client_from_config(config, get_settings().sensingclues_base_url)
+    # and keeps nothing after. A blank server address is a misconfiguration:
+    # fail the delivery like any other error so the log row and the
+    # integration health say so, instead of leaving the row pending.
+    try:
+        client = client_from_config(config, get_settings().sensingclues_base_url)
+    except ValueError as e:
+        logger.error("Sensing Clues address is not set on this server", log_id=log_id, error=str(e))
+        update_notification_status(log_id, 'failed', error_message=str(e))
+        record_failure(project_id, str(e))
+        return
     try:
         alert_id = client.create_observation(config["group_id"], observation)
     except SensingCluesError as e:

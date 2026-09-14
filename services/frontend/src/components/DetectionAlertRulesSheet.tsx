@@ -255,7 +255,8 @@ export const DetectionAlertRulesSheet: React.FC<DetectionAlertRulesSheetProps> =
         title="Delete this detection rule?"
         body={
           ruleToDelete
-            ? `The rule for ${ruleTitle(ruleToDelete)} will stop alerting.`
+            // Title plus scope, so two "All species" rules are told apart
+            ? `The rule for ${ruleTitle(ruleToDelete)} (${ruleSummary(ruleToDelete)}) will stop alerting.`
             : ''
         }
         confirmLabel="Delete rule"

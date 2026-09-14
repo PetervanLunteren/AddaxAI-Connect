@@ -92,6 +92,9 @@ export const SensingCluesPage: React.FC = () => {
 
   const onConnected = () => {
     invalidateStatus();
+    // Connecting seeds the default detection rule, so the badge and the
+    // "no rules active" note must see the fresh list too.
+    queryClient.invalidateQueries({ queryKey: ['detection-alert-rules', projectIdNum, CHANNEL] });
     toast.success('Connected. Send a test observation to see one arrive in your group.');
   };
 

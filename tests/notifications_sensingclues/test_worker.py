@@ -50,7 +50,7 @@ def spies(monkeypatch):
         config=dict(CONFIG), built=[], attachment=b"jpeg",
     )
 
-    def fake_client_from_config(config):
+    def fake_client_from_config(config, base_url):
         rec.built.append(config)
         return rec.client
 
@@ -139,7 +139,7 @@ def test_a_project_without_an_integration_fails_without_posting(spies):
     assert spies.failures == []
 
 
-@pytest.mark.parametrize("missing", ["base_url", "username", "password", "group_id"])
+@pytest.mark.parametrize("missing", ["username", "password", "group_id"])
 def test_a_half_filled_row_fails_without_posting(spies, missing):
     spies.config = {**CONFIG, missing: None}
     worker.process_message(_message())
@@ -192,3 +192,17 @@ class TestDownscale:
         assert out.format == "JPEG"
         assert out.mode == "RGB"
         assert out.size == (800, 400)
+
+
+def test_blank_server_address_is_a_failed_delivery(spies, monkeypatch):
+    # client_from_config raises ValueError when the server address is blank.
+    # That must land as a failed delivery with the reason on the log row and
+    # the integration health, not as a row left pending.
+    def no_address(config, base_url):
+        raise ValueError("Cluey needs an address, a username and a password")
+
+    monkeypatch.setattr(worker, "client_from_config", no_address)
+    worker.process_message(_message())
+    assert spies.statuses == [(42, "failed", "Cluey needs an address, a username and a password")]
+    assert spies.failures == [(1, "Cluey needs an address, a username and a password")]
+    assert spies.client.observations == []

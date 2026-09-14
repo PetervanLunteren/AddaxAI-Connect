@@ -134,7 +134,8 @@ class TestSensingCluesValidation:
     def test_a_401_becomes_a_sentence_about_the_account(self):
         # "Unauthenticated" is their word for it and means nothing to a user
         detail = user_detail(SensingCluesError("Sensing Clues login failed with 401", status=401))
-        assert "Check the address, the username and the password" in detail
+        assert "Check the username and the password" in detail
+        assert "address" not in detail  # the address is a server setting, not the user's to fix
 
     def test_a_404_becomes_a_sentence_about_the_group(self):
         # Their message for it names our own account back at the user
@@ -153,7 +154,7 @@ class TestSensingCluesValidation:
         )
         detail = user_detail(error)
         assert "html" not in detail
-        assert "405" in detail and "address" in detail
+        assert "405" in detail
 
 
 class TestSensingCluesSave:

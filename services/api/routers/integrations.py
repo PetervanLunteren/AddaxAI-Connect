@@ -333,13 +333,13 @@ def user_detail(error: SensingCluesError) -> str:
     own message, shortened, because a wrong address can answer with a
     whole web page."""
     if error.status == 401:
-        return "Could not sign in to Sensing Clues. Check the address, the username and the password."
+        return "Could not sign in to Sensing Clues. Check the username and the password."
     if error.status == 404:
         return ("Sensing Clues refused the group. Check that the group id is right and that the "
                 "account is a member of it.")
     if error.status is not None:
-        return (f"Sensing Clues answered {error.status}. Check that the address points at Sensing "
-                "Clues and try again.")
+        return (f"Sensing Clues answered {error.status}. Try again, and if it keeps happening "
+                "ask your server admin to check the Sensing Clues address.")
     return str(error)
 
 
