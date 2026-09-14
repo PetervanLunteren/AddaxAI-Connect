@@ -9,6 +9,11 @@ sed -i.bak '/^Co-Authored-By: Claude.*/d' "$MSG_FILE"
 # Remove "Generated with [Claude Code]" lines (with or without emoji prefix)
 sed -i.bak '/Generated with \[Claude Code\]/d' "$MSG_FILE"
 
+# Remove the Claude-Session trailer and any bare chat-session link, so a
+# private session URL never lands in the public history.
+sed -i.bak '/^Claude-Session:/d' "$MSG_FILE"
+sed -i.bak '/claude\.ai\/code\/session/d' "$MSG_FILE"
+
 # Remove trailing blank lines
 sed -i.bak -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$MSG_FILE"
 
