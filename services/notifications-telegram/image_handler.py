@@ -4,7 +4,7 @@ Image handler for downloading attachments from MinIO
 from shared.logger import get_logger
 from shared.storage import StorageClient
 
-logger = get_logger("notifications-signal.images")
+logger = get_logger("notifications-telegram.images")
 
 
 def download_image_from_minio(storage_path: str) -> bytes:

@@ -101,6 +101,10 @@ Go to the `Notifications` page in any project, click the Telegram link button, a
 
 Once linked, users pick which species they want instant Telegram alerts for in their project notification settings. They can also limit the alerts to certain sites, so you only hear about the places you care about.
 
+The link is per project, so link once in every project you want alerts from.
+
+**Messages stopped after a new phone?** If you deleted the bot chat on your old phone, or Telegram now runs under a new number, the server can no longer reach you. Go to the `Notifications` page, click `Link again` next to the Telegram row, and follow the modal once more. `Unlink` stops Telegram messages without linking a new account.
+
 ## You're all set
 
 Once images start flowing in, your dashboards, maps, and galleries will fill up. Happy monitoring!

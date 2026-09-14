@@ -147,6 +147,26 @@ export const NotificationsPage: React.FC = () => {
     generateTokenMutation.mutate();
   };
 
+  // Unlink drops the stored chat id. Relink unlinks first and then opens
+  // the normal link modal: the modal's "Check status" closes as soon as
+  // the account reads as linked, so on a still-linked account it would
+  // close before the user scans. Unlinking first makes the old link
+  // disappear, and the modal only closes after the new /start arrives.
+  const unlinkMutation = useMutation({
+    mutationFn: () => notificationsApi.unlinkTelegram(projectIdNum),
+    onSuccess: async () => {
+      await refetchLinkStatus();
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to unlink Telegram: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  const handleRelink = async () => {
+    await unlinkMutation.mutateAsync();
+    generateTokenMutation.mutate();
+  };
+
   // Lightweight count query so the row-level summary on this page can show
   // "N scheduled reminders" without duplicating the full list logic that
   // already lives in RemindersSheet.
@@ -282,13 +302,35 @@ export const NotificationsPage: React.FC = () => {
                   <SettingRow
                     title="Telegram account"
                     description={isTelegramLinked
-                      ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos.'
+                      ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos. Messages stopped after a new phone or a reinstall? Link again.'
                       : 'Link your Telegram account so alert rules can send you instant Telegram messages with photos.'}
                   >
                     {isTelegramLinked ? (
-                      <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                        Linked
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                          Linked
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={handleRelink}
+                          disabled={unlinkMutation.isPending || generateTokenMutation.isPending}
+                          className="whitespace-nowrap"
+                        >
+                          Link again
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onClick={() => unlinkMutation.mutate()}
+                          disabled={unlinkMutation.isPending || generateTokenMutation.isPending}
+                          className="whitespace-nowrap"
+                        >
+                          Unlink
+                        </Button>
+                      </div>
                     ) : (
                       <Button
                         variant="outline"

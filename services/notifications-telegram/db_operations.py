@@ -1,5 +1,5 @@
 """
-Database operations for Signal worker
+Database operations for the Telegram worker
 """
 from typing import Optional
 from datetime import datetime, timezone
@@ -8,7 +8,7 @@ from shared.logger import get_logger
 from shared.models import NotificationLog
 from shared.database import get_sync_session
 
-logger = get_logger("notifications-signal.db")
+logger = get_logger("notifications-telegram.db")
 
 
 def update_notification_status(
