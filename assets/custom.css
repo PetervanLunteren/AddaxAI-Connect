@@ -1,0 +1,47 @@
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0a6063;
+  --md-primary-fg-color--light: #0a6063;
+  --md-primary-fg-color--dark: #084e50;
+  --md-accent-fg-color: #0a6063;
+}
+
+.md-header__button.md-logo img {
+  border: 2px solid white;
+  border-radius: 4px;
+  padding: 1px;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #0a6063;
+  --md-primary-fg-color--light: #0a6063;
+  --md-primary-fg-color--dark: #084e50;
+  --md-accent-fg-color: #0a6063;
+}
+
+/* Screenshots. Their white background melts into the page, so give them a
+   hairline border, soft corners, and a light shadow. */
+.screenshot {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+[data-md-color-scheme="slate"] .screenshot {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Row of screenshots at one shared height. Give each image a percentage
+   width proportional to its aspect ratio (widths summing to ~100%), then
+   the heights come out equal and the row scales with the page instead of
+   scrolling. */
+.screenshot-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.screenshot-row img {
+  height: auto;
+  min-width: 0;
+}
