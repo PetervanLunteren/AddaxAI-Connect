@@ -104,7 +104,10 @@ const FeedTile: React.FC<{
   const base =
     // Full width below lg so the focus box is never a narrow strip on
     // phones and tablets, hugging the image only on desktop.
-    (hero ? 'flex h-[60vh] w-full items-center justify-center lg:w-fit' : 'h-24 w-32 shrink-0') +
+    // lg:min-w keeps the box from collapsing around the fallback (a missing
+    // or still-loading image has no width of its own), which squashed the
+    // badge and caption into a sliver.
+    (hero ? 'flex h-[60vh] w-full items-center justify-center lg:w-fit lg:min-w-[24rem]' : 'h-24 w-32 shrink-0') +
     ' relative overflow-hidden rounded-lg bg-muted' +
     (selected ? ' ring-2 ring-primary' : '');
 
