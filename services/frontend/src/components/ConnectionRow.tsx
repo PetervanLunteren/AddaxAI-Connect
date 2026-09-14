@@ -99,6 +99,8 @@ interface ConnectionRowProps {
   connectLabel?: string;
   /** Label of the button that opens the modal again once connected. */
   replaceLabel?: string;
+  /** Label of the button that calls onDisconnect. */
+  disconnectLabel?: string;
   /** Modal title when connecting. */
   modalTitle: string;
   /** Modal title when changing an existing connection. Defaults to modalTitle. */
@@ -118,7 +120,7 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
   onSave, onDisconnect, onTest,
   testLabel = 'Send test event', testModalTitle = 'Send a test event',
   testExplanation, testSuccessMessage = 'Test passed.',
-  connectLabel = 'Connect', replaceLabel = 'Replace key',
+  connectLabel = 'Connect', replaceLabel = 'Replace key', disconnectLabel = 'Disconnect',
   modalTitle, replaceModalTitle, saveLabel = 'Save', modalHelp,
   docsUrl, docsLabel = 'Setup and troubleshooting guide',
 }) => {
@@ -229,7 +231,7 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
                 </Button>
               )}
               <Button type="button" size="sm" variant="outline" onClick={openModal}>{replaceLabel}</Button>
-              <Button type="button" size="sm" variant="outline" onClick={onDisconnect}>Disconnect</Button>
+              <Button type="button" size="sm" variant="outline" onClick={onDisconnect}>{disconnectLabel}</Button>
             </>
           )}
         </div>

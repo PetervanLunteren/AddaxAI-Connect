@@ -11,7 +11,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import { SettingRow, SettingRowDivider } from '../components/ui/SettingRow';
 import { Button } from '../components/ui/Button';
 import { Callout } from '../components/ui/Callout';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
+import { ConnectionRow } from '../components/ConnectionRow';
 import { useToast } from '../components/ui/Toaster';
 import { notificationsApi } from '../api/notifications';
 import { remindersApi } from '../api/reminders';
@@ -38,8 +38,8 @@ export const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedProject, canAdminCurrentProject } = useProject();
 
-  // Telegram linking state
-  const [showLinkModal, setShowLinkModal] = useState(false);
+  // Telegram linking state. The deep link exists only while the link
+  // modal is open; ConnectionRow owns the modal itself.
   const [deepLink, setDeepLink] = useState<string | null>(null);
 
   // Email reports state
@@ -136,22 +136,12 @@ export const NotificationsPage: React.FC = () => {
     mutationFn: () => notificationsApi.generateTelegramLinkToken(projectIdNum),
     onSuccess: (data) => {
       setDeepLink(data.deep_link);
-      setShowLinkModal(true);
     },
     onError: (error: any) => {
       toast.error(`Failed to generate link: ${error.response?.data?.detail || error.message}`);
     },
   });
 
-  const handleGenerateLink = () => {
-    generateTokenMutation.mutate();
-  };
-
-  // Unlink drops the stored chat id. Relink unlinks first and then opens
-  // the normal link modal: the modal's "Check status" closes as soon as
-  // the account reads as linked, so on a still-linked account it would
-  // close before the user scans. Unlinking first makes the old link
-  // disappear, and the modal only closes after the new /start arrives.
   const unlinkMutation = useMutation({
     mutationFn: () => notificationsApi.unlinkTelegram(projectIdNum),
     onSuccess: async () => {
@@ -162,8 +152,26 @@ export const NotificationsPage: React.FC = () => {
     },
   });
 
-  const handleRelink = async () => {
-    await unlinkMutation.mutateAsync();
+  // ConnectionRow opens the link modal and tells us. On open we make the
+  // token; on a relink we unlink first, because the modal's "Check status"
+  // closes as soon as the account reads as linked, so on a still-linked
+  // account it would close before the user scans. The modal only closes
+  // after the new /start arrives. On close the link is forgotten, a token
+  // is single use.
+  const handleLinkModalOpenChange = async (open: boolean) => {
+    if (!open) {
+      setDeepLink(null);
+      return;
+    }
+    unlinkMutation.reset();
+    generateTokenMutation.reset();
+    if (isTelegramLinked) {
+      try {
+        await unlinkMutation.mutateAsync();
+      } catch {
+        return; // the toast said why; the modal shows the error state
+      }
+    }
     generateTokenMutation.mutate();
   };
 
@@ -299,55 +307,75 @@ export const NotificationsPage: React.FC = () => {
                   can point at one place. */}
               {isTelegramConfigured && (
                 <>
-                  <SettingRow
+                  <ConnectionRow
                     title="Telegram account"
-                    description={isTelegramLinked
-                      ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos. Messages stopped after a new phone or a reinstall? Link again.'
-                      : 'Link your Telegram account so alert rules can send you instant Telegram messages with photos.'}
-                  >
-                    {isTelegramLinked ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                          Linked
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          type="button"
-                          onClick={handleRelink}
-                          disabled={unlinkMutation.isPending || generateTokenMutation.isPending}
-                          className="whitespace-nowrap"
-                        >
-                          Link again
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          type="button"
-                          onClick={() => unlinkMutation.mutate()}
-                          disabled={unlinkMutation.isPending || generateTokenMutation.isPending}
-                          className="whitespace-nowrap"
-                        >
-                          Unlink
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={handleGenerateLink}
-                        disabled={generateTokenMutation.isPending}
-                        className="whitespace-nowrap"
-                      >
-                        {generateTokenMutation.isPending ? (
-                          <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
-                        ) : (
-                          'Link Telegram'
-                        )}
-                      </Button>
+                    isConfigured={isTelegramLinked}
+                    pill={{ tone: 'neutral', label: 'Linked' }}
+                    statusDetail="Alert rules can send you Telegram messages with photos. Messages stopped after a new phone? Link again."
+                    emptyDescription="Link your Telegram account so alert rules can send you instant Telegram messages with photos."
+                    renderConnectModal={({ onDone }) => (
+                      deepLink ? (
+                        <div className="space-y-6">
+                          <div className="flex justify-center bg-white p-4 rounded-lg">
+                            <QRCode value={deepLink} size={200} />
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 border-t border-border" />
+                            <span className="text-sm text-muted-foreground">or</span>
+                            <div className="flex-1 border-t border-border" />
+                          </div>
+
+                          <div className="flex justify-center">
+                            <a
+                              href={deepLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center font-medium flex items-center justify-center gap-2"
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                              Open in Telegram
+                            </a>
+                          </div>
+
+                          <div className="bg-muted border border-border p-4 rounded-md">
+                            <ol className="list-decimal list-outside ml-4 space-y-2 text-sm text-muted-foreground">
+                              <li className="pl-2">Scan the QR code above with your phone, or click the button above to open Telegram</li>
+                              <li className="pl-2">Press Start in Telegram when it opens</li>
+                              <li className="pl-2">Come back here and click "Check status" to confirm</li>
+                            </ol>
+                          </div>
+
+                          <div className="flex justify-center">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={async () => {
+                                const result = await refetchLinkStatus();
+                                if (result.data?.linked) onDone();
+                              }}
+                            >
+                              Check status
+                            </Button>
+                          </div>
+                        </div>
+                      ) : unlinkMutation.isError || generateTokenMutation.isError ? (
+                        <Callout variant="error">
+                          Could not prepare a new link. Close this and try again.
+                        </Callout>
+                      ) : (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                      )
                     )}
-                  </SettingRow>
+                    onModalOpenChange={handleLinkModalOpenChange}
+                    onDisconnect={() => unlinkMutation.mutate()}
+                    connectLabel="Link Telegram"
+                    replaceLabel="Link again"
+                    disconnectLabel="Unlink"
+                    modalTitle="Link your Telegram account"
+                  />
 
                   <SettingRowDivider />
                 </>
@@ -596,69 +624,6 @@ export const NotificationsPage: React.FC = () => {
           </Card>
         </form>
       )}
-
-      {/* Telegram linking modal */}
-      <Dialog open={showLinkModal && !!deepLink} onOpenChange={setShowLinkModal}>
-        <DialogContent onClose={() => setShowLinkModal(false)}>
-          <DialogHeader>
-            <DialogTitle>Link your Telegram account</DialogTitle>
-          </DialogHeader>
-
-              <div className="space-y-6">
-                {/* QR code */}
-                <div className="flex justify-center bg-white p-4 rounded-lg">
-                  {/* Guard needed even though the dialog only opens with a
-                      link, React validates props at element creation */}
-                  {deepLink && <QRCode value={deepLink} size={200} />}
-                </div>
-
-                {/* Divider */}
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 border-t border-border" />
-                  <span className="text-sm text-muted-foreground">or</span>
-                  <div className="flex-1 border-t border-border" />
-                </div>
-
-                {/* Open Telegram button */}
-                <div className="flex justify-center">
-                  <a
-                    href={deepLink ?? undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center font-medium flex items-center justify-center gap-2"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Open in Telegram
-                  </a>
-                </div>
-
-                {/* Instructions */}
-                <div className="bg-muted border border-border p-4 rounded-md">
-                  <ol className="list-decimal list-outside ml-4 space-y-2 text-sm text-muted-foreground">
-                    <li className="pl-2">Scan the QR code above with your phone, or click the button above to open Telegram</li>
-                    <li className="pl-2">Press Start in Telegram when it opens</li>
-                    <li className="pl-2">Come back here and click "Check status" to confirm</li>
-                  </ol>
-                </div>
-
-                {/* Check status button */}
-                <div className="flex justify-center">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const result = await refetchLinkStatus();
-                      if (result.data?.linked) {
-                        setShowLinkModal(false);
-                      }
-                    }}
-                    className="px-6 py-2 border border-border bg-background rounded-md hover:bg-accent transition-colors"
-                  >
-                    Check status
-                  </button>
-                </div>
-              </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Scheduled reminders slideout (admin only). Self-contained: it
           owns its own queries, mutations, and dialogs. */}
