@@ -1,6 +1,6 @@
 # Sensing Clues
 
-Send detections and camera alerts to a Sensing Clues group as observations in the Cluey app. Each alert becomes one observation with the annotated photo and a link back to the full record. It is a notification channel, like email and Telegram: an observation is sent once and never changed. Connect is the record, Cluey is the alert feed.
+Send detections and camera alerts to a Sensing Clues group as observations in the Cluey app. Each alert becomes one observation with the annotated photo and a link back to the full record. It is a notification channel, like email and Telegram: an observation is sent once and never changed. Connect is the record, Sensing Clues is the alert feed.
 
 ## Before you start
 
@@ -8,21 +8,21 @@ This page connects AddaxAI Connect to a Sensing Clues group you already have. Se
 
 You need:
 
-- A Sensing Clues account and a group. Cluey is the field app, [Central ↗](https://central.sensingclues.org/){:target="_blank"} is the web app where groups and members are managed.
+- A Sensing Clues account and a group. Cluey is the field app, [Central ↗](https://central.sensingclues.org/){:target="_blank"} is the web app where groups and members are managed, and [Focus360 ↗](https://focus.sensingclues.org/){:target="_blank"} is the web app to see and query all your data in one view.
 - Project admin access in AddaxAI Connect.
 
-Use a separate Sensing Clues account for this, not your own login. AddaxAI Connect signs in as that account to post, so its password is kept on your server, and a separate account makes it clear in Cluey who posted what.
+Use a separate Sensing Clues account for this, not your own login. AddaxAI Connect signs in as that account to post, so its password is kept on your server, and a separate account makes it clear in Sensing Clues who posted what.
 
 ## How it works
 
 1. A live image finishes classification.
 2. The rules you set in AddaxAI Connect decide whether it goes through.
 3. One observation is posted into your group, with the annotated photo.
-4. It shows in Cluey and Central for every member of the group, usually within a minute.
+4. It shows in Cluey, Focus360 and Central for every member of the group, usually within a minute.
 
 Camera alerts work the same way: a low battery, a full SD card, silence, rejected files, or a theft watch trigger posts one observation at the camera's site.
 
-Never sent: bulk uploads (an SD card carried in is history, not an alert), images that match no rule, and updates. Correct a species in Connect later and the observation in Cluey keeps the original label.
+Never sent: bulk uploads (an SD card carried in is history, not an alert), images that match no rule, and updates. Correct a species in Connect later and the observation in Sensing Clues keeps the original label.
 
 ## Set up
 
@@ -40,7 +40,7 @@ Make a group for the camera trap alerts in Cluey or on the [Groups page in Centr
 
 *On the Sensing Clues side, one time.*
 
-Make a Sensing Clues account for AddaxAI Connect to post with, and invite it into the group on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"}, the same way you invite a colleague. Use a separate account, not your own login, so your password stays out of it and Cluey shows clearly who posted. The account name has to be unique across all of Sensing Clues, so build it from your organisation and project, for example `wwf-nl-serengeti-addaxai-connect`.
+Make a Sensing Clues account for AddaxAI Connect to post with, and invite it into the group on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"}, the same way you invite a colleague. Use a separate account, not your own login, so your password stays out of it and Sensing Clues shows clearly who posted. The account name has to be unique across all of Sensing Clues, so build it from your organisation and project, for example `wwf-nl-serengeti-addaxai-connect`.
 
 ![The Group members page in Central, showing the account as a member.](https://github.com/user-attachments/assets/d2bd926a-61d3-4f3f-87b9-c7113a950b4a){ .screenshot }
 
