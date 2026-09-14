@@ -57,8 +57,9 @@ without `--limit` it would try to deploy all of them at once. A guard refuses
 that rather than letting it happen quietly.
 
 Every command below assumes `ansible_user` is `root`. When you connect as your
-own user instead, add `-K` so ansible can ask for your sudo password, or give
-that user passwordless sudo on the server.
+own user instead, give that user passwordless sudo on the server (see the
+deployment guide). Asking for the password with `-K` works with classic sudo
+only, not with sudo-rs, the default on Ubuntu 26.04.
 
 ```bash
 # one server, the normal case

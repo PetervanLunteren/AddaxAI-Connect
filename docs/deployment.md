@@ -44,7 +44,16 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `your_vm_ipv4` | `123.456.789.01` | IPv4 address of your server |
     | `your_ssh_key` | `~/.ssh/id_rsa` | Path to your private SSH key |
 
-    The example inventory connects as `root`, which is what cloud VMs give you. If your server is a normal Ubuntu install where you log in with your own user, put that username in `ansible_user` and add `-K` to every `ansible-playbook` command in this guide. It asks for your sudo password once per run. Without it the playbook stops at the first task with `sudo: interactive authentication is required`. Also set `app_user` in `ansible/group_vars/all/main.yml` to that same username, so the playbook does not create a second account.
+    ??? tip "Not connecting as root?"
+
+        The example inventory connects as `root`, which is what cloud VMs give you. If your server is a normal Ubuntu install where you log in with your own user, put that username in `ansible_user` and let it run sudo without a password. On the server:
+
+        ```bash
+        echo "$USER ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/90-ansible
+        sudo chmod 440 /etc/sudoers.d/90-ansible
+        ```
+
+        Without this the playbook stops at the first task with `sudo: interactive authentication is required`. Adding `-K` to the playbook command instead, so Ansible asks for the sudo password, works with classic sudo but not with sudo-rs, the default on Ubuntu 26.04, where it times out waiting for the prompt. Also set `app_user` in `ansible/group_vars/all/main.yml` to that same username, so the playbook does not create a second account.
 
 5.  **Configure your settings**
 
