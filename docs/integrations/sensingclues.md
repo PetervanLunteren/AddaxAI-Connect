@@ -50,17 +50,17 @@ Make a Sensing Clues account for AddaxAI Connect to post with, and invite it int
 
 1. In AddaxAI Connect, open `Integrations > Sensing Clues` and click `Connect`. Log in with the username and password of the account from step 2. The Sensing Clues address is set once on the server, so you do not enter it here.
 
-<!-- screenshot: the connect window, step 1, log in -->
+![The connect window in AddaxAI Connect, step 1, signing in with the account.](https://github.com/user-attachments/assets/385c89d1-b28c-49a6-af79-a096c63aaa67){ .screenshot }
 
 2. Pick your group. After you log in, the groups that account can post into appear in a dropdown. Choose the one for these alerts and click `Save`. If the list is empty, the account is not a member of any group yet; invite it on the [Group members page in Central ↗](https://central.sensingclues.org/members){:target="_blank"} and log in again.
 
-<!-- screenshot: the connect window, step 2, choose the group -->
+![The connect window, step 2, choosing the group the account can post into.](https://github.com/user-attachments/assets/1bb3af91-23f1-4d88-9306-78be6d041a8e){ .screenshot }
 
 3. If the username or password is wrong, a message tells you it could not sign in and you stay on the login step, so you can correct it and try again.
 
 4. Click `Send test observation`. It posts a real observation titled "Test from AddaxAI Connect" at the centre of your project area or your first site. Check that it appears in the group, so you have seen one arrive before the first real alert.
 
-![The Sensing Clues page in AddaxAI Connect, connected, with the rule lists below.](https://github.com/user-attachments/assets/fb46c2e6-83bb-4750-8fe2-73de5b210954){ .screenshot }
+![The Sensing Clues page in AddaxAI Connect, connected, with the rule lists below.](https://github.com/user-attachments/assets/058ead82-684b-443c-a644-323a25603a06){ .screenshot }
 
 To change the group later, click `Change connection` and log in again. The password is never shown, so you enter it again even when you only change the group.
 
@@ -80,7 +80,7 @@ These rules belong to the project, not to you. Any project admin can change them
 
 ## What an observation contains
 
-<!-- screenshot: a detection open in Central, showing the fields and the photo in the Images gallery -->
+![A detection open in Central, showing the fields and the photo in the Images gallery.](https://github.com/user-attachments/assets/952ff370-3233-4ce4-9b5e-04e5d0401648){ .screenshot }
 
 | Field | Animal detection | Person or vehicle | Camera alert |
 |---|---|---|---|
