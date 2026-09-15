@@ -1,8 +1,10 @@
 """
 Utility functions for querying species counts with human verification preference.
 
-When an image is verified, uses HumanObservation data.
-When not verified, falls back to AI Detection/Classification data.
+By default a verified image contributes its HumanObservation rows and an
+unverified image its AI Detection/Classification rows. The functions that back
+a filtered statistic take a label source (shared/label_source.py) to count
+only the human rows, or the AI rows of every image.
 """
 from typing import Dict, List, Optional, Tuple
 from datetime import date, datetime, timedelta
@@ -10,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, union_all, literal, text
 
 from shared.classification_threshold import classification_passes_threshold
+from shared.label_source import DEFAULT_LABEL_SOURCE, LabelScope, label_scope
 
 
 def _site_image_condition(site_ids: List[int]):
@@ -23,6 +26,28 @@ def _site_image_condition(site_ids: List[int]):
     return Image.deployment_id.in_(
         select(Deployment.id).where(Deployment.site_id.in_(site_ids))
     )
+
+
+def _ai_image_filters(scope: LabelScope) -> list:
+    """The is_verified predicate for the AI branches. Empty when the source
+    reads the AI rows of every image, verified ones included."""
+    from shared.models import Image
+    return [] if scope.ai_all_images else [Image.is_verified == False]
+
+
+def _union_for_scope(scope: LabelScope, verified_query, *ai_queries):
+    """UNION ALL of the branches the scope includes. The human branch comes
+    first, then the AI branches, the order the merged queries always had."""
+    parts = ([verified_query] if scope.include_verified else []) + (
+        list(ai_queries) if scope.include_ai else []
+    )
+    return parts[0] if len(parts) == 1 else union_all(*parts)
+
+
+def _scoped_sql(sql: str, source: str) -> str:
+    """Fill the {verified_scope} and {ai_scope} slots of a raw SQL template."""
+    scope = label_scope(source)
+    return sql.format(verified_scope=scope.verified_sql, ai_scope=scope.ai_sql)
 
 
 async def get_preferred_species_counts(
@@ -264,6 +289,7 @@ async def get_preferred_hourly_activity(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> List[dict]:
     """
     Get hourly activity counts (0-23) from preferred data source.
@@ -276,18 +302,20 @@ async def get_preferred_hourly_activity(
     """
     from shared.models import Image, Camera, Project, Detection, Classification, HumanObservation
 
+    scope = label_scope(source)
+
     # Common filters
     verified_filters = [
         Image.is_verified == True,
         Camera.project_id.in_(project_ids),
     ]
     unverified_filters = [
-        Image.is_verified == False,
+        *_ai_image_filters(scope),
         Camera.project_id.in_(project_ids),
     ]
 
     pv_filters = [
-        Image.is_verified == False,
+        *_ai_image_filters(scope),
         Camera.project_id.in_(project_ids),
         Detection.category.in_(['person', 'vehicle']),
     ]
@@ -360,7 +388,7 @@ async def get_preferred_hourly_activity(
     )
 
     # Combine and sum
-    combined = union_all(verified_query, unverified_query, pv_query).subquery()
+    combined = _union_for_scope(scope, verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.hour,
@@ -492,6 +520,7 @@ async def get_preferred_daily_trend(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> List[dict]:
     """
     Get daily detection counts from preferred data source.
@@ -503,18 +532,20 @@ async def get_preferred_daily_trend(
     """
     from shared.models import Image, Camera, Project, Detection, Classification, HumanObservation
 
+    scope = label_scope(source)
+
     # Common filters
     verified_filters = [
         Image.is_verified == True,
         Camera.project_id.in_(project_ids),
     ]
     unverified_filters = [
-        Image.is_verified == False,
+        *_ai_image_filters(scope),
         Camera.project_id.in_(project_ids),
     ]
 
     pv_filters = [
-        Image.is_verified == False,
+        *_ai_image_filters(scope),
         Camera.project_id.in_(project_ids),
         Detection.category.in_(['person', 'vehicle']),
     ]
@@ -587,7 +618,7 @@ async def get_preferred_daily_trend(
     )
 
     # Combine and sum
-    combined = union_all(verified_query, unverified_query, pv_query).subquery()
+    combined = _union_for_scope(scope, verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.date,
@@ -608,6 +639,7 @@ async def get_preferred_species_detection_times(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> List[tuple]:
     """
     Detection times for a single species, preferring human observations
@@ -623,6 +655,8 @@ async def get_preferred_species_detection_times(
     from shared.models import (
         Image, Camera, Project, Detection, Classification, HumanObservation,
     )
+
+    scope = label_scope(source)
 
     sp = species_filter.lower()
 
@@ -656,7 +690,7 @@ async def get_preferred_species_detection_times(
         .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
-                Image.is_verified == False,
+                *_ai_image_filters(scope),
                 Image.is_hidden == False,
                 Camera.project_id.in_(project_ids),
                 Detection.confidence >= Project.detection_threshold,
@@ -678,7 +712,7 @@ async def get_preferred_species_detection_times(
             .join(Project, Camera.project_id == Project.id)
             .where(
                 and_(
-                    Image.is_verified == False,
+                    *_ai_image_filters(scope),
                     Image.is_hidden == False,
                     Camera.project_id.in_(project_ids),
                     Detection.confidence >= Project.detection_threshold,
@@ -703,11 +737,8 @@ async def get_preferred_species_detection_times(
         if pv_query is not None:
             pv_query = pv_query.where(_site_image_condition(site_ids))
 
-    union_query = (
-        union_all(verified_query, unverified_query, pv_query)
-        if pv_query is not None
-        else union_all(verified_query, unverified_query)
-    )
+    ai_queries = [unverified_query] + ([pv_query] if pv_query is not None else [])
+    union_query = _union_for_scope(scope, verified_query, *ai_queries)
 
     result = await db.execute(select(union_query.subquery().c.captured_at))
     rows = result.all()
@@ -749,7 +780,7 @@ verified_presence AS (
     INNER JOIN images i ON ho.image_id = i.id
     INNER JOIN deployments dep ON i.deployment_id = dep.id
     INNER JOIN active_sites asx ON asx.site_id = dep.site_id
-    WHERE i.is_verified = TRUE
+    WHERE {verified_scope}
       AND i.is_hidden = FALSE
       AND i.captured_at >= CAST(:start_dt AS timestamp)
       AND i.captured_at <= CAST(:end_dt AS timestamp)
@@ -764,7 +795,7 @@ unverified_presence AS (
     INNER JOIN active_sites asx ON asx.site_id = dep.site_id
     INNER JOIN cameras c ON i.camera_id = c.id
     INNER JOIN projects p ON c.project_id = p.id
-    WHERE i.is_verified = FALSE
+    WHERE {ai_scope}
       AND i.is_hidden = FALSE
       AND i.captured_at >= CAST(:start_dt AS timestamp)
       AND i.captured_at <= CAST(:end_dt AS timestamp)
@@ -794,6 +825,7 @@ async def get_naive_occupancy(
     end_date: datetime,
     site_ids: Optional[List[int]] = None,
     top_n: Optional[int] = 15,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> Tuple[List[dict], int]:
     """
     Return naive occupancy per species and the total active-site count.
@@ -822,7 +854,7 @@ async def get_naive_occupancy(
     sites_total_row = (await db.execute(sites_total_sql, params)).one()
     sites_total = int(sites_total_row.sites_total)
 
-    presence_rows = (await db.execute(text(_NAIVE_OCCUPANCY_SQL), params)).all()
+    presence_rows = (await db.execute(text(_scoped_sql(_NAIVE_OCCUPANCY_SQL, source)), params)).all()
     points = [
         {"species": row.species, "sites_detected": int(row.sites_detected)}
         for row in presence_rows
@@ -865,7 +897,7 @@ FROM (
     SELECT i.deployment_id, i.captured_at AS ts, LOWER(ho.species) AS species
     FROM human_observations ho
     INNER JOIN images i ON ho.image_id = i.id
-    WHERE i.is_verified = TRUE AND i.is_hidden = FALSE
+    WHERE {verified_scope} AND i.is_hidden = FALSE
       AND i.captured_at >= CAST(:start_dt AS timestamp)
       AND i.captured_at <= CAST(:end_dt AS timestamp)
       AND LOWER(ho.species) NOT IN ('person', 'vehicle')
@@ -876,7 +908,7 @@ FROM (
     INNER JOIN images i ON d.image_id = i.id
     INNER JOIN cameras c ON i.camera_id = c.id
     INNER JOIN projects p ON c.project_id = p.id
-    WHERE i.is_verified = FALSE AND i.is_hidden = FALSE
+    WHERE {ai_scope} AND i.is_hidden = FALSE
       AND i.captured_at >= CAST(:start_dt AS timestamp)
       AND i.captured_at <= CAST(:end_dt AS timestamp)
       AND d.confidence >= p.detection_threshold
@@ -911,6 +943,7 @@ async def build_site_detection_history(
     site_ids: Optional[List[int]] = None,
     species_subset: Optional[List[str]] = None,
     occasion_length_days: int = 7,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> dict:
     """Site x occasion detection history, the shape occupancy models in R expect.
 
@@ -951,7 +984,7 @@ async def build_site_detection_history(
     if not active:
         return {"site_ids": [], "site_names": {}, "occasions": occasions, "matrices": {}}
 
-    detected_rows = (await db.execute(text(_SITE_MATRIX_DETECTED_SQL), params)).all()
+    detected_rows = (await db.execute(text(_scoped_sql(_SITE_MATRIX_DETECTED_SQL, source)), params)).all()
     detected: Dict[str, set[Tuple[int, int]]] = {}
     for r in detected_rows:
         detected.setdefault(r.species, set()).add((r.site_id, r.occ_idx))
@@ -998,6 +1031,7 @@ async def build_site_detection_matrix(
     species_subset: List[str],
     site_ids: Optional[List[int]] = None,
     occasion_length_days: int = 7,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> Dict[str, List[List[Optional[int]]]]:
     """Site x occasion detection matrix per species (rows in site-id order).
 
@@ -1009,6 +1043,6 @@ async def build_site_detection_matrix(
     history = await build_site_detection_history(
         db, project_ids, start_date, end_date,
         site_ids=site_ids, species_subset=species_subset,
-        occasion_length_days=occasion_length_days,
+        occasion_length_days=occasion_length_days, source=source,
     )
     return history["matrices"]

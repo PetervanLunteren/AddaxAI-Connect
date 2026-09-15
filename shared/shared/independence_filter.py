@@ -14,16 +14,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from shared.classification_threshold import CLASSIFICATION_THRESHOLD_FILTER_SQL
+from shared.label_source import DEFAULT_LABEL_SOURCE, label_scope
 
 
 # Base CTE that computes independent events from raw observations.
 # Parameters: :project_ids, :interval (minutes), plus optional filter params.
 #
-# The two unverified branches live in _UNVERIFIED_BRANCHES below and are
-# substituted into {unverified_branches}. Dropping them gives group sizes that
-# come only from counts a person typed, which is what the group-size page wants:
-# the AI branches contribute 1 per detection box and read low. Everything after
-# raw_obs, the event grouping that actually matters, exists once either way.
+# Which images each branch reads comes from the label source (see
+# shared/label_source.py): {verified_scope} and {ai_scope} are the is_verified
+# predicates, and the two AI branches live in _UNVERIFIED_BRANCHES below,
+# substituted into {unverified_branches} or left out entirely for the
+# verified-only source. Everything after raw_obs, the event grouping that
+# actually matters, exists once whatever the source.
 _INDEPENDENCE_CTE = """
 WITH raw_obs AS (
     -- Verified: human observations
@@ -31,7 +33,7 @@ WITH raw_obs AS (
     FROM human_observations ho
     JOIN images i ON ho.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
-    WHERE i.is_verified = true AND c.project_id = ANY(:project_ids)
+    WHERE {verified_scope} AND c.project_id = ANY(:project_ids)
       {verified_filters}{unverified_branches}
 ),
 -- Per-image: sum all detections of same species in same image
@@ -103,7 +105,7 @@ _UNVERIFIED_BRANCHES = """
     JOIN images i ON d.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
     JOIN projects p ON c.project_id = p.id
-    WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
+    WHERE {ai_scope} AND c.project_id = ANY(:project_ids)
       AND d.confidence >= p.detection_threshold
       AND {classification_filter}
       {unverified_filters}
@@ -114,7 +116,7 @@ _UNVERIFIED_BRANCHES = """
     JOIN images i ON d.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
     JOIN projects p ON c.project_id = p.id
-    WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
+    WHERE {ai_scope} AND c.project_id = ANY(:project_ids)
       AND d.category IN ('person', 'vehicle')
       AND d.confidence >= p.detection_threshold
       {pv_filters}"""
@@ -123,12 +125,14 @@ _UNVERIFIED_BRANCHES = """
 def _build_unverified_branches(
     unverified_filters: str,
     pv_filters: str,
+    ai_scope: str = "i.is_verified = false",
 ) -> str:
     """Render the two unverified UNION branches."""
     return _UNVERIFIED_BRANCHES.format(
         unverified_filters=unverified_filters,
         pv_filters=pv_filters,
         classification_filter=CLASSIFICATION_THRESHOLD_FILTER_SQL.strip(),
+        ai_scope=ai_scope,
     )
 
 
@@ -197,22 +201,26 @@ def _build_cte(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
-    verified_only: bool = False,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> tuple:
     """Build the full CTE SQL and params dict.
 
-    verified_only drops the two unverified branches, so counts come only from
-    human observations. Defaults to False, which reproduces the mixed CTE every
-    existing caller relies on.
+    source is a label source name (shared/label_source.py). "verified" drops
+    the two AI branches, so counts come only from human observations; "ai"
+    reads the AI rows of every image and none of the human rows. The default
+    reproduces the merged CTE every existing caller relies on.
     """
+    scope = label_scope(source)
     verified_filters, unverified_filters, pv_filters, params = _build_filters(
         species_filter, start_date, end_date, site_ids,
     )
     unverified_branches = (
-        "" if verified_only
-        else _build_unverified_branches(unverified_filters, pv_filters)
+        _build_unverified_branches(unverified_filters, pv_filters, scope.ai_sql)
+        if scope.include_ai
+        else ""
     )
     cte_sql = _INDEPENDENCE_CTE.format(
+        verified_scope=scope.verified_sql,
         verified_filters=verified_filters,
         unverified_branches=unverified_branches,
     )
@@ -301,13 +309,14 @@ async def get_independent_hourly_activity(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> List[dict]:
     """
     Get hourly activity counts using independence interval grouping.
 
     Returns list of {hour: int, count: int} for hours with data.
     """
-    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids, source=source)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 
@@ -338,7 +347,7 @@ async def get_group_size_distribution(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
-    verified_only: bool = True,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> List[dict]:
     """
     Get the distribution of group sizes per species.
@@ -354,7 +363,7 @@ async def get_group_size_distribution(
     it that way.
     """
     cte_sql, params = _build_cte(
-        None, start_date, end_date, site_ids, verified_only=verified_only,
+        None, start_date, end_date, site_ids, source=source,
     )
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
@@ -422,13 +431,14 @@ async def get_independent_daily_trend(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> List[dict]:
     """
     Get daily detection counts using independence interval grouping.
 
     Returns list of {date: str, count: int} sorted by date.
     """
-    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids, source=source)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 
@@ -452,6 +462,7 @@ async def get_independent_detection_rate_counts(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
+    source: str = DEFAULT_LABEL_SOURCE,
 ) -> dict:
     """
     Get per-deployment, per-species detection counts using independence
@@ -462,7 +473,7 @@ async def get_independent_detection_rate_counts(
     the per-site species breakdown (richness and diversity metrics); summing
     the inner dict gives the deployment's total event count.
     """
-    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids, source=source)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 

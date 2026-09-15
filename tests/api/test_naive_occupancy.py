@@ -16,6 +16,7 @@ if _api not in sys.path:
 
 from utils.preferred_counts import (
     _NAIVE_OCCUPANCY_SQL,
+    _scoped_sql,
     get_naive_occupancy,
     _occasions,
 )
@@ -79,9 +80,19 @@ class TestNaiveOccupancySql:
         assert "pool_id" not in _NAIVE_OCCUPANCY_SQL
         assert "INTERVAL" not in _NAIVE_OCCUPANCY_SQL.upper().replace("INTERVAL '1 DAY'", "")
 
-    def test_no_format_placeholders_leak(self):
-        assert "{" not in _NAIVE_OCCUPANCY_SQL
-        assert "}" not in _NAIVE_OCCUPANCY_SQL
+    def test_only_the_label_source_slots_are_placeholders(self):
+        # The template carries the two is_verified slots and nothing else, and
+        # filling them for any source leaves no brace behind.
+        assert "{verified_scope}" in _NAIVE_OCCUPANCY_SQL
+        assert "{ai_scope}" in _NAIVE_OCCUPANCY_SQL
+        for source in ("merged", "verified", "ai"):
+            filled = _scoped_sql(_NAIVE_OCCUPANCY_SQL, source)
+            assert "{" not in filled and "}" not in filled
+
+    def test_merged_source_reads_the_same_images_as_before(self):
+        filled = _scoped_sql(_NAIVE_OCCUPANCY_SQL, "merged")
+        assert "WHERE i.is_verified = true" in filled
+        assert "WHERE i.is_verified = false" in filled
 
 
 class TestGetNaiveOccupancyEarlyReturn:

@@ -2,7 +2,8 @@
 
 Group size is the MaxN of an independent event: the most individuals seen in a
 single image within one event. The independence CTE already computed it, so the
-work here was exposing it and adding a verified-only mode.
+work here was exposing it and adding a verified-only mode, since generalised
+into the label source (shared/label_source.py): merged, verified or ai.
 
 The verified-only mode matters because the two data sources disagree. A verified
 image carries a number a person typed; an unverified image contributes 1 per
@@ -12,8 +13,8 @@ time for reasons that are not biological.
 
 The most important test here is test_mixed_mode_sql_is_unchanged: the CTE feeds
 species distribution, detection trend, activity pattern, the detection rate map
-and the CamtrapDP export, so the refactor that added the verified-only slot must
-not have altered a single byte of the mixed-mode SQL.
+and the CamtrapDP export, so the refactors that added the verified-only slot and
+then the label source must not have altered a single byte of the mixed-mode SQL.
 """
 import os
 import sys
@@ -44,45 +45,70 @@ EVENT_PIPELINE = "MAX(img_count) as event_count"
 
 class TestVerifiedOnlyMode:
     def test_verified_only_drops_the_ai_branches(self):
-        sql, _ = _build_cte(verified_only=True)
+        sql, _ = _build_cte(source="verified")
         assert VERIFIED_BRANCH in sql
         assert AI_BRANCH not in sql
         assert PERSON_VEHICLE_BRANCH not in sql
 
     def test_verified_only_keeps_the_event_pipeline(self):
         """Dropping branches must not drop the grouping logic they fed."""
-        sql, _ = _build_cte(verified_only=True)
+        sql, _ = _build_cte(source="verified")
         assert EVENT_PIPELINE in sql
         assert "events AS" in sql
         assert "pool_id" in sql
         assert "gap_min IS NULL OR gap_min > :interval" in sql
 
     def test_mixed_mode_keeps_all_three_branches(self):
-        sql, _ = _build_cte(verified_only=False)
+        sql, _ = _build_cte(source="merged")
         assert VERIFIED_BRANCH in sql
         assert AI_BRANCH in sql
         assert PERSON_VEHICLE_BRANCH in sql
 
     def test_default_is_mixed_mode(self):
         """Every existing caller relies on the default staying as it was."""
-        assert _build_cte()[0] == _build_cte(verified_only=False)[0]
+        assert _build_cte()[0] == _build_cte(source="merged")[0]
 
     def test_no_placeholders_remain_in_either_mode(self):
-        for verified_only in (True, False):
+        for source in ("verified", "merged", "ai"):
             sql, _ = _build_cte(
                 "fox", datetime(2026, 1, 1), datetime(2026, 7, 1), [1, 2],
-                verified_only=verified_only,
+                source=source,
             )
             assert "{" not in sql and "}" not in sql
 
     def test_filters_still_apply_in_verified_only_mode(self):
         sql, params = _build_cte(
             "fox", datetime(2026, 1, 1), datetime(2026, 7, 1), [1, 2],
-            verified_only=True,
+            source="verified",
         )
         assert "LOWER(ho.species) = ANY(CAST(:species_filter AS text[]))" in sql
         assert ":start_date" in sql and ":end_date" in sql and ":site_ids" in sql
         assert params["species_filter"] == ["fox"]
+
+
+class TestAiOnlyMode:
+    """The AI source reads the AI rows of every image and none of the human rows."""
+
+    def test_ai_only_keeps_the_ai_branches_and_silences_the_human_one(self):
+        sql, _ = _build_cte(source="ai")
+        assert AI_BRANCH in sql
+        assert PERSON_VEHICLE_BRANCH in sql
+        # The human branch stays in the template, so the UNION shape is the
+        # same, but its predicate is FALSE and it contributes nothing.
+        assert VERIFIED_BRANCH in sql
+        assert "WHERE FALSE AND c.project_id" in sql
+
+    def test_ai_only_reads_verified_images_too(self):
+        """The whole point: AI labels of verified images are hidden in the
+        merged view, and this source is how they become visible."""
+        sql, _ = _build_cte(source="ai")
+        assert "i.is_verified = false" not in sql
+        assert sql.count("WHERE TRUE AND c.project_id") == 2
+
+    def test_unknown_source_is_refused(self):
+        import pytest
+        with pytest.raises(ValueError):
+            _build_cte(source="everything")
 
 
 class TestMixedModeUnchanged:

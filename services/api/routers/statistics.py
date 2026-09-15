@@ -19,6 +19,7 @@ from shared.classification_threshold import (
     effective_classification_threshold,
 )
 from shared.database import get_async_session
+from shared.label_source import DEFAULT_LABEL_SOURCE, LabelSource, label_scope
 from auth.users import current_verified_user
 from auth.project_access import (
     get_accessible_project_ids,
@@ -109,6 +110,20 @@ async def _scoped_site_ids(
     if effective == []:
         return [-1]
     return effective
+
+
+def _source_param():
+    """The labels query parameter, one definition for every statistic that
+    counts animals. See shared/label_source.py for what the values mean."""
+    return Query(
+        DEFAULT_LABEL_SOURCE,
+        description=(
+            "Which labels to count. 'merged' (default) takes a person's labels "
+            "where an image is verified and the AI's labels elsewhere. "
+            "'verified' counts only what people entered. 'ai' counts the AI's "
+            "labels on every image, verified ones included."
+        ),
+    )
 
 
 async def _get_independence_interval(db: AsyncSession, project_id: Optional[int]) -> int:
@@ -601,6 +616,7 @@ async def get_detection_rate_map(
     start_date: Optional[date] = Query(None, description="Filter detections from this date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter detections to this date (YYYY-MM-DD)"),
     site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
+    source: LabelSource = _source_param(),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -640,6 +656,7 @@ async def get_detection_rate_map(
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     interval = await _get_independence_interval(db, project_id)
     site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
+    scope = label_scope(source)
     # Lowercased list for the = ANY comparisons below. Several species merge
     # their counts, which is the combined-abundance behaviour of the map.
     species_list = (
@@ -650,6 +667,8 @@ async def get_detection_rate_map(
     # Use UNION to combine verified (human observations) and unverified (AI) counts
     # For verified images: sum HumanObservation.count
     # For unverified images: count Detection/Classification with threshold
+    # {verified_scope} and {ai_scope} are the is_verified predicates of the
+    # label source, filled in below.
     query_sql = """
         WITH verified_counts AS (
             -- Counts from human observations (verified images only)
@@ -666,7 +685,7 @@ async def get_detection_rate_map(
             INNER JOIN cameras c ON cdp.camera_id = c.id
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
-                AND i.is_verified = true
+                AND {verified_scope}
                 -- Half-open range on the raw timestamp rather than casting
                 -- every row to a date. Same rows, one less conversion per
                 -- image, and there are three of these joins over 58k images.
@@ -702,7 +721,7 @@ async def get_detection_rate_map(
             INNER JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
-                AND i.is_verified = false
+                AND {ai_scope}
                 -- Half-open range on the raw timestamp rather than casting
                 -- every row to a date. Same rows, one less conversion per
                 -- image, and there are three of these joins over 58k images.
@@ -732,7 +751,7 @@ async def get_detection_rate_map(
             INNER JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
-                AND i.is_verified = false
+                AND {ai_scope}
                 -- Half-open range on the raw timestamp rather than casting
                 -- every row to a date. Same rows, one less conversion per
                 -- image, and there are three of these joins over 58k images.
@@ -811,7 +830,7 @@ async def get_detection_rate_map(
 
     # Execute query
     result = await db.execute(
-        text(query_sql),
+        text(query_sql.format(verified_scope=scope.verified_sql, ai_scope=scope.ai_sql)),
         {
             "species_list": species_list,
             "start_date": start_date,
@@ -834,6 +853,7 @@ async def get_detection_rate_map(
             species_filter=species_list,
             start_date=start_dt,
             end_date=end_dt,
+            source=source,
         )
 
     # Pool the per-(deployment, species) rows into one point per site.
@@ -970,6 +990,7 @@ async def get_activity_pattern(
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
     site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
+    source: LabelSource = _source_param(),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -997,6 +1018,7 @@ async def get_activity_pattern(
             start_date=start_dt,
             end_date=end_dt,
             site_ids=site_id_list,
+            source=source,
         )
     else:
         hourly_data = await get_preferred_hourly_activity(
@@ -1006,6 +1028,7 @@ async def get_activity_pattern(
             start_date=start_dt,
             end_date=end_dt,
             site_ids=site_id_list,
+            source=source,
         )
 
     # Build full 24-hour response (fill missing hours with 0)
@@ -1139,6 +1162,7 @@ async def get_detection_trend(
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
     site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
+    source: LabelSource = _source_param(),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1168,6 +1192,7 @@ async def get_detection_trend(
             start_date=start_dt,
             end_date=end_dt,
             site_ids=site_id_list,
+            source=source,
         )
     else:
         daily_data = await get_preferred_daily_trend(
@@ -1177,6 +1202,7 @@ async def get_detection_trend(
             start_date=start_dt,
             end_date=end_dt,
             site_ids=site_id_list,
+            source=source,
         )
 
     return [
@@ -1369,7 +1395,7 @@ class GroupSizeMetadata(BaseModel):
     Parameters that produced a group-size response, so a number on the chart
     can be traced back to the data it came from.
     """
-    verified_only: bool
+    source: LabelSource
     # 0 means the project groups nothing, so every image is its own event and
     # group size is really "individuals per image". Different meaning, same number.
     independence_interval_minutes: int
@@ -1397,16 +1423,7 @@ async def get_group_size(
     start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
-    verified_only: bool = Query(
-        False,
-        description=(
-            "Count only human-entered observations. Off by default, matching the "
-            "rest of the app: a verified image uses the number a person entered, "
-            "an unverified image contributes one per detection box. The AI reads "
-            "low because it misses animals standing behind each other, so turning "
-            "this on usually raises the mean."
-        ),
-    ),
+    source: LabelSource = _source_param(),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1417,6 +1434,11 @@ async def get_group_size(
     Group size is the MaxN of an independent event, which the independence
     filter already computes. Person, vehicle and empty are excluded because
     group size is meaningless for them.
+
+    The label source matters more here than elsewhere: a verified image uses
+    the number a person entered, an AI image contributes one per detection
+    box, and the AI reads low because it misses animals standing behind each
+    other. Counting only verified images usually raises the mean.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
@@ -1434,13 +1456,13 @@ async def get_group_size(
         start_date=start_dt,
         end_date=end_dt,
         site_ids=site_id_list,
-        verified_only=verified_only,
+        source=source,
     )
 
     return GroupSizeResponse(
         species=[GroupSizeSpecies(**s) for s in summarize_group_sizes(rows)],
         metadata=GroupSizeMetadata(
-            verified_only=verified_only,
+            source=source,
             independence_interval_minutes=interval,
             window_start=start_date.isoformat() if start_date else None,
             window_end=end_date.isoformat() if end_date else None,
@@ -1495,6 +1517,7 @@ async def get_naive_occupancy_endpoint(
     start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     top_n: int = Query(15, ge=1, le=50, description="Maximum number of species to return"),
+    source: LabelSource = _source_param(),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1532,6 +1555,7 @@ async def get_naive_occupancy_endpoint(
         end_date=end_dt,
         site_ids=site_id_list,
         top_n=top_n,
+        source=source,
     )
     # Build the detection matrix once for the top-N species and fit the
     # MacKenzie 2002 single-season model per species. 7-day occasions
@@ -1568,6 +1592,7 @@ async def get_naive_occupancy_endpoint(
                 species_subset=species_subset,
                 site_ids=site_id_list,
                 occasion_length_days=7,
+                source=source,
             )
 
     points: List[NaiveOccupancyPoint] = []
@@ -1747,6 +1772,7 @@ async def get_activity_overlap(
     start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     time_axis: str = Query("clock", description="clock | sun"),
+    source: LabelSource = _source_param(),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1809,6 +1835,7 @@ async def get_activity_overlap(
         db=db,
         project_ids=accessible_project_ids,
         species_filter=species_a,
+        source=source,
         start_date=start_dt,
         end_date=end_dt,
         site_ids=site_id_list,
@@ -1819,6 +1846,7 @@ async def get_activity_overlap(
             db=db,
             project_ids=accessible_project_ids,
             species_filter=species_b,
+        source=source,
             start_date=start_dt,
             end_date=end_dt,
             site_ids=site_id_list,
