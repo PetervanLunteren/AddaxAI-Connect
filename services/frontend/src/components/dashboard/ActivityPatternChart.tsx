@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
-import type { HourlyActivityPoint, SunBands } from '../../api/types';
+import type { HourlyActivityPoint, LabelSource, SunBands } from '../../api/types';
 import type { DateRange } from './DateRangeFilter';
 
 interface ActivityPatternChartProps {
@@ -15,6 +15,8 @@ interface ActivityPatternChartProps {
   siteIds?: string;
   /** Selected species. undefined means all species. */
   species?: string;
+  /** Which labels to count. Undefined is the default, verified where available, else AI. */
+  source?: LabelSource;
   /**
    * Activity overlap page URL, seeded with the current filters. Present only
    * when one species is chosen, since that page is per-species. The card
@@ -224,16 +226,17 @@ function ActivityClock({ hours, sunBands }: ActivityClockProps) {
   );
 }
 
-export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, siteIds, species, insightsHref }) => {
+export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, siteIds, species, source, insightsHref }) => {
   // Fetch activity pattern data
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'activity-pattern', projectId, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds],
+    queryKey: ['statistics', 'activity-pattern', projectId, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds, source ?? 'merged'],
     queryFn: () =>
       statisticsApi.getActivityPattern(projectId, {
         species: species || undefined,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
         site_ids: siteIds,
+        source,
       }),
     enabled: projectId !== undefined,
   });

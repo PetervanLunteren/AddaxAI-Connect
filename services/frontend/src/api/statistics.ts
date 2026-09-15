@@ -90,6 +90,7 @@ export const statisticsApi = {
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
     if (filters?.site_ids) params.append('site_ids', filters.site_ids);
+    if (filters?.source) params.append('source', filters.source);
 
     const queryString = params.toString();
     const url = queryString
@@ -114,6 +115,7 @@ export const statisticsApi = {
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
     if (filters?.site_ids) params.append('site_ids', filters.site_ids);
+    if (filters?.source) params.append('source', filters.source);
 
     const queryString = params.toString();
     const url = queryString
@@ -134,6 +136,7 @@ export const statisticsApi = {
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
     if (filters?.site_ids) params.append('site_ids', filters.site_ids);
+    if (filters?.source) params.append('source', filters.source);
 
     const queryString = params.toString();
     const url = queryString
@@ -202,6 +205,7 @@ export const statisticsApi = {
     if (filters.start_date) params.append('start_date', filters.start_date);
     if (filters.end_date) params.append('end_date', filters.end_date);
     if (filters.time_axis) params.append('time_axis', filters.time_axis);
+    if (filters.source) params.append('source', filters.source);
     const response = await apiClient.get<ActivityOverlapResponse>(
       `/api/statistics/activity-overlap?${params.toString()}`,
     );
@@ -224,9 +228,7 @@ export const statisticsApi = {
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
     if (filters?.site_ids) params.append('site_ids', filters.site_ids);
-    if (filters?.verified_only !== undefined) {
-      params.append('verified_only', String(filters.verified_only));
-    }
+    if (filters?.source) params.append('source', filters.source);
 
     const queryString = params.toString();
     const url = queryString
@@ -247,6 +249,7 @@ export const statisticsApi = {
     if (filters?.end_date) params.append('end_date', filters.end_date);
     if (filters?.site_ids) params.append('site_ids', filters.site_ids);
     if (filters?.top_n !== undefined) params.append('top_n', filters.top_n.toString());
+    if (filters?.source) params.append('source', filters.source);
 
     const queryString = params.toString();
     const url = queryString

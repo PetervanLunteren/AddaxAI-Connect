@@ -33,6 +33,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../../api/statistics';
+import type { LabelSource } from '../../api/types';
 import { StatTile } from './StatTile';
 
 interface SpeciesSummaryTilesProps {
@@ -42,6 +43,8 @@ interface SpeciesSummaryTilesProps {
   species: string;
   startDate?: string;
   endDate?: string;
+  /** Which labels to count. Undefined is the default, verified where available, else AI. */
+  source?: LabelSource;
   /** Grid placement from the page. The tiles do not choose their own size. */
   className?: string;
   /** Drop the sub-line under each figure, for a tighter placement. */
@@ -54,17 +57,19 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
   species,
   startDate,
   endDate,
+  source,
   className = '',
   showNotes = true,
 }) => {
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'group-size', projectId, siteIds, species, startDate, endDate],
+    queryKey: ['statistics', 'group-size', projectId, siteIds, species, startDate, endDate, source ?? 'merged'],
     queryFn: () =>
       statisticsApi.getGroupSize(projectId, {
         species,
         site_ids: siteIds,
         start_date: startDate,
         end_date: endDate,
+        source,
       }),
     enabled: projectId !== undefined && species.length > 0,
   });
@@ -75,7 +80,7 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
     queryKey: [
       'detection-rate-map',
       projectId,
-      { species, start_date: startDate, end_date: endDate, site_ids: siteIds },
+      { species, start_date: startDate, end_date: endDate, site_ids: siteIds, source },
     ],
     queryFn: () =>
       statisticsApi.getDetectionRateMap(projectId, {
@@ -83,6 +88,7 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
         start_date: startDate,
         end_date: endDate,
         site_ids: siteIds,
+        source,
       }),
     enabled: projectId !== undefined && species.length > 0,
   });

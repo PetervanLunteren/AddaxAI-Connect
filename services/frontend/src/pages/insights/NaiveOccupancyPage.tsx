@@ -49,12 +49,15 @@ const TOP_N_VALUES: { value: string; label: string }[] = [
   { value: 'all', label: 'All species' },
 ];
 
+import { LABELS_FIELD, LABELS_SCHEMA, labelSourceParam } from '../../lib/labels-filter';
+
 const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
   site_ids: 'string[]',
   top_n: 'string',
+  ...LABELS_SCHEMA,
 };
 
 const asString = (v: string | string[] | undefined): string =>
@@ -78,6 +81,7 @@ export const NaiveOccupancyPage: React.FC = () => {
   );
   const tagValues = asStringArray(parsed.tags);
   const siteIdValues = asStringArray(parsed.site_ids);
+  const labelSource = labelSourceParam(parsed.labels);
   const topNRaw = asString(parsed.top_n);
   const topN: number | null = (() => {
     if (topNRaw === 'all') return null;
@@ -111,6 +115,7 @@ export const NaiveOccupancyPage: React.FC = () => {
     date_to: dateRange.endDate ?? undefined,
     tags: tagValues.length > 0 ? tagValues : undefined,
     site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
+    labels: labelSource,
   };
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
@@ -128,6 +133,7 @@ export const NaiveOccupancyPage: React.FC = () => {
       date_to: undefined,
       tags: undefined,
       site_ids: undefined,
+      labels: undefined,
     });
   const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
 
@@ -157,6 +163,7 @@ export const NaiveOccupancyPage: React.FC = () => {
         minDate: overview?.first_image_date,
         maxDate: overview?.last_image_date,
       },
+      LABELS_FIELD,
     ],
     [sites, tagOptions, overview],
   );
@@ -205,6 +212,7 @@ export const NaiveOccupancyPage: React.FC = () => {
           dateRange={dateRange}
           projectId={projectId}
           siteIds={siteIdsFromTags}
+          source={labelSource}
           topN={topN}
           onMetadataChange={setMeta}
         />

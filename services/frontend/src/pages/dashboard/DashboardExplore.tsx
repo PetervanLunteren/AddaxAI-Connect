@@ -20,6 +20,7 @@ import { MiniMapCard } from '../../components/dashboard/MiniMapCard';
 import { imagesApi } from '../../api/images';
 import { isWildlifeLabel } from '../../utils/labels';
 import { filtersToSearchParams } from '../../lib/filter-url';
+import { LABELS_SCHEMA } from '../../lib/labels-filter';
 import { useDashboardFilters } from './useDashboardFilters';
 
 export const DashboardExplore: React.FC = () => {
@@ -28,6 +29,7 @@ export const DashboardExplore: React.FC = () => {
     dateRange,
     species,
     siteIdsFromTags,
+    labelSource,
     overview,
     filterValues,
     filterFields,
@@ -70,6 +72,7 @@ export const DashboardExplore: React.FC = () => {
       date_to: dateRange.endDate || undefined,
       site_ids: filterValues.site_ids,
       tags: filterValues.tags,
+      labels: labelSource,
     },
     {
       species: 'string[]',
@@ -77,6 +80,7 @@ export const DashboardExplore: React.FC = () => {
       date_to: 'date',
       site_ids: 'string[]',
       tags: 'string[]',
+      ...LABELS_SCHEMA,
     },
   );
   // The insights map route is nested under the project, so the link must be
@@ -96,6 +100,7 @@ export const DashboardExplore: React.FC = () => {
           date_to: dateRange.endDate || undefined,
           site_ids: filterValues.site_ids,
           tags: filterValues.tags,
+          labels: labelSource,
         },
         {
           species_a: 'string',
@@ -103,6 +108,7 @@ export const DashboardExplore: React.FC = () => {
           date_to: 'date',
           site_ids: 'string[]',
           tags: 'string[]',
+          ...LABELS_SCHEMA,
         },
       ).toString()
     : '';
@@ -141,6 +147,7 @@ export const DashboardExplore: React.FC = () => {
             projectId={projectId}
             siteIds={siteIdsFromTags}
             species={speciesParam}
+            source={labelSource}
             insightsHref={activityHref}
           />
           {showSummaryTiles && (
@@ -148,6 +155,7 @@ export const DashboardExplore: React.FC = () => {
               projectId={projectId}
               siteIds={siteIdsFromTags}
               species={photoSpecies}
+              source={labelSource}
               startDate={dateRange.startDate || undefined}
               endDate={dateRange.endDate || undefined}
               showNotes={false}
@@ -160,6 +168,7 @@ export const DashboardExplore: React.FC = () => {
             projectId={projectId}
             siteIds={siteIdsFromTags}
             species={speciesParam}
+            source={labelSource}
             projectFirstDate={overview?.first_image_date ?? null}
             projectLastDate={overview?.last_image_date ?? null}
           />
@@ -170,6 +179,7 @@ export const DashboardExplore: React.FC = () => {
             projectId={projectId}
             siteIds={siteIdsFromTags}
             species={speciesParam}
+            source={labelSource}
             startDate={dateRange.startDate || undefined}
             endDate={dateRange.endDate || undefined}
             mapHref={mapHref}

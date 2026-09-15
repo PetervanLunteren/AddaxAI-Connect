@@ -9,9 +9,9 @@
  * typed. An unverified image contributes one per detection box, which reads low
  * because the detector misses animals standing behind each other. The page
  * counts both by default, like every other statistic in the app: the AI gives
- * an answer and verifying improves it, it is not a precondition. Verified-only
- * is one click away in the Display menu, and the active mode is named under the
- * charts so a screenshot cannot hide which numbers these are.
+ * an answer and verifying improves it, it is not a precondition. The Labels
+ * filter under More switches to verified only or AI only, and the active choice
+ * is named under the charts so a screenshot cannot hide which numbers these are.
  */
 import React, { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -42,23 +42,20 @@ import {
   type FilterSchema,
 } from '../../lib/filter-url';
 
+import { LABELS_FIELD, LABELS_SCHEMA, labelSourceLabel, labelSourceParam } from '../../lib/labels-filter';
+
 const FILTER_SCHEMA: FilterSchema = {
   species: 'string[]',
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
   site_ids: 'string[]',
-  source: 'string',
+  ...LABELS_SCHEMA,
   charts: 'string',
 };
 
-// Defaults are the values left out of the URL, so a clean link means all counts,
-// one chart per species. First option is the default.
-const SOURCE_OPTIONS = [
-  { value: 'people_ai', label: 'All counts, verified and AI estimates' },
-  { value: 'people', label: 'Only verified counts' },
-];
-
+// The default is the value left out of the URL, so a clean link means one
+// chart per species. First option is the default.
 const CHARTS_OPTIONS = [
   { value: 'separate', label: 'One per species' },
   { value: 'combined', label: 'All in one chart' },
@@ -86,8 +83,7 @@ export const GroupSizePage: React.FC = () => {
   const endDate = (parsed.date_to as string) || null;
   const tagValues = Array.isArray(parsed.tags) ? parsed.tags : [];
   const siteIdValues = Array.isArray(parsed.site_ids) ? parsed.site_ids : [];
-  const source = (parsed.source as string) === 'people' ? 'people' : 'people_ai';
-  const verifiedOnly = source === 'people';
+  const labelSource = labelSourceParam(parsed.labels);
   const charts = (parsed.charts as string) === 'combined' ? 'combined' : 'separate';
 
   // Species picker options. Same source the Images page filter uses, minus the
@@ -135,14 +131,14 @@ export const GroupSizePage: React.FC = () => {
       date_to: endDate ?? undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
       site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
+      labels: labelSource,
     }),
-    [speciesValues, startDate, endDate, tagValues, siteIdValues],
+    [speciesValues, startDate, endDate, tagValues, siteIdValues, labelSource],
   );
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
-      source: source === 'people_ai' ? undefined : source,
       charts: charts === 'separate' ? undefined : charts,
       ...next,
     };
@@ -156,6 +152,7 @@ export const GroupSizePage: React.FC = () => {
       date_to: undefined,
       tags: undefined,
       site_ids: undefined,
+      labels: undefined,
     });
   const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
 
@@ -212,18 +209,18 @@ export const GroupSizePage: React.FC = () => {
         toKey: 'date_to',
         label: 'Date range',
       },
+      LABELS_FIELD,
     ],
     [speciesOptions, sites, tagOptions],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
     () => [
-      { key: 'source', label: 'Counts', options: SOURCE_OPTIONS },
       { key: 'charts', label: 'Charts', options: CHARTS_OPTIONS },
     ],
     [],
   );
-  const displayValues = { source, charts };
+  const displayValues = { charts };
 
   const { data, isLoading } = useQuery<GroupSizeResponse>({
     queryKey: [
@@ -234,7 +231,7 @@ export const GroupSizePage: React.FC = () => {
       startDate,
       endDate,
       siteIdsFromTags,
-      verifiedOnly,
+      labelSource ?? 'merged',
     ],
     queryFn: () =>
       statisticsApi.getGroupSize(projectId!, {
@@ -242,13 +239,12 @@ export const GroupSizePage: React.FC = () => {
         start_date: startDate ?? undefined,
         end_date: endDate ?? undefined,
         site_ids: siteIdsFromTags,
-        verified_only: verifiedOnly,
+        source: labelSource,
       }),
     enabled: projectId !== undefined && speciesValues.length > 0,
   });
 
-  const sourceLabel =
-    SOURCE_OPTIONS.find((o) => o.value === source)?.label ?? SOURCE_OPTIONS[0].label;
+  const sourceLabel = labelSourceLabel(labelSource);
 
   return (
     <InsightsPageLayout
@@ -276,7 +272,7 @@ export const GroupSizePage: React.FC = () => {
       ) : data.species.length === 0 ? (
         <div className="rounded-lg border bg-card p-12 text-center text-sm text-muted-foreground">
           No events for this selection.
-          {verifiedOnly && ' Only verified images are counted, so try verifying some first.'}
+          {labelSource === 'verified' && ' Only verified images are counted, so try verifying some first.'}
         </div>
       ) : (
         <>
@@ -333,9 +329,10 @@ export const GroupSizePage: React.FC = () => {
             </p>
             <p>
               By default every image counts. A verified image uses the number a person
-              entered, an unverified image counts one per detection box. Switching to{' '}
-              <em>Only verified counts</em> in the Display menu drops the unverified
-              images.
+              entered, an unverified image counts one per detection box. The Labels
+              filter under More switches to <em>Verified only</em>, which drops the
+              unverified images, or <em>AI only</em>, which counts one per detection
+              box on every image, verified ones included.
             </p>
           </>
         }

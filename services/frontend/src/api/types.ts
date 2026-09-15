@@ -298,11 +298,16 @@ export interface DetectionRateMapResponse {
   features: SiteFeature[];
 }
 
+// Which labels a statistic counts. Defined once in shared/label_source.py on
+// the backend; the field that sets it lives in lib/labels-filter.ts.
+export type LabelSource = 'merged' | 'verified' | 'ai';
+
 export interface DetectionRateMapFilters {
   species?: string;
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
   site_ids?: string;  // Comma-separated site IDs
+  source?: LabelSource;
 }
 
 export interface Project {
@@ -541,6 +546,7 @@ export interface ActivityPatternFilters {
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
   site_ids?: string;  // Comma-separated site IDs
+  source?: LabelSource;
 }
 
 export interface DateRangeFilters {
@@ -560,6 +566,7 @@ export interface DetectionTrendFilters {
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
   site_ids?: string;  // Comma-separated site IDs
+  source?: LabelSource;
 }
 
 // Trap effort (daily count of cameras deployed)
@@ -642,7 +649,7 @@ export interface GroupSizeSpecies {
 }
 
 export interface GroupSizeMetadata {
-  verified_only: boolean;
+  source: LabelSource;
   // 0 means the project groups nothing, so group size is individuals per image.
   independence_interval_minutes: number;
   window_start: string | null;
@@ -660,7 +667,7 @@ export interface GroupSizeFilters {
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;    // YYYY-MM-DD
   site_ids?: string;    // comma-separated site IDs
-  verified_only?: boolean;
+  source?: LabelSource;
 }
 
 export interface NaiveOccupancyPoint {
@@ -697,6 +704,7 @@ export interface NaiveOccupancyFilters {
   end_date?: string;
   site_ids?: string;  // Comma-separated site IDs
   top_n?: number;
+  source?: LabelSource;
 }
 
 // Deployment timeline (Insights -> Deployment timeline)
@@ -828,6 +836,7 @@ export interface ActivityOverlapFilters {
   start_date?: string;
   end_date?: string;
   time_axis?: TimeAxis;
+  source?: LabelSource;
 }
 
 // Taxonomy mapping

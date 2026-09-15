@@ -43,6 +43,8 @@ import {
   type FilterSchema,
 } from '../../lib/filter-url';
 
+import { LABELS_FIELD, LABELS_SCHEMA, labelSourceParam } from '../../lib/labels-filter';
+
 const FILTER_SCHEMA: FilterSchema = {
   species_a: 'string',
   species_b: 'string',
@@ -51,6 +53,7 @@ const FILTER_SCHEMA: FilterSchema = {
   tags: 'string[]',
   site_ids: 'string[]',
   time_axis: 'string',
+  ...LABELS_SCHEMA,
 };
 
 const DIEL_LABEL: Record<string, string> = {
@@ -96,6 +99,7 @@ export const ActivityOverlapPage: React.FC = () => {
   const tagValues = Array.isArray(parsed.tags) ? parsed.tags : [];
   const siteIdValues = Array.isArray(parsed.site_ids) ? parsed.site_ids : [];
   const timeAxis = ((parsed.time_axis as string) || 'clock') as TimeAxis;
+  const labelSource = labelSourceParam(parsed.labels);
 
   // Full species list for the A / B dropdowns. Same source the Images
   // page filter uses, so the two screens stay in sync. The dashboard's
@@ -135,8 +139,9 @@ export const ActivityOverlapPage: React.FC = () => {
       date_to: endDate ?? undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
       site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
+      labels: labelSource,
     }),
-    [speciesA, speciesB, startDate, endDate, tagValues, siteIdValues],
+    [speciesA, speciesB, startDate, endDate, tagValues, siteIdValues, labelSource],
   );
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
@@ -158,6 +163,7 @@ export const ActivityOverlapPage: React.FC = () => {
       date_to: undefined,
       tags: undefined,
       site_ids: undefined,
+      labels: undefined,
     });
   const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
 
@@ -234,6 +240,7 @@ export const ActivityOverlapPage: React.FC = () => {
         toKey: 'date_to',
         label: 'Date range',
       },
+      LABELS_FIELD,
     ],
     [speciesOptions, speciesA, sites, tagOptions],
   );
@@ -265,6 +272,7 @@ export const ActivityOverlapPage: React.FC = () => {
       endDate,
       siteIdsFromTags,
       timeAxis,
+      labelSource ?? 'merged',
     ],
     queryFn: () =>
       statisticsApi.getActivityOverlap(projectId!, {
@@ -274,6 +282,7 @@ export const ActivityOverlapPage: React.FC = () => {
         start_date: startDate ?? undefined,
         end_date: endDate ?? undefined,
         time_axis: timeAxis,
+        source: labelSource,
       }),
     enabled: projectId !== undefined && !!speciesA,
   });

@@ -35,6 +35,8 @@ import {
 } from '../../utils/map-metrics';
 import type { DetectionRateMapFilters } from '../../api/types';
 
+import { LABELS_FIELD, LABELS_SCHEMA, labelSourceParam } from '../../lib/labels-filter';
+
 const FILTER_SCHEMA: FilterSchema = {
   metric: 'string',
   date_from: 'date',
@@ -43,6 +45,7 @@ const FILTER_SCHEMA: FilterSchema = {
   site_ids: 'string[]',
   species: 'string[]',
   view_mode: 'string',
+  ...LABELS_SCHEMA,
 };
 
 const asString = (v: string | string[] | undefined): string =>
@@ -68,6 +71,7 @@ export const InsightsMapPage: React.FC = () => {
   const startDate = asString(parsed.date_from);
   const endDate = asString(parsed.date_to);
   const speciesValues = asStringArray(parsed.species);
+  const labelSource = labelSourceParam(parsed.labels);
   const viewMode = (parsed.view_mode === 'hexbins' || parsed.view_mode === 'clusters'
     ? parsed.view_mode
     : 'points') as ViewMode;
@@ -86,6 +90,7 @@ export const InsightsMapPage: React.FC = () => {
     date_from: startDate || undefined,
     date_to: endDate || undefined,
     view_mode: viewMode === 'points' ? undefined : viewMode,
+    labels: labelSource,
   };
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
@@ -140,8 +145,9 @@ export const InsightsMapPage: React.FC = () => {
       start_date: startDate || undefined,
       end_date: endDate || undefined,
       site_ids: siteIdsParam,
+      source: labelSource,
     }),
-    [speciesValues, startDate, endDate, siteIdsParam],
+    [speciesValues, startDate, endDate, siteIdsParam, labelSource],
   );
 
   const filterFields: FilterFieldDef[] = useMemo(
@@ -210,6 +216,7 @@ export const InsightsMapPage: React.FC = () => {
           { value: 'clusters', label: 'Clusters' },
         ],
       },
+      LABELS_FIELD,
     ],
     [sites, tagOptions, speciesOptions, overview],
   );

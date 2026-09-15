@@ -22,6 +22,7 @@ import { MapContainer, CircleMarker } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
+import type { LabelSource } from '../../api/types';
 import {
   getDetectionRateColor,
   calculateColorScaleDomain,
@@ -37,6 +38,8 @@ interface MiniMapCardProps {
   species?: string;
   startDate?: string;
   endDate?: string;
+  /** Which labels to count. Undefined is the default, verified where available, else AI. */
+  source?: LabelSource;
   /** Insights map URL carrying the current filters. */
   mapHref: string;
   /** Grid placement from the page. The card does not choose its own size. */
@@ -49,6 +52,7 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
   species,
   startDate,
   endDate,
+  source,
   mapHref,
   className = '',
 }) => {
@@ -60,8 +64,9 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
       start_date: startDate,
       end_date: endDate,
       site_ids: siteIds,
+      source,
     }),
-    [species, startDate, endDate, siteIds],
+    [species, startDate, endDate, siteIds, source],
   );
 
   const { data, isLoading } = useQuery({

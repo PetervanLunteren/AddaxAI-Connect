@@ -24,6 +24,7 @@ import { sitesApi } from '../../api/sites';
 import { setSpeciesContext } from '../../utils/species-colors';
 import { useProject } from '../../contexts/ProjectContext';
 import type { DateRange } from '../../components/dashboard';
+import { LABELS_FIELD, LABELS_SCHEMA, labelSourceParam } from '../../lib/labels-filter';
 
 export const DASHBOARD_FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
@@ -31,6 +32,7 @@ export const DASHBOARD_FILTER_SCHEMA: FilterSchema = {
   tags: 'string[]',
   site_ids: 'string[]',
   species: 'string',
+  ...LABELS_SCHEMA,
 };
 
 export function useDashboardFilters() {
@@ -61,6 +63,8 @@ export function useDashboardFilters() {
   // Empty string means all species, matching the FilterBar select which writes
   // undefined for its empty option.
   const species = typeof parsed.species === 'string' ? parsed.species : '';
+  // Undefined is the default, so it stays out of the URL and the requests.
+  const labelSource = labelSourceParam(parsed.labels);
 
   // Fetch sites (for tag → site-id reverse mapping AND as the source of
   // labels for the explicit Sites MultiSelect).
@@ -91,8 +95,9 @@ export function useDashboardFilters() {
       tags: tagValues.length > 0 ? tagValues : undefined,
       site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
       species: species || undefined,
+      labels: labelSource,
     }),
-    [dateRange, tagValues, siteIdValues, species],
+    [dateRange, tagValues, siteIdValues, species, labelSource],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -179,7 +184,7 @@ export function useDashboardFilters() {
 
     // Species first, because it is the choice every card on the tab answers
     // to, then the rest in order of how often they are used.
-    return [speciesField, sitesField, dateField, tagsField];
+    return [speciesField, sitesField, dateField, tagsField, LABELS_FIELD];
   }, [sites, tagOptions, allSpeciesOptions, overview]);
 
   return {
@@ -188,6 +193,8 @@ export function useDashboardFilters() {
     /** '' means all species. Pass `species || undefined` to the API. */
     species,
     siteIdsFromTags,
+    /** Which labels the cards count, undefined for the default. */
+    labelSource,
     overview,
     overviewLoading,
     filterValues,

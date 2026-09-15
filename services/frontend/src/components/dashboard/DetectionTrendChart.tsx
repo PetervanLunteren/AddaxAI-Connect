@@ -19,6 +19,7 @@ import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
+import type { LabelSource } from '../../api/types';
 import { formatDateShort, formatMonth } from '../../utils/datetime';
 import type { DateRange } from './DateRangeFilter';
 
@@ -31,6 +32,8 @@ interface DetectionTrendChartProps {
   siteIds?: string;
   /** Selected species. undefined means all species. */
   species?: string;
+  /** Which labels to count. Undefined is the default, verified where available, else AI. */
+  source?: LabelSource;
   // Project's full image-date extent. Used as the fallback x-axis span
   // and granularity hint when the user has not set an explicit date
   // range, so a sparse species shows its spike in the context of the
@@ -125,6 +128,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   projectId,
   siteIds,
   species,
+  source,
   projectFirstDate,
   projectLastDate,
 }) => {
@@ -146,13 +150,14 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   // Detection counts per day (sparse: only days with at least one
   // detection are returned).
   const { data: rawData, isLoading } = useQuery({
-    queryKey: ['statistics', 'detection-trend', projectId, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds],
+    queryKey: ['statistics', 'detection-trend', projectId, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds, source ?? 'merged'],
     queryFn: () =>
       statisticsApi.getDetectionTrend(projectId, {
         species: species || undefined,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
         site_ids: siteIds,
+        source,
       }),
     enabled: projectId !== undefined,
   });

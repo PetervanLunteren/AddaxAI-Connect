@@ -23,7 +23,7 @@ import {
 import type { ChartData, Plugin, TooltipModel } from 'chart.js';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
-import type { NaiveOccupancyMetadata, NaiveOccupancyPoint } from '../../api/types';
+import type { LabelSource, NaiveOccupancyMetadata, NaiveOccupancyPoint } from '../../api/types';
 import type { DateRange } from './DateRangeFilter';
 
 const TOOLTIP_CLASS = 'naive-occupancy-tooltip';
@@ -210,6 +210,8 @@ interface NaiveOccupancyChartProps {
   dateRange: DateRange;
   projectId?: number;
   siteIds?: string;
+  /** Which labels to count. Undefined is the default, verified where available, else AI. */
+  source?: LabelSource;
   /** How many species to render. null = all species. */
   topN: number | null;
   /** Called when the response metadata changes so the parent can render
@@ -221,17 +223,19 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
   dateRange,
   projectId,
   siteIds,
+  source,
   topN,
   onMetadataChange,
 }) => {
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'naive-occupancy', projectId, dateRange.startDate, dateRange.endDate, siteIds, topN],
+    queryKey: ['statistics', 'naive-occupancy', projectId, dateRange.startDate, dateRange.endDate, siteIds, topN, source ?? 'merged'],
     queryFn: () =>
       statisticsApi.getNaiveOccupancy(projectId, {
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
         site_ids: siteIds,
         top_n: topN === null ? undefined : topN,
+        source,
       }),
     enabled: projectId !== undefined,
   });
