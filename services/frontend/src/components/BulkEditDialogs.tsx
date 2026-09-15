@@ -67,9 +67,14 @@ export const BulkAddTagsDialog: React.FC<TagsDialogProps> = ({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          {/* Not disabled on empty: a tag typed without Enter is committed by
+              the blur that the click on this button causes, and React flushes
+              that state before the click runs, so one click both commits and
+              confirms. Disabled, the click never fired and a second one was
+              needed. Empty stays a no-op. */}
           <Button
-            onClick={() => onConfirm(tags)}
-            disabled={isPending || tags.length === 0}
+            onClick={() => { if (tags.length > 0) onConfirm(tags); }}
+            disabled={isPending}
           >
             {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
             Add tags
@@ -105,10 +110,12 @@ export const BulkRemoveTagsDialog: React.FC<TagsDialogProps> = ({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          {/* Same reasoning as the add dialog: one click commits the typed
+              tag and confirms. */}
           <Button
             variant="destructive"
-            onClick={() => onConfirm(tags)}
-            disabled={isPending || tags.length === 0}
+            onClick={() => { if (tags.length > 0) onConfirm(tags); }}
+            disabled={isPending}
           >
             {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
             Remove tags

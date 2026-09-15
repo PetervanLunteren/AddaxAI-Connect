@@ -496,7 +496,10 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   // Replace the rows with the last saved composition. Fresh ids, and marked
   // as human input so nothing reads as an AI suggestion.
   function copyFromLast(): boolean {
-    if (!lastSaved) return false;
+    // On a verified image the rows are read-only until Edit, and Edit
+    // reseeds them from the saved observations, so a copy now would be
+    // lost silently. Report it as nothing to copy so the key says so.
+    if (!lastSaved || (imageDetail.verification.is_verified && !isEditing)) return false;
     const stamp = Date.now();
     setObservations(
       lastSaved.map((obs, i) => ({

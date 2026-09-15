@@ -468,7 +468,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       if (lower === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         if (!verificationPanelRef.current?.copyFromLast()) {
-          toast.error('Nothing saved yet in this session to copy');
+          toast.error('Nothing to copy here. Save a verification first, or press Edit on a verified image.');
         }
         return;
       }
