@@ -11,17 +11,31 @@
  * - Q/W/E: Species shortcut slots, assigned in the shortcuts popover,
  *   stored per user per project in localStorage
  * - Up/Down arrows: Move focus between observations (Tab/Shift+Tab alias)
- * - Plus/Minus: Increase/decrease count of focused observation
+ * - Plus/Minus: Zoom in/out
+ * - A/S/J: Life stage of the focused observation (adult/subadult/juvenile)
+ * - M/F: Sex of the focused observation. Any attribute key again: unknown
+ * - C: Same rows as the last verification saved in this session
+ * - Ctrl+Z (Cmd+Z): Undo the last verification and reopen that image
  * - X: Delete focused observation
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, Share2, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff, Clock } from 'lucide-react';
+import { X, Download, Share2, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff, Clock, Undo2 } from 'lucide-react';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { useNavigate } from 'react-router-dom';
+import type { SaveVerificationRequest } from '../api/types';
 
 type SlotKey = 'q' | 'w' | 'e';
 const SLOT_KEYS: SlotKey[] = ['q', 'w', 'e'];
+// Sex and life stage of the focused observation, one key per value. The
+// letters are the first letter of the value, so there is nothing to learn.
+const ATTRIBUTE_KEYS: Record<string, { field: 'sex' | 'life_stage'; value: string }> = {
+  a: { field: 'life_stage', value: 'adult' },
+  s: { field: 'life_stage', value: 'subadult' },
+  j: { field: 'life_stage', value: 'juvenile' },
+  m: { field: 'sex', value: 'male' },
+  f: { field: 'sex', value: 'female' },
+};
 // Fast typing of e.g. 1 then 2 sets the count to 12; after this pause the
 // next digit starts a fresh number. Mirrors AddaxAI's event count panel.
 const DIGIT_WINDOW_MS = 700;
@@ -79,6 +93,9 @@ interface ImageDetailModalProps {
   onNext?: () => void;
   hasPrevious?: boolean;
   hasNext?: boolean;
+  /** Open an image by uuid, whether or not it is in the current list. Undo
+   *  uses it to go back to an image that a filter has since dropped. */
+  onOpenImage?: (uuid: string) => void;
 }
 
 export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
@@ -90,6 +107,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   onClose,
   onPrevious,
   onNext,
+  onOpenImage,
   hasPrevious = false,
   hasNext = false,
 }) => {
@@ -97,6 +115,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const imageRef = useRef<HTMLImageElement>(null);
   const verificationPanelRef = useRef<VerificationPanelRef>(null);
   const transformRef = useRef<ReactZoomPanPinchRef>(null);
+  // The last verification saved while the modal was open, for undo. One
+  // level, gone when the modal closes. Enter on an empty image under the
+  // Unverified filter saves and jumps, and the saved image drops out of the
+  // list, so without this there was no way back to a mistake.
+  const [lastVerified, setLastVerified] = useState<{ uuid: string; payload: SaveVerificationRequest } | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
@@ -210,6 +233,35 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     setShowUnblurred(false);
     digitBufferRef.current = '';
   }, [imageUuid]);
+
+  useEffect(() => {
+    if (!isOpen) setLastVerified(null);
+  }, [isOpen]);
+
+  // Undo resends the saved rows with is_verified false, the same call the
+  // Edit button makes, then reopens the image. It is unverified again, so
+  // it is back in the Unverified list and the arrows work from there.
+  const undoMutation = useMutation({
+    mutationFn: async () => {
+      if (!lastVerified) return null;
+      await imagesApi.saveVerification(lastVerified.uuid, { ...lastVerified.payload, is_verified: false });
+      return lastVerified.uuid;
+    },
+    onSuccess: (uuid) => {
+      if (!uuid) return;
+      setLastVerified(null);
+      queryClient.invalidateQueries({ queryKey: ['image', uuid] });
+      queryClient.invalidateQueries({ queryKey: ['images'] });
+      onOpenImage?.(uuid);
+      toast.success('Verification undone');
+    },
+    onError: (err: any) => {
+      toast.error(`Could not undo: ${err.response?.data?.detail || err.message}`);
+    },
+  });
+  const runUndo = () => {
+    if (lastVerified && !undoMutation.isPending) undoMutation.mutate();
+  };
 
   // Load the species slots for the current project
   const slotsStorageKey = `addaxai-connect:speciesSlots:${selectedProject?.id ?? 0}`;
@@ -404,6 +456,31 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         }
       }
 
+      // Sex and life stage of the focused observation
+      const attribute = ATTRIBUTE_KEYS[lower];
+      if (attribute && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        verificationPanelRef.current?.setAttributeFocused(attribute.field, attribute.value);
+        return;
+      }
+
+      // Same rows as the last saved verification
+      if (lower === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (!verificationPanelRef.current?.copyFromLast()) {
+          toast.error('Nothing saved yet in this session to copy');
+        }
+        return;
+      }
+
+      // Undo the last verification. Native undo in the notes textarea is
+      // untouched, inputs return early above.
+      if (lower === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        runUndo();
+        return;
+      }
+
       // Digits type the focused observation's count, multi-digit within the
       // window. 0 keeps meaning "empty + next" while the form has no rows.
       if (e.key >= '0' && e.key <= '9' && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -499,17 +576,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           break;
         case '+':
         case '=':
-          // Nudge the focused observation's count up, mirroring the row's
-          // plus button ('=' is the unshifted + on most layouts)
+          // Zoom in, like the toolbar button ('=' is the unshifted + on most
+          // layouts). These keys used to nudge the count; the digits do that.
           e.preventDefault();
-          digitBufferRef.current = '';
-          verificationPanelRef.current?.incrementFocused();
+          transformRef.current?.zoomIn();
           break;
         case '-':
-          // Nudge the focused observation's count down
           e.preventDefault();
-          digitBufferRef.current = '';
-          verificationPanelRef.current?.decrementFocused();
+          transformRef.current?.zoomOut();
           break;
         case 'x':
         case 'X':
@@ -522,7 +596,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext, imageDetail, imageUuid]);
+  }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext, imageDetail, imageUuid, lastVerified]);
 
   // Handle bbox click to highlight species row
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -841,6 +915,15 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 >
                   {showBboxes ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={runUndo}
+                  disabled={!lastVerified || undoMutation.isPending}
+                  title={lastVerified ? 'Undo the last verification (Ctrl+Z)' : 'Nothing to undo yet'}
+                >
+                  <Undo2 className="h-5 w-5" />
+                </Button>
                 {/* Admin-only unblur for identification cases (theft,
                     infractions). Shown only when this image has a detection
                     of a category the project actually blurs. The server
@@ -1021,6 +1104,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               imageUuid={imageUuid}
               imageDetail={imageDetail}
               highlightedSpecies={highlightedSpecies}
+              onVerificationSaved={(uuid, payload) => setLastVerified({ uuid, payload })}
             />
 
             {/* Collapsible Notes Section */}
@@ -1203,12 +1287,28 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span>Move between observations</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">+ -</span>
-                  <span>Change count</span>
+                  <span className="text-muted-foreground">A S J</span>
+                  <span>Adult, subadult, juvenile</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">M F</span>
+                  <span>Male, female</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">C</span>
+                  <span>Same rows as last saved</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">X</span>
                   <span>Delete observation</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Ctrl+Z</span>
+                  <span>Undo last verification</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">+ -</span>
+                  <span>Zoom in, out</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">B</span>

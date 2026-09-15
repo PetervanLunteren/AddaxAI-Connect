@@ -816,6 +816,7 @@ export const ImagesPage: React.FC = () => {
           onClose={() => setSelectedImageUuid(null)}
           onPrevious={modalNavigation.goPrevious}
           onNext={modalNavigation.goNext}
+          onOpenImage={setSelectedImageUuid}
           hasPrevious={modalNavigation.hasPrevious}
           hasNext={modalNavigation.hasNext}
         />

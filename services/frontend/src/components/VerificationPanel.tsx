@@ -2,13 +2,11 @@
  * VerificationPanel component for human verification of species observations
  * Unified editable list pre-populated from AI predictions
  *
- * UX optimizations:
- * - Click species name or +/- buttons to adjust counts
- * - Keyboard shortcut "0" for empty verification (no animals)
- * - Tab/Shift+Tab to cycle focus between observations
- * - Up/Down arrows to adjust count of focused observation
+ * The keyboard shortcuts live in ImageDetailModal and reach this panel
+ * through its ref: focus moves between rows, digits type the count, species
+ * slots, attribute keys, and "same as last" copy the previous verification.
  */
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Minus, X, Loader2, Check, Copy, ChevronDown } from 'lucide-react';
 import { Button } from './ui/Button';
@@ -18,12 +16,14 @@ import { imagesApi } from '../api/images';
 import { speciesApi } from '../api/species';
 import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
-import type { ImageDetail, HumanObservationInput } from '../api/types';
+import type { ImageDetail, HumanObservationInput, SaveVerificationRequest } from '../api/types';
 
 interface VerificationPanelProps {
   imageUuid: string;
   imageDetail: ImageDetail;
-  onVerificationSaved?: () => void;
+  /** Called after a verification is stored, with what was sent, so the
+   *  parent can offer to undo it. */
+  onVerificationSaved?: (uuid: string, payload: SaveVerificationRequest) => void;
   highlightedSpecies?: string | null;
 }
 
@@ -127,8 +127,6 @@ export interface VerificationPanelRef {
   setNotes: (notes: string) => void;
   focusNext: () => void;
   focusPrevious: () => void;
-  incrementFocused: () => void;
-  decrementFocused: () => void;
   deleteFocused: () => void;
   /** True when at least one observation row exists. */
   hasObservations: () => boolean;
@@ -137,6 +135,12 @@ export interface VerificationPanelRef {
   /** Set the focused observation's species, or add a first row with it
    *  (species shortcut slots). */
   applySpeciesToFocused: (species: Option) => void;
+  /** Set the focused observation's sex or life stage (attribute keys). The
+   *  same value again sets it back to unknown. */
+  setAttributeFocused: (field: 'sex' | 'life_stage', value: string) => void;
+  /** Replace the rows with the composition saved last in this session.
+   *  False when nothing was saved yet. */
+  copyFromLast: () => boolean;
 }
 
 export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPanelProps>(({
@@ -168,6 +172,14 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
   const [isEditing, setIsEditing] = useState(!imageDetail.verification.is_verified);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
+  // The observations of the last non-empty verification saved while this
+  // panel was mounted, whatever image or camera it was. A group that stays
+  // in front of a camera for forty photos is entered once and copied with
+  // C. Deliberately not tied to the camera or the time: one rule is easier
+  // to hold in the head than a rule with exceptions.
+  const [lastSaved, setLastSaved] = useState<HumanObservationInput[] | null>(null);
+  // What the mutation in flight sent, so onSuccess can hand it to the parent.
+  const lastPayloadRef = useRef<SaveVerificationRequest | null>(null);
 
   // Source 1: historical species observed in this project's database, so a
   // label like "bear" stays pickable even if it has been removed from the
@@ -305,17 +317,21 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
           behavior: obs.behavior,
         }));
 
-      return imagesApi.saveVerification(imageUuid, {
+      const payload: SaveVerificationRequest = {
         is_verified: true,
         notes: notes || null,
         observations: validObservations,
-      });
+      };
+      lastPayloadRef.current = payload;
+      return imagesApi.saveVerification(imageUuid, payload);
     },
     onSuccess: () => {
       invalidateAfterVerification();
       setError(null);
       setIsEditing(false);
-      onVerificationSaved?.();
+      const payload = lastPayloadRef.current!;
+      if (payload.observations.length > 0) setLastSaved(payload.observations);
+      onVerificationSaved?.(imageUuid, payload);
     },
     onError: (err: any) => {
       setError(err.response?.data?.detail || err.message || 'Failed to save verification');
@@ -325,18 +341,20 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   // "No animals" mutation - one-click save as empty
   const noAnimalsMutation = useMutation({
     mutationFn: () => {
-      return imagesApi.saveVerification(imageUuid, {
+      const payload: SaveVerificationRequest = {
         is_verified: true,
         notes: notes || null,
         observations: [],
-      });
+      };
+      lastPayloadRef.current = payload;
+      return imagesApi.saveVerification(imageUuid, payload);
     },
     onSuccess: () => {
       invalidateAfterVerification();
       setObservations([]);
       setError(null);
       setIsEditing(false);
-      onVerificationSaved?.();
+      onVerificationSaved?.(imageUuid, lastPayloadRef.current!);
     },
     onError: (err: any) => {
       setError(err.response?.data?.detail || err.message || 'Failed to save');
@@ -427,16 +445,19 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         setFocusedIndex(prev => (prev - 1 + observations.length) % observations.length);
       }
     },
-    incrementFocused: () => {
+    setAttributeFocused: (field, value) => {
       if (observations.length > 0 && focusedIndex < observations.length) {
-        incrementCount(observations[focusedIndex].id);
+        const id = observations[focusedIndex].id;
+        setObservations(prev =>
+          prev.map(obs =>
+            obs.id === id
+              ? { ...obs, [field]: obs[field] === value ? 'unknown' : value, isAiSuggested: false }
+              : obs
+          )
+        );
       }
     },
-    decrementFocused: () => {
-      if (observations.length > 0 && focusedIndex < observations.length) {
-        decrementCount(observations[focusedIndex].id);
-      }
-    },
+    copyFromLast,
     deleteFocused: () => {
       if (observations.length > 0 && focusedIndex < observations.length) {
         const idToRemove = observations[focusedIndex].id;
@@ -471,6 +492,26 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       }
     },
   }));
+
+  // Replace the rows with the last saved composition. Fresh ids, and marked
+  // as human input so nothing reads as an AI suggestion.
+  function copyFromLast(): boolean {
+    if (!lastSaved) return false;
+    const stamp = Date.now();
+    setObservations(
+      lastSaved.map((obs, i) => ({
+        id: `copy-${stamp}-${i}`,
+        species: { value: obs.species, label: normalizeLabel(obs.species) },
+        sex: obs.sex || 'unknown',
+        life_stage: obs.life_stage || 'unknown',
+        behavior: obs.behavior || 'unknown',
+        count: obs.count,
+        isAiSuggested: false,
+      })),
+    );
+    setFocusedIndex(0);
+    return true;
+  }
 
   // Add new observation row
   const addObservation = () => {
@@ -819,15 +860,30 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             </div>
           ))}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={addObservation}
-            className="w-full mt-2"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add observation
-          </Button>
+          <div className="flex gap-2 mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={addObservation}
+              className="flex-1"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add observation
+            </Button>
+            {/* Always shown so the option is never a surprise, disabled until
+                something was saved. C does the same from the keyboard. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={copyFromLast}
+              disabled={!lastSaved}
+              title={lastSaved ? 'Same rows as the last saved image (C)' : 'Nothing saved yet in this session'}
+              className="flex-1"
+            >
+              <Copy className="h-4 w-4 mr-1" />
+              Same as last
+            </Button>
+          </div>
         </div>
 
         {/* Error message */}
