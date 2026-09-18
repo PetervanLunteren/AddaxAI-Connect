@@ -57,9 +57,11 @@ interface BeginNewArgs {
   projectId: number;
   folderName: string;
   // Exactly one of deviceId (Mode A, profile-matched camera) or siteId
-  // (Mode B, manual site + synthetic camera).
+  // (Mode B, manual site). cameraId is Mode B only: an existing camera to
+  // attach the batch to instead of the default synthetic camera.
   deviceId?: string;
   siteId?: number;
+  cameraId?: number;
   manifest: BulkUploadManifest;
   // Paths of files already in the project, left out of the upload.
   excludedPaths: string[];
@@ -151,6 +153,7 @@ async function runNewUpload(
       device_id: args.deviceId,
       site_id: args.siteId,
       total_files: toSend.length,
+      camera_id: args.cameraId,
       total_bytes: totalBytes,
       manifest: args.manifest,
       time_offset_seconds: args.timeOffsetSeconds,
