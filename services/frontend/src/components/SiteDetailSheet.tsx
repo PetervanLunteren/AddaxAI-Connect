@@ -23,6 +23,7 @@ import {
   GitMerge,
   Camera as CameraIcon,
   Images,
+  Upload,
 } from 'lucide-react';
 import {
   Sheet,
@@ -232,11 +233,12 @@ export const SiteDetailSheet: React.FC<Props> = ({
               </div>
             ) : activeTab === 'overview' ? (
               <div className="space-y-6">
-                {/* Actions: Images for everyone, Merge/Delete for admins.
-                    grid-cols-3 caps each button at a third of the width. */}
+                {/* Actions: Images for everyone, Upload/Merge/Delete for
+                    admins. grid-cols-2 keeps two per row whether 1 or 4
+                    buttons are showing. */}
                 <div>
                   <label className="text-xs text-muted-foreground">Actions</label>
-                  <div className="mt-1 grid grid-cols-3 gap-2">
+                  <div className="mt-1 grid grid-cols-2 gap-2">
                     {siteId != null && (
                       <Button
                         variant="outline"
@@ -244,6 +246,15 @@ export const SiteDetailSheet: React.FC<Props> = ({
                       >
                         <Images className="h-4 w-4 mr-2" />
                         Images
+                      </Button>
+                    )}
+                    {canEdit && siteId != null && (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/projects/${projectId}/bulk-upload?site=${siteId}`)}
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload images
                       </Button>
                     )}
                     {canEdit && detail && (

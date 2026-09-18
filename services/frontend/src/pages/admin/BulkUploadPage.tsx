@@ -8,7 +8,7 @@
  * row is non-terminal.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
@@ -207,6 +207,14 @@ export const BulkUploadPage: React.FC = () => {
   const [filter, setFilter] = useState<FilterKey>('active');
   const queryClient = useQueryClient();
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // link from a site's "Upload images" action: ?site=<id> 
+
+  const [presetSiteId] = useState<number | undefined>(() => {
+    const raw = searchParams.get('site');
+    return raw ? Number(raw) : undefined;
+  });
 
 
   const { data: jobs } = useQuery({
@@ -359,6 +367,15 @@ export const BulkUploadPage: React.FC = () => {
     setModalOpen(true);
   }, []);
 
+  useEffect(() => {
+    if (presetSiteId === undefined) return;
+    openModal();
+    searchParams.delete('site');
+    setSearchParams(searchParams, { replace: true });
+    // Runs once at mount only, to consume the deep link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -459,6 +476,7 @@ export const BulkUploadPage: React.FC = () => {
         projectId={projectId!}
         resumableJobs={(jobs ?? []).filter((j) => j.status === 'uploading')}
         initialResumeJob={resumeIntent}
+        initialSiteId={presetSiteId}
       />
 
       <ConfirmDialog
@@ -562,7 +580,10 @@ const BulkUploadModal: React.FC<{
   // Skips the banner-choose-which-job step and drops the user
   // straight at the folder picker for that job.
   initialResumeJob?: BulkUploadJob | null;
-}> = ({ open, onClose, projectId, resumableJobs, initialResumeJob }) => {
+  // Pre-populated from a site's "Upload images" action. Preselects the
+  // site once the user reaches the review step (manual mode only).
+  initialSiteId?: number;
+}> = ({ open, onClose, projectId, resumableJobs, initialResumeJob, initialSiteId }) => {
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -685,6 +706,7 @@ const BulkUploadModal: React.FC<{
               folderName={scanned.folderName}
               files={scanned.files}
               entries={scanned.entries}
+              initialSiteId={initialSiteId}
               onBack={() => setStep('pick')}
               onCancel={closeModal}
               onConfirm={(ctx) => {
@@ -1027,12 +1049,17 @@ const ReviewStep: React.FC<{
   folderName: string;
   files: File[];
   entries: ScanEntry[];
+  // From a site's "Upload images" action. Only applies once the batch
+  // falls into manual mode (no camera profile matched).
+  initialSiteId?: number;
   onBack: () => void;
   onCancel: () => void;
   onConfirm: (ctx: UploadContext) => void;
-}> = ({ projectId, folderName, entries: rawEntries, files, onBack, onCancel, onConfirm }) => {
+}> = ({ projectId, folderName, entries: rawEntries, files, initialSiteId, onBack, onCancel, onConfirm }) => {
   const toast = useToast();
-  const [siteId, setSiteId] = useState<string>('');
+  const [siteId, setSiteId] = useState<string>(
+    initialSiteId !== undefined ? String(initialSiteId) : '',
+  );
   const [showCreateSite, setShowCreateSite] = useState(false);
   const [timeOffset, setTimeOffset] = useState(0);
   const [showClockOffset, setShowClockOffset] = useState(false);
@@ -1329,7 +1356,7 @@ const ReviewStep: React.FC<{
             value={cameraId}
             onChange={(e) => setCameraId(e.target.value)}
           >
-            <option value="">New camera for this site</option>
+            <option value="">Select a camera</option>
             {(cameras ?? []).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.device_id}

@@ -16,6 +16,7 @@ import {
   Loader2,
   Map as MapIcon,
   Table as TableIcon,
+  Plus,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -59,6 +60,7 @@ import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
 import type { TagChange, TagManagement } from '../components/TagInput';
+import { SiteFormModal } from '../components/sites/SiteFormModal';
 import { ColumnPicker } from '../components/ui/ColumnPicker';
 import { SortableHeader } from '../components/ui/SortableHeader';
 import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
@@ -165,6 +167,7 @@ export const SitesPage: React.FC = () => {
 
   // Local UI state
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
+  const [showCreateSite, setShowCreateSite] = useState(false);
   const [mergeSite, setMergeSite] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
@@ -598,6 +601,12 @@ export const SitesPage: React.FC = () => {
             Physical places that group camera deployments
           </p>
         </div>
+        {canEdit && (
+          <Button onClick={() => setShowCreateSite(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            New site
+          </Button>
+        )}
       </div>
 
       {/* Filter bar (drives both table and map views) */}
@@ -717,7 +726,7 @@ export const SitesPage: React.FC = () => {
             <MapPin className="h-8 w-8 mx-auto mb-3 opacity-50" />
             <p>
               No sites yet. Sites are created automatically as cameras report
-              their location, or you can add one.
+              their location.
             </p>
           </CardContent>
         </Card>
@@ -847,6 +856,14 @@ export const SitesPage: React.FC = () => {
         }}
         onDeleteRequested={setDeleteSite}
         tagManagement={tagManagement}
+      />
+
+      <SiteFormModal
+        open={showCreateSite}
+        onClose={() => setShowCreateSite(false)}
+        projectId={pid}
+        sites={sites ?? []}
+        onCreated={(site) => setDetailSiteId(site.id)}
       />
 
       {/* Bulk-edit dialogs. Suggestions for the remove dialog come from
