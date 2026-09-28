@@ -49,8 +49,10 @@
     group: "999"
     mode: '0700'
 
+# --ignore-buildable: services with a build block (all of ours except postgres
+# and redis) have no image to pull, and compose exits 1 on them without it.
 - name: Pull Docker images
-  command: docker compose pull
+  command: docker compose pull --ignore-buildable
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"

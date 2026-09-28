@@ -95,7 +95,8 @@ services:
   # Recreates the tier registration on bucket/endpoint change.
   minio-init:
     # Same image as minio, it carries mc. The build block is repeated so
-    # `docker compose pull` treats a failed pull as buildable, not an error.
+    # `docker compose pull --ignore-buildable` skips it instead of trying to
+    # pull a name no registry has.
     # mc stays pinned in the Dockerfile because a newer release once broke the
     # tier detection in entrypoint.sh (`mc ilm tier info --json`). Verify the
     # entrypoint against a new mc before bumping.
