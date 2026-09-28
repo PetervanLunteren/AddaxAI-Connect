@@ -7,6 +7,10 @@ An open-source platform that automatically processes camera trap images with mac
 ![AddaxAI Connect on desktop, tablet, and phone](https://github.com/user-attachments/assets/0dad03d3-d103-41b7-bed7-626dffd0ff16#only-light)
 ![AddaxAI Connect on desktop, tablet, and phone](https://github.com/user-attachments/assets/76e0415d-956c-4c5c-8d72-ed4bae09da6d#only-dark)
 
+## Watch the intro
+
+<iframe src="https://www.youtube.com/embed/ojZebmYLfrQ" title="AddaxAI Connect intro" style="width: 100%; aspect-ratio: 16 / 9; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 ## Getting started
 
 1. [Check camera compatibility](camera-requirements.md): any FTPS-capable camera works, but each model needs a profile. See the list of supported cameras and how to add yours
