@@ -148,6 +148,9 @@ addaxai-connect/
 │   │   ├── worker.py                  # Entry point (posts the observation, attaches a thumbnail)
 │   │   └── db_operations.py           # Log status and integration health
 │   │
+│   ├── minio/                         # MinIO server and mc, built from source
+│   │   └── Dockerfile
+│   │
 │   ├── minio-init/                    # One-shot MinIO bootstrap (buckets, ILM rules)
 │   │   └── entrypoint.sh
 │   │
@@ -374,6 +377,28 @@ Queue names (defined in `shared/shared/queue.py`):
 - **`deepfaune`** is the full stack with DeepFaune classifier (38 European species)
 - **`speciesnet`** is the full stack with SpeciesNet classifier (2,498 global species)
 - **`demo`** runs only the API, database, and frontend (no ML workers)
+
+## MinIO image
+
+MinIO stopped publishing images in 2025 and deleted `minio/minio` and
+`minio/mc` from Docker Hub on 11 Sep 2026, so a fresh deploy could no longer
+pull them. `services/minio/Dockerfile` builds both binaries from the Go
+module proxy instead, at the exact commits every server ran from the old
+image: minio `RELEASE.2025-09-07T16-13-09Z` and mc
+`RELEASE.2025-08-13T08-35-41Z`. One image, `addaxai-connect-minio`, serves
+both `minio` and `minio-init`.
+
+- **Cost.** The compile takes about 6.5 minutes on a 2 vCPU server and peaks
+  at about 1.1 GB of real memory (`GOFLAGS=-p=1` and `GOMEMLIMIT` keep it
+  there). It runs on the first update to this image and again after the
+  weekly `docker builder prune`, the same as the Python services.
+- **Bumping.** Change the `ARG`s in the Dockerfile and the two version greps
+  in `.github/workflows/minio-image.yml`. A new minio is a storage upgrade:
+  run the full dev check on restored production data. A new mc must be
+  checked against `services/minio-init/entrypoint.sh` on a server with the
+  cold tier on, because a newer mc once broke the tier detection.
+- **Rollback.** Tags before v0.13.1 reference the deleted image names. The
+  retag step in `docs/update-guide.md` puts them back.
 
 ## GPU inference
 

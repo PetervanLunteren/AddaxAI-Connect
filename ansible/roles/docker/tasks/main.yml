@@ -74,6 +74,13 @@
     groups: docker
     append: yes
 
+# A group change only applies to new login sessions, and ansible keeps one SSH
+# connection open for the whole play. Reconnect, or the build tasks that run as
+# app_user do not see the docker group when ansible connects as that same user
+# (see docs/deployment.md). Connecting as root never hit this.
+- name: Reconnect so the app user's new docker group applies
+  meta: reset_connection
+
 - name: Test Docker installation
   command: docker --version
   register: docker_version

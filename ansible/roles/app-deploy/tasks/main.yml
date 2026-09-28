@@ -107,6 +107,7 @@
   become_user: "{{ app_user | default('ubuntu') }}"
   when: item.when | default(true)
   loop:
+    - service: minio
     - service: api
     - service: frontend
     - service: ingestion

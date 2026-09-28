@@ -52,12 +52,13 @@ REGION="${COLD_TIER_REGION:-eu-central-1}"
 # Detection uses `mc ilm tier ls` because `mc ilm tier info NAME --json` is
 # broken in current mc releases (fails with "Incorrect number of arguments").
 #
-# Parsed with shell builtins on purpose. The minio/mc image ships mc, cat, cut,
-# tr and head, and no grep, sed, awk or jq. A grep here died with "command not
-# found", which under `set -e` took the script out at the `mc ilm tier add`
-# below, before it ever reached the transition rule. Every cold-tier server ran
-# for months with minio-init exiting 1 and raw-images holding expiry rules but
-# no transition, so nothing ever drained. Use no external tool in this block.
+# Parsed with shell builtins on purpose, so the block does not depend on what
+# the image ships. The old minio/mc image had no grep, sed, awk or jq. A grep
+# here died with "command not found", which under `set -e` took the script out
+# at the `mc ilm tier add` below, before it ever reached the transition rule.
+# Every cold-tier server ran for months with minio-init exiting 1 and
+# raw-images holding expiry rules but no transition, so nothing ever drained.
+# Use no external tool in this block.
 tiers="$(mc ilm tier ls minio --json)"
 case "$tiers" in *"\"Name\":\"$NAME\""*)
   # Cut the listing at our own entry first. mc returns one array of every

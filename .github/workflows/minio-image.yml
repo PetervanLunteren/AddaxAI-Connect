@@ -1,0 +1,34 @@
+name: minio image
+
+# services/minio/Dockerfile builds MinIO and mc from source. A mistake there
+# shows up nowhere else until a server fails to build it, so build it here
+# whenever it or its compose wiring changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/minio/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/minio-image.yml'
+  pull_request:
+    paths:
+      - 'services/minio/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/minio-image.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: docker build -f services/minio/Dockerfile -t minio-check .
+
+      # A wrong -X flag still builds, the binary just reports the wrong
+      # version. These are the only checks that catch it. Keep the tags in
+      # step with the ARGs in the Dockerfile.
+      - name: Check versions
+        run: |
+          docker run --rm minio-check --version | grep -F 'RELEASE.2025-09-07T16-13-09Z'
+          docker run --rm --entrypoint mc minio-check --version | grep -F 'RELEASE.2025-08-13T08-35-41Z'

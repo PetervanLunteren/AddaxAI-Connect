@@ -59,7 +59,11 @@ services:
 
   # MinIO Object Storage
   minio:
-    image: minio/minio:latest
+    # Built from source, see services/minio/Dockerfile.
+    build:
+      context: .
+      dockerfile: services/minio/Dockerfile
+    image: addaxai-connect-minio
     container_name: addaxai-minio
     restart: unless-stopped
     profiles: [deepfaune, speciesnet, demo]
@@ -90,10 +94,15 @@ services:
   # tag-based ILM rules so objects carrying tag `tier=cold` transition there.
   # Recreates the tier registration on bucket/endpoint change.
   minio-init:
-    # Pinned because a `latest` pull once broke the tier detection in
-    # entrypoint.sh (`mc ilm tier info --json` regression). Verify the
-    # entrypoint against the new release before bumping.
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    # Same image as minio, it carries mc. The build block is repeated so
+    # `docker compose pull` treats a failed pull as buildable, not an error.
+    # mc stays pinned in the Dockerfile because a newer release once broke the
+    # tier detection in entrypoint.sh (`mc ilm tier info --json`). Verify the
+    # entrypoint against a new mc before bumping.
+    build:
+      context: .
+      dockerfile: services/minio/Dockerfile
+    image: addaxai-connect-minio
     container_name: addaxai-minio-init
     profiles: [deepfaune, speciesnet, demo]
     depends_on:

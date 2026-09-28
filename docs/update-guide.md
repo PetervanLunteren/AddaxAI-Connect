@@ -86,5 +86,14 @@ bash scripts/restore.sh <this-server-domain> --force
 Check out the old code first, so it matches the schema in the backup. List
 tags with `git tag --sort=-creatordate | head -5`.
 
+Going back to a tag before v0.13.1 needs one extra step first. Those releases
+pull MinIO images that no longer exist, and the weekly image prune removes the
+local copies once nothing uses them. Give the current image the old names:
+
+```bash
+docker tag addaxai-connect-minio minio/minio:latest
+docker tag addaxai-connect-minio minio/mc:RELEASE.2025-08-13T08-35-41Z
+```
+
 If the server is broken rather than the data, build a new one from the backup.
 See the [restore guide](restore-guide.md).
