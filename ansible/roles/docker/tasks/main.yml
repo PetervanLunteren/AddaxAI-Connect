@@ -74,10 +74,12 @@
     groups: docker
     append: yes
 
-# A group change only applies to new login sessions, and ansible keeps one SSH
-# connection open for the whole play. Reconnect, or the build tasks that run as
-# app_user do not see the docker group when ansible connects as that same user
-# (see docs/deployment.md). Connecting as root never hit this.
+# sshd fixes a session's groups when the connection opens, and ansible keeps one
+# SSH connection open for the whole play. When ansible connects as app_user
+# itself (docs/deployment.md), it also skips sudo for tasks that become that
+# same user, so the build tasks later on run straight over that stale session
+# and cannot reach the docker socket. Reconnect, and the new group is there.
+# Connecting as root never hit this: root reaches the socket anyway.
 - name: Reconnect so the app user's new docker group applies
   meta: reset_connection
 
