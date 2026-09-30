@@ -2,6 +2,10 @@
 
 Send detections and camera alerts to an EarthRanger site as events on the ranger map. Each alert becomes one event with the annotated photo and a link back to the full record. It is a notification channel, like email and Telegram: an event is sent once and never changed. Connect is the record, EarthRanger is the alert feed.
 
+## Watch the walkthrough
+
+<iframe src="https://www.youtube.com/embed/Mr3v00TtBjM" title="AddaxAI Connect EarthRanger integration" style="width: 100%; aspect-ratio: 16 / 9; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 ## Before you start
 
 This page connects AddaxAI Connect to an EarthRanger site you already run. EarthRanger is a separate platform; if your organisation does not use it yet, start at [earthranger.com ↗](https://www.earthranger.com/){:target="_blank"} first, this integration only sends to an existing site.
