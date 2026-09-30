@@ -47,6 +47,12 @@ async def cleanup_empty_deployments(
     if not camera_ids:
         return []
 
+    # The session runs autoflush=False, so image rows the caller removed with
+    # db.delete() are still pending here. Without this flush the counts below
+    # see them all and a deployment emptied by this very delete is never
+    # pruned.
+    await db.flush()
+
     pruned_site_ids: set[int] = set()
     for camera_id in camera_ids:
         # Find deployments for this camera that have zero non-hidden images

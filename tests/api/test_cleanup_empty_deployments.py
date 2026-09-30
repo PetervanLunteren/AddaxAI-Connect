@@ -56,15 +56,17 @@ class _FakeSession:
     def __init__(self, results):
         self._results = list(results)
         self.deleted = []
+        self.ops = []
 
     async def execute(self, query):
+        self.ops.append("execute")
         return self._results.pop(0)
 
     async def delete(self, obj):
         self.deleted.append(obj)
 
     async def flush(self):
-        pass
+        self.ops.append("flush")
 
 
 def _deployment(**kwargs) -> Deployment:
@@ -90,6 +92,10 @@ async def test_empty_deployment_is_pruned_and_no_site_means_no_offer():
 
     assert db.deleted == [dep]
     assert emptied == []
+    # The session runs autoflush=False, so the caller's pending db.delete()
+    # rows must be flushed before any count, or a deployment emptied by that
+    # very delete is never pruned.
+    assert db.ops[0] == "flush"
 
 
 @pytest.mark.asyncio
