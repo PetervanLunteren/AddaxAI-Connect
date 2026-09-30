@@ -24,7 +24,8 @@ import {
   filtersToSearchParams,
   type FilterSchema,
 } from '../../lib/filter-url';
-import type { AdminImageFilterParams, BulkActionTarget } from '../../api/imageAdmin';
+import type { AdminImageFilterParams, BulkActionTarget, EmptiedSite } from '../../api/imageAdmin';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { statisticsApi } from '../../api/statistics';
 import {
   Dialog,
@@ -207,6 +208,8 @@ export const ManageImagesPage: React.FC = () => {
   const [modalImageUuid, setModalImageUuid] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  // Sites the last delete left empty; non-empty opens the delete-site offer.
+  const [emptiedSites, setEmptiedSites] = useState<EmptiedSite[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const limit = 50;
@@ -356,8 +359,30 @@ export const ManageImagesPage: React.FC = () => {
       setDeleteConfirmText('');
       setSuccessMessage(`${result.success_count} image(s) permanently deleted`);
       setTimeout(() => setSuccessMessage(null), 3000);
+      setEmptiedSites(result.emptied_sites ?? []);
     },
     onError: reportActionError('delete'),
+  });
+
+  // The offer that follows a delete which left sites without cameras or
+  // images. Explicit confirmation, never automatic, because sites carry
+  // names, tags and rule references.
+  const deleteEmptiedSitesMutation = useMutation({
+    mutationFn: async (sites: EmptiedSite[]) => {
+      for (const site of sites) {
+        await sitesApi.remove(projectId!, site.id);
+      }
+      return sites.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      queryClient.invalidateQueries({ queryKey: ['site-tags'] });
+      setEmptiedSites([]);
+      toast.success(count === 1 ? 'Empty site deleted' : `${count} empty sites deleted`);
+    },
+    onError: (error: any) => {
+      toast.error(`Could not delete the site (${error.response?.data?.detail || error.message})`);
+    },
   });
 
   const downloadMutation = useMutation({
@@ -946,6 +971,29 @@ export const ManageImagesPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Offer to delete sites the delete just emptied */}
+      <ConfirmDialog
+        open={emptiedSites.length > 0}
+        onClose={() => {
+          if (!deleteEmptiedSitesMutation.isPending) setEmptiedSites([]);
+        }}
+        onConfirm={() => deleteEmptiedSitesMutation.mutate(emptiedSites)}
+        title={emptiedSites.length === 1 ? 'Site is now empty' : 'Sites are now empty'}
+        body={
+          <>
+            {emptiedSites.length === 1
+              ? `"${emptiedSites[0].name}" has no cameras and no images left. Delete the site too?`
+              : `These sites have no cameras and no images left. Delete them too? ${emptiedSites.map((s) => `"${s.name}"`).join(', ')}`}
+            {' '}If a camera sends from that spot again, a new site is made.
+          </>
+        }
+        confirmLabel={emptiedSites.length === 1 ? 'Delete site' : `Delete ${emptiedSites.length} sites`}
+        cancelLabel="Keep"
+        variant="destructive"
+        focusCancel
+        isPending={deleteEmptiedSitesMutation.isPending}
+      />
     </div>
   );
 };

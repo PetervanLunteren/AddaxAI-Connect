@@ -416,6 +416,9 @@ class ProjectMembership(Base):
     # a non-empty list of site ids the viewer is restricted to. An empty
     # list is rejected by the API so one meaning has one form, the same
     # convention as DetectionAlertRule.site_ids. Always null for admins.
+    # One internal writer can leave [] behind: deleting a site removes its id
+    # from stored lists, and an emptied list means the viewer sees nothing
+    # (fail closed) until an admin re-scopes them.
     site_ids = Column(JSON, nullable=True)
     added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -522,6 +525,9 @@ class DetectionAlertRule(Base):
     species = Column(JSON, nullable=True)
     # null means all sites of the project, else a non-empty list of site
     # ids. An empty list is rejected by the API so one meaning has one form.
+    # Deleting a site removes its id from stored lists; a list that empties
+    # stays [] and the rule is paused, so it shows as inactive instead of
+    # silently never firing.
     site_ids = Column(JSON, nullable=True)
     channels = Column(JSON, nullable=False)  # non-empty subset of ["email", "telegram"]
     # Optional conditions, null means the condition is off. The hour window
@@ -622,6 +628,8 @@ class TheftWatchRule(Base):
     sensitivity = Column(String(10), nullable=False)  # low | medium | high
     # null means all sites of the project, else a non-empty list of site
     # ids. An empty list is rejected by the API so one meaning has one form.
+    # Deleting a site removes its id from stored lists; a list that empties
+    # stays [] and the rule is paused, same as DetectionAlertRule.
     site_ids = Column(JSON, nullable=True)
     channels = Column(JSON, nullable=False)  # non-empty subset of ["email", "telegram"]
     is_active = Column(Boolean, nullable=False, server_default='true')

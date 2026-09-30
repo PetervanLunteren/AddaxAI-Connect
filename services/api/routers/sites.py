@@ -17,7 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.models import Site, Deployment, User
+from shared.models import (
+    DetectionAlertRule,
+    Deployment,
+    ProjectMembership,
+    Site,
+    TheftWatchRule,
+    User,
+    UserInvitation,
+)
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
 from utils.deployment_edits import recompute_site_location
@@ -464,6 +472,66 @@ async def update_site(
     return await _build_detail(db, project_id, site_id)
 
 
+def _updated_scope(site_ids: List[int], site_id: int, replacement_id: Optional[int]) -> List[int]:
+    """The list with site_id removed, or swapped for replacement_id, deduplicated."""
+    result: List[int] = []
+    for s in site_ids:
+        mapped = replacement_id if s == site_id else s
+        if mapped is not None and mapped not in result:
+            result.append(mapped)
+    return result
+
+
+async def _remove_site_from_scopes(
+    db: AsyncSession,
+    project_id: int,
+    site_id: int,
+    replacement_id: Optional[int] = None,
+) -> None:
+    """
+    Take a site that is about to be deleted (or merged, then replacement_id
+    is the target) out of every JSON site_ids list that references it:
+    detection alert rules, theft watch rules, viewer memberships, and unused
+    invitations. The lists have no foreign key, so without this a rule scoped
+    only to the site would silently match nothing forever.
+
+    A rule whose list ends up empty is paused (is_active=False), so the rules
+    page shows what happened instead of an active rule that never fires. A
+    membership or invitation that ends up empty stays [], which every scope
+    reader treats as "sees nothing" (fail closed); the admin re-scopes the
+    viewer.
+    """
+    scoped = [
+        (DetectionAlertRule, True),
+        (TheftWatchRule, True),
+        (ProjectMembership, False),
+        (UserInvitation, False),
+    ]
+    for model, has_active_flag in scoped:
+        query = select(model).where(
+            model.project_id == project_id,
+            model.site_ids.is_not(None),
+        )
+        if model is UserInvitation:
+            query = query.where(UserInvitation.used == False)  # noqa: E712
+        rows = (await db.execute(query)).scalars().all()
+        for row in rows:
+            if site_id not in (row.site_ids or []):
+                continue
+            new_ids = _updated_scope(row.site_ids, site_id, replacement_id)
+            row.site_ids = new_ids
+            if not new_ids and has_active_flag:
+                row.is_active = False
+            logger.info(
+                "Removed site from scope list",
+                model=model.__name__,
+                row_id=row.id,
+                site_id=site_id,
+                replacement_id=replacement_id,
+                now_empty=not new_ids,
+            )
+
+
 @router.post("/{site_id}/merge", response_model=SiteDetail)
 async def merge_site(
     project_id: int,
@@ -484,6 +552,7 @@ async def merge_site(
     await db.execute(
         update(Deployment).where(Deployment.site_id == source.id).values(site_id=target.id)
     )
+    await _remove_site_from_scopes(db, project_id, source.id, replacement_id=target.id)
     await db.delete(source)
     # The target absorbed the source's deployments, so recompute its pin.
     await db.flush()
@@ -507,9 +576,11 @@ async def delete_site(
 ):
     """
     Delete a site. Its deployments keep their rows but lose the site link
-    (deployments.site_id is set to NULL by the foreign key).
+    (deployments.site_id is set to NULL by the foreign key). Rules and viewer
+    scopes that referenced the site are cleaned in the same transaction.
     """
     site = await _site_in_project(db, project_id, site_id)
+    await _remove_site_from_scopes(db, project_id, site_id)
     await db.delete(site)
     await db.commit()
     logger.info("Deleted site", site_id=site_id, project_id=project_id)

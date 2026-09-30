@@ -919,7 +919,7 @@ async def delete_bulk_upload_images(
             )
         ).all()
     ]
-    deleted, errors = await delete_images_by_ids(db, image_ids)
+    deleted, errors, _emptied_sites = await delete_images_by_ids(db, image_ids)
     logger.info(
         "Deleted bulk upload images",
         job_uuid=job_uuid,

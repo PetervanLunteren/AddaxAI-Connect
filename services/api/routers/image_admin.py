@@ -35,11 +35,19 @@ router = APIRouter(prefix="/api/admin/images", tags=["image-admin"])
 logger = get_logger("api.image_admin")
 
 
-async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
-    """Delete deployment periods that have no visible images (not hidden, not deleted)."""
+async def cleanup_empty_deployments(
+    db: AsyncSession, camera_ids: set[int]
+) -> List["EmptiedSite"]:
+    """
+    Delete deployment periods that have no visible images (not hidden, not
+    deleted). Returns the sites the pruning left without any deployment, so
+    the curation UI can offer to delete them; the site rows themselves are
+    never touched here, they hold user data (name, tags, notes).
+    """
     if not camera_ids:
-        return
+        return []
 
+    pruned_site_ids: set[int] = set()
     for camera_id in camera_ids:
         # Find deployments for this camera that have zero non-hidden images
         deployments_query = (
@@ -77,7 +85,26 @@ async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
                     camera_id=camera_id,
                     deployment_number=dep.deployment_number,
                 )
+                if dep.site_id is not None:
+                    pruned_site_ids.add(dep.site_id)
                 await db.delete(dep)
+
+    if not pruned_site_ids:
+        return []
+
+    # Which of the touched sites are now without any deployment. The flush
+    # makes the deletes above visible to the count.
+    await db.flush()
+    rows = (
+        await db.execute(
+            select(Site.id, Site.name)
+            .outerjoin(Deployment, Deployment.site_id == Site.id)
+            .where(Site.id.in_(pruned_site_ids))
+            .group_by(Site.id)
+            .having(func.count(Deployment.id) == 0)
+        )
+    ).all()
+    return [EmptiedSite(id=row.id, name=row.name) for row in rows]
 
 
 class AdminImageListItemResponse(BaseModel):
@@ -149,10 +176,18 @@ class BulkImageActionRequest(BaseModel):
     filters: Optional[AdminImageFilterParams] = None
 
 
+class EmptiedSite(BaseModel):
+    """A site a delete left without deployments, offered for deletion in the UI."""
+    id: int
+    name: str
+
+
 class BulkImageActionResponse(BaseModel):
     success_count: int
     failed_count: int
     errors: List[str] = []
+    # Only the delete endpoint fills this; hide and unhide never empty a site.
+    emptied_sites: List[EmptiedSite] = []
 
 
 async def _build_filter_clauses(
@@ -630,17 +665,14 @@ async def bulk_hide_images(
     )
 
     if valid_uuids:
-        cam_result = await db.execute(
-            select(Image.camera_id).where(Image.uuid.in_(valid_uuids)).distinct()
-        )
-        affected_camera_ids = {row[0] for row in cam_result.all()}
-
+        # No deployment pruning here, on purpose. Hide must be reversible,
+        # and pruning a deployment sets its images' deployment_id to NULL
+        # (FK), which unhide cannot restore. Pruning happens on delete only.
         await db.execute(
             update(Image)
             .where(Image.uuid.in_(valid_uuids))
             .values(is_hidden=True)
         )
-        await cleanup_empty_deployments(db, affected_camera_ids)
         await db.commit()
 
     return BulkImageActionResponse(
@@ -686,19 +718,20 @@ async def bulk_unhide_images(
 
 async def delete_images_by_ids(
     db: AsyncSession, image_ids: List[int]
-) -> Tuple[int, List[str]]:
+) -> Tuple[int, List[str], List[EmptiedSite]]:
     """
     Permanently delete the given images and everything tied to them
     (detections, classifications, human observations, and the raw/thumbnail/crop
     MinIO objects), prune any now-empty deployments, and commit.
 
-    Returns (success_count, errors). Shared by the curation bulk-delete endpoint
-    and the bulk-upload "delete imported images" cleanup, so the rules stay in
-    one place.
+    Returns (success_count, errors, emptied_sites), where emptied_sites are
+    the sites the pruning left without deployments. Shared by the curation
+    bulk-delete endpoint and the bulk-upload "delete imported images"
+    cleanup, so the rules stay in one place.
     """
     errors: List[str] = []
     if not image_ids:
-        return 0, errors
+        return 0, errors, []
 
     images = (
         await db.execute(select(Image).where(Image.id.in_(image_ids)))
@@ -756,9 +789,9 @@ async def delete_images_by_ids(
             errors.append(f"Failed to delete image {image.uuid}: {str(e)}")
             logger.error("Failed to delete image", image_uuid=image.uuid, error=str(e))
 
-    await cleanup_empty_deployments(db, affected_camera_ids)
+    emptied_sites = await cleanup_empty_deployments(db, affected_camera_ids)
     await db.commit()
-    return success_count, errors
+    return success_count, errors, emptied_sites
 
 
 @router.post(
@@ -787,11 +820,12 @@ async def bulk_delete_images(
             errors=errors,
         )
 
-    success_count, delete_errors = await delete_images_by_ids(db, image_ids)
+    success_count, delete_errors, emptied_sites = await delete_images_by_ids(db, image_ids)
     return BulkImageActionResponse(
         success_count=success_count,
         failed_count=requested_count - success_count,
         errors=errors + delete_errors,
+        emptied_sites=emptied_sites,
     )
 
 

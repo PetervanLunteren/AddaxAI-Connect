@@ -32,10 +32,17 @@ export interface AdminImageListFilters extends AdminImageFilterParams {
   sort_dir?: string;
 }
 
+export interface EmptiedSite {
+  id: number;
+  name: string;
+}
+
 export interface BulkActionResponse {
   success_count: number;
   failed_count: number;
   errors: string[];
+  // Sites a delete left without cameras or images; the UI offers to delete them.
+  emptied_sites?: EmptiedSite[];
 }
 
 /**
