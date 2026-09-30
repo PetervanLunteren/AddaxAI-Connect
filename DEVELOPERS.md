@@ -803,8 +803,8 @@ How to see and verify UI changes in a real browser without deploying to a server
 
    ```
    VITE_PROXY_TARGET=https://dev.addaxai.com
-   SWEEP_EMAIL=<test account email>
-   SWEEP_PASSWORD=<test account password>
+   SWEEP_EMAIL=<server-admin email on the dev server>
+   SWEEP_PASSWORD=<its password>
    ```
 
 2. Run the frontend locally:
@@ -819,7 +819,7 @@ How to see and verify UI changes in a real browser without deploying to a server
 
 Without `VITE_PROXY_TARGET` the proxy falls back to the docker-internal API, so container builds behave exactly as before. Auth is a bearer token in localStorage, so nothing cookie-related needs configuring.
 
-The test account is a dedicated server-admin account on the dev server, invited via the User Assignment page. Do not put personal credentials in `.env.local`.
+There is no standing test account. Every restore replaces dev's users, so whatever account `SWEEP_*` names has usually vanished; check the login works before a sweep and invite a server-admin account again when it does not. The `SWEEP_*` values are only for the sweep script. For anything visual outside the sweep, log in yourself in the browser.
 
 ### Screenshot sweep
 
