@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Callout } from '../../components/ui/Callout';
+import { useToast } from '../../components/ui/Toaster';
 import {
   FilterBar,
   type FilterFieldDef,
@@ -109,6 +110,14 @@ const SortableHeader: React.FC<{
 
 export const ManageImagesPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const toast = useToast();
+
+  // Every bulk action reports its failure, or the page looks like nothing
+  // happened. The delete confirm dialog stays open on purpose so a retry
+  // keeps the selection and the typed confirmation.
+  const reportActionError = (verb: string) => (error: any) => {
+    toast.error(`Could not ${verb} the images (${error.response?.data?.detail || error.message})`);
+  };
   const { selectedProject, canAdminCurrentProject } = useProject();
   const projectId = selectedProject?.id;
 
@@ -318,6 +327,7 @@ export const ManageImagesPage: React.FC = () => {
       setSuccessMessage(`${result.success_count} image(s) hidden from analysis`);
       setTimeout(() => setSuccessMessage(null), 3000);
     },
+    onError: reportActionError('hide'),
   });
 
   const unhideMutation = useMutation({
@@ -331,6 +341,7 @@ export const ManageImagesPage: React.FC = () => {
       setSuccessMessage(`${result.success_count} image(s) restored to analysis`);
       setTimeout(() => setSuccessMessage(null), 3000);
     },
+    onError: reportActionError('restore'),
   });
 
   const deleteMutation = useMutation({
@@ -346,6 +357,7 @@ export const ManageImagesPage: React.FC = () => {
       setSuccessMessage(`${result.success_count} image(s) permanently deleted`);
       setTimeout(() => setSuccessMessage(null), 3000);
     },
+    onError: reportActionError('delete'),
   });
 
   const downloadMutation = useMutation({
@@ -362,6 +374,7 @@ export const ManageImagesPage: React.FC = () => {
       setSuccessMessage('Download started');
       setTimeout(() => setSuccessMessage(null), 3000);
     },
+    onError: reportActionError('download'),
   });
 
   const isMutating =

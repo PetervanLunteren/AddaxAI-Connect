@@ -67,16 +67,11 @@ async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
             image_count = count_result.scalar_one()
 
             if image_count == 0:
-                # Keep deployments the user has labelled so we never silently
-                # delete user-entered data along with the row. (Deployment has
-                # no notes field; name is the only user-set label.)
-                if dep.name:
-                    logger.info(
-                        "Skipping empty deployment with user data",
-                        camera_id=camera_id,
-                        deployment_number=dep.deployment_number,
-                    )
-                    continue
+                # No keep-guard on purpose: deployments carry no user-entered
+                # data (the site holds the name), so an emptied one can always
+                # be pruned. Earlier guards here referenced columns that were
+                # later dropped (notes, then name), which 500'd every delete
+                # that emptied a deployment.
                 logger.info(
                     "Deleting empty deployment period",
                     camera_id=camera_id,
