@@ -105,8 +105,6 @@ What AddaxAI Connect defines, and what that guide points back to, are the two ev
     }
     ```
 
-The event type's default priority sets the colour of the dot on the map. People and vehicles arrive with `addaxai_connect_category` set to `person` or `vehicle`.
-
 ### 2. Connect the project
 
 1. Log in at [gundiservice.org ↗](https://gundiservice.org/){:target="_blank"} and open your AddaxAI route. In the flow map, click the data provider, the AddaxAI box on the left, and copy its API key.
