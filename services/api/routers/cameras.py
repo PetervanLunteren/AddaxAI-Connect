@@ -1320,7 +1320,8 @@ async def import_cameras_csv(
     Bulk import cameras from CSV file (project admin or server admin)
 
     Expected CSV format with headers (delimiter auto-detected: comma or semicolon):
-    Required: CameraID. Optional: Name, Notes. All other columns are stored as custom fields.
+    Required: CameraID. Optional: Notes, SimExpiryDate. All other columns are
+    stored as custom fields.
 
     Args:
         file: CSV file upload
@@ -1404,8 +1405,10 @@ async def import_cameras_csv(
             detail=f"Project with ID {project_id} not found",
         )
 
-    # Columns that are not stored in custom_fields
-    reserved_columns = {'CameraID', 'Name', 'FriendlyName', 'Notes', 'SimExpiryDate'}
+    # Columns that are not stored in custom_fields. Everything else, a Name
+    # column included, becomes a custom field; cameras have no name of their
+    # own since the sites migration.
+    reserved_columns = {'CameraID', 'Notes', 'SimExpiryDate'}
 
     # Process rows
     results: List[CameraImportRow] = []
@@ -1442,7 +1445,6 @@ async def import_cameras_csv(
             failed_count += 1
             continue
 
-        friendly_name = (row.get('Name') or row.get('FriendlyName') or '').strip() or None
         notes = (row.get('Notes') or '').strip()
 
         # Optional SIM expiry. Strict YYYY-MM-DD; bad value rejects the row

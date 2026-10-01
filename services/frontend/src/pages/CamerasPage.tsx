@@ -1252,7 +1252,7 @@ export const CamerasPage: React.FC = () => {
                   placeholder="e.g., 860946063660255"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Unique camera identifier (IMEI, serial number, or custom ID)
+                  Must exactly match the identifier the camera sends, usually the IMEI or serial number
                 </p>
               </div>
 
@@ -1382,7 +1382,7 @@ export const CamerasPage: React.FC = () => {
                     <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
                       <div>
                         <p className="text-sm font-medium">All you need is a list of camera IDs</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">A camera ID is any unique identifier per camera (e.g. IMEI, serial number, or custom label).</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">A camera ID must exactly match the identifier the camera sends, usually the IMEI or serial number.</p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
 {`CameraID
@@ -1395,15 +1395,15 @@ export const CamerasPage: React.FC = () => {
 
                     <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
                       <div>
-                        <p className="text-sm font-medium">Optionally add a name, notes, or SIM expiry</p>
+                        <p className="text-sm font-medium">Optionally add notes or a SIM expiry</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Add <code className="bg-background px-1 rounded">Name</code>, <code className="bg-background px-1 rounded">Notes</code>, or <code className="bg-background px-1 rounded">SimExpiryDate</code> columns. Empty names default to the camera ID. SIM expiry dates use <code className="bg-background px-1 rounded">YYYY-MM-DD</code>.
+                          Add <code className="bg-background px-1 rounded">Notes</code> or <code className="bg-background px-1 rounded">SimExpiryDate</code> columns. SIM expiry dates use <code className="bg-background px-1 rounded">YYYY-MM-DD</code>.
                         </p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
-{`CameraID,Name,Notes,SimExpiryDate
-860946063660255,,,
-860946063660256,Camera north,Oak tree,2026-12-15`}
+{`CameraID,Notes,SimExpiryDate
+860946063660255,,
+860946063660256,Oak tree,2026-12-15`}
                       </pre>
                     </div>
 
@@ -1415,9 +1415,9 @@ export const CamerasPage: React.FC = () => {
                         <p className="text-xs text-muted-foreground mt-0.5">Extra columns are stored as custom fields. Not used by the system but searchable.</p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
-{`CameraID,Name,Notes,Habitat,Mounted on
-860946063660255,,,,
-860946063660256,Camera north,Near stream,Wetland,Pole`}
+{`CameraID,Notes,Habitat,Mounted on
+860946063660255,,,
+860946063660256,Near stream,Wetland,Pole`}
                       </pre>
                     </div>
                   </div>
