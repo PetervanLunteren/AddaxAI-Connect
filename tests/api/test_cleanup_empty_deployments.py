@@ -153,16 +153,20 @@ async def test_no_cameras_touches_nothing():
     assert emptied == []
 
 
-def _function_calls(path: Path, function_name: str) -> set[str]:
+def _function_node(path: Path, function_name: str) -> ast.AST:
     tree = ast.parse(path.read_text())
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name:
-            return {
-                call.func.id
-                for call in ast.walk(node)
-                if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
-            }
+            return node
     raise AssertionError(f"{function_name} not found in {path}")
+
+
+def _function_calls(path: Path, function_name: str) -> set[str]:
+    return {
+        call.func.id
+        for call in ast.walk(_function_node(path, function_name))
+        if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+    }
 
 
 def test_hide_does_not_prune_and_delete_does():
@@ -171,3 +175,23 @@ def test_hide_does_not_prune_and_delete_does():
         "bulk hide must not prune deployments, unhide cannot restore the link"
     )
     assert "cleanup_empty_deployments" in _function_calls(path, "delete_images_by_ids")
+
+
+def test_prune_count_includes_hidden_images():
+    # A deployment holding only hidden images must survive pruning, or those
+    # images get deployment_id NULL and unhide cannot bring the link back.
+    # The count must therefore never filter on is_hidden.
+    path = Path(_api) / "routers" / "image_admin.py"
+    node = _function_node(path, "cleanup_empty_deployments")
+    assert "is_hidden" not in ast.dump(node), (
+        "pruning must count all image rows, hidden ones included"
+    )
+
+
+def test_bulk_delete_is_capped_per_request():
+    # Uncapped, a 2,174-image delete took 68 s and 504'd at nginx's 60 s
+    # while the server finished anyway. The endpoint must apply the cap;
+    # the UI loops requests until done.
+    path = Path(_api) / "routers" / "image_admin.py"
+    node = _function_node(path, "bulk_delete_images")
+    assert "BULK_DELETE_MAX_IMAGES" in ast.dump(node)

@@ -31,6 +31,13 @@ from utils.image_processing import apply_privacy_blur, blur_whole_image
 # at ~4 MB/image puts the zip near 2 GB.
 BULK_DOWNLOAD_MAX_IMAGES = 500
 
+# Cap per delete request so one request always finishes inside nginx's 60 s
+# proxy window (the MinIO object deletes dominate, ~30 ms per image, so 500
+# is ~15 s). The curation UI loops requests until everything is gone; a
+# 2,174-image delete measured 68 s uncapped and 504'd while the server
+# finished anyway, telling the user it failed.
+BULK_DELETE_MAX_IMAGES = 500
+
 router = APIRouter(prefix="/api/admin/images", tags=["image-admin"])
 logger = get_logger("api.image_admin")
 
@@ -39,10 +46,13 @@ async def cleanup_empty_deployments(
     db: AsyncSession, camera_ids: set[int]
 ) -> List["EmptiedSite"]:
     """
-    Delete deployment periods that have no visible images (not hidden, not
-    deleted). Returns the sites the pruning left without any deployment, so
-    the curation UI can offer to delete them; the site rows themselves are
-    never touched here, they hold user data (name, tags, notes).
+    Delete deployment periods that have no image rows left at all, hidden
+    ones included. A deployment holding only hidden images must survive,
+    because pruning sets those images' deployment_id to NULL (FK) and an
+    unhide cannot restore the link. Returns the sites the pruning left
+    without any deployment, so the curation UI can offer to delete them;
+    the site rows themselves are never touched here, they hold user data
+    (name, tags, notes).
     """
     if not camera_ids:
         return []
@@ -55,7 +65,7 @@ async def cleanup_empty_deployments(
 
     pruned_site_ids: set[int] = set()
     for camera_id in camera_ids:
-        # Find deployments for this camera that have zero non-hidden images
+        # Find deployments for this camera that have zero images left
         deployments_query = (
             select(Deployment)
             .where(Deployment.camera_id == camera_id)
@@ -64,10 +74,10 @@ async def cleanup_empty_deployments(
         deployments = result.scalars().all()
 
         for dep in deployments:
-            # Count non-hidden images within this deployment's date range
+            # Count every image in this deployment's date range, hidden ones
+            # included, see the docstring.
             date_filters = [
                 Image.camera_id == camera_id,
-                Image.is_hidden == False,
                 Image.captured_at >= dep.start_date,
             ]
             if dep.end_date is not None:
@@ -825,6 +835,15 @@ async def bulk_delete_images(
             failed_count=requested_count,
             errors=errors,
         )
+
+    # Delete at most BULK_DELETE_MAX_IMAGES per request, so the request stays
+    # inside the proxy timeout. The UI repeats the call until a response
+    # deletes fewer than the cap; with a filters target the already-deleted
+    # images simply stop matching. failed_count must not count the images a
+    # later request will handle.
+    if len(image_ids) > BULK_DELETE_MAX_IMAGES:
+        image_ids = image_ids[:BULK_DELETE_MAX_IMAGES]
+        requested_count = len(image_ids)
 
     success_count, delete_errors, emptied_sites = await delete_images_by_ids(db, image_ids)
     return BulkImageActionResponse(

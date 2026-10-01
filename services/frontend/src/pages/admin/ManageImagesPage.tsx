@@ -347,9 +347,39 @@ export const ManageImagesPage: React.FC = () => {
     onError: reportActionError('restore'),
   });
 
+  // Keep in sync with BULK_DELETE_MAX_IMAGES in the API. Each request
+  // deletes at most this many images so it finishes inside the proxy
+  // timeout; the loop below repeats until everything is gone.
+  const BULK_DELETE_BATCH = 500;
+  const [deleteProgress, setDeleteProgress] = useState<number | null>(null);
+
   const deleteMutation = useMutation({
-    mutationFn: (target: BulkActionTarget) => imageAdminApi.bulkDelete(projectId!, target),
-    onSuccess: (result) => {
+    mutationFn: async (target: BulkActionTarget) => {
+      let total = 0;
+      const emptied = new Map<number, EmptiedSite>();
+      const collect = (result: { success_count: number; emptied_sites?: EmptiedSite[] }) => {
+        total += result.success_count;
+        (result.emptied_sites ?? []).forEach((s) => emptied.set(s.id, s));
+        setDeleteProgress(total);
+      };
+      if (target.image_uuids) {
+        for (let i = 0; i < target.image_uuids.length; i += BULK_DELETE_BATCH) {
+          collect(await imageAdminApi.bulkDelete(projectId!, {
+            image_uuids: target.image_uuids.slice(i, i + BULK_DELETE_BATCH),
+          }));
+        }
+      } else {
+        // Filters target. Deleted images stop matching the filters, so the
+        // same request repeats until a response comes back under the cap.
+        for (;;) {
+          const result = await imageAdminApi.bulkDelete(projectId!, target);
+          collect(result);
+          if (result.success_count < BULK_DELETE_BATCH) break;
+        }
+      }
+      return { total, emptied: Array.from(emptied.values()) };
+    },
+    onSuccess: ({ total, emptied }) => {
       queryClient.invalidateQueries({ queryKey: ['admin-images'] });
       queryClient.invalidateQueries({ queryKey: ['images'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
@@ -357,28 +387,50 @@ export const ManageImagesPage: React.FC = () => {
       setSelectAllMatching(false);
       setShowDeleteConfirm(false);
       setDeleteConfirmText('');
-      setSuccessMessage(`${result.success_count} image(s) permanently deleted`);
+      setDeleteProgress(null);
+      setSuccessMessage(`${total} image(s) permanently deleted`);
       setTimeout(() => setSuccessMessage(null), 3000);
-      setEmptiedSites(result.emptied_sites ?? []);
+      setEmptiedSites(emptied);
     },
-    onError: reportActionError('delete'),
+    onError: (error: any) => {
+      // Earlier batches may have deleted already, refresh what the user sees.
+      queryClient.invalidateQueries({ queryKey: ['admin-images'] });
+      setDeleteProgress(null);
+      reportActionError('delete')(error);
+    },
   });
 
   // The offer that follows a delete which left sites without cameras or
   // images. Explicit confirmation, never automatic, because sites carry
-  // names, tags and rule references.
+  // names, tags and rule references. Each site is tried on its own, so one
+  // failure keeps only that site in the dialog for a retry.
   const deleteEmptiedSitesMutation = useMutation({
     mutationFn: async (sites: EmptiedSite[]) => {
-      for (const site of sites) {
-        await sitesApi.remove(projectId!, site.id);
-      }
-      return sites.length;
+      const results = await Promise.allSettled(
+        sites.map((site) => sitesApi.remove(projectId!, site.id)),
+      );
+      const deleted = sites.filter((_, i) => results[i].status === 'fulfilled');
+      const failed = sites.filter((_, i) => results[i].status === 'rejected');
+      return { deleted, failed };
     },
-    onSuccess: (count) => {
+    onSuccess: ({ deleted, failed }) => {
       queryClient.invalidateQueries({ queryKey: ['sites'] });
       queryClient.invalidateQueries({ queryKey: ['site-tags'] });
-      setEmptiedSites([]);
-      toast.success(count === 1 ? 'Empty site deleted' : `${count} empty sites deleted`);
+      setEmptiedSites(failed);
+      if (deleted.length > 0) {
+        toast.success(deleted.length === 1 ? 'Empty site deleted' : `${deleted.length} empty sites deleted`);
+        // A deleted site must not linger in the site filter as a bare id.
+        const deletedIds = new Set(deleted.map((s) => String(s.id)));
+        const remaining = siteFilter.filter((id) => !deletedIds.has(id));
+        if (remaining.length !== siteFilter.length) {
+          onFilterChange({ site_id: remaining.length > 0 ? remaining : undefined });
+        }
+      }
+      if (failed.length > 0) {
+        toast.error(failed.length === 1
+          ? `Could not delete "${failed[0].name}"`
+          : `Could not delete ${failed.length} sites`);
+      }
     },
     onError: (error: any) => {
       toast.error(`Could not delete the site (${error.response?.data?.detail || error.message})`);
@@ -959,7 +1011,9 @@ export const ManageImagesPage: React.FC = () => {
               {deleteMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
+                  {deleteProgress !== null && effectiveSelectionCount > BULK_DELETE_BATCH
+                    ? `Deleting ${deleteProgress} of ${effectiveSelectionCount}`
+                    : 'Deleting...'}
                 </>
               ) : (
                 <>
@@ -983,9 +1037,8 @@ export const ManageImagesPage: React.FC = () => {
         body={
           <>
             {emptiedSites.length === 1
-              ? `"${emptiedSites[0].name}" has no cameras and no images left. Delete the site too?`
-              : `These sites have no cameras and no images left. Delete them too? ${emptiedSites.map((s) => `"${s.name}"`).join(', ')}`}
-            {' '}If a camera sends from that spot again, a new site is made.
+              ? `"${emptiedSites[0].name}" has no cameras and no images left. Delete the site too? If a camera sends from that spot again, a new site is made.`
+              : `${emptiedSites.map((s) => `"${s.name}"`).join(', ')} have no cameras and no images left. Delete them too? If a camera sends from those spots again, new sites are made.`}
           </>
         }
         confirmLabel={emptiedSites.length === 1 ? 'Delete site' : `Delete ${emptiedSites.length} sites`}
