@@ -10,11 +10,70 @@
  * uniform between the two products.
  */
 import { useState } from 'react';
-import { format, parseISO } from 'date-fns';
+import {
+  addMonths,
+  endOfMonth,
+  endOfYear,
+  format,
+  parseISO,
+  startOfMonth,
+  startOfYear,
+  subMonths,
+  subYears,
+} from 'date-fns';
 
 import { Button } from './Button';
 import { Calendar } from './Calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
+
+interface Preset {
+  label: string;
+  from: Date;
+  to: Date;
+}
+
+/** First day of the meteorological season the date falls in (Mar, Jun, Sep
+ * or Dec 1). January and February belong to the winter that started the
+ * previous December. Northern hemisphere, like every current deployment. */
+function seasonStart(d: Date): Date {
+  const month = d.getMonth();
+  if (month < 2) return new Date(d.getFullYear() - 1, 11, 1);
+  const start = month - ((month + 1) % 3);
+  return new Date(d.getFullYear(), start, 1);
+}
+
+function seasonLabel(start: Date): string {
+  const names: Record<number, string> = {
+    2: 'Spring', 5: 'Summer', 8: 'Autumn', 11: 'Winter',
+  };
+  const year = start.getFullYear();
+  return start.getMonth() === 11
+    ? `Winter ${year}/${String((year + 1) % 100).padStart(2, '0')}`
+    : `${names[start.getMonth()]} ${year}`;
+}
+
+/** The quick ranges: calendar periods plus the four most recent seasons.
+ * Periods that include today end at today, finished periods keep their
+ * real boundaries. Built per render so a long-lived tab stays correct. */
+function buildPresets(): Preset[] {
+  const now = new Date();
+  const lastMonth = subMonths(now, 1);
+  const lastYear = subYears(now, 1);
+  const presets: Preset[] = [
+    { label: 'This month', from: startOfMonth(now), to: now },
+    { label: 'Last month', from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) },
+    { label: 'Last 3 months', from: startOfMonth(subMonths(now, 2)), to: now },
+    { label: 'This year', from: startOfYear(now), to: now },
+    { label: 'Last year', from: startOfYear(lastYear), to: endOfYear(lastYear) },
+  ];
+  let start = seasonStart(now);
+  for (let i = 0; i < 4; i++) {
+    const end = endOfMonth(addMonths(start, 2));
+    presets.push({ label: seasonLabel(start), from: start, to: end > now ? now : end });
+    start = subMonths(start, 3);
+  }
+  return presets;
+}
 
 interface DateRangePickerProps {
   /** ISO date string (YYYY-MM-DD), or null/undefined when unset. */
@@ -66,6 +125,25 @@ export function DateRangePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
+        <div className="flex max-w-[280px] flex-wrap gap-1 border-b p-2">
+          {buildPresets().map((preset) => (
+            <Button
+              key={preset.label}
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs font-normal"
+              onClick={() => {
+                onChange({
+                  from: format(preset.from, 'yyyy-MM-dd'),
+                  to: format(preset.to, 'yyyy-MM-dd'),
+                });
+                setOpen(false);
+              }}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
         <Calendar
           mode="range"
           selected={range}
