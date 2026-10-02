@@ -125,24 +125,29 @@ export function DateRangePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <div className="flex max-w-[280px] flex-wrap gap-1 border-b p-2">
-          {buildPresets().map((preset) => (
-            <Button
-              key={preset.label}
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs font-normal"
-              onClick={() => {
-                onChange({
-                  from: format(preset.from, 'yyyy-MM-dd'),
-                  to: format(preset.to, 'yyyy-MM-dd'),
-                });
-                setOpen(false);
-              }}
-            >
-              {preset.label}
-            </Button>
-          ))}
+        <div className="flex max-w-[280px] flex-wrap gap-1.5 border-b p-2">
+          {buildPresets().map((preset) => {
+            const presetFrom = format(preset.from, 'yyyy-MM-dd');
+            const presetTo = format(preset.to, 'yyyy-MM-dd');
+            const active = from === presetFrom && to === presetTo;
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                  active
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'bg-secondary/50 hover:bg-secondary'
+                }`}
+                onClick={() => {
+                  onChange({ from: presetFrom, to: presetTo });
+                  setOpen(false);
+                }}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
         </div>
         <Calendar
           mode="range"
