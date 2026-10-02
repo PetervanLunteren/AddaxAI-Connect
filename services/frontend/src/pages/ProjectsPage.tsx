@@ -26,6 +26,11 @@ export const ProjectsPage: React.FC = () => {
   const { projects, loading, isServerAdmin } = useProject();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  // Anyone already trusted to manage a project may start a new one and
+  // becomes its admin. Mirrors require_any_project_admin on the API.
+  const canCreateProject =
+    isServerAdmin || (projects ?? []).some((p) => p.role === 'project-admin');
+
   // Check server setup status (server admins only)
   const { data: setupStatus } = useQuery({
     queryKey: ['setup-status'],
@@ -90,7 +95,7 @@ export const ProjectsPage: React.FC = () => {
               }
             </p>
           </div>
-          {isServerAdmin && (
+          {canCreateProject && (
             <Button
               size="sm"
               onClick={() => setShowCreateModal(true)}
@@ -179,7 +184,7 @@ export const ProjectsPage: React.FC = () => {
       )}
 
         {/* Create Project Modal */}
-        {isServerAdmin && (
+        {canCreateProject && (
           <CreateProjectModal
             open={showCreateModal}
             onClose={() => setShowCreateModal(false)}

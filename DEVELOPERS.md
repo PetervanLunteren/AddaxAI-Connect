@@ -17,8 +17,8 @@
 ## Role-based access control
 
 Three-tier system:
-- **server-admin** has full access to all projects, can create projects and manage all users
-- **project-admin** manages specific projects, can invite users to their projects
+- **server-admin** has full access to all projects and manages all users
+- **project-admin** manages specific projects, can invite users to their projects, and can create a new project (becoming its admin); deleting a project stays server-admin only
 - **project-viewer** has read-only access to specific projects
 
 Users can have different roles in different projects (e.g., admin of Project A, viewer of Project B).

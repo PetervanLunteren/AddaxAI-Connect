@@ -186,6 +186,44 @@ async def require_server_admin(
     return user
 
 
+async def require_any_project_admin(
+    user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_session)
+) -> User:
+    """
+    Require server admin, or project admin in at least one project.
+
+    Used for project creation: anyone already trusted to manage a project
+    may start a new one (and becomes its admin). Viewers and users without
+    memberships are refused.
+
+    Args:
+        user: Current authenticated user (injected by FastAPI)
+        db: Database session (injected by FastAPI)
+
+    Returns:
+        User instance if authorized
+
+    Raises:
+        HTTPException 403 if user administers no project
+    """
+    if is_server_admin(user):
+        return user
+
+    result = await db.execute(
+        select(ProjectMembership.id).where(
+            ProjectMembership.user_id == user.id,
+            ProjectMembership.role == Role.PROJECT_ADMIN.value,
+        ).limit(1)
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Project admin access required"
+        )
+    return user
+
+
 async def require_project_access(
     project_id: int,
     user: User = Depends(current_active_user),

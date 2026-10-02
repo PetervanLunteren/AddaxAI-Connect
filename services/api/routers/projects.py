@@ -15,7 +15,13 @@ from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_PROJECT_DOCUMENTS
 from shared.logger import get_logger
 from auth.users import current_verified_user
-from auth.permissions import require_server_admin, require_project_admin_access, can_admin_project
+from auth.permissions import (
+    Role,
+    require_server_admin,
+    require_project_admin_access,
+    require_any_project_admin,
+    can_admin_project,
+)
 from auth.project_access import get_accessible_project_ids, check_site_scope_or_400
 from routers.cameras import (
     CameraDeletePreviewItem,
@@ -262,10 +268,14 @@ async def get_project(
 async def create_project(
     project_data: ProjectCreate,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_server_admin),
+    current_user: User = Depends(require_any_project_admin),
 ):
     """
-    Create a new project (server admin only).
+    Create a new project.
+
+    Open to server admins and to anyone who is project admin in at least
+    one project; a non-server-admin creator becomes project admin of the
+    new project. Deleting a project stays server admin only.
 
     Requires server setup to be complete: timezone must be configured,
     and for SpeciesNet servers, taxonomy mapping and country code must be set.
@@ -299,6 +309,19 @@ async def create_project(
     )
 
     db.add(project)
+    await db.flush()
+
+    # Server admins reach every project implicitly and never get membership
+    # rows. Anyone else needs one, or they lose access to their own project
+    # the moment it exists.
+    if not current_user.is_superuser:
+        db.add(ProjectMembership(
+            user_id=current_user.id,
+            project_id=project.id,
+            role=Role.PROJECT_ADMIN.value,
+            added_by_user_id=current_user.id,
+        ))
+
     await db.commit()
     await db.refresh(project)
 

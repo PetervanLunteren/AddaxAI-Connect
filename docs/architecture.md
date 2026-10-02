@@ -130,8 +130,8 @@ The system does not include intrusion detection, file integrity monitoring, or l
 
 Three levels of access:
 
-- **Server admin** has full access to all projects, can create projects and manage all users
-- **Project admin** manages specific projects and can invite users to their projects
+- **Server admin** has full access to all projects and manages all users
+- **Project admin** manages specific projects, can invite users to their projects, and can create a new project (becoming its admin). Deleting a project stays with the server admin.
 - **Project viewer** has read-only access to assigned projects
 
 Users can have different roles across different projects. The initial server admin is created during deployment. Other users are invited through the web interface.
