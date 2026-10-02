@@ -600,68 +600,27 @@ def pool_map_rows(rows, indep_counts: Optional[dict] = None) -> dict:
     return buckets
 
 
-@router.get(
-    "/detection-rate-map",
-    response_model=DetectionRateMapResponse,
-)
-async def get_detection_rate_map(
-    project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    species: Optional[str] = Query(
-        None,
-        description=(
-            "Comma-separated species (case-insensitive). Several species "
-            "combine their counts into one abundance."
-        ),
-    ),
-    start_date: Optional[date] = Query(None, description="Filter detections from this date (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(None, description="Filter detections to this date (YYYY-MM-DD)"),
-    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
-    source: LabelSource = _source_param(),
-    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_verified_user),
-):
+async def fetch_site_buckets(
+    db: AsyncSession,
+    project_ids: List[int],
+    site_id_list: Optional[List[int]],
+    project_id: Optional[int],
+    source: LabelSource = DEFAULT_LABEL_SOURCE,
+    species_list: Optional[List[str]] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> dict:
     """
-    Get detection rate map data as GeoJSON.
+    One bucket per site at the site location: pooled trap days, deployment
+    count, and per-species detection counts under the label source, with the
+    thresholds and the independence interval applied. See pool_map_rows for
+    the bucket shape.
 
-    Returns one point per SITE with its pooled detection rate (detections per
-    trap-day). Each site's deployments are summed together, so a place with
-    several deployments (relocations, or more than one camera) is a single point
-    instead of overlapping points. Deployments with no site are excluded.
-
-    Filtering:
-    - Automatically filtered by user's accessible projects
-    - Optional species filter (comma-separated, case-insensitive; several
-      species sum their counts into a combined abundance)
-    - Optional date range filter (applies to detection dates)
-    - Respects project detection thresholds
-
-    Detection rate calculation:
-    - detections = count of detections in deployment period (optionally filtered by species/dates)
-    - trap_days = end_date - start_date + 1 (or today - start_date + 1 for active deployments)
-    - detection_rate = detections / trap_days
-    - Shows 0.0 for deployments with no detections
-
-    Args:
-        species: Filter by species name (optional, case-insensitive)
-        start_date: Filter detections from date (optional, YYYY-MM-DD)
-        end_date: Filter detections to date (optional, YYYY-MM-DD)
-        accessible_project_ids: Project IDs accessible to user
-        db: Database session
-        current_user: Current authenticated user
-
-    Returns:
-        GeoJSON FeatureCollection with deployment features
+    Shared by the detection rate map and the spatial export, so the two
+    always report the same numbers.
     """
-    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     interval = await _get_independence_interval(db, project_id)
-    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     scope = label_scope(source)
-    # Lowercased list for the = ANY comparisons below. Several species merge
-    # their counts, which is the combined-abundance behaviour of the map.
-    species_list = (
-        [s.strip().lower() for s in species.split(',') if s.strip()] if species else None
-    ) or None
 
     # Build SQL query with conditional filters
     # Use UNION to combine verified (human observations) and unverified (AI) counts
@@ -835,7 +794,7 @@ async def get_detection_rate_map(
             "species_list": species_list,
             "start_date": start_date,
             "end_date": end_date,
-            "project_ids": accessible_project_ids,
+            "project_ids": project_ids,
             "site_ids": site_id_list,
         }
     )
@@ -848,7 +807,7 @@ async def get_detection_rate_map(
         end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
         indep_counts = await get_independent_detection_rate_counts(
             db=db,
-            project_ids=accessible_project_ids,
+            project_ids=project_ids,
             interval_minutes=interval,
             species_filter=species_list,
             start_date=start_dt,
@@ -859,7 +818,69 @@ async def get_detection_rate_map(
     # Pool the per-(deployment, species) rows into one point per site.
     # Detection counts and trap-days sum across the site's deployments, so
     # the rate stays effort-corrected. See pool_map_rows.
-    buckets = pool_map_rows(rows, indep_counts)
+    return pool_map_rows(rows, indep_counts)
+
+
+@router.get(
+    "/detection-rate-map",
+    response_model=DetectionRateMapResponse,
+)
+async def get_detection_rate_map(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    species: Optional[str] = Query(
+        None,
+        description=(
+            "Comma-separated species (case-insensitive). Several species "
+            "combine their counts into one abundance."
+        ),
+    ),
+    start_date: Optional[date] = Query(None, description="Filter detections from this date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Filter detections to this date (YYYY-MM-DD)"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
+    source: LabelSource = _source_param(),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get detection rate map data as GeoJSON.
+
+    Returns one point per SITE with its pooled detection rate (detections per
+    trap-day). Each site's deployments are summed together, so a place with
+    several deployments (relocations, or more than one camera) is a single point
+    instead of overlapping points. Deployments with no site are excluded.
+
+    Filtering:
+    - Automatically filtered by user's accessible projects
+    - Optional species filter (comma-separated, case-insensitive; several
+      species sum their counts into a combined abundance)
+    - Optional date range filter (applies to detection dates)
+    - Respects project detection thresholds
+
+    Detection rate calculation:
+    - detections = count of detections in deployment period (optionally filtered by species/dates)
+    - trap_days = end_date - start_date + 1 (or today - start_date + 1 for active deployments)
+    - detection_rate = detections / trap_days
+    - Shows 0.0 for deployments with no detections
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
+    # Lowercased list for the = ANY comparisons in the query. Several species
+    # merge their counts, which is the combined-abundance behaviour of the map.
+    species_list = (
+        [s.strip().lower() for s in species.split(',') if s.strip()] if species else None
+    ) or None
+
+    buckets = await fetch_site_buckets(
+        db,
+        project_ids=accessible_project_ids,
+        site_id_list=site_id_list,
+        project_id=project_id,
+        source=source,
+        species_list=species_list,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
     features = []
     for site_id, b in buckets.items():

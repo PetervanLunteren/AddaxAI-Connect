@@ -44,9 +44,14 @@ class TestDetectionRateMapSource:
     the same convention as test_hour_filter.py."""
 
     def _source(self):
+        # The endpoint parses the species list and fetch_site_buckets holds
+        # the query, so the guards read both.
         from routers import statistics
 
-        return inspect.getsource(statistics.get_detection_rate_map)
+        return (
+            inspect.getsource(statistics.get_detection_rate_map)
+            + inspect.getsource(statistics.fetch_site_buckets)
+        )
 
     def test_all_three_branches_use_the_species_array(self):
         src = self._source()

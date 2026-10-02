@@ -130,9 +130,11 @@ class TestMapQuerySource:
     """Source-level guards, same convention as test_map_multi_species.py."""
 
     def _source(self):
+        # The query lives in fetch_site_buckets, shared between the map
+        # endpoint and the spatial export.
         from routers import statistics
 
-        return inspect.getsource(statistics.get_detection_rate_map)
+        return inspect.getsource(statistics.fetch_site_buckets)
 
     def test_all_three_branches_group_by_species(self):
         src = self._source()
