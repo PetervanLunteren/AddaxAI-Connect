@@ -39,7 +39,7 @@ AddaxAI Connect is an open-source platform that automatically processes camera t
 
 It's made for nature conservation. The software is free and open source, with no licensing cost, and it stays that way. We build it so that parks, reserves, and research teams can run their own camera trap pipeline without paying for software. The goal is to protect nature, not to make money from the software. If you would rather not run it yourself, we also offer to deploy it or host it for you as a paid service. That paid help is what keeps the software free for everyone.
 
-A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org). Built on [AddaxAI](https://github.com/PetervanLunteren/addaxai) for the ML backbone.
+Software by [Addax Data Science](https://addaxdatascience.com), camera hardware by [Smart Parks](https://www.smartparks.org). Built on [AddaxAI](https://github.com/PetervanLunteren/addaxai) for the ML backbone.
 
 ## Demo
 
@@ -78,7 +78,7 @@ The service is practical and mission-driven. It is best-effort and kept lightwei
 To talk about hosting or setup help, visit [plan.addaxai.com](https://plan.addaxai.com).
 
 <!--
-AddaxAI Connect is being developed by Smart Parks and Addax Data Science as an open and accessible software stack, made available via GitHub so that organisations can deploy, adapt, and contribute to it themselves. In addition, Smart Parks formally offers AddaxAI Connect as a hosted service, always together with Addax Data Science, for organisations that do not have the technical capacity to deploy or maintain the solution independently. This service is offered on a best-effort basis, with the intention of making the technology easier to access and use. It is not positioned as an enterprise-grade managed service with formal SLAs, dedicated support contracts, or complex procurement and compliance processes. That does not mean the solution is not designed responsibly, securely, or professionally, but rather that Smart Parks and Addax Data Science aim to keep the offering lightweight, practical, and mission-driven. Organisations requiring enterprise-level guarantees, contractual service levels, or extensive vendor processes are encouraged to deploy the open-source stack themselves or work with a specialised enterprise service provider.
+AddaxAI Connect is an open and accessible stack, with the software developed by Addax Data Science and the camera hardware handled by Smart Parks, made available via GitHub so that organisations can deploy, adapt, and contribute to it themselves. In addition, Smart Parks formally offers AddaxAI Connect as a hosted service, always together with Addax Data Science, for organisations that do not have the technical capacity to deploy or maintain the solution independently. This service is offered on a best-effort basis, with the intention of making the technology easier to access and use. It is not positioned as an enterprise-grade managed service with formal SLAs, dedicated support contracts, or complex procurement and compliance processes. That does not mean the solution is not designed responsibly, securely, or professionally, but rather that Smart Parks and Addax Data Science aim to keep the offering lightweight, practical, and mission-driven. Organisations requiring enterprise-level guarantees, contractual service levels, or extensive vendor processes are encouraged to deploy the open-source stack themselves or work with a specialised enterprise service provider.
 -->
 
 ## Hardware
