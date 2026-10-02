@@ -311,7 +311,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                         Images
                       </Button>
                     )}
-                    {isServerAdmin && onDeleteRequested && (
+                    {canAdmin && onDeleteRequested && (
                       <Button
                         variant="outline"
                         className="text-destructive hover:text-destructive"
@@ -585,7 +585,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Details tab: custom fields (admins). Read by default; Edit toggles the editor. */}
             {activeTab === 'details' && canAdmin && (
               <div>
-                {isEditing && isServerAdmin ? (
+                {isEditing ? (
                   <div className="space-y-3">
                     <label className="text-xs text-muted-foreground">Custom fields</label>
 

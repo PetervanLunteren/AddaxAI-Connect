@@ -937,7 +937,7 @@ export const CamerasPage: React.FC = () => {
               </span>
             )}
           </Button>
-          {isServerAdmin && (
+          {canAdminCurrentProject && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button className="whitespace-nowrap">
@@ -1227,8 +1227,8 @@ export const CamerasPage: React.FC = () => {
         onDeleted={clearCameraSelection}
       />
 
-      {/* Add Camera Dialog (server admins only) */}
-      {isServerAdmin && (
+      {/* Add Camera Dialog (project admins) */}
+      {canAdminCurrentProject && (
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogContent onClose={() => setShowAddDialog(false)}>
             <DialogHeader>
@@ -1364,8 +1364,8 @@ export const CamerasPage: React.FC = () => {
         </Dialog>
       )}
 
-      {/* CSV Import Dialog (server admins only) */}
-      {isServerAdmin && (
+      {/* CSV Import Dialog (project admins) */}
+      {canAdminCurrentProject && (
         <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
           <DialogContent onClose={() => setShowImportDialog(false)} className="max-w-4xl">
             <DialogHeader>
