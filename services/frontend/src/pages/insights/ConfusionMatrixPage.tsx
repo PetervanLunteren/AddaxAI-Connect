@@ -10,7 +10,8 @@
  */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
 import { Info, Loader2, Target } from 'lucide-react';
 
 import { performanceApi, type PerformanceData } from '../../api/performance';
@@ -320,7 +321,7 @@ export const ConfusionMatrixPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('confusion-matrix', FILTER_SCHEMA);
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const siteIdValues = asStringArray(parsed.site_ids);
   const tagValues = asStringArray(parsed.tags);

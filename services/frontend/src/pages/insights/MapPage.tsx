@@ -8,7 +8,7 @@
  * Clear all resets everything, including metric and view mode.
  */
 import React, { useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
 import { useQuery } from '@tanstack/react-query';
 
 import { DetectionRateMap, type ViewMode } from '../../components/map';
@@ -63,7 +63,7 @@ const SUBTITLES: Record<MapMetricId, string> = {
 export const InsightsMapPage: React.FC = () => {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('insights-map', FILTER_SCHEMA);
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
 
   const siteIdValues = asStringArray(parsed.site_ids);

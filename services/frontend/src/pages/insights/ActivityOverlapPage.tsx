@@ -11,7 +11,7 @@
  */
 import React, { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
 import { Info, Loader2 } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
@@ -89,7 +89,7 @@ export const ActivityOverlapPage: React.FC = () => {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('activity-overlap', FILTER_SCHEMA);
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
 
   const speciesA = (parsed.species_a as string) || null;

@@ -8,7 +8,8 @@
  * and refreshes preserve state, same as CamerasPage.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MapPin,
@@ -141,7 +142,7 @@ export const SitesPage: React.FC = () => {
 
   // Filter and view-mode live in the URL so refreshing or sharing a link
   // preserves state. Same pattern as CamerasPage.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('sites', FILTER_SCHEMA);
   const parsedFilters = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const searchQuery = asString(parsedFilters.search);
   const habitatFilter = asString(parsedFilters.habitat);

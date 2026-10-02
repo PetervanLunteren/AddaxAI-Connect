@@ -60,7 +60,7 @@ import {
   filtersToSearchParams,
   type FilterSchema,
 } from '../lib/filter-url';
-import { useSearchParams } from 'react-router-dom';
+import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
 // Local type now that the old CameraFilters component is gone.
 type CameraFilterState = {
@@ -119,7 +119,7 @@ export const CamerasPage: React.FC = () => {
 
   // Filter and view-mode state live in the URL via FILTER_SCHEMA so the
   // bar, the chip row below it, and shareable links all agree.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('cameras', FILTER_SCHEMA);
 
   // Side panel state
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);

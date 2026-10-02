@@ -7,10 +7,12 @@
  * displayed, purely so switching tabs did not wipe the Explore selection.
  * That is unnecessary once Overview stops touching the URL at all.
  *
- * The URL is the only state. There is no context and no store.
+ * The URL is the live state, there is no context and no store. The filter
+ * keys are also remembered per user, project and page through
+ * usePersistedFilterParams, so they come back after a logout or a new tab.
  */
 import { useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
 import { useQuery } from '@tanstack/react-query';
 import {
   filtersFromSearchParams,
@@ -42,7 +44,7 @@ export function useDashboardFilters() {
   // Filter state lives in the URL so dashboard views are sharable and survive
   // a refresh. `replace: true` keeps the back button history clean when the
   // user edits the date range or toggles tag chips.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('dashboard', DASHBOARD_FILTER_SCHEMA);
   const parsed = filtersFromSearchParams(searchParams, DASHBOARD_FILTER_SCHEMA);
 
   const dateRange: DateRange = useMemo(

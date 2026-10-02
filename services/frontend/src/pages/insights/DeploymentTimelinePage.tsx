@@ -9,7 +9,7 @@
  */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
 import { Info } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
@@ -51,7 +51,7 @@ export const DeploymentTimelinePage: React.FC = () => {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('deployment-timeline', FILTER_SCHEMA);
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
 
   const startDate = (parsed.date_from as string) || null;

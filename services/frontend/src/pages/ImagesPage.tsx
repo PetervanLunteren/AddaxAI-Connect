@@ -3,7 +3,7 @@
  */
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 import { Calendar, MapPin, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -74,7 +74,7 @@ export const ImagesPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('images', FILTER_SCHEMA);
   const [page, setPage] = useState(1);
   // The open image lives in the URL, so the address bar always matches the
   // screen and a link to one image can be shared and refreshed.
@@ -85,7 +85,7 @@ export const ImagesPage: React.FC = () => {
   const [prevPageLastUuid, setPrevPageLastUuid] = useState<string | null>(null);
 
   // Filter state lives in the URL via FILTER_SCHEMA. The page reads from
-  // useSearchParams on every render; writes go through writeFilters.
+  // the search params on every render; writes go through writeFilters.
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const cameraIdValues = asStringArray(parsed.camera_ids);
   const siteIdValues = asStringArray(parsed.site_id);

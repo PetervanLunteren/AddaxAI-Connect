@@ -5,7 +5,8 @@
  * bulk hide/unhide images from analysis, and permanently delete images.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
+import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   EyeOff, Eye, Trash2, Loader2, ArrowUp, ArrowDown, ArrowUpDown,
@@ -123,7 +124,7 @@ export const ManageImagesPage: React.FC = () => {
   const projectId = selectedProject?.id;
 
   const [page, setPage] = useState(1);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = usePersistedFilterParams('manage-images', FILTER_SCHEMA);
   const parsedFilters = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const search = asString(parsedFilters.search);
   const cameraFilter = asString(parsedFilters.camera_id);
