@@ -555,7 +555,9 @@ def pool_map_rows(rows, indep_counts: Optional[dict] = None) -> dict:
             deployments[row.deployment_id] = d
         if row.species is not None and row.detection_count > 0:
             key = row.species.lower()
-            d["species_counts"][key] = d["species_counts"].get(key, 0) + row.detection_count
+            # int() because SUM() arrives as Decimal, which Pydantic coerces
+            # on the map endpoint but json.dumps in the spatial export does not.
+            d["species_counts"][key] = d["species_counts"].get(key, 0) + int(row.detection_count)
 
     # Pass 2: pool deployments into site buckets
     buckets: dict = {}

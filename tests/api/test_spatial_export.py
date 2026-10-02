@@ -139,6 +139,34 @@ class TestSerializers:
         layer_names = {f["properties"]["layer"] for f in doc["features"]}
         assert layer_names == {"deployments", "sites", "species_summary"}
 
+    def test_geojson_survives_decimal_sums_from_postgres(self):
+        # SUM() comes back from asyncpg as Decimal. The map endpoint's
+        # Pydantic model coerces it, json.dumps does not, so the bucket
+        # factory must hand out ints. Crashed on dev, 2 Oct 2026.
+        from decimal import Decimal
+
+        from routers.export import _serialize_spatial_geojson
+        from routers.statistics import pool_map_rows
+
+        Row = namedtuple(
+            "Row",
+            "deployment_id site_id site_name camera_id deployment_number "
+            "start_date end_date lon lat trap_days species detection_count",
+        )
+        buckets = pool_map_rows([Row(
+            deployment_id=1, site_id=10, site_name="site 10", camera_id=1,
+            deployment_number=1, start_date=date(2026, 1, 1),
+            end_date=date(2026, 4, 10), lon=5.0, lat=50.0, trap_days=100,
+            species="red deer", detection_count=Decimal("5"),
+        )])
+        layers = _build(buckets=buckets)
+        doc = json.loads(_serialize_spatial_geojson(layers))
+        counts = [
+            f["properties"]["detection_count"] for f in doc["features"]
+            if f["properties"]["layer"] == "sites"
+        ]
+        assert counts == [5]
+
     def test_shapefile_fields_align_with_properties(self):
         # The zip must round-trip the sites layer through pyshp
         import shapefile
