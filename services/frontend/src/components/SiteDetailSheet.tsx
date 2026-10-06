@@ -42,7 +42,7 @@ import {
   STATUS_LABELS,
   UNKNOWN_COLOR,
 } from '../utils/camera-colors';
-import { TagInput } from './TagInput';
+import { TagInput, type TagManagement } from './TagInput';
 import { DeploymentJourney } from './DeploymentJourney';
 import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
 import { cn } from '../lib/utils';
@@ -65,6 +65,8 @@ interface Props {
   // sites list and the existing mutations), so the kebab just signals up.
   onMergeRequested: (site: { id: number; name: string }) => void;
   onDeleteRequested: (site: { id: number; name: string }) => void;
+  // Project-wide rename and delete inside the tag widget, admin contexts only.
+  tagManagement?: TagManagement;
 }
 
 
@@ -108,6 +110,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
   canEdit,
   onMergeRequested,
   onDeleteRequested,
+  tagManagement,
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -308,6 +311,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                         onChange={setEditTags}
                         suggestions={tagSuggestions ?? []}
                         placeholder='For example "wetland" or "otter territory"'
+                        management={tagManagement}
                       />
                     ) : (
                       <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">

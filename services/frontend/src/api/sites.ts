@@ -129,6 +129,29 @@ export const sitesApi = {
     });
     return data;
   },
+  /** Rename a tag on every site in the project. Renaming onto an existing
+   * tag merges the two. */
+  renameTag: async (
+    projectId: number,
+    oldTag: string,
+    newTag: string,
+  ): Promise<BulkUpdateResponse> => {
+    const { data } = await apiClient.post(`${base(projectId)}/tags/rename`, {
+      old_tag: oldTag,
+      new_tag: newTag,
+    });
+    return data;
+  },
+  /** Remove a tag from every site in the project. */
+  deleteTag: async (
+    projectId: number,
+    tag: string,
+  ): Promise<BulkUpdateResponse> => {
+    const { data } = await apiClient.post(`${base(projectId)}/tags/delete`, {
+      tag,
+    });
+    return data;
+  },
   bulkSetNotes: async (
     projectId: number,
     siteIds: number[],

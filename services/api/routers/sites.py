@@ -30,7 +30,7 @@ from auth.permissions import require_project_access, require_project_admin_acces
 from auth.project_access import get_site_scope
 from utils.deployment_edits import recompute_site_location
 from utils.site_scope import site_in_scope
-from utils.tags import normalize_tags
+from utils.tags import normalize_tags, rename_tag_in_list
 
 logger = get_logger("api.sites")
 
@@ -393,6 +393,86 @@ async def bulk_remove_tags(
 
     await db.commit()
     return BulkUpdateResponse(updated_count=len(sites))
+
+
+class RenameTagRequest(BaseModel):
+    old_tag: str
+    new_tag: str
+
+
+class DeleteTagRequest(BaseModel):
+    tag: str
+
+
+async def _sites_with_tags(db: AsyncSession, project_id: int) -> List[Site]:
+    """Every site in the project that carries at least one tag. Loaded in
+    Python because the tag lives in a JSON list; projects hold tens of
+    sites, not thousands."""
+    result = await db.execute(
+        select(Site).where(Site.project_id == project_id, Site.tags.isnot(None))
+    )
+    return list(result.scalars().all())
+
+
+@router.post("/tags/rename", response_model=BulkUpdateResponse)
+async def rename_site_tag(
+    project_id: int,
+    request: RenameTagRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Rename a tag on every site in the project that carries it, in one
+    transaction. Renaming onto an existing tag merges the two."""
+    old = normalize_tags([request.old_tag])
+    new = normalize_tags([request.new_tag])
+    if not old or not new:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Both the current and the new tag are required",
+        )
+
+    updated = 0
+    for site in await _sites_with_tags(db, project_id):
+        if old[0] in (site.tags or []):
+            site.tags = rename_tag_in_list(site.tags, old[0], new[0])
+            updated += 1
+
+    await db.commit()
+    logger.info(
+        "Renamed site tag", project_id=project_id,
+        old_tag=old[0], new_tag=new[0], updated_count=updated,
+    )
+    return BulkUpdateResponse(updated_count=updated)
+
+
+@router.post("/tags/delete", response_model=BulkUpdateResponse)
+async def delete_site_tag(
+    project_id: int,
+    request: DeleteTagRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Remove a tag from every site in the project that carries it, in one
+    transaction."""
+    norm = normalize_tags([request.tag])
+    if not norm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A tag is required",
+        )
+
+    updated = 0
+    for site in await _sites_with_tags(db, project_id):
+        if norm[0] in (site.tags or []):
+            site.tags = [t for t in site.tags if t != norm[0]]
+            updated += 1
+
+    await db.commit()
+    logger.info(
+        "Deleted site tag", project_id=project_id,
+        tag=norm[0], updated_count=updated,
+    )
+    return BulkUpdateResponse(updated_count=updated)
 
 
 @router.post("/bulk-set-notes", response_model=BulkUpdateResponse)

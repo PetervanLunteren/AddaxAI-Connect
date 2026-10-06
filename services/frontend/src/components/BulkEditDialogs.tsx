@@ -19,7 +19,7 @@ import {
   DialogFooter,
 } from './ui/Dialog';
 import { Button } from './ui/Button';
-import { TagInput } from './TagInput';
+import { TagInput, type TagManagement } from './TagInput';
 import { ACTION_LABELS, localToday, NOTE_MAX_LENGTH } from './CameraMaintenanceTab';
 import type { MaintenanceActionType } from '../api/types';
 import type { LogMaintenanceRequest } from '../api/cameras';
@@ -39,10 +39,12 @@ const plural = (count: number, noun: string) =>
 interface TagsDialogProps extends CommonProps {
   suggestions: string[];
   onConfirm: (tags: string[]) => void;
+  // Project-wide rename and delete inside the tag widget, admin contexts only.
+  tagManagement?: TagManagement;
 }
 
 export const BulkAddTagsDialog: React.FC<TagsDialogProps> = ({
-  open, onClose, count, noun, isPending, suggestions, onConfirm,
+  open, onClose, count, noun, isPending, suggestions, onConfirm, tagManagement,
 }) => {
   const [tags, setTags] = useState<string[]>([]);
   // Reset on open so a previously-typed list does not leak across uses.
@@ -62,6 +64,7 @@ export const BulkAddTagsDialog: React.FC<TagsDialogProps> = ({
             value={tags}
             onChange={setTags}
             suggestions={suggestions}
+            management={tagManagement}
             placeholder="Add tag..."
           />
         </div>
@@ -86,7 +89,7 @@ export const BulkAddTagsDialog: React.FC<TagsDialogProps> = ({
 };
 
 export const BulkRemoveTagsDialog: React.FC<TagsDialogProps> = ({
-  open, onClose, count, noun, isPending, suggestions, onConfirm,
+  open, onClose, count, noun, isPending, suggestions, onConfirm, tagManagement,
 }) => {
   const [tags, setTags] = useState<string[]>([]);
   useEffect(() => { if (open) setTags([]); }, [open]);
@@ -105,6 +108,7 @@ export const BulkRemoveTagsDialog: React.FC<TagsDialogProps> = ({
             value={tags}
             onChange={setTags}
             suggestions={suggestions}
+            management={tagManagement}
             placeholder="Tag to remove..."
           />
         </div>

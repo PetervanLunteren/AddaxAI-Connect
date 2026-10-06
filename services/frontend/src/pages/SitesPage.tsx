@@ -57,6 +57,7 @@ import { SitesMapView } from '../components/sites/SitesMapView';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
+import type { TagManagement } from '../components/TagInput';
 import { ColumnPicker } from '../components/ui/ColumnPicker';
 import { SortableHeader } from '../components/ui/SortableHeader';
 import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
@@ -162,6 +163,8 @@ export const SitesPage: React.FC = () => {
   const [mergeSite, setMergeSite] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
+  // Tag picked for project-wide deletion from inside a TagInput.
+  const [deleteTagTarget, setDeleteTagTarget] = useState<string | null>(null);
 
   // Bulk-edit selection, shared hook with the cameras page.
   const {
@@ -401,6 +404,55 @@ export const SitesPage: React.FC = () => {
     onSuccess: onBulkSuccess,
     onError: onBulkError,
   });
+
+  // Project-wide tag management, surfaced inside every TagInput on this
+  // page (site sheet and both bulk tag dialogs). Rename is one atomic call
+  // on the server and merges when the new name already exists; delete asks
+  // first, with the site count in the confirmation.
+  const renameTagMutation = useMutation({
+    mutationFn: ({ oldTag, newTag }: { oldTag: string; newTag: string }) =>
+      sitesApi.renameTag(pid, oldTag, newTag),
+    onSuccess: (res) => {
+      invalidate();
+      toast.success(
+        `Renamed the tag on ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`,
+      );
+    },
+    onError: (err: unknown) => toast.error(`Rename failed, ${errMsg(err)}`),
+  });
+  const deleteTagMutation = useMutation({
+    mutationFn: (tag: string) => sitesApi.deleteTag(pid, tag),
+    onSuccess: (res) => {
+      invalidate();
+      setDeleteTagTarget(null);
+      toast.success(
+        `Removed the tag from ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`,
+      );
+    },
+    onError: (err: unknown) => toast.error(`Delete failed, ${errMsg(err)}`),
+  });
+
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const site of sites ?? []) {
+      for (const tag of site.tags ?? []) counts[tag] = (counts[tag] ?? 0) + 1;
+    }
+    return counts;
+  }, [sites]);
+
+  const tagManagement = useMemo<TagManagement | undefined>(
+    () =>
+      canEdit
+        ? {
+            onRenameTag: (oldTag: string, newTag: string) =>
+              renameTagMutation.mutate({ oldTag, newTag }),
+            onDeleteTag: setDeleteTagTarget,
+            counts: tagCounts,
+          }
+        : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canEdit, tagCounts, renameTagMutation.mutate],
+  );
 
   const mergeMutation = useMutation({
     mutationFn: () => sitesApi.merge(pid, mergeSite!.id, Number(mergeTargetId)),
@@ -659,6 +711,9 @@ export const SitesPage: React.FC = () => {
             onSiteClick={(id) => setDetailSiteId(id)}
             colorMode={colorMode}
             siteHealth={siteHealth}
+            onSelectInView={
+              canEdit ? (ids) => setSiteSelection(ids, true) : undefined
+            }
           />
           {orphanCount > 0 && (
             <p className="text-sm text-muted-foreground">
@@ -773,6 +828,7 @@ export const SitesPage: React.FC = () => {
           setMergeTargetId('');
         }}
         onDeleteRequested={setDeleteSite}
+        tagManagement={tagManagement}
       />
 
       {/* Bulk-edit dialogs. Suggestions for the remove dialog come from
@@ -786,6 +842,7 @@ export const SitesPage: React.FC = () => {
         isPending={bulkAddTagsMutation.isPending}
         suggestions={tagSuggestions ?? []}
         onConfirm={(tags) => bulkAddTagsMutation.mutate(tags)}
+        tagManagement={tagManagement}
       />
       <BulkRemoveTagsDialog
         open={showBulkRemoveTags}
@@ -801,6 +858,7 @@ export const SitesPage: React.FC = () => {
           ),
         ).sort()}
         onConfirm={(tags) => bulkRemoveTagsMutation.mutate(tags)}
+        tagManagement={tagManagement}
       />
       <BulkSetHabitatDialog
         open={showBulkSetHabitat}
@@ -818,6 +876,24 @@ export const SitesPage: React.FC = () => {
         isPending={bulkSetNotesMutation.isPending}
         placeholder="e.g. Clearing next to the river"
         onConfirm={(notes) => bulkSetNotesMutation.mutate(notes)}
+      />
+
+      {/* Project-wide tag delete, requested from inside a TagInput */}
+      <ConfirmDialog
+        open={deleteTagTarget != null}
+        onClose={() => setDeleteTagTarget(null)}
+        onConfirm={() => deleteTagTarget && deleteTagMutation.mutate(deleteTagTarget)}
+        title="Delete tag everywhere"
+        body={
+          deleteTagTarget
+            ? `Removes "${deleteTagTarget}" from ${tagCounts[deleteTagTarget] ?? 0} site${
+                (tagCounts[deleteTagTarget] ?? 0) === 1 ? '' : 's'
+              }. The sites keep their other tags.`
+            : undefined
+        }
+        confirmLabel="Delete everywhere"
+        variant="destructive"
+        isPending={deleteTagMutation.isPending}
       />
 
       {/* Merge dialog */}
