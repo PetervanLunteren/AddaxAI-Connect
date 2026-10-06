@@ -6,13 +6,18 @@
  * top-N + filters, "Other" folding for the long tail, and the diverging
  * F1 palette from AddaxAI WebUI.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
 import { Info, Loader2, Target } from 'lucide-react';
 
-import { performanceApi, type PerformanceData } from '../../api/performance';
+import {
+  performanceApi,
+  type PerformanceData,
+  type PerformanceSiteRow,
+} from '../../api/performance';
+import { SortableHeader, type SortState } from '../../components/ui/SortableHeader';
 import { sitesApi } from '../../api/sites';
 import { statisticsApi } from '../../api/statistics';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -303,6 +308,130 @@ const SummaryRow: React.FC<{
   </tr>
 );
 
+type SiteColumn = 'site' | 'verified' | 'subjects' | 'accuracy' | 'empty';
+
+const SiteTable: React.FC<{
+  rows: PerformanceSiteRow[];
+  projectId: number;
+}> = ({ rows, projectId }) => {
+  const navigate = useNavigate();
+  // Biggest support first by default, so a 2-image site never tops the
+  // accuracy ranking by accident.
+  const [sort, setSort] = useState<SortState<SiteColumn>>({
+    column: 'verified',
+    direction: 'desc',
+  });
+
+  const onSort = (column: SiteColumn) =>
+    setSort((prev) => ({
+      column,
+      direction:
+        prev.column === column && prev.direction === 'desc' ? 'asc' : 'desc',
+    }));
+
+  const sorted = useMemo(() => {
+    const value = (r: PerformanceSiteRow): string | number => {
+      switch (sort.column) {
+        case 'site':
+          return r.site_name.toLowerCase();
+        case 'subjects':
+          return r.subjects;
+        case 'accuracy':
+          return r.accuracy;
+        case 'empty':
+          return r.empty_rate;
+        default:
+          return r.verified_images;
+      }
+    };
+    const dir = sort.direction === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va < vb) return -dir;
+      if (va > vb) return dir;
+      return 0;
+    });
+  }, [rows, sort]);
+
+  const handleRowClick = (row: PerformanceSiteRow) => {
+    if (row.site_id === null) return;
+    const params = new URLSearchParams();
+    params.set('site_id', String(row.site_id));
+    params.set('verified', 'true');
+    navigate(`/projects/${projectId}/images?${params.toString()}`);
+  };
+
+  return (
+    <div className="block max-w-full max-h-[60vh] overflow-auto border border-input rounded-md">
+      <table className="text-sm w-full">
+        <thead className="sticky top-0 bg-background border-b">
+          <tr>
+            <th className="text-left py-2 pl-4 pr-6 font-medium">
+              <SortableHeader label="Site" column="site" sort={sort} onSort={onSort} />
+            </th>
+            <th className="text-right py-2 px-6 font-medium">
+              <SortableHeader label="Verified images" column="verified" align="right" sort={sort} onSort={onSort} />
+            </th>
+            <th className="text-right py-2 px-6 font-medium">
+              <SortableHeader label="Subjects" column="subjects" align="right" sort={sort} onSort={onSort} />
+            </th>
+            <th className="text-right py-2 px-6 font-medium">
+              <SortableHeader label="Subjects matched" column="accuracy" align="right" sort={sort} onSort={onSort} />
+            </th>
+            <th className="text-right py-2 pl-6 pr-4 font-medium">
+              <SortableHeader label="Empty rate" column="empty" align="right" sort={sort} onSort={onSort} />
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row) => {
+            const clickable = row.site_id !== null;
+            return (
+              <tr
+                key={`${row.site_id}-${row.site_name}`}
+                onClick={clickable ? () => handleRowClick(row) : undefined}
+                title={
+                  clickable
+                    ? `Click to open verified images of ${row.site_name}`
+                    : 'Images whose place could not be resolved'
+                }
+                className={`border-b border-border/50 ${
+                  clickable
+                    ? 'cursor-pointer hover:bg-muted/30'
+                    : 'italic text-muted-foreground'
+                }`}
+              >
+                <td
+                  className="py-1.5 pl-4 pr-6 overflow-hidden text-ellipsis whitespace-nowrap"
+                  style={{ maxWidth: '14rem' }}
+                >
+                  {row.site_name}
+                </td>
+                <td className="py-1.5 px-6 text-right tabular-nums">
+                  {row.verified_images.toLocaleString()}
+                </td>
+                <td className="py-1.5 px-6 text-right tabular-nums">
+                  {row.subjects.toLocaleString()}
+                </td>
+                <td
+                  className="py-1.5 px-6 text-right tabular-nums"
+                  style={f1DivergingColor(row.accuracy)}
+                >
+                  {fmtMetric(row.accuracy)}
+                </td>
+                <td className="py-1.5 pl-6 pr-4 text-right tabular-nums">
+                  {fmtMetric(row.empty_rate)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export const PerClassPerformancePage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
@@ -499,6 +628,29 @@ export const PerClassPerformancePage: React.FC = () => {
               <span>Click a class to open the underlying images</span>
             </div>
           </div>
+
+          {data.by_site.length > 0 && (
+            <div className="rounded-lg border bg-card p-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-medium">Performance by site</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Subjects matched is the share of subjects where the AI agreed
+                  with the validator. Empty rate is the share of verified images
+                  where the validator recorded nothing.
+                </p>
+              </div>
+              <SiteTable rows={data.by_site} projectId={projectIdNum} />
+              <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <Info className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Judge sites with few verified images carefully, a handful of
+                  images makes any rate jump around
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>Click a site to open its verified images</span>
+              </div>
+            </div>
+          )}
         </>
       )}
 

@@ -15,6 +15,19 @@ export interface PerformanceAggregateRow {
   diff: number;
 }
 
+export interface PerformanceSiteRow {
+  /** Null when the image's deployment has no site */
+  site_id: number | null;
+  site_name: string;
+  verified_images: number;
+  subjects: number;
+  /** Diagonal share of the site's paired subjects, like matrix_accuracy */
+  accuracy: number;
+  /** Verified images where the validator recorded nothing */
+  empty_images: number;
+  empty_rate: number;
+}
+
 export interface PerformanceData {
   total_verified_images: number;
   aggregate: PerformanceAggregateRow[];
@@ -26,6 +39,7 @@ export interface PerformanceData {
   matrix_accuracy: number;
   /** Total cells in the matrix, one per paired subject */
   matrix_subjects: number;
+  by_site: PerformanceSiteRow[];
 }
 
 export interface PerformanceFilters {

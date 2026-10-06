@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func, and_, desc, text, exists
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings, Deployment
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings, Deployment, Site
 from shared.classification_threshold import (
     classification_passes_threshold,
     CLASSIFICATION_THRESHOLD_FILTER_SQL,
@@ -2936,6 +2936,23 @@ class PerformanceAggregateRow(BaseModel):
     diff: int  # ai_count - human_count, negative means AI under-counts
 
 
+class PerformanceSiteRow(BaseModel):
+    """Per-site accuracy and empty-trigger rate over the verified images.
+
+    The site comes from each image's own deployment, so historical images
+    count at the place the camera stood when they were taken. Accuracy is
+    the diagonal share of the site's paired subjects, the same rule as
+    matrix_accuracy. An empty trigger is a verified image where the
+    validator recorded nothing."""
+    site_id: Optional[int]  # None when the image's deployment has no site
+    site_name: str
+    verified_images: int
+    subjects: int
+    accuracy: float
+    empty_images: int
+    empty_rate: float
+
+
 class PerformanceResponse(BaseModel):
     """Performance data for a project: aggregate + confusion matrix"""
     total_verified_images: int
@@ -2947,6 +2964,74 @@ class PerformanceResponse(BaseModel):
     matrix_correct: int
     matrix_accuracy: float
     matrix_subjects: int  # cells in the matrix, one per paired subject
+    by_site: List[PerformanceSiteRow]
+
+
+def pair_verified_images(
+    images: list,
+    detection_threshold: float,
+    classification_thresholds: Optional[dict],
+    site_by_deployment: Dict[Optional[int], tuple],
+):
+    """
+    One pass over the verified images: aggregate per-species instance
+    counts, the (truth, prediction) subject pairs for the confusion
+    matrix, and the per-site accumulators for the by-site table.
+
+    Pure, so the pairing and the site accounting are testable without a
+    database. site_by_deployment maps a deployment id to (site_id,
+    site_name); images without a resolved site land on the (None, None)
+    key, fail closed like everywhere else.
+    """
+    from collections import Counter, defaultdict
+
+    human_counts: Counter = Counter()  # aggregate: human instances by species
+    ai_counts: Counter = Counter()     # aggregate: AI instances by species
+    matrix_counts: Counter = Counter() # matrix: (gt, pred) -> subjects
+    site_acc: Dict[tuple, dict] = defaultdict(
+        lambda: {"images": 0, "subjects": 0, "correct": 0, "empty": 0}
+    )
+
+    for image in images:
+        # ----- Human side: species -> number of individuals -----
+        # Sum HumanObservation.count for every observation row on this image.
+        image_human: Counter = Counter()
+        for obs in image.human_observations:
+            image_human[obs.species] += obs.count
+
+        # ----- AI side: label -> number of visible detections -----
+        # "Visible" = passes detection_threshold AND (for animals) passes the
+        # per-species classification_threshold. Mirrors images.py:785-808.
+        image_ai: Counter = Counter()
+        for d in image.detections:
+            if d.confidence < detection_threshold:
+                continue
+            if d.category in ("person", "vehicle"):
+                image_ai[d.category] += 1
+            elif d.category == "animal" and d.classifications:
+                cls = d.classifications[0]
+                cls_thresh = effective_classification_threshold(
+                    classification_thresholds, cls.species,
+                )
+                if cls.confidence < cls_thresh:
+                    continue
+                image_ai[cls.species] += 1
+
+        human_counts.update(image_human)
+        ai_counts.update(image_ai)
+        # One cell per subject, so an image holding a person and a car adds
+        # two agreements instead of one agreement and one false error.
+        pairs = pair_image_labels(image_human, image_ai)
+        matrix_counts.update(pairs)
+
+        acc = site_acc[site_by_deployment.get(image.deployment_id, (None, None))]
+        acc["images"] += 1
+        acc["subjects"] += len(pairs)
+        acc["correct"] += sum(1 for gt, pred in pairs if gt == pred)
+        if not image_human:
+            acc["empty"] += 1
+
+    return human_counts, ai_counts, matrix_counts, site_acc
 
 
 @router.get("/performance", response_model=PerformanceResponse)
@@ -3030,41 +3115,40 @@ async def get_performance(
     result = await db.execute(query)
     images = result.scalars().unique().all()
 
-    from collections import Counter
-    human_counts: Counter = Counter()  # aggregate: human instances by species
-    ai_counts: Counter = Counter()     # aggregate: AI instances by species
-    matrix_counts: Counter = Counter() # matrix: (gt, pred) -> subjects
+    # Site per deployment, for the by-site rows. Resolved through each
+    # image's own deployment, which is time-correct for historical data.
+    dep_result = await db.execute(
+        select(Deployment.id, Deployment.site_id, Site.name)
+        .join(Camera, Deployment.camera_id == Camera.id)
+        .outerjoin(Site, Site.id == Deployment.site_id)
+        .where(Camera.project_id == project_id)
+    )
+    site_by_deployment = {
+        row.id: (row.site_id, row.name) for row in dep_result.all()
+    }
 
-    for image in images:
-        # ----- Human side: species -> number of individuals -----
-        # Sum HumanObservation.count for every observation row on this image.
-        image_human: Counter = Counter()
-        for obs in image.human_observations:
-            image_human[obs.species] += obs.count
+    human_counts, ai_counts, matrix_counts, site_acc = pair_verified_images(
+        images,
+        project.detection_threshold,
+        project.classification_thresholds,
+        site_by_deployment,
+    )
 
-        # ----- AI side: label -> number of visible detections -----
-        # "Visible" = passes detection_threshold AND (for animals) passes the
-        # per-species classification_threshold. Mirrors images.py:785-808.
-        image_ai: Counter = Counter()
-        for d in image.detections:
-            if d.confidence < project.detection_threshold:
-                continue
-            if d.category in ("person", "vehicle"):
-                image_ai[d.category] += 1
-            elif d.category == "animal" and d.classifications:
-                cls = d.classifications[0]
-                cls_thresh = effective_classification_threshold(
-                    project.classification_thresholds, cls.species,
-                )
-                if cls.confidence < cls_thresh:
-                    continue
-                image_ai[cls.species] += 1
-
-        human_counts.update(image_human)
-        ai_counts.update(image_ai)
-        # One cell per subject, so an image holding a person and a car adds
-        # two agreements instead of one agreement and one false error.
-        matrix_counts.update(pair_image_labels(image_human, image_ai))
+    # One row per site, biggest support first so a 2-image site never tops
+    # the list by accident.
+    by_site = [
+        PerformanceSiteRow(
+            site_id=site_id,
+            site_name=site_name or "No site",
+            verified_images=acc["images"],
+            subjects=acc["subjects"],
+            accuracy=(acc["correct"] / acc["subjects"]) if acc["subjects"] else 0.0,
+            empty_images=acc["empty"],
+            empty_rate=(acc["empty"] / acc["images"]) if acc["images"] else 0.0,
+        )
+        for (site_id, site_name), acc in site_acc.items()
+    ]
+    by_site.sort(key=lambda r: r.verified_images, reverse=True)
 
     # Build aggregate rows, sorted by max(human, ai) descending so the most
     # prominent species sit at the top of the table.
@@ -3112,4 +3196,5 @@ async def get_performance(
         matrix_correct=matrix_correct,
         matrix_accuracy=matrix_accuracy,
         matrix_subjects=total_pairs,
+        by_site=by_site,
     )
