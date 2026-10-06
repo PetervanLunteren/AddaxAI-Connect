@@ -28,7 +28,7 @@ import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PerformanceSummaryCards } from '../../components/performance/PerformanceSummaryCards';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import { normalizeLabel } from '../../utils/labels';
-import { gradientStyle } from '../../utils/performance-metrics';
+import { filterPerformanceClasses, gradientStyle } from '../../utils/performance-metrics';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -57,6 +57,9 @@ const FILTER_SCHEMA: FilterSchema = {
   date_to: 'date',
   tags: 'string[]',
   site_ids: 'string[]',
+  // Same mental model as the Labels filter on the Images page: empty means
+  // all, a selection narrows every number on the page to those classes.
+  species: 'string[]',
   top_n: 'string',
   mode: 'string',
 };
@@ -325,6 +328,7 @@ export const ConfusionMatrixPage: React.FC = () => {
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const siteIdValues = asStringArray(parsed.site_ids);
   const tagValues = asStringArray(parsed.tags);
+  const labelValues = asStringArray(parsed.species);
   const startDate = asString(parsed.date_from);
   const endDate = asString(parsed.date_to);
   const topNRaw = asString(parsed.top_n);
@@ -344,6 +348,7 @@ export const ConfusionMatrixPage: React.FC = () => {
   const filterValues: Record<string, FilterValue> = {
     site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
     tags: tagValues.length > 0 ? tagValues : undefined,
+    species: labelValues.length > 0 ? labelValues : undefined,
     date_from: startDate || undefined,
     date_to: endDate || undefined,
   };
@@ -364,6 +369,7 @@ export const ConfusionMatrixPage: React.FC = () => {
     writeAll({
       site_ids: undefined,
       tags: undefined,
+      species: undefined,
       date_from: undefined,
       date_to: undefined,
     });
@@ -413,6 +419,20 @@ export const ConfusionMatrixPage: React.FC = () => {
     () => [
       {
         kind: 'multi-select',
+        key: 'species',
+        label: 'Labels',
+        options: (data?.matrix_classes ?? [])
+          .filter((_, i) =>
+            data
+              ? data.matrix_row_totals[i] > 0 || data.matrix_col_totals[i] > 0
+              : false,
+          )
+          .map((cls) => ({ label: normalizeLabel(cls), value: cls })),
+        placeholder: 'All labels',
+        summary: (n) => `${n} labels`,
+      },
+      {
+        kind: 'multi-select',
         key: 'site_ids',
         label: 'Sites',
         options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
@@ -436,7 +456,7 @@ export const ConfusionMatrixPage: React.FC = () => {
         maxDate: overview?.last_image_date,
       },
     ],
-    [sites, tagOptions, overview],
+    [sites, tagOptions, overview, data],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
@@ -457,10 +477,17 @@ export const ConfusionMatrixPage: React.FC = () => {
 
   const displayValues: Record<string, string> = { top_n: topNValue, mode };
 
+  // The Labels narrowing happens client-side on the loaded data, so
+  // toggling a class is instant and needs no refetch.
+  const effectiveData = useMemo(
+    () => (data ? filterPerformanceClasses(data, labelValues) : undefined),
+    [data, labelValues],
+  );
+
   const folded = useMemo<FoldedMatrix | null>(() => {
-    if (!data) return null;
-    return buildFoldedMatrix(data, topN);
-  }, [data, topN]);
+    if (!effectiveData) return null;
+    return buildFoldedMatrix(effectiveData, topN);
+  }, [effectiveData, topN]);
 
   // Project name (referenced for the empty state header copy and the
   // subtitle to keep matching the rest of the Insights pages).
@@ -489,7 +516,7 @@ export const ConfusionMatrixPage: React.FC = () => {
             <p className="text-muted-foreground text-sm">Unable to load performance data</p>
           </CardContent>
         </Card>
-      ) : data.total_verified_images === 0 ? (
+      ) : !effectiveData || effectiveData.total_verified_images === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Target className="h-12 w-12 text-muted-foreground mb-4" />
@@ -501,12 +528,12 @@ export const ConfusionMatrixPage: React.FC = () => {
         </Card>
       ) : folded === null ? null : (
         <>
-          <PerformanceSummaryCards data={data} />
+          <PerformanceSummaryCards data={effectiveData} />
           <div className="rounded-lg border bg-card p-4 space-y-3">
             <Matrix folded={folded} projectId={projectIdNum} mode={mode} />
             <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 shrink-0" />
-              <span>Based on {data.matrix_subjects.toLocaleString()} subject{data.matrix_subjects === 1 ? '' : 's'} in {data.total_verified_images.toLocaleString()} verified image{data.total_verified_images === 1 ? '' : 's'}</span>
+              <span>Based on {effectiveData.matrix_subjects.toLocaleString()} subject{effectiveData.matrix_subjects === 1 ? '' : 's'} in {effectiveData.total_verified_images.toLocaleString()} verified image{effectiveData.total_verified_images === 1 ? '' : 's'}</span>
               <span aria-hidden="true">·</span>
               <span>{folded.classes.length} class{folded.classes.length === 1 ? '' : 'es'} shown</span>
               {topN !== null && data.matrix_classes.length > topN && (

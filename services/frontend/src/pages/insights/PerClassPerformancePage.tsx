@@ -31,7 +31,11 @@ import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PerformanceSummaryCards } from '../../components/performance/PerformanceSummaryCards';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import { normalizeLabel, DETECTOR_CATEGORIES } from '../../utils/labels';
-import { f1DivergingColor, formatPercent } from '../../utils/performance-metrics';
+import {
+  f1DivergingColor,
+  filterPerformanceClasses,
+  formatPercent,
+} from '../../utils/performance-metrics';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -52,6 +56,9 @@ const FILTER_SCHEMA: FilterSchema = {
   date_to: 'date',
   tags: 'string[]',
   site_ids: 'string[]',
+  // Same mental model as the Labels filter on the Images page: empty means
+  // all, a selection narrows every number on the page to those classes.
+  species: 'string[]',
   top_n: 'string',
 };
 
@@ -440,6 +447,7 @@ export const PerClassPerformancePage: React.FC = () => {
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const siteIdValues = asStringArray(parsed.site_ids);
   const tagValues = asStringArray(parsed.tags);
+  const labelValues = asStringArray(parsed.species);
   const startDate = asString(parsed.date_from);
   const endDate = asString(parsed.date_to);
   const topNRaw = asString(parsed.top_n);
@@ -456,6 +464,7 @@ export const PerClassPerformancePage: React.FC = () => {
   const filterValues: Record<string, FilterValue> = {
     site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
     tags: tagValues.length > 0 ? tagValues : undefined,
+    species: labelValues.length > 0 ? labelValues : undefined,
     date_from: startDate || undefined,
     date_to: endDate || undefined,
   };
@@ -473,6 +482,7 @@ export const PerClassPerformancePage: React.FC = () => {
     writeAll({
       site_ids: undefined,
       tags: undefined,
+      species: undefined,
       date_from: undefined,
       date_to: undefined,
     });
@@ -521,6 +531,20 @@ export const PerClassPerformancePage: React.FC = () => {
     () => [
       {
         kind: 'multi-select',
+        key: 'species',
+        label: 'Labels',
+        options: (data?.matrix_classes ?? [])
+          .filter((_, i) =>
+            data
+              ? data.matrix_row_totals[i] > 0 || data.matrix_col_totals[i] > 0
+              : false,
+          )
+          .map((cls) => ({ label: normalizeLabel(cls), value: cls })),
+        placeholder: 'All labels',
+        summary: (n) => `${n} labels`,
+      },
+      {
+        kind: 'multi-select',
         key: 'site_ids',
         label: 'Sites',
         options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
@@ -544,7 +568,7 @@ export const PerClassPerformancePage: React.FC = () => {
         maxDate: overview?.last_image_date,
       },
     ],
-    [sites, tagOptions, overview],
+    [sites, tagOptions, overview, data],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
@@ -553,14 +577,22 @@ export const PerClassPerformancePage: React.FC = () => {
   );
   const displayValues: Record<string, string> = { top_n: topNValue };
 
-  const rows = useMemo<ClassRow[] | null>(() => {
-    if (!data) return null;
-    return buildRows(data, topN);
-  }, [data, topN]);
+  // The Labels narrowing happens client-side on the loaded data, so
+  // toggling a class is instant and needs no refetch. The by-site table is
+  // server-computed and stays project-wide.
+  const effectiveData = useMemo(
+    () => (data ? filterPerformanceClasses(data, labelValues) : undefined),
+    [data, labelValues],
+  );
 
-  const totalClasses = data?.matrix_classes.filter((_, i) => {
-    if (!data) return false;
-    return data.matrix_row_totals[i] > 0 || data.matrix_col_totals[i] > 0;
+  const rows = useMemo<ClassRow[] | null>(() => {
+    if (!effectiveData) return null;
+    return buildRows(effectiveData, topN);
+  }, [effectiveData, topN]);
+
+  const totalClasses = effectiveData?.matrix_classes.filter((_, i) => {
+    if (!effectiveData) return false;
+    return effectiveData.matrix_row_totals[i] > 0 || effectiveData.matrix_col_totals[i] > 0;
   }).length ?? 0;
   const foldedCount = topN === null ? 0 : Math.max(0, totalClasses - topN);
 
@@ -590,7 +622,7 @@ export const PerClassPerformancePage: React.FC = () => {
             <p className="text-muted-foreground text-sm">Unable to load performance data</p>
           </CardContent>
         </Card>
-      ) : data.total_verified_images === 0 || rows === null || rows.length === 0 ? (
+      ) : !effectiveData || effectiveData.total_verified_images === 0 || rows === null || rows.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Target className="h-12 w-12 text-muted-foreground mb-4" />
@@ -602,16 +634,16 @@ export const PerClassPerformancePage: React.FC = () => {
         </Card>
       ) : (
         <>
-          <PerformanceSummaryCards data={data} />
+          <PerformanceSummaryCards data={effectiveData} />
           <div className="rounded-lg border bg-card p-4 space-y-3">
             <MetricsTable rows={rows} projectId={projectIdNum} />
             <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 shrink-0" />
               <span>
-                Based on {data.matrix_subjects.toLocaleString()} subject
-                {data.matrix_subjects === 1 ? '' : 's'} in{' '}
-                {data.total_verified_images.toLocaleString()} verified image
-                {data.total_verified_images === 1 ? '' : 's'}
+                Based on {effectiveData.matrix_subjects.toLocaleString()} subject
+                {effectiveData.matrix_subjects === 1 ? '' : 's'} in{' '}
+                {effectiveData.total_verified_images.toLocaleString()} verified image
+                {effectiveData.total_verified_images === 1 ? '' : 's'}
               </span>
               <span aria-hidden="true">·</span>
               <span>
@@ -673,6 +705,9 @@ export const PerClassPerformancePage: React.FC = () => {
             underlying verified images. Detector categories (<em>empty</em>, <em>person</em>,{' '}
             <em>vehicle</em>) and the <em>other</em> bucket render in italics and are excluded
             from the macro / weighted averages because they are not classifier predictions.
+            The Labels filter narrows every number on this page except the by-site table,
+            which always covers all labels. Deselect a label to keep a known mismatch, like
+            hand-typed species the AI cannot know, out of the scores.
           </p>
         }
       />

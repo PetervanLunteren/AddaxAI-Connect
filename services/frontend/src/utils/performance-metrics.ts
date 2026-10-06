@@ -27,6 +27,50 @@ export interface DetailedMetrics {
   weightedF1: number | null;
 }
 
+/**
+ * Narrow the performance data to the selected labels, the same mental model
+ * as the Labels filter on the Images page. An empty selection means all.
+ *
+ * Dropping a class removes its row AND its column, so a subject paired with
+ * a deselected class disappears from every number instead of counting as an
+ * error. That is the point: a validator who retypes mustelids as pine
+ * marten can deselect the classes involved and read the AI's performance on
+ * everything else. The by-site table is computed on the server and passes
+ * through unchanged.
+ */
+export function filterPerformanceClasses(
+  data: PerformanceData,
+  selected: string[],
+): PerformanceData {
+  if (selected.length === 0) return data;
+  const keep = new Set(selected);
+  const indices = data.matrix_classes
+    .map((cls, idx) => ({ cls, idx }))
+    .filter(({ cls }) => keep.has(cls));
+
+  const matrix = indices.map(({ idx: r }) =>
+    indices.map(({ idx: c }) => data.matrix[r][c]),
+  );
+  const rowTotals = matrix.map((row) => row.reduce((s, v) => s + v, 0));
+  const colTotals = indices.map((_, j) =>
+    matrix.reduce((s, row) => s + row[j], 0),
+  );
+  const correct = matrix.reduce((s, row, i) => s + row[i], 0);
+  const subjects = rowTotals.reduce((s, v) => s + v, 0);
+
+  return {
+    ...data,
+    aggregate: data.aggregate.filter((row) => keep.has(row.species)),
+    matrix_classes: indices.map(({ cls }) => cls),
+    matrix,
+    matrix_row_totals: rowTotals,
+    matrix_col_totals: colTotals,
+    matrix_correct: correct,
+    matrix_accuracy: subjects > 0 ? correct / subjects : 0,
+    matrix_subjects: subjects,
+  };
+}
+
 export function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
