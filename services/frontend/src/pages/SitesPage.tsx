@@ -54,6 +54,7 @@ import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
+import { MapSelectDialog } from '../components/map/MapSelectDialog';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
@@ -165,6 +166,7 @@ export const SitesPage: React.FC = () => {
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
   // Tag picked for project-wide deletion from inside a TagInput.
   const [deleteTagTarget, setDeleteTagTarget] = useState<string | null>(null);
+  const [showMapSelect, setShowMapSelect] = useState(false);
 
   // Bulk-edit selection, shared hook with the cameras page.
   const {
@@ -636,8 +638,15 @@ export const SitesPage: React.FC = () => {
                 Map
               </button>
             </div>
+            <div className="flex flex-wrap items-center gap-2 pb-1">
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={() => setShowMapSelect(true)}>
+                <MapIcon className="h-4 w-4 mr-1.5" />
+                Select on map
+              </Button>
+            )}
             {viewMode === 'map' && (
-              <div className="flex items-center gap-2 pb-1">
+              <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Colour</span>
                 <div className="inline-flex rounded-md border divide-x overflow-hidden">
                   {COLOR_MODES.map((m) => (
@@ -657,6 +666,7 @@ export const SitesPage: React.FC = () => {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}
@@ -712,9 +722,6 @@ export const SitesPage: React.FC = () => {
             onSiteClick={(id) => setDetailSiteId(id)}
             colorMode={colorMode}
             siteHealth={siteHealth}
-            onSelectInView={
-              canEdit ? (ids) => setSiteSelection(ids, true) : undefined
-            }
           />
           {orphanCount > 0 && (
             <p className="text-sm text-muted-foreground">
@@ -877,6 +884,25 @@ export const SitesPage: React.FC = () => {
         isPending={bulkSetNotesMutation.isPending}
         placeholder="e.g. Clearing next to the river"
         onConfirm={(notes) => bulkSetNotesMutation.mutate(notes)}
+      />
+
+      {/* Map selection, feeding the same bulk selection as the checkboxes.
+          It shows the rows the table shows, so filters narrow it too. */}
+      <MapSelectDialog
+        open={showMapSelect}
+        onClose={() => setShowMapSelect(false)}
+        noun="site"
+        items={sortedSites.map((site) => ({
+          id: site.id,
+          label: site.name,
+          latitude: site.latitude,
+          longitude: site.longitude,
+        }))}
+        initialSelected={selectedSiteIds}
+        onConfirm={(on, off) => {
+          setSiteSelection(off, false);
+          setSiteSelection(on, true);
+        }}
       />
 
       {/* Project-wide tag delete, requested from inside a TagInput */}

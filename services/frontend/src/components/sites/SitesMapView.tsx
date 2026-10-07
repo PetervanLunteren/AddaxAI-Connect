@@ -10,12 +10,12 @@
  * sub-100 m sites exist (e.g. cameras on one pole), so overlapping pins
  * spiderfy out.
  */
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect } from 'react';
 import { MapContainer, Marker, Tooltip, useMap } from 'react-leaflet';
-import { latLngBounds } from 'leaflet';
 import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
 import { FullscreenControl } from '../map/FullscreenControl';
+import { FitBounds } from '../map/FitBounds';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { SpiderLegLine } from '../map/SpiderLegLine';
 import { useSpiderfied } from '../../hooks/useSpiderfied';
@@ -37,10 +37,6 @@ interface SitesMapViewProps {
   onSiteClick: (siteId: number) => void;
   colorMode: SiteColorMode;
   siteHealth: Map<number, SiteHealth>;
-  /** When set (admin contexts), the map shows a control that selects every
-   * site inside the current view, feeding the same bulk-edit selection the
-   * table uses. */
-  onSelectInView?: (siteIds: number[]) => void;
 }
 
 // Icons are pure functions of their colour, so cache them by colour string to
@@ -151,75 +147,7 @@ function SiteMapLegend({ colorMode }: { colorMode: ColorByMetric }) {
   return null;
 }
 
-const SELECT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3a2 2 0 0 0-2 2"/><path d="M19 3a2 2 0 0 1 2 2"/><path d="M5 21a2 2 0 0 1-2-2"/><path d="M9 3h1"/><path d="M14 3h1"/><path d="M3 9v1"/><path d="M21 9v1"/><path d="M3 14v1"/><path d="m12 12 4 10 1.7-4.3L22 16Z"/></svg>`;
-
-/** Leaflet control that selects every site inside the current view, same
- * pattern as FullscreenControl. The sites live in a ref so the control,
- * built once, always reads the current list. */
-function SelectInViewControl({
-  sites,
-  onSelect,
-}: {
-  sites: SiteListItem[];
-  onSelect: (siteIds: number[]) => void;
-}) {
-  const map = useMap();
-  const sitesRef = useRef(sites);
-  sitesRef.current = sites;
-  const onSelectRef = useRef(onSelect);
-  onSelectRef.current = onSelect;
-
-  useEffect(() => {
-    const control = new L.Control({ position: 'topright' });
-    control.onAdd = () => {
-      const container = L.DomUtil.create('div', 'leaflet-bar');
-      const btn = L.DomUtil.create('button', '', container) as HTMLButtonElement;
-      btn.type = 'button';
-      btn.title = 'Select sites in view';
-      btn.innerHTML = SELECT_ICON;
-      btn.style.cssText =
-        'display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:white;border:none;cursor:pointer;';
-      L.DomEvent.disableClickPropagation(container);
-      btn.addEventListener('click', () => {
-        const bounds = map.getBounds();
-        const ids = sitesRef.current
-          .filter(
-            (s) =>
-              s.latitude != null &&
-              s.longitude != null &&
-              bounds.contains([s.latitude, s.longitude]),
-          )
-          .map((s) => s.id);
-        onSelectRef.current(ids);
-      });
-      return container;
-    };
-    control.addTo(map);
-    return () => {
-      control.remove();
-    };
-  }, [map]);
-  return null;
-}
-
-function FitBounds({ points }: { points: [number, number][] }) {
-  const map = useMap();
-  const fitted = useRef(false);
-  useEffect(() => {
-    if (points.length === 0 || fitted.current) return;
-    map.fitBounds(latLngBounds(points), { padding: [30, 30] });
-    fitted.current = true;
-  }, [points, map]);
-  return null;
-}
-
-export function SitesMapView({
-  sites,
-  onSiteClick,
-  colorMode,
-  siteHealth,
-  onSelectInView,
-}: SitesMapViewProps) {
+export function SitesMapView({ sites, onSiteClick, colorMode, siteHealth }: SitesMapViewProps) {
   const sitesWithLocation = useMemo(
     () => sites.filter((s) => s.latitude != null && s.longitude != null),
     [sites],
@@ -266,9 +194,6 @@ export function SitesMapView({
         />
         {colorMode !== 'none' && <SiteMapLegend colorMode={colorMode} />}
         <FullscreenControl />
-        {onSelectInView && (
-          <SelectInViewControl sites={sitesWithLocation} onSelect={onSelectInView} />
-        )}
       </MapContainer>
     </div>
   );

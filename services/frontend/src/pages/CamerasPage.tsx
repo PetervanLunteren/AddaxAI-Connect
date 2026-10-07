@@ -16,6 +16,7 @@ import {
   XCircle,
   ChevronDown,
   Route,
+  Map as MapIcon,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -27,6 +28,7 @@ import {
   TableRow,
 } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
+import { MapSelectDialog } from '../components/map/MapSelectDialog';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -140,6 +142,7 @@ export const CamerasPage: React.FC = () => {
   const [showBulkRemoveTags, setShowBulkRemoveTags] = useState(false);
   const [showBulkSetSimExpiry, setShowBulkSetSimExpiry] = useState(false);
   const [showBulkSetNotes, setShowBulkSetNotes] = useState(false);
+  const [showMapSelect, setShowMapSelect] = useState(false);
   const [showBulkLogMaintenance, setShowBulkLogMaintenance] = useState(false);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
 
@@ -966,7 +969,7 @@ export const CamerasPage: React.FC = () => {
           with the dashboard so the thresholds cannot drift apart. */}
       <CameraAttentionBar cameras={cameras} onSelect={onFilterChange} />
 
-      {/* Shared filter bar (drives both table and map views) */}
+      {/* Shared filter bar */}
       {cameras && cameras.length > 0 && (
         <div className="space-y-3">
           <FilterBar
@@ -990,11 +993,17 @@ export const CamerasPage: React.FC = () => {
             displayValues={{}}
             onDisplayChange={() => {}}
           />
-          {isFiltered && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
-              {filteredCameras.length} of {cameras.length} cameras
+              {isFiltered ? `${filteredCameras.length} of ${cameras.length} cameras` : ''}
             </p>
-          )}
+            {canAdminCurrentProject && (
+              <Button variant="outline" size="sm" onClick={() => setShowMapSelect(true)}>
+                <MapIcon className="h-4 w-4 mr-1.5" />
+                Select on map
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -1159,6 +1168,27 @@ export const CamerasPage: React.FC = () => {
       {/* Bulk-edit dialogs. Suggestions for the remove dialog come from
           tags currently on the selected cameras only, so the user cannot
           accidentally type a tag that no selected camera carries. */}
+      {/* Map selection, feeding the same bulk selection as the checkboxes.
+          It shows the rows the table shows, so filters narrow it too. The
+          position is the GPS of the camera's last health report, so cameras
+          that send no reports are listed as without a location. */}
+      <MapSelectDialog
+        open={showMapSelect}
+        onClose={() => setShowMapSelect(false)}
+        noun="camera"
+        items={filteredCameras.map((camera) => ({
+          id: camera.id,
+          label: camera.name,
+          latitude: camera.location?.lat ?? null,
+          longitude: camera.location?.lon ?? null,
+        }))}
+        initialSelected={selectedCameraIds}
+        onConfirm={(on, off) => {
+          setCameraSelection(off, false);
+          setCameraSelection(on, true);
+        }}
+      />
+
       <BulkAddTagsDialog
         open={showBulkAddTags}
         onClose={() => setShowBulkAddTags(false)}
