@@ -166,6 +166,10 @@ export function ThresholdCheckDialog({
   if (data) {
     if (data.verified_images === 0) {
       verdict = 'No verified images yet. Verify some images first, then check again.';
+    } else if (data.support === 0) {
+      verdict = species === null
+        ? 'No animals, people or vehicles in the verified images yet.'
+        : `No verified ${speciesLabel ?? species} yet, so there is nothing to suggest.`;
     } else if (suggested === null) {
       verdict = `Only ${data.support} verified examples, at least ${data.min_support} are needed for a suggestion.`;
     } else if (alreadyBest) {
