@@ -1,7 +1,8 @@
 /**
  * Select rows on a map, for any table whose rows have coordinates (sites,
- * cameras). Opens from the table's toolbar, starts with the table's current
- * selection, and hands the result back when the user confirms.
+ * cameras). Opens from an icon in the table's header, starts with the
+ * table's current selection, and hands the result back when the user
+ * confirms.
  *
  * Gestures follow desktop map tools like QGIS: a plain drag pans, Shift plus
  * drag draws a box that adds every dot inside it, and a click on a dot adds
@@ -12,6 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { SquareDashedMousePointer } from 'lucide-react';
 
 import {
   Dialog,
@@ -51,6 +53,23 @@ interface MapSelectDialogProps {
 }
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+
+/** Icon button that opens the dialog, placed in the top right header cell
+ * of a table so it reads as part of the table it selects in. One component
+ * so the sites and cameras tables cannot drift apart. */
+export function MapSelectButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Select on map"
+      aria-label="Select on map"
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <SquareDashedMousePointer className="h-4 w-4" />
+    </button>
+  );
+}
 
 /** Shift plus drag draws a box. Panning stops for that one drag only. */
 function ShiftBoxSelect({ onBox }: { onBox: (bounds: L.LatLngBounds) => void }) {
@@ -189,17 +208,6 @@ export function MapSelectDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelected(new Set())}
-            disabled={selected.size === 0}
-          >
-            Clear
-          </Button>
-        </div>
-
         {located.length === 0 ? (
           <div className="flex items-center justify-center h-[50vh] rounded-lg border bg-muted/30">
             <p className="text-sm text-muted-foreground">
@@ -256,6 +264,13 @@ export function MapSelectDialog({
           <span className="text-sm text-muted-foreground sm:mr-auto">
             {plural(selected.size, noun)} selected
           </span>
+          <Button
+            variant="ghost"
+            onClick={() => setSelected(new Set())}
+            disabled={selected.size === 0}
+          >
+            Clear selection
+          </Button>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>

@@ -15,7 +15,6 @@ import {
   MapPin,
   Loader2,
   Map as MapIcon,
-  SquareDashedMousePointer,
   Table as TableIcon,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
@@ -55,7 +54,7 @@ import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
-import { MapSelectDialog } from '../components/map/MapSelectDialog';
+import { MapSelectButton, MapSelectDialog } from '../components/map/MapSelectDialog';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
@@ -640,12 +639,6 @@ export const SitesPage: React.FC = () => {
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2 pb-1">
-            {canEdit && viewMode === 'table' && (
-              <Button variant="ghost" size="sm" onClick={() => setShowMapSelect(true)}>
-                <SquareDashedMousePointer className="h-4 w-4 mr-1.5" />
-                Select on map
-              </Button>
-            )}
             {viewMode === 'map' && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Colour</span>
@@ -675,7 +668,8 @@ export const SitesPage: React.FC = () => {
       {/* Bulk-action bar. Only renders for admins with at least one site
           selected. Sits between the toolbar and the table, same shape as
           the cameras page's bulk bar. */}
-      {canEdit && selectedSiteIds.size > 0 && sites && sites.length > 0 && (
+      {/* Selection belongs to the table; the map tab is only for looking. */}
+      {canEdit && viewMode === 'table' && selectedSiteIds.size > 0 && sites && sites.length > 0 && (
         <div className="flex items-center gap-3 p-3 mb-3 bg-muted rounded-md flex-wrap">
           <span className="text-sm font-medium">
             {selectedSiteIds.size} of {sites.length} sites selected
@@ -772,13 +766,18 @@ export const SitesPage: React.FC = () => {
                         )}
                       </TableHead>
                     ))}
+                    {canEdit && (
+                      <TableHead className="w-10 text-right">
+                        <MapSelectButton onClick={() => setShowMapSelect(true)} />
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sortedSites.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={visibleColumnDefs.length + (canEdit ? 1 : 0)}
+                        colSpan={visibleColumnDefs.length + (canEdit ? 2 : 0)}
                         className="text-center py-8 text-muted-foreground"
                       >
                         No sites match your filters.
@@ -813,6 +812,7 @@ export const SitesPage: React.FC = () => {
                           {renderSiteCell(col.id, site)}
                         </TableCell>
                       ))}
+                      {canEdit && <TableCell className="w-10" />}
                     </TableRow>
                   ))}
                 </TableBody>

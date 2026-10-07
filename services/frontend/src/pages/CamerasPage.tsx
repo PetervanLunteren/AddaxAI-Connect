@@ -16,7 +16,6 @@ import {
   XCircle,
   ChevronDown,
   Route,
-  SquareDashedMousePointer,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -28,7 +27,7 @@ import {
   TableRow,
 } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { MapSelectDialog } from '../components/map/MapSelectDialog';
+import { MapSelectButton, MapSelectDialog } from '../components/map/MapSelectDialog';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -993,17 +992,11 @@ export const CamerasPage: React.FC = () => {
             displayValues={{}}
             onDisplayChange={() => {}}
           />
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          {isFiltered && (
             <p className="text-sm text-muted-foreground">
-              {isFiltered ? `${filteredCameras.length} of ${cameras.length} cameras` : ''}
+              {filteredCameras.length} of {cameras.length} cameras
             </p>
-            {canAdminCurrentProject && (
-              <Button variant="ghost" size="sm" onClick={() => setShowMapSelect(true)}>
-                <SquareDashedMousePointer className="h-4 w-4 mr-1.5" />
-                Select on map
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       )}
 
@@ -1077,13 +1070,18 @@ export const CamerasPage: React.FC = () => {
                         )}
                       </TableHead>
                     ))}
+                    {canAdminCurrentProject && (
+                      <TableHead className="w-10 text-right">
+                        <MapSelectButton onClick={() => setShowMapSelect(true)} />
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCameras.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={visibleColumnDefs.length + (canAdminCurrentProject ? 1 : 0)}
+                        colSpan={visibleColumnDefs.length + (canAdminCurrentProject ? 2 : 0)}
                         className="text-center py-8 text-muted-foreground"
                       >
                         No cameras match your filters.
@@ -1115,6 +1113,7 @@ export const CamerasPage: React.FC = () => {
                           {renderCameraCell(col.id, camera)}
                         </TableCell>
                       ))}
+                      {canAdminCurrentProject && <TableCell className="w-10" />}
                     </TableRow>
                   ))}
                 </TableBody>
