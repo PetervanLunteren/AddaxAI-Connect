@@ -478,6 +478,20 @@ Rules:
 - When serializing a camera-clock value to ISO 8601, localize first with `.replace(tzinfo=ZoneInfo(server_tz))` so the output carries the correct DST-aware offset.
 - Server wall-clock filters stay aware UTC as before.
 
+One deliberate exception: a bulk upload can correct a wrong camera clock.
+The uploader sets the offset in the review step (`ClockOffsetDialog`,
+ported from the desktop AddaxAI), it is stored as
+`bulk_upload_jobs.time_offset_seconds`, and the worker adds it to every
+EXIF capture time through `get_corrected_datetime` in
+`services/ingestion/exif_parser.py`, before the image row and its
+deployment are written. The raw EXIF stays in `Image.image_metadata`. The
+browser shifts its scan once (`shiftEntries` in
+`services/frontend/src/utils/clock-offset.ts`), so the manifest date range
+(the Mode B deployment dates), the duplicate pre-check and the resume
+check all use corrected time too. Offset arithmetic runs on the naive wall
+clock, never through the browser's timezone, or a summer time switch moves
+the result an hour. There is no correction after import.
+
 ## Outbound integrations
 
 EarthRanger (via Gundi) and Sensing Clues (via Central) are delivery

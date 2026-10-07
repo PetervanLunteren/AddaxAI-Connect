@@ -160,6 +160,25 @@ def get_datetime_original(exif: dict, filepath: str, allow_fallback: bool = Fals
         raise ValueError(f"DateTimeOriginal missing in EXIF and fallback not allowed")
 
 
+def get_corrected_datetime(
+    exif: dict, filepath: str, offset_seconds: int, allow_fallback: bool = False,
+) -> datetime:
+    """
+    Capture datetime with a camera clock correction, for bulk uploads.
+
+    The offset is added to the EXIF DateTimeOriginal only. The uploader
+    worked it out against EXIF times, and a file modification time is a
+    different clock, so the fallback is returned uncorrected. Naive
+    wall-clock arithmetic, like the camera-clock column it feeds.
+    """
+    try:
+        return get_datetime_original(exif, filepath) + timedelta(seconds=offset_seconds)
+    except ValueError:
+        if not allow_fallback:
+            raise
+        return get_datetime_original(exif, filepath, allow_fallback=True)
+
+
 # Matches "+HH:MM" / "-HH:MM" and "+HHMM" / "-HHMM" forms that exiftool emits.
 _EXIF_OFFSET_RE = re.compile(r'^([+\-])(\d{2}):?(\d{2})$')
 

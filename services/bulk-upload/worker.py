@@ -51,7 +51,7 @@ from shared.queue import (
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 
 from db_operations import create_image_record, get_or_create_bulk_deployment  # noqa: E402
-from exif_parser import extract_exif, get_datetime_original  # noqa: E402
+from exif_parser import extract_exif, get_corrected_datetime  # noqa: E402
 from storage_operations import (  # noqa: E402
     generate_and_upload_thumbnail,
     upload_image_to_minio,
@@ -178,6 +178,7 @@ def _process_zip_entry(
     bulk_upload_job_id: int,
     bulk_deployment_id: Optional[int] = None,
     use_profile: bool = False,
+    time_offset_seconds: int = 0,
 ) -> str:
     """
     Process a single ZIP entry end-to-end.
@@ -261,8 +262,9 @@ def _process_zip_entry(
                 return {"outcome": "skipped", "reason": "unsupported_camera"}
 
             try:
-                captured_at = get_datetime_original(
-                    exif, tmp_path, allow_fallback=not profile.requires_datetime
+                captured_at = get_corrected_datetime(
+                    exif, tmp_path, time_offset_seconds,
+                    allow_fallback=not profile.requires_datetime,
                 )
             except Exception as exc:
                 logger.warning(
@@ -295,7 +297,7 @@ def _process_zip_entry(
         else:
             # Mode B: chosen-site deployment, DateTimeOriginal required.
             try:
-                captured_at = get_datetime_original(exif, tmp_path, allow_fallback=False)
+                captured_at = get_corrected_datetime(exif, tmp_path, time_offset_seconds)
             except Exception as exc:
                 logger.warning(
                     "Skipping bulk upload entry, no DateTimeOriginal",
@@ -637,6 +639,7 @@ def _process_prefix_job(
     staged_prefix: str,
     bulk_deployment_id: Optional[int] = None,
     use_profile: bool = False,
+    time_offset_seconds: int = 0,
 ) -> None:
     """
     Process a new-style per-file bulk-upload job. Lists MinIO under
@@ -697,6 +700,7 @@ def _process_prefix_job(
                     job_id,
                     bulk_deployment_id,
                     use_profile,
+                    time_offset_seconds,
                 )
         except _FileTimeout:
             logger.warning(
@@ -904,6 +908,7 @@ def _process_job(job_uuid: str) -> None:
         camera_storage_id = _camera_storage_id(camera)
         staged_object_key = job.staged_object_key
         manifest = job.manifest or {}
+        time_offset_seconds = job.time_offset_seconds
 
         # Mode A (no pinned site): run the camera-profile hunt per image and
         # resolve site + deployment from each image's GPS, exactly like FTPS.
@@ -936,7 +941,8 @@ def _process_job(job_uuid: str) -> None:
         job.status = "processing"
         job.process_started_at = datetime.now(timezone.utc)
 
-    # Mode B pins every image to one deployment at the chosen site.
+    # Mode B pins every image to one deployment at the chosen site. The
+    # client already applied the job's clock correction to date_range.
     bulk_deployment_id = None
     if not use_profile:
         site_id = manifest.get("site_id")
@@ -965,6 +971,7 @@ def _process_job(job_uuid: str) -> None:
         layout="prefix" if is_prefix else "legacy_zip",
         bulk_deployment_id=bulk_deployment_id,
         use_profile=use_profile,
+        time_offset_seconds=time_offset_seconds,
     )
 
     try:
@@ -972,6 +979,7 @@ def _process_job(job_uuid: str) -> None:
             _process_prefix_job(
                 job_uuid, job_id, camera_id, camera_storage_id,
                 gps_location, staged_object_key, bulk_deployment_id, use_profile,
+                time_offset_seconds,
             )
         else:
             _process_legacy_zip_job(

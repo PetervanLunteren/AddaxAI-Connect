@@ -47,6 +47,9 @@ export interface BulkUploadJob {
   skipped_files: number;
   error_message: string | null;
   manifest: BulkUploadManifest | null;
+  // Camera clock correction applied by the worker; the manifest is
+  // already in corrected time.
+  time_offset_seconds: number;
   // Only meaningful while status is 'processing'. Number of bulk jobs
   // the worker has to finish before this one starts. 0 = next.
   queue_position: number | null;
@@ -133,6 +136,8 @@ export const bulkUploadApi = {
       total_files: number;
       total_bytes: number;
       manifest: BulkUploadManifest;
+      /** Camera clock correction, added to every capture time. */
+      time_offset_seconds: number;
     },
   ): Promise<BulkUploadJob> => {
     const response = await apiClient.post<BulkUploadJob>(

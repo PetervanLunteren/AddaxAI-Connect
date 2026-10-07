@@ -757,6 +757,11 @@ class BulkUploadJob(Base):
     # EXIF SerialNumber matches a registered camera. JSON, see
     # services/bulk-upload/worker.py for the shape.
     manifest = Column(JSON, nullable=True)
+    # Camera clock correction set by the uploader in the review step. The
+    # worker adds it to every EXIF capture time of the job; the raw EXIF
+    # stays in Image.image_metadata. The manifest's date_range is already
+    # corrected by the client, so the Mode B deployment dates match.
+    time_offset_seconds = Column(Integer, nullable=False, server_default="0")
     started_at = Column(DateTime(timezone=True), nullable=True)
     # Set when the worker starts the process phase (after user confirm).
     # Used by the frontend to derive a per-image processing rate that

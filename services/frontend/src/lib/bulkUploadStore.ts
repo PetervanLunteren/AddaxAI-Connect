@@ -64,6 +64,8 @@ interface BeginNewArgs {
   siteId?: number;
   manifest: BulkUploadManifest;
   excludedCapturedAts: string[];
+  // Camera clock correction, already applied to manifest and entries.
+  timeOffsetSeconds: number;
   files: File[];
   entries: ScanEntry[];
   onError: (msg: string) => void;
@@ -145,6 +147,7 @@ async function runNewUpload(
       total_files: total,
       total_bytes: totalBytes,
       manifest: args.manifest,
+      time_offset_seconds: args.timeOffsetSeconds,
     });
   } catch (err: any) {
     args.onError(

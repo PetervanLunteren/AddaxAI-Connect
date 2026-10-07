@@ -56,6 +56,9 @@ logger = get_logger("api.bulk_upload")
 # the modal, sized for a full-season SD card pull.
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
 MAX_FILES_PER_JOB = 20000
+# A camera clock correction never needs more than this. Thirty years covers
+# a clock reset to the firmware's default year.
+MAX_TIME_OFFSET_SECONDS = 30 * 366 * 24 * 3600
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png"}
 ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
@@ -107,6 +110,7 @@ class BulkUploadJobResponse(BaseModel):
     skipped_files: int
     error_message: Optional[str]
     manifest: Optional[Dict[str, Any]] = None
+    time_offset_seconds: int = 0
     queue_position: Optional[int] = None
     started_at: Optional[str]
     process_started_at: Optional[str] = None
@@ -137,6 +141,12 @@ class CreateBulkUploadRequest(BaseModel):
     # Free-form client-computed scan summary. Stored on the job and shown
     # back in the review UI. See the bulk-upload worker for the shape.
     manifest: Dict[str, Any] = Field(default_factory=dict)
+    # Camera clock correction in seconds, added to every capture time. The
+    # manifest's date_range must already include it. Bounded so a typo in
+    # the year cannot move a batch centuries.
+    time_offset_seconds: int = Field(
+        default=0, ge=-MAX_TIME_OFFSET_SECONDS, le=MAX_TIME_OFFSET_SECONDS,
+    )
 
     @model_validator(mode="after")
     def _exactly_one_target(self) -> "CreateBulkUploadRequest":
@@ -390,6 +400,7 @@ def _job_to_response(
         skipped_files=job.skipped_files,
         error_message=job.error_message,
         manifest=manifest,
+        time_offset_seconds=job.time_offset_seconds,
         queue_position=queue_position if job.status == "processing" else None,
         started_at=job.started_at.isoformat() if job.started_at else None,
         process_started_at=(
@@ -667,6 +678,7 @@ async def create_bulk_upload_job(
         status="uploading",
         total_files=body.total_files,
         manifest=manifest or None,
+        time_offset_seconds=body.time_offset_seconds,
     )
     db.add(job)
     await db.commit()
@@ -678,6 +690,7 @@ async def create_bulk_upload_job(
         project_id=project_id,
         camera_id=camera.id,
         total_files=body.total_files,
+        time_offset_seconds=body.time_offset_seconds,
         user_id=user.id,
     )
 

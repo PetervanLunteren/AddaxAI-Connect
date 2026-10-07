@@ -40,6 +40,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
 import { sitesApi } from '../../api/sites';
 import { SiteFormModal } from '../../components/sites/SiteFormModal';
+import { ClockOffsetDialog } from '../../components/ClockOffsetDialog';
+import { formatOffset, shiftEntries } from '../../utils/clock-offset';
 import {
   bulkUploadApi,
   type BulkUploadJob,
@@ -566,6 +568,10 @@ interface UploadContext {
   // files whose captured_at hits this set so we don't waste bandwidth
   // on photos the server would just dedup away.
   excluded_captured_ats: string[];
+  // The scan with the camera clock correction applied, and the correction
+  // itself. Every captured_at above is in corrected time too.
+  entries: ScanEntry[];
+  time_offset_seconds: number;
 }
 
 const BulkUploadModal: React.FC<{
@@ -665,7 +671,10 @@ const BulkUploadModal: React.FC<{
               onDone={(entries) => {
                 setScanned({ ...scanned, entries });
                 if (resumeJob) {
-                  if (!manifestsLookCompatible(resumeJob, entries)) {
+                  // The job's manifest is in corrected time, so the fresh
+                  // scan gets the job's correction before the comparison.
+                  const corrected = shiftEntries(entries, resumeJob.time_offset_seconds);
+                  if (!manifestsLookCompatible(resumeJob, corrected)) {
                     toast.error(
                       'This folder does not match the upload you are resuming. Pick the original folder, or cancel and start a new upload.',
                     );
@@ -678,7 +687,7 @@ const BulkUploadModal: React.FC<{
                     projectId,
                     resumeJob,
                     files: scanned.files,
-                    entries,
+                    entries: corrected,
                     onError: (msg) => toast.error(msg),
                     onSuccess: () => toast.success('Processing started'),
                     onCacheInvalidate: invalidateJobs,
@@ -707,8 +716,9 @@ const BulkUploadModal: React.FC<{
                   siteId: ctx.site_id,
                   manifest: ctx.manifest,
                   excludedCapturedAts: ctx.excluded_captured_ats,
+                  timeOffsetSeconds: ctx.time_offset_seconds,
                   files: scanned.files,
-                  entries: scanned.entries,
+                  entries: ctx.entries,
                   onError: (msg) => toast.error(msg),
                   onSuccess: () => toast.success('Processing started'),
                   onCacheInvalidate: invalidateJobs,
@@ -1027,10 +1037,27 @@ const ReviewStep: React.FC<{
   onBack: () => void;
   onCancel: () => void;
   onConfirm: (ctx: UploadContext) => void;
-}> = ({ projectId, folderName, entries, files, onBack, onCancel, onConfirm }) => {
+}> = ({ projectId, folderName, entries: rawEntries, files, onBack, onCancel, onConfirm }) => {
   const toast = useToast();
   const [siteId, setSiteId] = useState<string>('');
   const [showCreateSite, setShowCreateSite] = useState(false);
+  const [timeOffset, setTimeOffset] = useState(0);
+  const [showClockOffset, setShowClockOffset] = useState(false);
+
+  // Photos for the clock dialog, in time order, with their raw camera time.
+  const clockSamples = useMemo(
+    () =>
+      rawEntries
+        .filter((e) => e.status === 'valid' && e.captured_at)
+        .sort((a, b) => (a.captured_at! < b.captured_at! ? -1 : 1))
+        .map((e) => ({ file: files[e.index], captured_at: e.captured_at! })),
+    [rawEntries, files],
+  );
+
+  // Everything below reads the corrected times: the date range, the Mode B
+  // deployment dates in the manifest, the duplicate pre-check and the skip
+  // list. One shift in one place, so they cannot disagree.
+  const entries = useMemo(() => shiftEntries(rawEntries, timeOffset), [rawEntries, timeOffset]);
 
   const { data: sites } = useQuery({
     queryKey: ['sites', projectId],
@@ -1180,6 +1207,8 @@ const ReviewStep: React.FC<{
         folder_name: folderName,
         manifest,
         excluded_captured_ats: Array.from(safeDuplicateSet),
+        entries,
+        time_offset_seconds: timeOffset,
       });
       return;
     }
@@ -1193,6 +1222,8 @@ const ReviewStep: React.FC<{
       folder_name: folderName,
       manifest,
       excluded_captured_ats: [],
+      entries,
+      time_offset_seconds: timeOffset,
     });
   };
 
@@ -1218,7 +1249,27 @@ const ReviewStep: React.FC<{
         </div>
         <div className="text-xs text-muted-foreground">
           Date range, {formatDateRange(manifest.date_range.start, manifest.date_range.end)}
+          {timeOffset !== 0 && <>, corrected by {formatOffset(timeOffset)}</>}
+          {clockSamples.length > 0 && (
+            <>
+              {'. '}
+              <button
+                type="button"
+                onClick={() => setShowClockOffset(true)}
+                className="text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                {timeOffset === 0 ? 'Wrong dates? Correct the camera clock' : 'Change the correction'}
+              </button>
+            </>
+          )}
         </div>
+        <ClockOffsetDialog
+          open={showClockOffset}
+          onClose={() => setShowClockOffset(false)}
+          samples={clockSamples}
+          currentOffsetSeconds={timeOffset}
+          onApply={setTimeOffset}
+        />
       </div>
 
       {thumbnails.length > 0 && (

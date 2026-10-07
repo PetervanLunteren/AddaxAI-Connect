@@ -140,3 +140,38 @@ class TestCheckExifOffset:
         exif = {"OffsetTimeOriginal": "garbage"}
         check_exif_offset(exif, datetime(2026, 4, 14, 12, 0, 0))
         assert "Unparseable EXIF OffsetTimeOriginal tag" in ingestion_log.messages
+
+
+class TestCorrectedDatetime:
+    """Bulk upload clock correction (Quentin's point 14)."""
+
+    def test_offset_is_added_to_the_exif_time(self, tmp_path):
+        from exif_parser import get_corrected_datetime
+
+        exif = {"DateTimeOriginal": "2026:03:29 01:30:00"}
+        got = get_corrected_datetime(exif, str(tmp_path / "x.jpg"), 3600)
+        # Naive wall clock: 01:30 + 1 h is 02:30 even on the night the
+        # clocks go forward in Europe.
+        assert got == datetime(2026, 3, 29, 2, 30, 0)
+
+    def test_negative_offset_crosses_the_year(self, tmp_path):
+        from exif_parser import get_corrected_datetime
+
+        exif = {"DateTimeOriginal": "2026:01:01 06:00:00"}
+        got = get_corrected_datetime(exif, str(tmp_path / "x.jpg"), -12 * 3600)
+        assert got == datetime(2025, 12, 31, 18, 0, 0)
+
+    def test_file_date_fallback_is_not_corrected(self, tmp_path):
+        from exif_parser import get_corrected_datetime
+
+        f = tmp_path / "x.jpg"
+        f.write_bytes(b"")
+        uncorrected = get_datetime_original({}, str(f), allow_fallback=True)
+        got = get_corrected_datetime({}, str(f), 3600, allow_fallback=True)
+        assert got == uncorrected
+
+    def test_missing_date_without_fallback_still_raises(self, tmp_path):
+        from exif_parser import get_corrected_datetime
+
+        with pytest.raises(ValueError):
+            get_corrected_datetime({}, str(tmp_path / "x.jpg"), 3600)
