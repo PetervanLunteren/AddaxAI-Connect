@@ -67,7 +67,9 @@ export interface ThresholdCheckData {
   support: number;
   min_support: number;
   steps: ThresholdCheckStep[];
-  /** Best F1, null below min_support */
+  /** Null below min_support. Equals the current value when that is
+   * already within a point of the best F1, else the near-best step closest
+   * to it. */
   suggested: number | null;
 }
 
@@ -77,10 +79,11 @@ export const performanceApi = {
   thresholdCheck: async (
     projectId: number,
     species: string | null,
+    current: number,
   ): Promise<ThresholdCheckData> => {
     const response = await apiClient.get<ThresholdCheckData>(
       '/api/statistics/threshold-check',
-      { params: { project_id: projectId, species: species ?? undefined } },
+      { params: { project_id: projectId, species: species ?? undefined, current } },
     );
     return response.data;
   },

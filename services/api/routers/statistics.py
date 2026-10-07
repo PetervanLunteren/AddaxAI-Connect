@@ -3081,6 +3081,9 @@ async def _load_verified_images(
 THRESHOLD_CHECK_STEPS = [round(i * 0.05, 2) for i in range(20)]
 # Fewer verified examples than this and the curve is noise, so no suggestion.
 THRESHOLD_CHECK_MIN_SUPPORT = 20
+# F1 within this of the best counts as the best. Smaller gains are noise and
+# not worth moving a threshold for.
+THRESHOLD_CHECK_F1_TOLERANCE = 0.01
 
 
 def _precision_recall_f1(tp: int, predicted: int, actual: int):
@@ -3099,6 +3102,7 @@ def threshold_check(
     detection_threshold: float,
     classification_thresholds: Optional[dict],
     species: Optional[str],
+    current: float,
 ):
     """
     Precision, recall and F1 at every step of THRESHOLD_CHECK_STEPS, by
@@ -3111,17 +3115,18 @@ def threshold_check(
     animal, person or vehicle against empty, whatever the species.
 
     Returns (support, steps, suggested). Support is the number of true
-    subjects being scored, the same at every step. Suggested is the step
-    with the best F1, the lowest threshold on a tie, or None below
-    THRESHOLD_CHECK_MIN_SUPPORT.
+    subjects being scored, the same at every step. Suggested is None below
+    THRESHOLD_CHECK_MIN_SUPPORT. Otherwise it is `current` itself when that
+    scores within THRESHOLD_CHECK_F1_TOLERANCE of the best F1, else the
+    near-best step closest to `current`. F1 is often flat over a wide range,
+    and moving a threshold far for a gain that is noise helps nobody.
     """
     def hit(label: str) -> bool:
         return label != EMPTY if species is None else label == species
 
     thresholds = classification_thresholds or {}
-    steps = []
-    support = 0
-    for t in THRESHOLD_CHECK_STEPS:
+
+    def score(t: float) -> dict:
         if species is None:
             det_t, cls_t = t, thresholds
         else:
@@ -3137,14 +3142,27 @@ def threshold_check(
                 actual += count
                 if hit(pred):
                     tp += count
-        support = actual
         precision, recall, f1 = _precision_recall_f1(tp, predicted, actual)
-        steps.append({"threshold": t, "precision": precision, "recall": recall, "f1": f1})
+        return {"threshold": t, "precision": precision, "recall": recall,
+                "f1": f1, "support": actual}
 
-    scored = [s for s in steps if s["f1"] is not None]
+    steps = [score(t) for t in THRESHOLD_CHECK_STEPS]
+    now = score(current)
+    support = now["support"]
+
+    scored = [s for s in steps + [now] if s["f1"] is not None]
     suggested = None
     if support >= THRESHOLD_CHECK_MIN_SUPPORT and scored:
-        suggested = max(scored, key=lambda s: (s["f1"], -s["threshold"]))["threshold"]
+        good_enough = max(s["f1"] for s in scored) - THRESHOLD_CHECK_F1_TOLERANCE
+        if now["f1"] is not None and now["f1"] >= good_enough:
+            suggested = current
+        else:
+            suggested = min(
+                (s for s in steps if s["f1"] is not None and s["f1"] >= good_enough),
+                key=lambda s: abs(s["threshold"] - current),
+            )["threshold"]
+    for s in steps:
+        del s["support"]
     return support, steps, suggested
 
 
@@ -3170,6 +3188,9 @@ async def get_threshold_check(
     species: Optional[str] = Query(
         None, description="Species whose classification threshold to check; omit for the detection threshold",
     ),
+    current: float = Query(
+        ..., ge=0.0, le=1.0, description="The slider's value now, saved or not",
+    ),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_project_admin_access),
 ):
@@ -3189,7 +3210,8 @@ async def get_threshold_check(
 
     images = await _load_verified_images(db, project_id)
     support, steps, suggested = threshold_check(
-        images, project.detection_threshold, project.classification_thresholds, species,
+        images, project.detection_threshold, project.classification_thresholds,
+        species, current,
     )
     return ThresholdCheckResponse(
         species=species,

@@ -2,8 +2,9 @@
  * Threshold check, opened from a threshold slider on the settings page.
  *
  * Shows how precision, recall and F1 change with one threshold, measured on
- * all verified images of the project, and suggests the threshold with the
- * best F1. Apply only moves the slider; the settings page's Save, with its
+ * all verified images of the project, and suggests a threshold with the
+ * best F1, the one closest to the slider when F1 is flat (the backend
+ * decides). Apply only moves the slider; the settings page's Save, with its
  * impact preview, stays the only thing that writes.
  *
  * With a species it checks that species' classification threshold, without
@@ -85,8 +86,8 @@ export function ThresholdCheckDialog({
   onApply,
 }: ThresholdCheckDialogProps) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['threshold-check', projectId, species],
-    queryFn: () => performanceApi.thresholdCheck(projectId, species),
+    queryKey: ['threshold-check', projectId, species, current],
+    queryFn: () => performanceApi.thresholdCheck(projectId, species, current),
     enabled: open,
     // Saved thresholds change the curve, so never show an old one.
     staleTime: 0,

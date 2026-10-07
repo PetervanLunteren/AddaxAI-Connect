@@ -30,11 +30,11 @@ def _image(observations=(), detections=()):
     )
 
 
-def _check(images, species, detection_threshold=0.0, thresholds=None):
+def _check(images, species, detection_threshold=0.0, thresholds=None, current=0.0):
     from routers.statistics import threshold_check
 
     support, steps, suggested = threshold_check(
-        images, detection_threshold, thresholds, species,
+        images, detection_threshold, thresholds, species, current,
     )
     return support, {s["threshold"]: s for s in steps}, suggested
 
@@ -62,10 +62,24 @@ class TestSpeciesMode:
         assert steps[0.85]["recall"] == 0.0
         assert steps[0.85]["f1"] is None
 
-    def test_suggests_the_lowest_threshold_with_the_best_f1(self):
-        support, _, suggested = _check(_fox_set(copies=2), "fox")
+    def test_suggests_the_best_step_closest_to_the_current_value(self):
+        # F1 is 1.0 from 0.35 to 0.8; from 0.1 the nearest of those is 0.35.
+        support, _, suggested = _check(_fox_set(copies=2), "fox", current=0.1)
         assert support == 20
         assert suggested == 0.35
+
+    def test_keeps_the_current_value_when_it_is_already_best(self):
+        # On a flat F1 curve the check must not push the slider to 0%.
+        _, _, suggested = _check(_fox_set(copies=2), "fox", current=0.72)
+        assert suggested == 0.72
+
+    def test_a_gain_inside_the_tolerance_is_not_worth_a_move(self):
+        # 200 foxes, one deer called fox at 0.3: F1 at 0.1 is 0.9975, at
+        # 0.35 it is 1.0. Within the tolerance, so keep 0.1.
+        images = [_image([_obs("fox")], [_det("fox", cls_confidence=0.8)]) for _ in range(200)]
+        images.append(_image([_obs("deer")], [_det("fox", cls_confidence=0.3)]))
+        _, _, suggested = _check(images, "fox", current=0.1)
+        assert suggested == 0.1
 
     def test_no_suggestion_below_the_minimum_support(self):
         support, _, suggested = _check(_fox_set(), "fox")
@@ -107,5 +121,5 @@ class TestDetectionMode:
             [_image([_obs("fox")], [_det("fox", confidence=0.8)]) for _ in range(20)]
             + [_image([], [_det("fox", confidence=0.2)]) for _ in range(20)]
         )
-        _, _, suggested = _check(images, None)
+        _, _, suggested = _check(images, None, current=0.1)
         assert suggested == 0.25
