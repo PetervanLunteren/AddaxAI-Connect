@@ -3,11 +3,11 @@
  * cameras). Opens from the table's toolbar, starts with the table's current
  * selection, and hands the result back when the user confirms.
  *
- * Two modes, switched by a segmented control. "Draw box" (the default)
- * disables panning, and a plain drag with mouse or finger draws a box that
- * adds every dot inside it. "Move map" pans and zooms as usual. Clicking a
- * dot adds or removes it in both modes. Leaflet's own box selection needs
- * the Shift key and a mouse, which nobody finds and no phone has.
+ * Gestures follow desktop map tools like QGIS: a plain drag pans, Shift plus
+ * drag draws a box that adds every dot inside it, and a click on a dot adds
+ * or removes it. Touch screens have no Shift key, so there they can only
+ * click dots; box selection on touch was dropped on purpose to keep one
+ * mode and no toggle.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Tooltip, useMap } from 'react-leaflet';
@@ -24,7 +24,6 @@ import {
 import { Button } from '../ui/Button';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from './BaseLayersControl';
 import { FitBounds } from './FitBounds';
-import { cn } from '../../lib/utils';
 import 'leaflet/dist/leaflet.css';
 
 const PRIMARY = '#0f6064';
@@ -53,39 +52,31 @@ interface MapSelectDialogProps {
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
-/** Draw-a-box gesture. Active only in box mode; panning is off meanwhile. */
-function DragSelect({
-  active,
-  onBox,
-}: {
-  active: boolean;
-  onBox: (bounds: L.LatLngBounds) => void;
-}) {
+/** Shift plus drag draws a box. Panning stops for that one drag only. */
+function ShiftBoxSelect({ onBox }: { onBox: (bounds: L.LatLngBounds) => void }) {
   const map = useMap();
   const onBoxRef = useRef(onBox);
   onBoxRef.current = onBox;
 
   useEffect(() => {
-    if (!active) return;
     const container = map.getContainer();
-    map.dragging.disable();
-    container.style.cursor = 'crosshair';
-    // Leaflet drops its touch-action rule along with dragging; without this
-    // a finger drag would scroll the page instead of drawing the box.
-    container.style.touchAction = 'none';
-
     let start: L.Point | null = null;
     let rect: L.Rectangle | null = null;
 
-    const reset = () => {
+    const finish = () => {
       rect?.remove();
       rect = null;
       start = null;
+      map.dragging.enable();
     };
     const onDown = (e: PointerEvent) => {
-      // One finger or the left mouse button, and never on a map control.
-      if (!e.isPrimary || e.button !== 0) return;
+      if (!e.shiftKey || !e.isPrimary || e.button !== 0) return;
       if ((e.target as HTMLElement).closest('.leaflet-control')) return;
+      // pointerdown comes before the mousedown Leaflet pans on, so turning
+      // dragging off here keeps this one drag from moving the map.
+      // preventDefault stops the drag from selecting page text.
+      e.preventDefault();
+      map.dragging.disable();
       start = map.mouseEventToContainerPoint(e);
     };
     const onMove = (e: PointerEvent) => {
@@ -108,32 +99,25 @@ function DragSelect({
       }
     };
     const onUp = () => {
-      // No rectangle means it was a click; the dot's own click handles it.
+      if (!start) return;
+      // No rectangle means it was a Shift-click; the dot's click handles it.
       if (rect) onBoxRef.current(rect.getBounds());
-      reset();
-    };
-    // A second finger means a pinch, not a box.
-    const onSecondPointer = (e: PointerEvent) => {
-      if (!e.isPrimary) reset();
+      finish();
     };
 
-    container.addEventListener('pointerdown', onDown);
-    container.addEventListener('pointerdown', onSecondPointer);
-    container.addEventListener('pointermove', onMove);
-    container.addEventListener('pointerup', onUp);
-    container.addEventListener('pointercancel', reset);
+    container.addEventListener('pointerdown', onDown, { capture: true });
+    // Window, not the container: the mouse may be released outside the map.
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', finish);
     return () => {
-      container.removeEventListener('pointerdown', onDown);
-      container.removeEventListener('pointerdown', onSecondPointer);
-      container.removeEventListener('pointermove', onMove);
-      container.removeEventListener('pointerup', onUp);
-      container.removeEventListener('pointercancel', reset);
-      reset();
-      map.dragging.enable();
-      container.style.cursor = '';
-      container.style.touchAction = '';
+      container.removeEventListener('pointerdown', onDown, { capture: true });
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', finish);
+      finish();
     };
-  }, [active, map]);
+  }, [map]);
 
   return null;
 }
@@ -147,7 +131,6 @@ export function MapSelectDialog({
   onConfirm,
 }: MapSelectDialogProps) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [boxMode, setBoxMode] = useState(true);
 
   const located = useMemo(
     () =>
@@ -167,7 +150,6 @@ export function MapSelectDialog({
   useEffect(() => {
     if (!open) return;
     setSelected(new Set(located.filter((i) => initialSelected.has(i.id)).map((i) => i.id)));
-    setBoxMode(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -196,36 +178,18 @@ export function MapSelectDialog({
     onClose();
   };
 
-  const modeButton = (active: boolean, label: string, onClick: () => void) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'px-3 py-1.5 text-sm transition-colors',
-        active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
-      )}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose} className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Select {noun}s on the map</DialogTitle>
           <DialogDescription>
-            {boxMode
-              ? `Drag to draw a box around the ${noun}s you want. Click a dot to add or remove it.`
-              : `Move and zoom the map. Click a dot to add or remove it.`}
+            Hold Shift and drag to draw a box around the {noun}s you want. Click a
+            dot to add or remove it. A normal drag moves the map.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="inline-flex rounded-md border divide-x overflow-hidden">
-            {modeButton(boxMode, 'Draw box', () => setBoxMode(true))}
-            {modeButton(!boxMode, 'Move map', () => setBoxMode(false))}
-          </div>
+        <div className="flex justify-end">
           <Button
             variant="ghost"
             size="sm"
@@ -249,12 +213,14 @@ export function MapSelectDialog({
             maxZoom={MAP_MAX_ZOOM}
             style={{ height: '55vh', width: '100%', zIndex: 0 }}
             attributionControl={false}
+            // Shift-drag is ours. Leaflet's box zoom would zoom into the box too.
+            boxZoom={false}
             className="rounded-lg border"
           >
             <MapAttribution />
             <BaseLayersControl />
             <FitBounds points={points} />
-            <DragSelect active={boxMode} onBox={addBox} />
+            <ShiftBoxSelect onBox={addBox} />
             {located.map((i) => {
               const on = selected.has(i.id);
               return (
