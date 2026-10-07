@@ -15,6 +15,7 @@ import {
   MapPin,
   Loader2,
   Map as MapIcon,
+  SquareDashedMousePointer,
   Table as TableIcon,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
@@ -639,9 +640,9 @@ export const SitesPage: React.FC = () => {
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2 pb-1">
-            {canEdit && (
-              <Button variant="outline" size="sm" onClick={() => setShowMapSelect(true)}>
-                <MapIcon className="h-4 w-4 mr-1.5" />
+            {canEdit && viewMode === 'table' && (
+              <Button variant="ghost" size="sm" onClick={() => setShowMapSelect(true)}>
+                <SquareDashedMousePointer className="h-4 w-4 mr-1.5" />
                 Select on map
               </Button>
             )}

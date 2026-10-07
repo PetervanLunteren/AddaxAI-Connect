@@ -16,7 +16,7 @@ import {
   XCircle,
   ChevronDown,
   Route,
-  Map as MapIcon,
+  SquareDashedMousePointer,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -998,8 +998,8 @@ export const CamerasPage: React.FC = () => {
               {isFiltered ? `${filteredCameras.length} of ${cameras.length} cameras` : ''}
             </p>
             {canAdminCurrentProject && (
-              <Button variant="outline" size="sm" onClick={() => setShowMapSelect(true)}>
-                <MapIcon className="h-4 w-4 mr-1.5" />
+              <Button variant="ghost" size="sm" onClick={() => setShowMapSelect(true)}>
+                <SquareDashedMousePointer className="h-4 w-4 mr-1.5" />
                 Select on map
               </Button>
             )}
