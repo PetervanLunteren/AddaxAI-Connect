@@ -51,7 +51,40 @@ export interface PerformanceFilters {
   end_date?: string;
 }
 
+export interface ThresholdCheckStep {
+  threshold: number;
+  /** Null when nothing passes this threshold */
+  precision: number | null;
+  recall: number | null;
+  f1: number | null;
+}
+
+export interface ThresholdCheckData {
+  /** Null for the detection threshold */
+  species: string | null;
+  verified_images: number;
+  /** True subjects scored, the same at every step */
+  support: number;
+  min_support: number;
+  steps: ThresholdCheckStep[];
+  /** Best F1, null below min_support */
+  suggested: number | null;
+}
+
 export const performanceApi = {
+  /** Scores at each threshold on all verified images, admin only. Omit
+   * species to check the detection threshold. */
+  thresholdCheck: async (
+    projectId: number,
+    species: string | null,
+  ): Promise<ThresholdCheckData> => {
+    const response = await apiClient.get<ThresholdCheckData>(
+      '/api/statistics/threshold-check',
+      { params: { project_id: projectId, species: species ?? undefined } },
+    );
+    return response.data;
+  },
+
   get: async (
     projectId: number,
     filters?: PerformanceFilters,

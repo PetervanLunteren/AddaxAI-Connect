@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
 import { SiteGroupsModal } from '../../components/SiteGroupsModal';
 import { ClassificationThresholdsModal } from '../../components/ClassificationThresholdsModal';
+import { ThresholdCheckButton, ThresholdCheckDialog } from '../../components/ThresholdCheckDialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
@@ -76,6 +77,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const [showChangesModal, setShowChangesModal] = useState(false);
   const [modalData, setModalData] = useState<ModalData | null>(null);
   const [showThresholdBreakdown, setShowThresholdBreakdown] = useState(false);
+  const [showDetectionCheck, setShowDetectionCheck] = useState(false);
   const [showIndependenceBreakdown, setShowIndependenceBreakdown] = useState(false);
   const [showEventBreakdown, setShowEventBreakdown] = useState(false);
 
@@ -447,6 +449,18 @@ export const ProjectSettingsPage: React.FC = () => {
               <span className="text-sm font-medium w-12 text-right">
                 {(threshold * 100).toFixed(0)}%
               </span>
+              <ThresholdCheckButton
+                onClick={() => setShowDetectionCheck(true)}
+                disabled={isSaving}
+              />
+              <ThresholdCheckDialog
+                open={showDetectionCheck}
+                onClose={() => setShowDetectionCheck(false)}
+                projectId={currentProject.id}
+                species={null}
+                current={threshold}
+                onApply={setThreshold}
+              />
             </div>
           </div>
 

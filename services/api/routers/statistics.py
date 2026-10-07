@@ -21,6 +21,7 @@ from shared.classification_threshold import (
 from shared.database import get_async_session
 from shared.label_source import DEFAULT_LABEL_SOURCE, LabelSource, label_scope
 from auth.users import current_verified_user
+from auth.permissions import require_project_admin_access
 from auth.project_access import (
     get_accessible_project_ids,
     narrow_to_project,
@@ -57,7 +58,7 @@ from utils.sun_time import (
     reference_date_for_sun,
     transform_to_sun_time,
 )
-from utils.performance_pairing import pair_image_labels
+from utils.performance_pairing import EMPTY, pair_image_labels
 from utils.site_scope import site_image_clause, cameras_at_sites_clause, intersect_scope
 from utils.detection_filtering import (
     has_visible_animal,
@@ -3034,6 +3035,172 @@ def pair_verified_images(
     return human_counts, ai_counts, matrix_counts, site_acc
 
 
+async def _load_verified_images(
+    db: AsyncSession,
+    project_id: int,
+    site_id_list: Optional[List[int]] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> list:
+    """
+    Verified, classified, non-hidden images of a project with their
+    detections and human observations eagerly loaded, in one query. The
+    input of every comparison between the AI and the validators. Site and
+    date filters apply when set.
+    """
+    query = (
+        select(Image)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            Camera.project_id == project_id,
+            Image.is_verified == True,
+            Image.status == "classified",
+            Image.is_hidden == False,
+        )
+        .options(
+            selectinload(Image.human_observations),
+            selectinload(Image.detections).selectinload(Detection.classifications),
+        )
+    )
+    if site_id_list:
+        query = query.where(_site_image_condition(site_id_list))
+    if start_date is not None:
+        query = query.where(
+            Image.captured_at >= datetime.combine(start_date, datetime.min.time())
+        )
+    if end_date is not None:
+        query = query.where(
+            Image.captured_at <= datetime.combine(end_date, datetime.max.time())
+        )
+    result = await db.execute(query)
+    return result.scalars().unique().all()
+
+
+# Thresholds tried by the threshold check, 0% to 95% in 5% steps. At 100%
+# nothing passes, so precision is undefined there.
+THRESHOLD_CHECK_STEPS = [round(i * 0.05, 2) for i in range(20)]
+# Fewer verified examples than this and the curve is noise, so no suggestion.
+THRESHOLD_CHECK_MIN_SUPPORT = 20
+
+
+def _precision_recall_f1(tp: int, predicted: int, actual: int):
+    precision = tp / predicted if predicted else None
+    recall = tp / actual if actual else None
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if precision is not None and recall is not None and precision + recall > 0
+        else None
+    )
+    return precision, recall, f1
+
+
+def threshold_check(
+    images: list,
+    detection_threshold: float,
+    classification_thresholds: Optional[dict],
+    species: Optional[str],
+):
+    """
+    Precision, recall and F1 at every step of THRESHOLD_CHECK_STEPS, by
+    rerunning pair_verified_images with one threshold changed, so the
+    numbers follow the same pairing rules as the performance pages.
+
+    With a species, its classification threshold moves and the scores are
+    that species' row and column of the matrix. Without one, the detection
+    threshold moves and the scores are for "something is there": any
+    animal, person or vehicle against empty, whatever the species.
+
+    Returns (support, steps, suggested). Support is the number of true
+    subjects being scored, the same at every step. Suggested is the step
+    with the best F1, the lowest threshold on a tie, or None below
+    THRESHOLD_CHECK_MIN_SUPPORT.
+    """
+    def hit(label: str) -> bool:
+        return label != EMPTY if species is None else label == species
+
+    thresholds = classification_thresholds or {}
+    steps = []
+    support = 0
+    for t in THRESHOLD_CHECK_STEPS:
+        if species is None:
+            det_t, cls_t = t, thresholds
+        else:
+            overrides = {**(thresholds.get("overrides") or {}), species: t}
+            det_t, cls_t = detection_threshold, {**thresholds, "overrides": overrides}
+        _, _, matrix_counts, _ = pair_verified_images(images, det_t, cls_t, {})
+
+        tp = predicted = actual = 0
+        for (gt, pred), count in matrix_counts.items():
+            if hit(pred):
+                predicted += count
+            if hit(gt):
+                actual += count
+                if hit(pred):
+                    tp += count
+        support = actual
+        precision, recall, f1 = _precision_recall_f1(tp, predicted, actual)
+        steps.append({"threshold": t, "precision": precision, "recall": recall, "f1": f1})
+
+    scored = [s for s in steps if s["f1"] is not None]
+    suggested = None
+    if support >= THRESHOLD_CHECK_MIN_SUPPORT and scored:
+        suggested = max(scored, key=lambda s: (s["f1"], -s["threshold"]))["threshold"]
+    return support, steps, suggested
+
+
+class ThresholdCheckStep(BaseModel):
+    threshold: float
+    precision: Optional[float]
+    recall: Optional[float]
+    f1: Optional[float]
+
+
+class ThresholdCheckResponse(BaseModel):
+    species: Optional[str]
+    verified_images: int
+    support: int
+    min_support: int
+    steps: List[ThresholdCheckStep]
+    suggested: Optional[float]
+
+
+@router.get("/threshold-check", response_model=ThresholdCheckResponse)
+async def get_threshold_check(
+    project_id: int = Query(..., description="Project to check"),
+    species: Optional[str] = Query(
+        None, description="Species whose classification threshold to check; omit for the detection threshold",
+    ),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_project_admin_access),
+):
+    """
+    How precision, recall and F1 change with one threshold, measured on all
+    verified images of the project, for the threshold check on the settings
+    page. Admin only, because only admins set thresholds; admins are never
+    site restricted, so no scope applies. No site or date filters on
+    purpose: a threshold is project wide, so it is judged on all the data.
+    The other thresholds stay at their saved values.
+    """
+    project = (
+        await db.execute(select(Project).where(Project.id == project_id))
+    ).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+
+    images = await _load_verified_images(db, project_id)
+    support, steps, suggested = threshold_check(
+        images, project.detection_threshold, project.classification_thresholds, species,
+    )
+    return ThresholdCheckResponse(
+        species=species,
+        verified_images=len(images),
+        support=support,
+        min_support=THRESHOLD_CHECK_MIN_SUPPORT,
+        steps=steps,
+        suggested=suggested,
+    )
+
+
 @router.get("/performance", response_model=PerformanceResponse)
 async def get_performance(
     project_id: int = Query(..., description="Project to compute performance for"),
@@ -3084,36 +3251,9 @@ async def get_performance(
         )
 
     site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
-
-    # Fetch verified, classified, non-hidden images for this project with
-    # their detections and human observations eagerly loaded. One query.
-    # site_ids and date window apply when set.
-    query = (
-        select(Image)
-        .join(Camera, Image.camera_id == Camera.id)
-        .where(
-            Camera.project_id == project_id,
-            Image.is_verified == True,
-            Image.status == "classified",
-            Image.is_hidden == False,
-        )
-        .options(
-            selectinload(Image.human_observations),
-            selectinload(Image.detections).selectinload(Detection.classifications),
-        )
+    images = await _load_verified_images(
+        db, project_id, site_id_list, start_date, end_date,
     )
-    if site_id_list:
-        query = query.where(_site_image_condition(site_id_list))
-    if start_date is not None:
-        query = query.where(
-            Image.captured_at >= datetime.combine(start_date, datetime.min.time())
-        )
-    if end_date is not None:
-        query = query.where(
-            Image.captured_at <= datetime.combine(end_date, datetime.max.time())
-        )
-    result = await db.execute(query)
-    images = result.scalars().unique().all()
 
     # Site per deployment, for the by-site rows. Resolved through each
     # image's own deployment, which is time-correct for historical data.

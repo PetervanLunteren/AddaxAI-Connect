@@ -7,6 +7,8 @@
  * default; checked rows have their own threshold value stored in the
  * `overrides` map. The modal mutates state via `onChange` and never saves
  * on its own — the parent settings page's Save button handles that.
+ * Each row can open the threshold check; applying its suggestion turns the
+ * row's override on at the suggested value.
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -24,6 +26,7 @@ import { imagesApi } from '../api/images';
 import { speciesApi } from '../api/species';
 import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
+import { ThresholdCheckButton, ThresholdCheckDialog } from './ThresholdCheckDialog';
 
 interface Props {
   open: boolean;
@@ -41,6 +44,8 @@ export function ClassificationThresholdsModal({
   onChange,
 }: Props) {
   const { selectedProject } = useProject();
+  // The species whose threshold check is open.
+  const [checking, setChecking] = React.useState<{ value: string; label: string } | null>(null);
 
   // Same source set as VerificationPanel's allSpeciesOptions, minus
   // person/vehicle/empty (not classifier outputs, so no per-class
@@ -145,6 +150,7 @@ export function ClassificationThresholdsModal({
                   <span className="text-sm font-medium w-12 text-right">
                     {(effective * 100).toFixed(0)}%
                   </span>
+                  <ThresholdCheckButton onClick={() => setChecking({ value, label })} />
                 </div>
               );
             })}
@@ -155,6 +161,17 @@ export function ClassificationThresholdsModal({
           <Button onClick={onClose}>Done</Button>
         </DialogFooter>
       </DialogContent>
+      {checking && projectId !== undefined && (
+        <ThresholdCheckDialog
+          open
+          onClose={() => setChecking(null)}
+          projectId={projectId}
+          species={checking.value}
+          speciesLabel={checking.label}
+          current={overrides[checking.value] ?? defaultThreshold}
+          onApply={(t) => setOverrideValue(checking.value, t)}
+        />
+      )}
     </Dialog>
   );
 }

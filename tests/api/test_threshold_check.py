@@ -1,0 +1,111 @@
+"""Tests for the threshold check on the settings page (Quentin's point 13)."""
+import os
+import sys
+from types import SimpleNamespace
+
+# Add API service to path so we can import the modules directly
+_api = os.path.join(os.path.dirname(__file__), "..", "..", "services", "api")
+_api = os.path.abspath(_api)
+if _api not in sys.path:
+    sys.path.insert(0, _api)
+
+
+def _obs(species, count=1):
+    return SimpleNamespace(species=species, count=count)
+
+
+def _det(species, confidence=0.9, cls_confidence=0.9):
+    return SimpleNamespace(
+        category="animal",
+        confidence=confidence,
+        classifications=[SimpleNamespace(species=species, confidence=cls_confidence)],
+    )
+
+
+def _image(observations=(), detections=()):
+    return SimpleNamespace(
+        deployment_id=None,
+        human_observations=list(observations),
+        detections=list(detections),
+    )
+
+
+def _check(images, species, detection_threshold=0.0, thresholds=None):
+    from routers.statistics import threshold_check
+
+    support, steps, suggested = threshold_check(
+        images, detection_threshold, thresholds, species,
+    )
+    return support, {s["threshold"]: s for s in steps}, suggested
+
+
+def _fox_set(copies=1):
+    """Ten real foxes found with high confidence, ten deer the AI called fox
+    with low confidence. Raising the fox threshold past 0.5 drops only the
+    wrong ones."""
+    images = []
+    for _ in range(copies):
+        images += [_image([_obs("fox")], [_det("fox", cls_confidence=0.8)]) for _ in range(10)]
+        images += [_image([_obs("deer")], [_det("fox", cls_confidence=0.3)]) for _ in range(10)]
+    return images
+
+
+class TestSpeciesMode:
+    def test_scores_follow_the_species_threshold(self):
+        _, steps, _ = _check(_fox_set(), "fox")
+        assert steps[0.0]["precision"] == 0.5
+        assert steps[0.0]["recall"] == 1.0
+        assert steps[0.5]["precision"] == 1.0
+        assert steps[0.5]["recall"] == 1.0
+        # Above the true foxes' confidence nothing is called fox.
+        assert steps[0.85]["precision"] is None
+        assert steps[0.85]["recall"] == 0.0
+        assert steps[0.85]["f1"] is None
+
+    def test_suggests_the_lowest_threshold_with_the_best_f1(self):
+        support, _, suggested = _check(_fox_set(copies=2), "fox")
+        assert support == 20
+        assert suggested == 0.35
+
+    def test_no_suggestion_below_the_minimum_support(self):
+        support, _, suggested = _check(_fox_set(), "fox")
+        assert support == 10
+        assert suggested is None
+
+    def test_other_overrides_and_the_detection_threshold_still_apply(self):
+        # The deer override hides the deer call at every fox step, and the
+        # detection threshold hides the low-confidence fox box.
+        images = [
+            _image([_obs("fox")], [_det("deer", cls_confidence=0.4)]),
+            _image([_obs("fox")], [_det("fox", confidence=0.1)]),
+        ]
+        thresholds = {"default": 0.0, "overrides": {"deer": 0.9}}
+        _, steps, _ = _check(images, "fox", detection_threshold=0.5, thresholds=thresholds)
+        assert steps[0.0]["recall"] == 0.0
+
+
+class TestDetectionMode:
+    def test_scores_presence_whatever_the_species(self):
+        images = (
+            # Animal there, AI says a different species: still found.
+            [_image([_obs("fox")], [_det("deer", confidence=0.8)]) for _ in range(10)]
+            # Nothing there, AI sees something with low confidence.
+            + [_image([], [_det("fox", confidence=0.2)]) for _ in range(10)]
+            # Nothing there and the AI agrees.
+            + [_image() for _ in range(5)]
+        )
+        support, steps, suggested = _check(images, None)
+        assert support == 10
+        assert steps[0.0]["precision"] == 0.5
+        assert steps[0.0]["recall"] == 1.0
+        assert steps[0.25]["precision"] == 1.0
+        assert steps[0.25]["recall"] == 1.0
+        assert suggested is None  # 10 is below the minimum support
+
+    def test_suggestion_with_enough_examples(self):
+        images = (
+            [_image([_obs("fox")], [_det("fox", confidence=0.8)]) for _ in range(20)]
+            + [_image([], [_det("fox", confidence=0.2)]) for _ in range(20)]
+        )
+        _, _, suggested = _check(images, None)
+        assert suggested == 0.25
