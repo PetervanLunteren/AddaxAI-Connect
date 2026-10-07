@@ -211,7 +211,9 @@ export function MapSelectDialog({
         {located.length === 0 ? (
           <div className="flex items-center justify-center h-[50vh] rounded-lg border bg-muted/30">
             <p className="text-sm text-muted-foreground">
-              None of these {noun}s has a location yet.
+              {items.length === 0
+                ? `No ${noun}s match the table's filters.`
+                : `None of these ${noun}s has a location yet.`}
             </p>
           </div>
         ) : (

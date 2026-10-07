@@ -5,6 +5,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/utils';
 import { X } from 'lucide-react';
+import { useOverlayLayer } from './useOverlayLayer';
 
 interface DialogProps {
   open: boolean;
@@ -13,23 +14,7 @@ interface DialogProps {
 }
 
 export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) => {
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onOpenChange(false);
-      }
-    };
-
-    if (open) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [open, onOpenChange]);
+  useOverlayLayer(open, () => onOpenChange(false));
 
   if (!open) return null;
 

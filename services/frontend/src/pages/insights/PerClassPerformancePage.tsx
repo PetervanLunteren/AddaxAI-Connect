@@ -35,6 +35,8 @@ import {
   f1DivergingColor,
   filterPerformanceClasses,
   formatPercent,
+  labelFilterOptions,
+  performanceImagesUrl,
 } from '../../utils/performance-metrics';
 import {
   filtersFromSearchParams,
@@ -212,7 +214,8 @@ function weightedAverage(
 const MetricsTable: React.FC<{
   rows: ClassRow[];
   projectId: number;
-}> = ({ rows, projectId }) => {
+  scope: ImagesScope;
+}> = ({ rows, projectId, scope }) => {
   const navigate = useNavigate();
 
   const macroP = averageOver(rows, 'precision');
@@ -224,10 +227,7 @@ const MetricsTable: React.FC<{
 
   const handleRowClick = (row: ClassRow) => {
     if (row.isOther || row.isDetectorCategory) return;
-    const params = new URLSearchParams();
-    params.set('species', row.className);
-    params.set('verified', 'true');
-    navigate(`/projects/${projectId}/images?${params.toString()}`);
+    navigate(performanceImagesUrl(projectId, scope, { species: row.className }));
   };
 
   if (rows.length === 0) {
@@ -317,10 +317,14 @@ const SummaryRow: React.FC<{
 
 type SiteColumn = 'site' | 'verified' | 'subjects' | 'accuracy' | 'empty';
 
+/** The page filters a click carries into the Images page. */
+type ImagesScope = Parameters<typeof performanceImagesUrl>[1];
+
 const SiteTable: React.FC<{
   rows: PerformanceSiteRow[];
   projectId: number;
-}> = ({ rows, projectId }) => {
+  scope: ImagesScope;
+}> = ({ rows, projectId, scope }) => {
   const navigate = useNavigate();
   // Biggest support first by default, so a 2-image site never tops the
   // accuracy ranking by accident.
@@ -329,11 +333,15 @@ const SiteTable: React.FC<{
     direction: 'desc',
   });
 
+  // A new column starts A to Z for the name, highest first for numbers;
+  // a second click flips it.
   const onSort = (column: SiteColumn) =>
     setSort((prev) => ({
       column,
       direction:
-        prev.column === column && prev.direction === 'desc' ? 'asc' : 'desc',
+        prev.column === column
+          ? prev.direction === 'asc' ? 'desc' : 'asc'
+          : column === 'site' ? 'asc' : 'desc',
     }));
 
   const sorted = useMemo(() => {
@@ -363,10 +371,7 @@ const SiteTable: React.FC<{
 
   const handleRowClick = (row: PerformanceSiteRow) => {
     if (row.site_id === null) return;
-    const params = new URLSearchParams();
-    params.set('site_id', String(row.site_id));
-    params.set('verified', 'true');
-    navigate(`/projects/${projectId}/images?${params.toString()}`);
+    navigate(performanceImagesUrl(projectId, scope, { site_id: String(row.site_id) }));
   };
 
   return (
@@ -533,13 +538,7 @@ export const PerClassPerformancePage: React.FC = () => {
         kind: 'multi-select',
         key: 'species',
         label: 'Labels',
-        options: (data?.matrix_classes ?? [])
-          .filter((_, i) =>
-            data
-              ? data.matrix_row_totals[i] > 0 || data.matrix_col_totals[i] > 0
-              : false,
-          )
-          .map((cls) => ({ label: normalizeLabel(cls), value: cls })),
+        options: labelFilterOptions(data, labelValues),
         placeholder: 'All labels',
         summary: (n) => `${n} labels`,
       },
@@ -568,7 +567,7 @@ export const PerClassPerformancePage: React.FC = () => {
         maxDate: overview?.last_image_date,
       },
     ],
-    [sites, tagOptions, overview, data],
+    [sites, tagOptions, overview, data, labelValues],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
@@ -576,6 +575,12 @@ export const PerClassPerformancePage: React.FC = () => {
     [],
   );
   const displayValues: Record<string, string> = { top_n: topNValue };
+
+  const imagesScope: ImagesScope = {
+    siteIds: siteIdsParam,
+    dateFrom: startDate || undefined,
+    dateTo: endDate || undefined,
+  };
 
   // The Labels narrowing happens client-side on the loaded data, so
   // toggling a class is instant and needs no refetch. The by-site table is
@@ -636,7 +641,7 @@ export const PerClassPerformancePage: React.FC = () => {
         <>
           <PerformanceSummaryCards data={effectiveData} />
           <div className="rounded-lg border bg-card p-4 space-y-3">
-            <MetricsTable rows={rows} projectId={projectIdNum} />
+            <MetricsTable rows={rows} projectId={projectIdNum} scope={imagesScope} />
             <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 shrink-0" />
               <span>
@@ -661,29 +666,32 @@ export const PerClassPerformancePage: React.FC = () => {
             </div>
           </div>
 
-          {data.by_site.length > 0 && (
-            <div className="rounded-lg border bg-card p-4 space-y-3">
-              <div>
-                <h3 className="text-sm font-medium">Performance by site</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Subjects matched is the share of subjects where the AI agreed
-                  with the validator. Empty rate is the share of verified images
-                  where the validator recorded nothing.
-                </p>
-              </div>
-              <SiteTable rows={data.by_site} projectId={projectIdNum} />
-              <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                <Info className="h-3.5 w-3.5 shrink-0" />
-                <span>
-                  Judge sites with few verified images carefully, a handful of
-                  images makes any rate jump around
-                </span>
-                <span aria-hidden="true">·</span>
-                <span>Click a site to open its verified images</span>
-              </div>
-            </div>
-          )}
         </>
+      )}
+
+      {/* The Labels filter never applies here, so the card stays even when
+          it narrows the rest of the page to nothing. */}
+      {data && data.by_site.length > 0 && (
+        <div className="rounded-lg border bg-card p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-medium">Performance by site</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Subjects matched is the share of subjects where the AI agreed
+              with the validator. Empty rate is the share of verified images
+              where the validator recorded nothing.
+            </p>
+          </div>
+          <SiteTable rows={data.by_site} projectId={projectIdNum} scope={imagesScope} />
+          <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              Judge sites with few verified images carefully, a handful of
+              images makes any rate jump around
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>Click a site to open its verified images</span>
+          </div>
+        </div>
       )}
 
       <PlotExplainer

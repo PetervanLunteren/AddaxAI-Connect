@@ -8,6 +8,42 @@
  * matrix cells and the F1 column.
  */
 import type { PerformanceData } from '../api/performance';
+import { normalizeLabel } from './labels';
+
+/**
+ * Options for the Labels filter: every class in the data, plus any label
+ * already selected that the data no longer holds (a narrower date range).
+ * Without the second part a selected label would vanish from the control,
+ * which then reads "All labels" while the filter still narrows the page.
+ */
+export function labelFilterOptions(
+  data: PerformanceData | undefined,
+  selected: string[],
+): { label: string; value: string }[] {
+  const present = (data?.matrix_classes ?? []).filter(
+    (_, i) => data!.matrix_row_totals[i] > 0 || data!.matrix_col_totals[i] > 0,
+  );
+  const all = [...present, ...selected.filter((s) => !present.includes(s))];
+  return all.map((cls) => ({ label: normalizeLabel(cls), value: cls }));
+}
+
+/**
+ * Link to the verified images behind a number on a performance page, carrying
+ * the page's own date range and site filter, so the images match the number
+ * that was clicked. `extra` holds what the clicked row or cell adds.
+ */
+export function performanceImagesUrl(
+  projectId: number,
+  scope: { siteIds?: string; dateFrom?: string; dateTo?: string },
+  extra: Record<string, string>,
+): string {
+  const params = new URLSearchParams(extra);
+  params.set('verified', 'true');
+  if (scope.siteIds && !params.has('site_id')) params.set('site_id', scope.siteIds);
+  if (scope.dateFrom) params.set('date_from', scope.dateFrom);
+  if (scope.dateTo) params.set('date_to', scope.dateTo);
+  return `/projects/${projectId}/images?${params.toString()}`;
+}
 
 export interface ClassMetrics {
   species: string;

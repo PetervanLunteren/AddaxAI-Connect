@@ -10,7 +10,7 @@
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -32,7 +32,7 @@ import {
   SheetBody,
 } from './ui/Sheet';
 import { Button } from './ui/Button';
-import { sitesApi } from '../api/sites';
+import { sitesApi, type SiteDetail } from '../api/sites';
 import type { Camera } from '../api/types';
 import {
   getStatusColor,
@@ -144,10 +144,32 @@ export const SiteDetailSheet: React.FC<Props> = ({
     setEditTags(detail.tags ?? []);
   };
 
-  // Reseed when the loaded detail changes (open a different site, or after a
-  // save invalidates the cache).
+  // True when the form differs from the given copy of the site.
+  const differsFrom = (d: SiteDetail) =>
+    editName.trim() !== d.name ||
+    (editHabitat.trim() || null) !== (d.habitat_type ?? null) ||
+    (editNotes.trim() || null) !== (d.notes ?? null) ||
+    JSON.stringify(editTags) !== JSON.stringify(d.tags ?? []);
+
+  // Reseed when the loaded detail changes: another site opened, a save, or a
+  // project-wide tag rename or delete started from this form's tag field.
+  // In that last case the form can hold unsaved edits. They stay, and only
+  // the server's tag change (tags gone, tags new) is applied to the field,
+  // so a later Save does not undo the rename on this site.
+  const seededFrom = useRef<SiteDetail | null>(null);
   useEffect(() => {
-    resetForm();
+    if (!detail) return;
+    const prev = seededFrom.current;
+    seededFrom.current = detail;
+    if (!prev || prev.id !== detail.id || !differsFrom(prev)) {
+      resetForm();
+      return;
+    }
+    const before = prev.tags ?? [];
+    const after = detail.tags ?? [];
+    const gone = new Set(before.filter((t) => !after.includes(t)));
+    const added = after.filter((t) => !before.includes(t));
+    setEditTags((tags) => [...new Set([...tags.filter((t) => !gone.has(t)), ...added])]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
 
@@ -158,12 +180,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId]);
 
-  const coreChanged =
-    !!detail &&
-    (editName.trim() !== detail.name ||
-      (editHabitat.trim() || null) !== (detail.habitat_type ?? null) ||
-      (editNotes.trim() || null) !== (detail.notes ?? null) ||
-      JSON.stringify(editTags) !== JSON.stringify(detail.tags ?? []));
+  const coreChanged = !!detail && differsFrom(detail);
 
   const saveMutation = useMutation({
     mutationFn: () =>

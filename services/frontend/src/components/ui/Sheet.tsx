@@ -7,6 +7,7 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 import { X } from 'lucide-react';
+import { useOverlayLayer } from './useOverlayLayer';
 
 interface SheetProps {
   open: boolean;
@@ -15,23 +16,7 @@ interface SheetProps {
 }
 
 export const Sheet: React.FC<SheetProps> = ({ open, onOpenChange, children }) => {
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onOpenChange(false);
-      }
-    };
-
-    if (open) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
-    };
-  }, [open, onOpenChange]);
+  useOverlayLayer(open, () => onOpenChange(false));
 
   if (!open) return null;
 

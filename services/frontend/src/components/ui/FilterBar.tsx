@@ -12,7 +12,7 @@
  *
  * Mirrors AddaxAI WebUI's filter-bar pattern.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Filter, SlidersHorizontal, X } from 'lucide-react';
 
 import { Button } from './Button';
@@ -311,19 +311,55 @@ const FieldControl: React.FC<{
   }
   // search
   return (
-    <input
-      type="search"
-      className="w-full h-10 px-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+    <SearchInput
       value={asString(values[field.key])}
       placeholder={field.placeholder}
-      onChange={(e) =>
-        onChange({
-          [field.key]: e.target.value === '' ? undefined : e.target.value,
-        })
-      }
+      onChange={(text) => onChange({ [field.key]: text === '' ? undefined : text })}
     />
   );
 };
+
+/**
+ * Search box with its own text state. Filter values live in the URL, and
+ * React Router applies URL changes as a transition, which React says must
+ * never drive a text input: typing faster than the transition commits drops
+ * or repeats letters. So the box keeps what the user types and writes it to
+ * the URL, and follows the URL only while it does not have focus (Clear all,
+ * the back button, a restored filter).
+ */
+function SearchInput({
+  value,
+  placeholder,
+  onChange,
+}: {
+  value: string;
+  placeholder?: string;
+  onChange: (text: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focused.current) setText(value);
+  }, [value]);
+  return (
+    <input
+      type="search"
+      className="w-full h-10 px-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      value={text}
+      placeholder={placeholder}
+      onFocus={() => {
+        focused.current = true;
+      }}
+      onBlur={() => {
+        focused.current = false;
+      }}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(e.target.value);
+      }}
+    />
+  );
+}
 
 const formatHour = (h: number): string => `${String(h).padStart(2, '0')}:00`;
 

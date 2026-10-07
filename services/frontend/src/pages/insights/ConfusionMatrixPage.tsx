@@ -28,7 +28,12 @@ import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PerformanceSummaryCards } from '../../components/performance/PerformanceSummaryCards';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import { normalizeLabel } from '../../utils/labels';
-import { filterPerformanceClasses, gradientStyle } from '../../utils/performance-metrics';
+import {
+  filterPerformanceClasses,
+  gradientStyle,
+  labelFilterOptions,
+  performanceImagesUrl,
+} from '../../utils/performance-metrics';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -160,7 +165,8 @@ const Matrix: React.FC<{
   folded: FoldedMatrix;
   projectId: number;
   mode: MatrixMode;
-}> = ({ folded, projectId, mode }) => {
+  scope: Parameters<typeof performanceImagesUrl>[1];
+}> = ({ folded, projectId, mode, scope }) => {
   const navigate = useNavigate();
 
   const rowMaxes = folded.matrix.map((row) =>
@@ -172,11 +178,7 @@ const Matrix: React.FC<{
     // Opens the images behind the cell. The cell counts subjects, so one
     // image can account for more than one of them and the list can be
     // shorter than the number in the cell.
-    const params = new URLSearchParams();
-    params.set('human_has', gtClass);
-    params.set('ai_has', predClass);
-    params.set('verified', 'true');
-    navigate(`/projects/${projectId}/images?${params.toString()}`);
+    navigate(performanceImagesUrl(projectId, scope, { human_has: gtClass, ai_has: predClass }));
   };
 
   if (folded.classes.length === 0) return null;
@@ -421,13 +423,7 @@ export const ConfusionMatrixPage: React.FC = () => {
         kind: 'multi-select',
         key: 'species',
         label: 'Labels',
-        options: (data?.matrix_classes ?? [])
-          .filter((_, i) =>
-            data
-              ? data.matrix_row_totals[i] > 0 || data.matrix_col_totals[i] > 0
-              : false,
-          )
-          .map((cls) => ({ label: normalizeLabel(cls), value: cls })),
+        options: labelFilterOptions(data, labelValues),
         placeholder: 'All labels',
         summary: (n) => `${n} labels`,
       },
@@ -456,7 +452,7 @@ export const ConfusionMatrixPage: React.FC = () => {
         maxDate: overview?.last_image_date,
       },
     ],
-    [sites, tagOptions, overview, data],
+    [sites, tagOptions, overview, data, labelValues],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
@@ -530,7 +526,12 @@ export const ConfusionMatrixPage: React.FC = () => {
         <>
           <PerformanceSummaryCards data={effectiveData} />
           <div className="rounded-lg border bg-card p-4 space-y-3">
-            <Matrix folded={folded} projectId={projectIdNum} mode={mode} />
+            <Matrix
+              folded={folded}
+              projectId={projectIdNum}
+              mode={mode}
+              scope={{ siteIds: siteIdsParam, dateFrom: startDate || undefined, dateTo: endDate || undefined }}
+            />
             <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 shrink-0" />
               <span>Based on {effectiveData.matrix_subjects.toLocaleString()} subject{effectiveData.matrix_subjects === 1 ? '' : 's'} in {effectiveData.total_verified_images.toLocaleString()} verified image{effectiveData.total_verified_images === 1 ? '' : 's'}</span>

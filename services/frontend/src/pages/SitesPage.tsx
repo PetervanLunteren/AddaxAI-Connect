@@ -919,6 +919,7 @@ export const SitesPage: React.FC = () => {
         }
         confirmLabel="Delete everywhere"
         variant="destructive"
+        focusCancel
         isPending={deleteTagMutation.isPending}
       />
 

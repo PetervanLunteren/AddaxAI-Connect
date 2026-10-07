@@ -4,14 +4,20 @@
  * Renders existing tags as removable pills with a text input for adding new
  * tags. The suggestion list opens on focus with every existing tag, so the
  * vocabulary is visible before anything is typed and spelling variants stop
- * being created by accident.
+ * being created by accident. Nothing is highlighted until the user types or
+ * presses an arrow key, so focusing the field and pressing Enter adds nothing.
  *
  * A host can also make the widget the tag editor by passing `management`:
- * each suggestion then carries a count, a rename pencil and a delete trash.
- * Those actions change the tag everywhere in the project, not just on the
- * row being edited, so hosts pass them only in admin contexts and confirm
- * deletes themselves (the widget just reports the wish). The icons render
- * always, not on hover, because hover does not exist on phones.
+ * each suggestion then carries a count, a rename pencil and a delete trash,
+ * and the row's own tags are listed too (muted, not addable), so a typo can
+ * be fixed on the row where it is seen. Those actions change the tag
+ * everywhere in the project, not just on the row being edited, so hosts pass
+ * them only in admin contexts and confirm deletes themselves (the widget just
+ * reports the wish). The icons render always, not on hover, because hover
+ * does not exist on phones.
+ *
+ * The list sits in the normal page flow rather than floating over it, so a
+ * dialog or sheet with its own scroll area cannot clip it or hide buttons.
  */
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
@@ -52,14 +58,18 @@ export const TagInput: React.FC<TagInputProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  // Highlighted suggestion, standard combobox behaviour: the first match is
-  // preselected, arrows move through the list, Enter picks the highlight
-  const [activeIndex, setActiveIndex] = useState(0);
+  // Highlighted suggestion, -1 for none. Typing preselects the first match
+  // that can be added; arrows move through the list; Enter picks the
+  // highlight.
+  const [activeIndex, setActiveIndex] = useState(-1);
   // The suggestion currently being renamed, and the draft name.
   const [renamingTag, setRenamingTag] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const typed = inputValue.trim() !== '';
+  const onRow = (tag: string) => value.includes(tag);
 
   // Close suggestions on click outside
   useEffect(() => {
@@ -73,18 +83,18 @@ export const TagInput: React.FC<TagInputProps> = ({
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, []);
 
-  // With nothing typed the whole vocabulary shows, minus what the row
-  // already carries. Typing narrows it.
+  // With nothing typed the whole vocabulary shows, typing narrows it. The
+  // row's own tags only show when the host manages tags, to rename them.
   const filteredSuggestions = useMemo(() => {
     const search = inputValue.trim().toLowerCase();
     return suggestions.filter(
-      (s) => (!search || s.includes(search)) && !value.includes(s)
+      (s) => (!search || s.includes(search)) && (!!management || !value.includes(s)),
     );
-  }, [inputValue, suggestions, value]);
+  }, [inputValue, suggestions, value, management]);
 
-  // Back to the first match whenever the list changes
   useEffect(() => {
-    setActiveIndex(0);
+    setActiveIndex(typed ? filteredSuggestions.findIndex((s) => !value.includes(s)) : -1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredSuggestions]);
 
   const addTag = (tag: string) => {
@@ -108,57 +118,50 @@ export const TagInput: React.FC<TagInputProps> = ({
 
   const commitRename = () => {
     const normalized = normalize(renameValue);
-    if (
-      renamingTag &&
-      normalized &&
-      normalized.length <= MAX_TAG_LENGTH &&
-      normalized !== renamingTag
-    ) {
+    if (renamingTag && normalized && normalized !== renamingTag) {
       management?.onRenameTag(renamingTag, normalized);
     }
     setRenamingTag(null);
   };
 
   const suggestionsOpen = showSuggestions && filteredSuggestions.length > 0;
+  const highlighted = activeIndex >= 0 ? filteredSuggestions[activeIndex] : undefined;
 
-  // Enter and blur both add the typed text, but only pick the highlighted
-  // suggestion when the user typed something: the list now opens on focus
-  // with the whole vocabulary, and a bare blur or Enter must not add a tag
-  // nobody asked for. Escape first to type a tag that is a prefix of an
-  // existing one. Blur commits because a parent form reads only `value`:
-  // text left in the box when the user clicked Save used to be thrown away.
+  // Adds the highlighted suggestion when there is one the row lacks, else
+  // the typed text. Blur commits too, because a parent form reads only
+  // `value`: text left in the box when the user clicked Save used to be
+  // thrown away. Escape first to type a tag that is a prefix of another.
   const commitInput = () => {
-    if (!inputValue.trim()) return;
-    if (suggestionsOpen) {
-      addTag(filteredSuggestions[activeIndex]);
-    } else {
+    if (suggestionsOpen && highlighted && !onRow(highlighted)) {
+      addTag(highlighted);
+    } else if (typed) {
       addTag(inputValue);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const n = filteredSuggestions.length;
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (inputValue.trim()) {
-        commitInput();
-      } else if (suggestionsOpen) {
-        addTag(filteredSuggestions[activeIndex]);
-      }
+      commitInput();
     } else if (e.key === 'ArrowDown' && suggestionsOpen) {
       e.preventDefault();
-      setActiveIndex((i) => (i + 1) % filteredSuggestions.length);
+      setActiveIndex((i) => (i + 1) % n);
     } else if (e.key === 'ArrowUp' && suggestionsOpen) {
       e.preventDefault();
-      setActiveIndex((i) => (i - 1 + filteredSuggestions.length) % filteredSuggestions.length);
+      setActiveIndex((i) => (i <= 0 ? n - 1 : i - 1));
     } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
       removeTag(value[value.length - 1]);
-    } else if (e.key === 'Escape') {
+    } else if (e.key === 'Escape' && suggestionsOpen) {
+      // The open list is the top layer: Escape closes it, not the dialog
+      // or sheet around the field.
+      e.stopPropagation();
       setShowSuggestions(false);
     }
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef}>
       <div
         className={`flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5 border rounded-md bg-background ${
           disabled ? 'bg-muted cursor-not-allowed' : 'cursor-text'
@@ -190,12 +193,19 @@ export const TagInput: React.FC<TagInputProps> = ({
             ref={inputRef}
             type="text"
             value={inputValue}
+            maxLength={MAX_TAG_LENGTH}
             onChange={(e) => {
               setInputValue(e.target.value);
               setShowSuggestions(true);
             }}
             onFocus={() => setShowSuggestions(true)}
-            onBlur={commitInput}
+            onBlur={(e) => {
+              // Focus moving inside the widget (to the rename field) is not
+              // leaving it, so the typed filter must not be added as a tag.
+              // Leaving only commits typed text, never a bare highlight.
+              if (containerRef.current?.contains(e.relatedTarget as Node)) return;
+              if (typed) commitInput();
+            }}
             onKeyDown={handleKeyDown}
             placeholder={value.length === 0 ? placeholder : ''}
             className="flex-1 min-w-[80px] text-sm bg-transparent outline-none placeholder:text-muted-foreground"
@@ -206,7 +216,7 @@ export const TagInput: React.FC<TagInputProps> = ({
 
       {/* Autocomplete suggestions */}
       {suggestionsOpen && (
-        <div className="absolute left-0 right-0 mt-1 border rounded-md bg-background shadow-lg z-50 max-h-48 overflow-y-auto">
+        <div className="mt-1 border rounded-md bg-background max-h-48 overflow-y-auto">
           {filteredSuggestions.map((suggestion, index) =>
             renamingTag === suggestion && management ? (
               <div key={suggestion} className="flex items-center gap-1 px-3 py-1">
@@ -214,6 +224,7 @@ export const TagInput: React.FC<TagInputProps> = ({
                   autoFocus
                   type="text"
                   value={renameValue}
+                  maxLength={MAX_TAG_LENGTH}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -248,7 +259,9 @@ export const TagInput: React.FC<TagInputProps> = ({
                   // typed prefix as a tag before this click adds the suggestion
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => addTag(suggestion)}
-                  className="flex-1 min-w-0 text-left px-3 py-1.5 text-sm truncate hover:bg-accent"
+                  disabled={onRow(suggestion)}
+                  title={onRow(suggestion) ? `Already on this ${management?.noun ?? 'item'}` : undefined}
+                  className="flex-1 min-w-0 text-left px-3 py-1.5 text-sm truncate hover:bg-accent disabled:cursor-default disabled:text-muted-foreground disabled:hover:bg-transparent"
                 >
                   {suggestion}
                 </button>
