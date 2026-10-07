@@ -1047,13 +1047,17 @@ export const CamerasPage: React.FC = () => {
                 <TableHeader>
                   <TableRow>
                     {canAdminCurrentProject && (
-                      <TableHead className="w-10">
-                        <SelectAllCheckbox
-                          visibleIds={filteredCameras.map((c) => c.id)}
-                          selected={selectedCameraIds}
-                          onToggle={setCameraSelection}
-                          ariaLabel="Select all visible cameras"
-                        />
+                      <TableHead className="w-20">
+                        {/* Every way of selecting lives in this one cell. */}
+                        <div className="flex items-center gap-1">
+                          <SelectAllCheckbox
+                            visibleIds={filteredCameras.map((c) => c.id)}
+                            selected={selectedCameraIds}
+                            onToggle={setCameraSelection}
+                            ariaLabel="Select all visible cameras"
+                          />
+                          <MapSelectButton onClick={() => setShowMapSelect(true)} />
+                        </div>
                       </TableHead>
                     )}
                     {visibleColumnDefs.map((col) => (
@@ -1070,18 +1074,13 @@ export const CamerasPage: React.FC = () => {
                         )}
                       </TableHead>
                     ))}
-                    {canAdminCurrentProject && (
-                      <TableHead className="w-10 text-right">
-                        <MapSelectButton onClick={() => setShowMapSelect(true)} />
-                      </TableHead>
-                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCameras.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={visibleColumnDefs.length + (canAdminCurrentProject ? 2 : 0)}
+                        colSpan={visibleColumnDefs.length + (canAdminCurrentProject ? 1 : 0)}
                         className="text-center py-8 text-muted-foreground"
                       >
                         No cameras match your filters.
@@ -1113,7 +1112,6 @@ export const CamerasPage: React.FC = () => {
                           {renderCameraCell(col.id, camera)}
                         </TableCell>
                       ))}
-                      {canAdminCurrentProject && <TableCell className="w-10" />}
                     </TableRow>
                   ))}
                 </TableBody>

@@ -739,13 +739,17 @@ export const SitesPage: React.FC = () => {
                 <TableHeader>
                   <TableRow>
                     {canEdit && (
-                      <TableHead className="w-10">
-                        <SelectAllCheckbox
-                          visibleIds={sortedSites.map((s) => s.id)}
-                          selected={selectedSiteIds}
-                          onToggle={setSiteSelection}
-                          ariaLabel="Select all visible sites"
-                        />
+                      <TableHead className="w-20">
+                        {/* Every way of selecting lives in this one cell. */}
+                        <div className="flex items-center gap-1">
+                          <SelectAllCheckbox
+                            visibleIds={sortedSites.map((s) => s.id)}
+                            selected={selectedSiteIds}
+                            onToggle={setSiteSelection}
+                            ariaLabel="Select all visible sites"
+                          />
+                          <MapSelectButton onClick={() => setShowMapSelect(true)} />
+                        </div>
                       </TableHead>
                     )}
                     {visibleColumnDefs.map((col) => (
@@ -766,18 +770,13 @@ export const SitesPage: React.FC = () => {
                         )}
                       </TableHead>
                     ))}
-                    {canEdit && (
-                      <TableHead className="w-10 text-right">
-                        <MapSelectButton onClick={() => setShowMapSelect(true)} />
-                      </TableHead>
-                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sortedSites.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={visibleColumnDefs.length + (canEdit ? 2 : 0)}
+                        colSpan={visibleColumnDefs.length + (canEdit ? 1 : 0)}
                         className="text-center py-8 text-muted-foreground"
                       >
                         No sites match your filters.
@@ -812,7 +811,6 @@ export const SitesPage: React.FC = () => {
                           {renderSiteCell(col.id, site)}
                         </TableCell>
                       ))}
-                      {canEdit && <TableCell className="w-10" />}
                     </TableRow>
                   ))}
                 </TableBody>

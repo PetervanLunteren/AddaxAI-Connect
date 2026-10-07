@@ -54,9 +54,9 @@ interface MapSelectDialogProps {
 
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
-/** Icon button that opens the dialog, placed in the top right header cell
- * of a table so it reads as part of the table it selects in. One component
- * so the sites and cameras tables cannot drift apart. */
+/** Icon button that opens the dialog, placed next to the select-all
+ * checkbox in a table's header, so every way of selecting sits in one cell.
+ * One component so the sites and cameras tables cannot drift apart. */
 export function MapSelectButton({ onClick }: { onClick: () => void }) {
   return (
     <button
