@@ -23,6 +23,8 @@ export interface TagManagement {
   onDeleteTag: (tag: string) => void;
   /** Rows carrying each tag, shown next to the suggestion. */
   counts: Record<string, number>;
+  /** What a row is called, e.g. "site", so the count reads "on 3 sites". */
+  noun: string;
 }
 
 interface TagInputProps {
@@ -252,8 +254,9 @@ export const TagInput: React.FC<TagInputProps> = ({
                 </button>
                 {management && (
                   <>
-                    <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                      {management.counts[suggestion] ?? 0}
+                    <span className="text-xs text-muted-foreground tabular-nums shrink-0 whitespace-nowrap">
+                      on {management.counts[suggestion] ?? 0} {management.noun}
+                      {(management.counts[suggestion] ?? 0) === 1 ? '' : 's'}
                     </span>
                     <button
                       type="button"

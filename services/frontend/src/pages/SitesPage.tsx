@@ -448,6 +448,7 @@ export const SitesPage: React.FC = () => {
               renameTagMutation.mutate({ oldTag, newTag }),
             onDeleteTag: setDeleteTagTarget,
             counts: tagCounts,
+            noun: 'site',
           }
         : undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
