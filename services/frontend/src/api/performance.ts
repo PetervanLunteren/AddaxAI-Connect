@@ -60,7 +60,8 @@ export interface ThresholdCheckStep {
 }
 
 export interface ThresholdCheckData {
-  /** Null for the detection threshold */
+  mode: 'detection' | 'default' | 'species';
+  /** Set in species mode only */
   species: string | null;
   verified_images: number;
   /** True subjects scored, the same at every step */
@@ -74,16 +75,17 @@ export interface ThresholdCheckData {
 }
 
 export const performanceApi = {
-  /** Scores at each threshold on all verified images, admin only. Omit
-   * species to check the detection threshold. */
+  /** Scores at each threshold on all verified images, admin only. species
+   * goes with species mode only. */
   thresholdCheck: async (
     projectId: number,
-    species: string | null,
+    mode: ThresholdCheckData['mode'],
     current: number,
+    species?: string,
   ): Promise<ThresholdCheckData> => {
     const response = await apiClient.get<ThresholdCheckData>(
       '/api/statistics/threshold-check',
-      { params: { project_id: projectId, species: species ?? undefined, current } },
+      { params: { project_id: projectId, mode, current, species } },
     );
     return response.data;
   },

@@ -7,9 +7,11 @@
  * decides). Apply only moves the slider; the settings page's Save, with its
  * impact preview, stays the only thing that writes.
  *
- * With a species it checks that species' classification threshold, without
- * one the project detection threshold ("is something there", whatever the
- * species). The other thresholds stay at their saved values.
+ * Every threshold slider has one, and each checks exactly what its slider
+ * controls: the detection threshold ("is something there", whatever the
+ * species), the classification default (all species without an override,
+ * pooled) or one species' override. The other thresholds stay at their
+ * saved values.
  */
 import { useQuery } from '@tanstack/react-query';
 import { Line } from 'react-chartjs-2';
@@ -63,14 +65,42 @@ export function ThresholdCheckButton({
   );
 }
 
+/** Which slider to check. species is the classifier label, label its
+ * display name. */
+export type ThresholdCheckTarget =
+  | { mode: 'detection' }
+  | { mode: 'default' }
+  | { mode: 'species'; species: string; label: string };
+
+/** Title, description and the "nothing verified" line for each target. */
+function targetCopy(target: ThresholdCheckTarget) {
+  switch (target.mode) {
+    case 'detection':
+      return {
+        title: 'Check the detection threshold',
+        description: 'How well the AI notices an animal, person or vehicle at each threshold, whatever the species, on the images people verified.',
+        none: 'No animals, people or vehicles in the verified images yet.',
+      };
+    case 'default':
+      return {
+        title: 'Check the default classification threshold',
+        description: 'How well the AI names the species that use the default at each threshold, on the images people verified. Common species weigh most here, so check a rare species on its own row.',
+        none: 'No verified species that use the default yet, so there is nothing to suggest.',
+      };
+    case 'species':
+      return {
+        title: `Check the threshold for ${target.label}`,
+        description: `How well the AI names ${target.label} at each threshold, on the images people verified.`,
+        none: `No verified ${target.label} yet, so there is nothing to suggest.`,
+      };
+  }
+}
+
 interface ThresholdCheckDialogProps {
   open: boolean;
   onClose: () => void;
   projectId: number;
-  /** Classifier label to check, null for the detection threshold. */
-  species: string | null;
-  /** Display name of the species, for the title. */
-  speciesLabel?: string;
+  target: ThresholdCheckTarget;
   /** The slider's value now, saved or not. */
   current: number;
   onApply: (threshold: number) => void;
@@ -80,14 +110,18 @@ export function ThresholdCheckDialog({
   open,
   onClose,
   projectId,
-  species,
-  speciesLabel,
+  target,
   current,
   onApply,
 }: ThresholdCheckDialogProps) {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['threshold-check', projectId, species, current],
-    queryFn: () => performanceApi.thresholdCheck(projectId, species, current),
+    queryKey: ['threshold-check', projectId, target, current],
+    queryFn: () => performanceApi.thresholdCheck(
+      projectId,
+      target.mode,
+      current,
+      target.mode === 'species' ? target.species : undefined,
+    ),
     enabled: open,
     // Saved thresholds change the curve, so never show an old one.
     staleTime: 0,
@@ -155,21 +189,14 @@ export function ThresholdCheckDialog({
     },
   };
 
-  const title = species === null
-    ? 'Check the detection threshold'
-    : `Check the threshold for ${speciesLabel ?? species}`;
-  const description = species === null
-    ? 'How well the AI notices an animal, person or vehicle at each threshold, whatever the species, on the images people verified.'
-    : `How well the AI names ${speciesLabel ?? species} at each threshold, on the images people verified.`;
+  const { title, description, none } = targetCopy(target);
 
   let verdict: string | null = null;
   if (data) {
     if (data.verified_images === 0) {
       verdict = 'No verified images yet. Verify some images first, then check again.';
     } else if (data.support === 0) {
-      verdict = species === null
-        ? 'No animals, people or vehicles in the verified images yet.'
-        : `No verified ${speciesLabel ?? species} yet, so there is nothing to suggest.`;
+      verdict = none;
     } else if (suggested === null) {
       verdict = `Only ${data.support} verified examples, at least ${data.min_support} are needed for a suggestion.`;
     } else if (alreadyBest) {

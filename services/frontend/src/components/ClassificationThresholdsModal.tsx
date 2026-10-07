@@ -166,8 +166,7 @@ export function ClassificationThresholdsModal({
           open
           onClose={() => setChecking(null)}
           projectId={projectId}
-          species={checking.value}
-          speciesLabel={checking.label}
+          target={{ mode: 'species', species: checking.value, label: checking.label }}
           current={overrides[checking.value] ?? defaultThreshold}
           onApply={(t) => setOverrideValue(checking.value, t)}
         />

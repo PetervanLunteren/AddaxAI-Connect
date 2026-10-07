@@ -2,7 +2,7 @@
 Statistics endpoints for dashboard metrics and charts.
 """
 import asyncio
-from typing import List, Optional, Any, Dict, Tuple
+from typing import List, Literal, Optional, Any, Dict, Tuple
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -3084,6 +3084,10 @@ THRESHOLD_CHECK_MIN_SUPPORT = 20
 # F1 within this of the best counts as the best. Smaller gains are noise and
 # not worth moving a threshold for.
 THRESHOLD_CHECK_F1_TOLERANCE = 0.01
+ThresholdCheckMode = Literal["detection", "default", "species"]
+# Labels the classifier never outputs, so no classification threshold
+# touches them.
+NON_CLASSIFIER_LABELS = {EMPTY, "person", "vehicle"}
 
 
 def _precision_recall_f1(tp: int, predicted: int, actual: int):
@@ -3101,18 +3105,23 @@ def threshold_check(
     images: list,
     detection_threshold: float,
     classification_thresholds: Optional[dict],
-    species: Optional[str],
+    mode: ThresholdCheckMode,
     current: float,
+    species: Optional[str] = None,
 ):
     """
     Precision, recall and F1 at every step of THRESHOLD_CHECK_STEPS, by
     rerunning pair_verified_images with one threshold changed, so the
-    numbers follow the same pairing rules as the performance pages.
+    numbers follow the same pairing rules as the performance pages. Each
+    mode scores exactly what its slider controls:
 
-    With a species, its classification threshold moves and the scores are
-    that species' row and column of the matrix. Without one, the detection
-    threshold moves and the scores are for "something is there": any
-    animal, person or vehicle against empty, whatever the species.
+    - detection: the detection threshold moves, scored as "something is
+      there", any animal, person or vehicle against empty, whatever the
+      species.
+    - default: the classification default moves, scored over every species
+      without an override, pooled, so common species weigh most.
+    - species: that species' override moves, scored on its own row and
+      column of the matrix.
 
     Returns (support, steps, suggested). Support is the number of true
     subjects being scored, the same at every step. Suggested is None below
@@ -3121,17 +3130,26 @@ def threshold_check(
     near-best step closest to `current`. F1 is often flat over a wide range,
     and moving a threshold far for a gain that is noise helps nobody.
     """
-    def hit(label: str) -> bool:
-        return label != EMPTY if species is None else label == species
-
+    if (mode == "species") != (species is not None):
+        raise ValueError("species is required in species mode and only there")
     thresholds = classification_thresholds or {}
+    overrides = thresholds.get("overrides") or {}
+
+    def hit(label: str) -> bool:
+        if mode == "detection":
+            return label != EMPTY
+        if mode == "default":
+            return label not in NON_CLASSIFIER_LABELS and label not in overrides
+        return label == species
 
     def score(t: float) -> dict:
-        if species is None:
-            det_t, cls_t = t, thresholds
+        det_t, cls_t = detection_threshold, thresholds
+        if mode == "detection":
+            det_t = t
+        elif mode == "default":
+            cls_t = {**thresholds, "default": t}
         else:
-            overrides = {**(thresholds.get("overrides") or {}), species: t}
-            det_t, cls_t = detection_threshold, {**thresholds, "overrides": overrides}
+            cls_t = {**thresholds, "overrides": {**overrides, species: t}}
         _, _, matrix_counts, _ = pair_verified_images(images, det_t, cls_t, {})
 
         tp = predicted = actual = 0
@@ -3140,7 +3158,9 @@ def threshold_check(
                 predicted += count
             if hit(gt):
                 actual += count
-                if hit(pred):
+                # Detection only asks whether something is there; the
+                # classification modes need the right species.
+                if hit(pred) and (mode == "detection" or gt == pred):
                     tp += count
         precision, recall, f1 = _precision_recall_f1(tp, predicted, actual)
         return {"threshold": t, "precision": precision, "recall": recall,
@@ -3174,6 +3194,7 @@ class ThresholdCheckStep(BaseModel):
 
 
 class ThresholdCheckResponse(BaseModel):
+    mode: ThresholdCheckMode
     species: Optional[str]
     verified_images: int
     support: int
@@ -3185,8 +3206,9 @@ class ThresholdCheckResponse(BaseModel):
 @router.get("/threshold-check", response_model=ThresholdCheckResponse)
 async def get_threshold_check(
     project_id: int = Query(..., description="Project to check"),
+    mode: ThresholdCheckMode = Query(..., description="Which slider to check"),
     species: Optional[str] = Query(
-        None, description="Species whose classification threshold to check; omit for the detection threshold",
+        None, description="Species whose override to check, species mode only",
     ),
     current: float = Query(
         ..., ge=0.0, le=1.0, description="The slider's value now, saved or not",
@@ -3207,13 +3229,18 @@ async def get_threshold_check(
     ).scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
+    if (mode == "species") != (species is not None):
+        raise HTTPException(
+            status_code=422, detail="Pass species in species mode, and only there",
+        )
 
     images = await _load_verified_images(db, project_id)
     support, steps, suggested = threshold_check(
         images, project.detection_threshold, project.classification_thresholds,
-        species, current,
+        mode, current, species,
     )
     return ThresholdCheckResponse(
+        mode=mode,
         species=species,
         verified_images=len(images),
         support=support,

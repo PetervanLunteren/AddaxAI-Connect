@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2 } from 'lucide-react';
+import { Loader2, Save, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2, SlidersHorizontal } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Callout } from '../../components/ui/Callout';
 import { Button } from '../../components/ui/Button';
@@ -78,6 +78,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const [modalData, setModalData] = useState<ModalData | null>(null);
   const [showThresholdBreakdown, setShowThresholdBreakdown] = useState(false);
   const [showDetectionCheck, setShowDetectionCheck] = useState(false);
+  const [showDefaultCheck, setShowDefaultCheck] = useState(false);
   const [showIndependenceBreakdown, setShowIndependenceBreakdown] = useState(false);
   const [showEventBreakdown, setShowEventBreakdown] = useState(false);
 
@@ -457,7 +458,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 open={showDetectionCheck}
                 onClose={() => setShowDetectionCheck(false)}
                 projectId={currentProject.id}
-                species={null}
+                target={{ mode: 'detection' }}
                 current={threshold}
                 onApply={setThreshold}
               />
@@ -494,16 +495,29 @@ export const ProjectSettingsPage: React.FC = () => {
                 <span className="text-sm font-medium w-12 text-right">
                   {(classificationDefault * 100).toFixed(0)}%
                 </span>
+                <ThresholdCheckButton
+                  onClick={() => setShowDefaultCheck(true)}
+                  disabled={isSaving}
+                />
+                <ThresholdCheckDialog
+                  open={showDefaultCheck}
+                  onClose={() => setShowDefaultCheck(false)}
+                  projectId={currentProject.id}
+                  target={{ mode: 'default' }}
+                  current={classificationDefault}
+                  onApply={setClassificationDefault}
+                />
               </div>
               <div className="w-full flex sm:flex-1 sm:justify-end">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => setShowClassificationOverridesModal(true)}
                   disabled={isSaving}
-                  className="w-full whitespace-nowrap"
+                  className="w-full whitespace-nowrap text-muted-foreground hover:text-foreground"
                 >
-                  Set overrides
+                  <SlidersHorizontal className="h-4 w-4 mr-2" />
+                  Per species
                 </Button>
               </div>
             </div>
