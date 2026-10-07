@@ -251,7 +251,12 @@ export const TagInput: React.FC<TagInputProps> = ({
               <div
                 key={suggestion}
                 className={`flex items-center ${index === activeIndex ? 'bg-accent' : ''}`}
-                onMouseEnter={() => setActiveIndex(index)}
+                // Move, not enter: mouseenter also fires when the list opens
+                // under a resting cursor, which would highlight a row the
+                // user never pointed at and let Enter add it.
+                onMouseMove={() => {
+                  if (index !== activeIndex) setActiveIndex(index);
+                }}
               >
                 <button
                   type="button"
