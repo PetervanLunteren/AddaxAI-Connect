@@ -742,13 +742,13 @@ export const SitesPage: React.FC = () => {
                       <TableHead className="w-20">
                         {/* Every way of selecting lives in this one cell. */}
                         <div className="flex items-center gap-1">
+                          <MapSelectButton onClick={() => setShowMapSelect(true)} />
                           <SelectAllCheckbox
                             visibleIds={sortedSites.map((s) => s.id)}
                             selected={selectedSiteIds}
                             onToggle={setSiteSelection}
                             ariaLabel="Select all visible sites"
                           />
-                          <MapSelectButton onClick={() => setShowMapSelect(true)} />
                         </div>
                       </TableHead>
                     )}
@@ -790,7 +790,7 @@ export const SitesPage: React.FC = () => {
                       onClick={() => setDetailSiteId(site.id)}
                     >
                       {canEdit && (
-                        <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                        <TableCell className="w-10 pl-12" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             aria-label={`Select site ${site.name}`}
