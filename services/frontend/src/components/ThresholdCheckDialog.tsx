@@ -197,8 +197,12 @@ export function ThresholdCheckDialog({
       verdict = 'No verified images yet. Verify some images first, then check again.';
     } else if (data.support === 0) {
       verdict = none;
-    } else if (suggested === null) {
+    } else if (data.support < data.min_support) {
       verdict = `Only ${data.support} verified examples, at least ${data.min_support} are needed for a suggestion.`;
+    } else if (suggested === null) {
+      // Enough examples, but the AI gets none of them right at any
+      // threshold, for instance a species the model does not know.
+      verdict = 'The AI gets none of these right at any threshold, so no setting helps.';
     } else if (alreadyBest) {
       verdict = `The current setting of ${pct(current)} already gives the best balance.`;
     } else {
