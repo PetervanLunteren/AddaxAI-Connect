@@ -32,6 +32,7 @@ import {
   Plug,
   Radio,
   Footprints,
+  Wrench,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useProject } from '../../contexts/ProjectContext';
@@ -40,6 +41,7 @@ import { LastUpdate } from '../LastUpdate';
 import { InstallAppButton } from '../InstallApp';
 import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
 import { feedApi } from '../../api/feed';
+import { serviceApi, serviceKeys } from '../../api/service';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -59,6 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/sites`, icon: MapPin, label: 'Sites' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
+    { to: `/projects/${projectId}/service`, icon: Wrench, label: 'Service' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/live-feed`, icon: Activity, label: 'Live feed' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
@@ -104,6 +107,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     enabled: numericProjectId !== undefined && isProjectAdmin,
     refetchInterval: 300000,
   });
+
+  // Open service tasks for the badge, same admin-only to-do rule. Reads
+  // the list the Service page uses, so one invalidation updates both.
+  const { data: serviceTasks } = useQuery({
+    queryKey: serviceKeys.tasks(numericProjectId ?? 0),
+    queryFn: () => serviceApi.listTasks(numericProjectId!),
+    enabled: numericProjectId !== undefined && isProjectAdmin,
+    refetchInterval: 300000,
+  });
+
+  const navBadges: Record<string, number | undefined> = {
+    Cameras: openUpdates,
+    Service: serviceTasks?.length,
+  };
 
   const { data: bulkJobs } = useQuery({
     queryKey: ['bulk-upload-jobs', numericProjectId],
@@ -221,15 +238,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
                 </div>
-                {/* Unseen camera updates. The feed itself opens from the
-                    Updates button on the Cameras page; the badge here keeps
-                    new entries visible from anywhere without a nav slot. */}
-                {item.label === 'Cameras' && (openUpdates ?? 0) > 0 && (
+                {/* Admin to-do counts: unseen camera updates (the feed opens
+                    from the Updates button on the Cameras page) and open
+                    service tasks. Visible from anywhere without a nav slot. */}
+                {(navBadges[item.label] ?? 0) > 0 && (
                   <span
                     className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
                     style={{ backgroundColor: '#71b7ba', color: 'white' }}
                   >
-                    {openUpdates}
+                    {navBadges[item.label]}
                   </span>
                 )}
               </NavLink>

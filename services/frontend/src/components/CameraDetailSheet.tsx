@@ -34,8 +34,8 @@ import { Button } from './ui/Button';
 import { Dialog, DialogContent } from './ui/Dialog';
 import { CameraHealthHistoryChart } from './CameraHealthHistoryChart';
 import { CameraDeploymentHistory } from './CameraDeploymentHistory';
-import { CameraMaintenanceTab } from './CameraMaintenanceTab';
 import { CameraRejectionsTab } from './CameraRejectionsTab';
+import { ServiceSummaryRows } from './service/ServiceSummaryRows';
 import { TagInput } from './TagInput';
 import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
@@ -58,7 +58,7 @@ interface CameraDetailSheetProps {
   onDeleteRequested?: (camera: { id: number; name: string }) => void;
 }
 
-type TabType = 'overview' | 'history' | 'deployments' | 'rejections' | 'maintenance' | 'details';
+type TabType = 'overview' | 'history' | 'deployments' | 'rejections' | 'details';
 
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   camera,
@@ -290,7 +290,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <TabButton tab="history" label="History" />
               <TabButton tab="deployments" label="Placements" />
               {camera.rejected_count_recent !== null && <TabButton tab="rejections" label="Rejected" />}
-              {canAdmin && <TabButton tab="maintenance" label="Service" />}
               {canAdmin && <TabButton tab="details" label="Details" />}
             </div>
 
@@ -500,10 +499,14 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                         : 'N/A'}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last service</span>
-                    <span>{camera.last_maintenance_date ?? '-'}</span>
-                  </div>
+                  {projectId != null && (
+                    <ServiceSummaryRows
+                      projectId={projectId}
+                      by="camera"
+                      id={camera.id}
+                      lastService={camera.last_maintenance_date}
+                    />
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Total images</span>
                     <span>{camera.total_images ?? 'N/A'}</span>
@@ -575,11 +578,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Rejected tab: files refused by the server, attributed to this camera */}
             {activeTab === 'rejections' && camera.rejected_count_recent !== null && (
               <CameraRejectionsTab cameraId={camera.id} isServerAdmin={isServerAdmin} />
-            )}
-
-            {/* Service tab: log of field service visits (admins) */}
-            {activeTab === 'maintenance' && canAdmin && projectId != null && (
-              <CameraMaintenanceTab cameraId={camera.id} projectId={projectId} />
             )}
 
             {/* Details tab: custom fields (admins). Read by default; Edit toggles the editor. */}

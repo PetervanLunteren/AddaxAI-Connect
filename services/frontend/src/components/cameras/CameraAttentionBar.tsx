@@ -12,7 +12,9 @@
  * Chips act differently depending on who is asking. The Cameras page passes
  * onSelect and filters its own table in place. The dashboard passes projectId
  * instead and gets links into that page with the filter already applied,
- * which works because the camera filters live in the URL.
+ * which works because the camera filters live in the URL. The dashboard also
+ * passes the overdue service task count, a chip that links to the Service
+ * page instead.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -35,6 +37,8 @@ interface AttentionItem {
    *  around it to supply the context the Cameras page used to. */
   label: string;
   patch: Record<string, string>;
+  /** A link elsewhere instead of a camera filter. */
+  to?: string;
 }
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
@@ -45,12 +49,15 @@ interface CameraAttentionBarProps {
   onSelect?: (patch: Record<string, FilterValue>) => void;
   /** Needed to build links when onSelect is absent. */
   projectId?: number;
+  /** Open service tasks past their due date, dashboard only. */
+  overdueServiceTasks?: number;
 }
 
 export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
   cameras,
   onSelect,
   projectId,
+  overdueServiceTasks = 0,
 }) => {
   if (!cameras || cameras.length === 0) return null;
 
@@ -91,6 +98,12 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       label: `${withRejected} ${plural(withRejected, 'camera', 'cameras')} with rejected files`,
       patch: { rejected: 'recent' },
     },
+    {
+      count: overdueServiceTasks,
+      label: `${overdueServiceTasks} overdue service ${plural(overdueServiceTasks, 'task', 'tasks')}`,
+      patch: {},
+      to: `/projects/${projectId}/service?due=overdue`,
+    },
   ];
 
   const items = candidates.filter((item) => item.count > 0);
@@ -105,7 +118,7 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
             Needs attention
           </span>
           {items.map((item) =>
-            onSelect ? (
+            onSelect && !item.to ? (
               <Button
                 key={item.label}
                 variant="outline"
@@ -117,7 +130,7 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
             ) : (
               <Link
                 key={item.label}
-                to={`/projects/${projectId}/cameras?${new URLSearchParams(item.patch).toString()}`}
+                to={item.to ?? `/projects/${projectId}/cameras?${new URLSearchParams(item.patch).toString()}`}
                 className={buttonVariants({ variant: 'outline', size: 'sm' })}
               >
                 {item.label}

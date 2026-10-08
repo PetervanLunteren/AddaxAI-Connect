@@ -8,8 +8,6 @@ import type {
   Camera,
   HealthHistoryResponse,
   HealthHistoryFilters,
-  MaintenanceEvent,
-  MaintenanceActionType,
 } from './types';
 
 // Request types for camera management
@@ -61,13 +59,6 @@ export interface CameraBulkDeleteResponse {
   deleted_detections: number;
   deleted_classifications: number;
   deleted_minio_files: number;
-}
-
-export interface LogMaintenanceRequest {
-  event_date: string;  // YYYY-MM-DD, today or earlier
-  action_types: MaintenanceActionType[];
-  performed_by_user_id?: number | null;
-  note?: string | null;
 }
 
 /** One rejected file of a camera, from the rejections table. */
@@ -288,46 +279,6 @@ export const camerasApi = {
 
   getDeployments: async (id: number): Promise<CameraDeployment[]> => {
     const response = await apiClient.get<CameraDeployment[]>(`/api/cameras/${id}/deployments`);
-    return response.data;
-  },
-
-  /**
-   * Maintenance events of a camera, newest first (admin only)
-   */
-  getMaintenanceEvents: async (id: number): Promise<MaintenanceEvent[]> => {
-    const response = await apiClient.get<MaintenanceEvent[]>(`/api/cameras/${id}/maintenance-events`);
-    return response.data;
-  },
-
-  /**
-   * Log one maintenance visit on a camera (admin only)
-   */
-  logMaintenance: async (id: number, data: LogMaintenanceRequest): Promise<MaintenanceEvent> => {
-    const response = await apiClient.post<MaintenanceEvent>(
-      `/api/cameras/${id}/maintenance-events`,
-      data,
-    );
-    return response.data;
-  },
-
-  /**
-   * Delete one maintenance event (admin only)
-   */
-  deleteMaintenanceEvent: async (id: number, eventId: number): Promise<void> => {
-    await apiClient.delete(`/api/cameras/${id}/maintenance-events/${eventId}`);
-  },
-
-  /**
-   * Log the same maintenance visit on every selected camera (admin only)
-   */
-  bulkLogMaintenance: async (
-    cameraIds: number[],
-    data: LogMaintenanceRequest,
-  ): Promise<BulkUpdateResponse> => {
-    const response = await apiClient.post<BulkUpdateResponse>(
-      '/api/cameras/bulk-log-maintenance',
-      { camera_ids: cameraIds, ...data },
-    );
     return response.data;
   },
 };

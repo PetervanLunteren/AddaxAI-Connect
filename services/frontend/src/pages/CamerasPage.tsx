@@ -98,11 +98,7 @@ import {
   BulkRemoveTagsDialog,
   BulkSetSimExpiryDialog,
   BulkSetNotesDialog,
-  BulkLogMaintenanceDialog,
 } from '../components/BulkEditDialogs';
-import { projectsApi } from '../api/projects';
-import { useAuth } from '../hooks/useAuth';
-import type { LogMaintenanceRequest } from '../api/cameras';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
 import { useToast } from '../components/ui/Toaster';
@@ -142,7 +138,6 @@ export const CamerasPage: React.FC = () => {
   const [showBulkSetSimExpiry, setShowBulkSetSimExpiry] = useState(false);
   const [showBulkSetNotes, setShowBulkSetNotes] = useState(false);
   const [showMapSelect, setShowMapSelect] = useState(false);
-  const [showBulkLogMaintenance, setShowBulkLogMaintenance] = useState(false);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
 
   // Add camera dialog state
@@ -238,8 +233,8 @@ export const CamerasPage: React.FC = () => {
   );
 
   // Keep the open detail sheet in sync with the list. The sheet holds a
-  // snapshot row, so derived fields (e.g. last maintenance after logging
-  // a visit on the Maintenance tab) would go stale after a refetch.
+  // snapshot row, so derived fields (e.g. last service after a visit is
+  // logged on the Service page) would go stale after a refetch.
   useEffect(() => {
     if (!selectedCamera || !cameras) return;
     const fresh = cameras.find((c) => c.id === selectedCamera.id);
@@ -310,7 +305,6 @@ export const CamerasPage: React.FC = () => {
     setShowBulkRemoveTags(false);
     setShowBulkSetSimExpiry(false);
     setShowBulkSetNotes(false);
-    setShowBulkLogMaintenance(false);
     toast.success(`Updated ${res.updated_count} camera${res.updated_count === 1 ? '' : 's'}`);
   };
   const onBulkError = (error: any) => {
@@ -341,24 +335,6 @@ export const CamerasPage: React.FC = () => {
     onSuccess: onBulkSuccess,
     onError: onBulkError,
   });
-  const bulkLogMaintenanceMutation = useMutation({
-    mutationFn: ({ ids, data }: { ids: number[]; data: LogMaintenanceRequest }) =>
-      camerasApi.bulkLogMaintenance(ids, data),
-    onSuccess: onBulkSuccess,
-    onError: onBulkError,
-  });
-
-  // Registered members for the bulk maintenance dialog's performed-by
-  // dropdown. The endpoint is admin-only, so only fetch for admins.
-  const { user: currentUser } = useAuth();
-  const { data: projectUsers } = useQuery({
-    queryKey: ['project-users', currentProject?.id],
-    queryFn: () => projectsApi.getUsers(currentProject!.id),
-    enabled: canAdminCurrentProject && currentProject !== null,
-  });
-  const maintenanceMembers = (projectUsers ?? [])
-    .filter((u): u is typeof u & { user_id: number } => u.is_registered && u.user_id !== null)
-    .map((u) => ({ user_id: u.user_id, email: u.email }));
 
   const resetAddForm = () => {
     setNewCameraDeviceId('');
@@ -1021,9 +997,6 @@ export const CamerasPage: React.FC = () => {
             <Button variant="outline" size="sm" onClick={() => setShowBulkSetNotes(true)}>
               Set notes
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowBulkLogMaintenance(true)}>
-              Log service
-            </Button>
             <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
               Delete
             </Button>
@@ -1232,18 +1205,6 @@ export const CamerasPage: React.FC = () => {
         isPending={bulkSetNotesMutation.isPending}
         onConfirm={(notes) =>
           bulkSetNotesMutation.mutate({ ids: Array.from(selectedCameraIds), notes })
-        }
-      />
-      <BulkLogMaintenanceDialog
-        open={showBulkLogMaintenance}
-        onClose={() => setShowBulkLogMaintenance(false)}
-        count={selectedCameraIds.size}
-        noun="camera"
-        isPending={bulkLogMaintenanceMutation.isPending}
-        members={maintenanceMembers}
-        currentUserId={currentUser?.id}
-        onConfirm={(data) =>
-          bulkLogMaintenanceMutation.mutate({ ids: Array.from(selectedCameraIds), data })
         }
       />
 

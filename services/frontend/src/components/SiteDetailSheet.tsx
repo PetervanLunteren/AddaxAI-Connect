@@ -47,6 +47,7 @@ import { DeploymentJourney } from './DeploymentJourney';
 import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
+import { ServiceSummaryRows } from './service/ServiceSummaryRows';
 
 type TabType = 'overview' | 'cameras' | 'deployments';
 
@@ -411,6 +412,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                     <span className="text-muted-foreground">Images</span>
                     <span>{detail.image_count.toLocaleString()}</span>
                   </div>
+                  <ServiceSummaryRows projectId={projectId} by="site" id={detail.id} />
                 </div>
               </div>
             ) : activeTab === 'cameras' ? (

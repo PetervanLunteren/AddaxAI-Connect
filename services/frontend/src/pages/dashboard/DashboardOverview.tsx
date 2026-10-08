@@ -40,6 +40,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../../api/statistics';
 import { camerasApi } from '../../api/cameras';
+import { serviceApi, serviceKeys } from '../../api/service';
 import { useProject } from '../../contexts/ProjectContext';
 import type { DateRange } from '../../components/dashboard';
 import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
@@ -83,6 +84,13 @@ export const DashboardOverview: React.FC = () => {
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Same list the Service page and sidebar badge read, one cache entry.
+  const { data: serviceTasks } = useQuery({
+    queryKey: serviceKeys.tasks(projectId ?? 0),
+    queryFn: () => serviceApi.listTasks(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -134,7 +142,11 @@ export const DashboardOverview: React.FC = () => {
       {/* The same strip the Cameras page shows, not a second opinion. It
           renders nothing when every camera is fine, so a healthy project sees
           no card at all rather than a reassuring one. */}
-      <CameraAttentionBar cameras={cameras} projectId={projectId} />
+      <CameraAttentionBar
+        cameras={cameras}
+        projectId={projectId}
+        overdueServiceTasks={serviceTasks?.filter((t) => t.overdue).length}
+      />
 
       {/* The photograph earns the most room. The stat with a chart in it gets
           double width; the two bare numbers sit beneath at single width. */}

@@ -33,8 +33,8 @@ export interface Camera {
   rejected_count_recent: number | null;
 }
 
-// Camera maintenance events. The vocabulary mirrors VALID_ACTION_TYPES
-// in services/api/routers/camera_maintenance.py; a backend test pins it.
+// Service actions. The vocabulary mirrors VALID_ACTION_TYPES in
+// services/api/routers/service.py; a backend test pins it.
 export type MaintenanceActionType =
   | 'battery_change'
   | 'sd_card_swap'
@@ -44,17 +44,6 @@ export type MaintenanceActionType =
   | 'angle_adjustment'
   | 'repair'
   | 'other';
-
-export interface MaintenanceEvent {
-  id: number;
-  camera_id: number;
-  event_date: string;  // YYYY-MM-DD
-  action_types: MaintenanceActionType[];
-  performed_by_user_id: number | null;
-  performed_by_email: string | null;
-  note: string | null;
-  created_at: string;
-}
 
 // Camera health history types
 export interface HealthReportPoint {
