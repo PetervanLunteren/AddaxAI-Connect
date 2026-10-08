@@ -297,6 +297,11 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
     setNote(task?.note ?? '');
   }, [open, task, user?.id]);
 
+  // The default performer is you, but only a project member can be picked.
+  // A server admin without a membership falls back to "Not specified"
+  // instead of a hidden value the server would refuse.
+  const performer = members.some((m) => m.user_id === performedBy) ? performedBy : '';
+
   // The server rejects future dates against its own timezone; catch the
   // obvious case here, the server stays the source of truth at midnight.
   const dateInFuture = date !== '' && date > localToday();
@@ -335,7 +340,7 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
             <ActionCheckboxes value={actions} onChange={setActions} />
           </Field>
           <Field label="Performed by">
-            <MemberSelect value={performedBy} onChange={setPerformedBy} members={members} emptyLabel="Not specified" />
+            <MemberSelect value={performer} onChange={setPerformedBy} members={members} emptyLabel="Not specified" />
           </Field>
           <Field label="Note">
             <textarea
@@ -356,7 +361,7 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
               onConfirm(cameraIds, {
                 event_date: date,
                 action_types: actions,
-                performed_by_user_id: performedBy === '' ? null : performedBy,
+                performed_by_user_id: performer === '' ? null : performer,
                 note: note.trim() || null,
               })
             }
