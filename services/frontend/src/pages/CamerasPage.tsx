@@ -94,6 +94,8 @@ import { SortableHeader } from '../components/ui/SortableHeader';
 import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
+import { PlanServiceDialog } from '../components/service/ServiceDialogs';
+import { usePlanService } from '../components/service/usePlanService';
 import {
   BulkAddTagsDialog,
   BulkRemoveTagsDialog,
@@ -138,6 +140,8 @@ export const CamerasPage: React.FC = () => {
   const [showBulkRemoveTags, setShowBulkRemoveTags] = useState(false);
   const [showBulkSetSimExpiry, setShowBulkSetSimExpiry] = useState(false);
   const [showBulkSetNotes, setShowBulkSetNotes] = useState(false);
+  // Cameras to plan service for, a snapshot of the selection.
+  const [planCameraIds, setPlanCameraIds] = useState<number[] | null>(null);
   const [showMapSelect, setShowMapSelect] = useState(false);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
 
@@ -311,6 +315,11 @@ export const CamerasPage: React.FC = () => {
   const onBulkError = (error: any) => {
     toast.error(`Bulk update failed: ${error.response?.data?.detail || error.message}`);
   };
+
+  const planMutation = usePlanService(currentProject?.id ?? 0, () => {
+    setPlanCameraIds(null);
+    clearCameraSelection();
+  });
 
   const bulkAddTagsMutation = useMutation({
     mutationFn: ({ ids, tags }: { ids: number[]; tags: string[] }) =>
@@ -999,6 +1008,9 @@ export const CamerasPage: React.FC = () => {
           <Button variant="outline" size="sm" onClick={() => setShowBulkSetNotes(true)}>
             Set notes
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setPlanCameraIds(Array.from(selectedCameraIds))}>
+            Plan service
+          </Button>
           <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
             Delete
           </Button>
@@ -1195,6 +1207,16 @@ export const CamerasPage: React.FC = () => {
           bulkSetSimExpiryMutation.mutate({ ids: Array.from(selectedCameraIds), date })
         }
       />
+      {currentProject && (
+        <PlanServiceDialog
+          open={planCameraIds !== null}
+          onClose={() => setPlanCameraIds(null)}
+          projectId={currentProject.id}
+          initialCameraIds={planCameraIds ?? undefined}
+          isPending={planMutation.isPending}
+          onConfirm={(cameraIds, fields) => planMutation.mutate({ cameraIds, fields })}
+        />
+      )}
       <BulkSetNotesDialog
         open={showBulkSetNotes}
         onClose={() => setShowBulkSetNotes(false)}

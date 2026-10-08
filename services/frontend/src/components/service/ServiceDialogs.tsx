@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
+import { Callout } from '../ui/Callout';
 import { MultiSelect, type Option } from '../ui/MultiSelect';
 import { MapSelectButton, MapSelectDialog } from '../map/MapSelectDialog';
 import { camerasApi } from '../../api/cameras';
@@ -161,12 +162,16 @@ interface PlanServiceDialogProps {
   projectId: number;
   // Set when editing; the camera is then fixed.
   task?: ServiceTask | null;
+  /** Cameras to start with, from a selection on the Cameras or Sites page. */
+  initialCameraIds?: number[];
+  /** A line above the fields, e.g. which selected sites have no camera. */
+  notice?: string;
   isPending: boolean;
   onConfirm: (cameraIds: number[], fields: TaskFields) => void;
 }
 
 export const PlanServiceDialog: React.FC<PlanServiceDialogProps> = ({
-  open, onClose, projectId, task, isPending, onConfirm,
+  open, onClose, projectId, task, initialCameraIds, notice, isPending, onConfirm,
 }) => {
   const { user } = useAuth();
   const members = useMembers(projectId, open);
@@ -179,13 +184,13 @@ export const PlanServiceDialog: React.FC<PlanServiceDialogProps> = ({
 
   useEffect(() => {
     if (!open) return;
-    setCameraIds(task ? [task.camera_id] : []);
+    setCameraIds(task ? [task.camera_id] : (initialCameraIds ?? []));
     setActions(task?.action_types ?? []);
     setDueDate(task?.due_date ?? '');
     setAssignee(task?.assigned_to_user_id ?? '');
     setNotify(false);
     setNote(task?.note ?? '');
-  }, [open, task]);
+  }, [open, task, initialCameraIds]);
 
   const canEmail = assignee !== '' && assignee !== user?.id;
   const canConfirm = cameraIds.length > 0 && actions.length > 0 && !isPending;
@@ -204,6 +209,7 @@ export const PlanServiceDialog: React.FC<PlanServiceDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-4">
+          {notice && <Callout variant="info">{notice}</Callout>}
           {!task && (
             <Field label="Cameras">
               <CameraPicker projectId={projectId} enabled={open} value={cameraIds} onChange={setCameraIds} />

@@ -28,6 +28,8 @@ A task has no "in progress" state. Work on a camera trap is usually one visit, s
 
 **Log visit** works the same way. One field trip that serviced a whole line of cameras is one dialog.
 
+You can also plan from the Cameras and Sites pages. Select rows there, for example after filtering on low battery or on a site tag, and click **Plan service** in the bar above the table. The same dialog opens with your selection filled in. A selected site counts with the cameras that stand there now. A site without a camera gets no task, and the dialog names it.
+
 ## Sites, not device ids
 
 Tasks and visits belong to a camera, but the tables show the site first, with the camera id in its own column next to it, the same as on the Cameras page. People know "Big Oak North", not a device id.

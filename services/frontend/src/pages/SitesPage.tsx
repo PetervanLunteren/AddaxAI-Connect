@@ -65,6 +65,8 @@ import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
 import { TabStrip } from '../components/ui/TabStrip';
+import { PlanServiceDialog } from '../components/service/ServiceDialogs';
+import { usePlanService } from '../components/service/usePlanService';
 import {
   BulkAddTagsDialog,
   BulkRemoveTagsDialog,
@@ -181,6 +183,9 @@ export const SitesPage: React.FC = () => {
   const [showBulkRemoveTags, setShowBulkRemoveTags] = useState(false);
   const [showBulkSetHabitat, setShowBulkSetHabitat] = useState(false);
   const [showBulkSetNotes, setShowBulkSetNotes] = useState(false);
+  // Planning service from selected sites: the cameras at those sites now,
+  // and the names of selected sites that have none (a task needs a camera).
+  const [planFromSites, setPlanFromSites] = useState<{ cameraIds: number[]; notice?: string } | null>(null);
 
   // Visible columns persist per-browser, same pattern as the cameras table.
   const [visibleColumns, setVisibleColumns] = useState<SiteColumnId[]>(() => siteColumnPrefs.load());
@@ -371,6 +376,24 @@ export const SitesPage: React.FC = () => {
   // Shared success/error handlers for the bulk-edit mutations. On success:
   // refresh the sites queries, drop the selection (so the bar disappears),
   // and show a count toast. On error: show the API detail.
+  const planMutation = usePlanService(pid, () => {
+    setPlanFromSites(null);
+    clearSiteSelection();
+  });
+
+  const openPlanFromSites = () => {
+    const atSites = (cameras ?? []).filter((c) => c.current_site && selectedSiteIds.has(c.current_site.id));
+    const withCamera = new Set(atSites.map((c) => c.current_site!.id));
+    const empty = (sites ?? []).filter((site) => selectedSiteIds.has(site.id) && !withCamera.has(site.id));
+    setPlanFromSites({
+      cameraIds: atSites.map((c) => c.id),
+      notice:
+        empty.length > 0
+          ? `${empty.map((site) => site.name).join(', ')} ${empty.length === 1 ? 'has' : 'have'} no camera now and ${empty.length === 1 ? 'is' : 'are'} skipped.`
+          : undefined,
+    });
+  };
+
   const onBulkSuccess = (res: { updated_count: number }) => {
     invalidate();
     clearSiteSelection();
@@ -672,6 +695,9 @@ export const SitesPage: React.FC = () => {
           <Button variant="outline" size="sm" onClick={() => setShowBulkSetNotes(true)}>
             Set notes
           </Button>
+          <Button variant="outline" size="sm" onClick={openPlanFromSites}>
+            Plan service
+          </Button>
         </BulkActionBar>
       )}
 
@@ -855,6 +881,15 @@ export const SitesPage: React.FC = () => {
         noun="site"
         isPending={bulkSetHabitatMutation.isPending}
         onConfirm={(habitat) => bulkSetHabitatMutation.mutate(habitat)}
+      />
+      <PlanServiceDialog
+        open={planFromSites !== null}
+        onClose={() => setPlanFromSites(null)}
+        projectId={pid}
+        initialCameraIds={planFromSites?.cameraIds}
+        notice={planFromSites?.notice}
+        isPending={planMutation.isPending}
+        onConfirm={(cameraIds, fields) => planMutation.mutate({ cameraIds, fields })}
       />
       <BulkSetNotesDialog
         open={showBulkSetNotes}

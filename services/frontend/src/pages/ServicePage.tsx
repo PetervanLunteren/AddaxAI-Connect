@@ -25,6 +25,7 @@ import { SortableHeader, type SortState } from '../components/ui/SortableHeader'
 import { FilterBar, type FilterFieldDef, type FilterValue } from '../components/ui/FilterBar';
 import { useToast } from '../components/ui/Toaster';
 import { AssignTasksDialog, LogVisitDialog, PlanServiceDialog } from '../components/service/ServiceDialogs';
+import { usePlanService } from '../components/service/usePlanService';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import { useProject } from '../contexts/ProjectContext';
 import {
@@ -33,7 +34,6 @@ import {
   type CompleteFields,
   type ServiceTask,
   type ServiceVisit,
-  type TaskFields,
 } from '../api/service';
 import type { MaintenanceActionType } from '../api/types';
 import { ACTION_LABELS, ACTION_TYPES, formatServiceDate } from '../lib/service-actions';
@@ -173,18 +173,9 @@ export const ServicePage: React.FC = () => {
   const selectedIds = Array.from(selected);
   const plural = (n: number, one: string) => (n === 1 ? `1 ${one}` : `${n} ${one}s`);
 
-  const planMutation = useMutation({
-    mutationFn: ({ cameraIds, fields }: { cameraIds: number[]; fields: TaskFields }) =>
-      editTask
-        ? serviceApi.updateTask(projectId, editTask.id, fields)
-        : serviceApi.planTasks(projectId, cameraIds, fields),
-    onSuccess: () => {
-      refresh({ tasks: true });
-      toast.success(editTask ? 'Task saved' : 'Service planned');
-      setPlanOpen(false);
-      setEditTask(null);
-    },
-    onError: onError('save the task'),
+  const planMutation = usePlanService(projectId, () => {
+    setPlanOpen(false);
+    setEditTask(null);
   });
 
   const logMutation = useMutation({
@@ -557,7 +548,7 @@ export const ServicePage: React.FC = () => {
             projectId={projectId}
             task={editTask}
             isPending={planMutation.isPending}
-            onConfirm={(cameraIds, fields) => planMutation.mutate({ cameraIds, fields })}
+            onConfirm={(cameraIds, fields) => planMutation.mutate({ taskId: editTask?.id, cameraIds, fields })}
           />
           <LogVisitDialog
             open={logOpen || doneTasks !== null}
