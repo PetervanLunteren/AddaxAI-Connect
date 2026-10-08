@@ -178,9 +178,9 @@ addaxai-connect/
 │   │   ├── routers/                   # API route handlers
 │   │   │   ├── admin.py               # Server admin endpoints
 │   │   │   ├── cameras.py             # Camera CRUD
-│   │   │   ├── camera_maintenance.py  # Camera maintenance event log
 │   │   │   ├── site_groups.py         # Merged sites (site groups) for the independence interval
 │   │   │   ├── camera_reference_images.py # Reference images per camera
+│   │   │   ├── service.py             # Service visits (the log) and planned service tasks
 │   │   │   ├── sites.py               # Site CRUD
 │   │   │   ├── deployments.py         # Deployment list and escape-hatch reassign
 │   │   │   ├── feed.py                # Camera updates feed (list, resolve, seen)
@@ -678,6 +678,33 @@ the table; nothing scans the filesystem at read time.
 - Retention is 30 days, files and rows together, in
   `cleanup_old_rejected_files` (`services/ingestion/main.py`). Every count
   is therefore "within the last 30 days" without a parameter.
+
+## Service tasks and visits
+
+Two tables, one history. `camera_maintenance_events` is the service log
+(a visit: date, actions, performer, note). `camera_service_tasks` holds
+open work only. Completing a task inserts the visit and deletes the task
+in one commit; cancelling deletes it. There is no status column: open
+means the row exists, overdue is derived on read (`is_overdue`, due date
+before today in the server timezone). Everything lives in
+`services/api/routers/service.py`, project scoped under
+`/api/projects/{id}/service-visits` and `/service-tasks`, so one
+`camera.project_id == project_id` check covers access and membership.
+User docs: `docs/service.md`.
+
+- Stored per camera, shown by site. A visit's site is the deployment
+  covering its date (on a move day the newest wins), a task's site is the
+  camera's current site. Both come from `site_of_camera` in
+  `utils/site_scope.py`, which is also what the viewer scope filters on,
+  so a row without a site is invisible to a restricted viewer.
+- Every member reads, admins write. The frontend has one place to act,
+  the Service page; the camera and site slide-outs only summarise
+  (`ServiceSummaryRows`) and link there.
+- The action vocabulary is `ACTION_LABELS` in `service.py`, mirrored in
+  `services/frontend/src/lib/service-actions.ts` and pinned by
+  `tests/api/test_service.py`.
+- The assignment email is sent by the API after the commit, best effort,
+  one per request, never to yourself (`_email_assignee`).
 
 ## Worker liveness
 

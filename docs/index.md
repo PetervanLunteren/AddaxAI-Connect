@@ -21,6 +21,7 @@ An open-source platform that automatically processes camera trap images with mac
 ## Using the app
 
 - [Sites and cameras](sites-and-deployments.md): how images are organised by place, and how camera moves are handled
+- [Service](service.md): plan field work on your cameras and keep their service history
 - [Install as an app](install-as-app.md): put AddaxAI Connect on your phone or computer
 
 ## Integrations
