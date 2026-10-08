@@ -1856,7 +1856,7 @@ class PurgeNonAdminUsersResponse(BaseModel):
 
 def _queue_size(name: str) -> int:
     try:
-        return RedisQueue(name).size()
+        return RedisQueue(name).queue_depth()
     except Exception as e:
         logger.warning("Failed to read queue size", queue=name, error=str(e))
         return 0
