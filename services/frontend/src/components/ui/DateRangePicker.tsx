@@ -29,7 +29,8 @@ import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 interface Preset {
   label: string;
   from: Date;
-  to: Date;
+  /** Unset for periods that are still running, see buildPresets. */
+  to?: Date;
 }
 
 /** First day of the meteorological season the date falls in (Mar, Jun, Sep
@@ -53,27 +54,33 @@ function seasonLabel(start: Date): string {
 }
 
 /** The quick ranges: calendar periods plus the four most recent seasons.
- * Periods that include today end at today, finished periods keep their
- * real boundaries. Built per render so a long-lived tab stays correct. */
+ * Periods that are still running get no end date, so a remembered "this
+ * month" keeps taking in new images instead of freezing on the day it was
+ * picked. A future end date is no option either, it would stretch the
+ * daily charts past today. Finished periods keep their real boundaries.
+ * Built per render so a long-lived tab stays correct. */
 function buildPresets(): Preset[] {
   const now = new Date();
   const lastMonth = subMonths(now, 1);
   const lastYear = subYears(now, 1);
   const presets: Preset[] = [
-    { label: 'This month', from: startOfMonth(now), to: now },
+    { label: 'This month', from: startOfMonth(now) },
     { label: 'Last month', from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) },
-    { label: 'Last 3 months', from: startOfMonth(subMonths(now, 2)), to: now },
-    { label: 'This year', from: startOfYear(now), to: now },
+    { label: 'Last 3 months', from: startOfMonth(subMonths(now, 2)) },
+    { label: 'This year', from: startOfYear(now) },
     { label: 'Last year', from: startOfYear(lastYear), to: endOfYear(lastYear) },
   ];
   let start = seasonStart(now);
   for (let i = 0; i < 4; i++) {
     const end = endOfMonth(addMonths(start, 2));
-    presets.push({ label: seasonLabel(start), from: start, to: end > now ? now : end });
+    presets.push({ label: seasonLabel(start), from: start, to: end < now ? end : undefined });
     start = subMonths(start, 3);
   }
   return presets;
 }
+
+const isoDate = (d: Date | undefined): string | undefined =>
+  d ? format(d, 'yyyy-MM-dd') : undefined;
 
 interface DateRangePickerProps {
   /** ISO date string (YYYY-MM-DD), or null/undefined when unset. */
@@ -110,8 +117,15 @@ export function DateRangePicker({
   const label = range.from
     ? range.to
       ? `${format(range.from, 'd MMM yyyy')} – ${format(range.to, 'd MMM yyyy')}`
-      : format(range.from, 'd MMM yyyy')
+      : `From ${format(range.from, 'd MMM yyyy')}`
     : placeholder;
+
+  // Some presets cover the same range (in September "This month" and
+  // "Autumn" both start on 1 September), so only the first match lights up.
+  const presets = buildPresets();
+  const activePreset = presets.find(
+    (p) => from === isoDate(p.from) && (to || undefined) === isoDate(p.to),
+  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -126,10 +140,8 @@ export function DateRangePicker({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <div className="flex max-w-[280px] flex-wrap gap-1.5 border-b p-2">
-          {buildPresets().map((preset) => {
-            const presetFrom = format(preset.from, 'yyyy-MM-dd');
-            const presetTo = format(preset.to, 'yyyy-MM-dd');
-            const active = from === presetFrom && to === presetTo;
+          {presets.map((preset) => {
+            const active = preset === activePreset;
             return (
               <button
                 key={preset.label}
@@ -140,7 +152,7 @@ export function DateRangePicker({
                     : 'bg-secondary/50 hover:bg-secondary'
                 }`}
                 onClick={() => {
-                  onChange({ from: presetFrom, to: presetTo });
+                  onChange({ from: isoDate(preset.from), to: isoDate(preset.to) });
                   setOpen(false);
                 }}
               >

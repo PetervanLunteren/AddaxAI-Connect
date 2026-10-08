@@ -452,6 +452,17 @@ export const ImagesPage: React.FC = () => {
         chipPrefix: 'Classification',
         primary: false,
       },
+      // Set by a confusion matrix cell click, so chips only.
+      {
+        kind: 'chip',
+        key: 'human_has',
+        chipLabel: (v) => `People recorded ${normalizeLabel(v).toLowerCase()}`,
+      },
+      {
+        kind: 'chip',
+        key: 'ai_has',
+        chipLabel: (v) => `AI predicted ${normalizeLabel(v).toLowerCase()}`,
+      },
     ],
     [cameras, sites, tagOptions, imageTagOptions, speciesOptions, speciesLoading, validators, overview, selectedProject],
   );

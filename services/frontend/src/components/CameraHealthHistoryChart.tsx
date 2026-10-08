@@ -6,6 +6,7 @@
  */
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -113,10 +114,12 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
 
-  // Build query filters
+  // Build query filters. A custom range without an end date runs to today,
+  // which is what the API does when end_date is left out (a running date
+  // preset like "This month" sets only the start).
   const filters = useMemo(() => {
-    if (timeRange === 'custom' && customStartDate && customEndDate) {
-      return { start_date: customStartDate, end_date: customEndDate };
+    if (timeRange === 'custom' && customStartDate) {
+      return { start_date: customStartDate, end_date: customEndDate || undefined };
     }
     return { days: parseInt(timeRange) };
   }, [timeRange, customStartDate, customEndDate]);
@@ -125,7 +128,7 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
   const { data, isLoading, error } = useQuery({
     queryKey: ['camera-health-history', cameraId, filters],
     queryFn: () => camerasApi.getHealthHistory(cameraId, filters),
-    enabled: timeRange !== 'custom' || (!!customStartDate && !!customEndDate),
+    enabled: timeRange !== 'custom' || !!customStartDate,
   });
 
   const config = METRIC_CONFIG[selectedMetric];
@@ -138,9 +141,9 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
     let fromDate: string;
     let toDate: string;
     if (timeRange === 'custom') {
-      if (!customStartDate || !customEndDate) return [];
+      if (!customStartDate) return [];
       fromDate = customStartDate;
-      toDate = customEndDate;
+      toDate = customEndDate || format(new Date(), 'yyyy-MM-dd');
     } else {
       const days = parseInt(timeRange, 10);
       const today = new Date();

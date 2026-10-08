@@ -5,7 +5,8 @@
  * Fields marked `primary: false` overflow into a "More" popover on the
  * right. Chart and table display controls live in a separate "Display"
  * popover so "Clear all" never wipes them. Active filters render as
- * chips below the bar with a "Clear all" link.
+ * chips below the bar with a "Clear all" link. A `chip` field has no
+ * control at all, only its chip.
  *
  * Schema-driven so every page declares its filters in one place. The
  * bar has no domain knowledge.
@@ -87,7 +88,18 @@ export type FilterFieldDef =
       /** Prefix for the chip label, e.g. "Detection". */
       chipPrefix?: string;
       primary?: boolean;
+    }
+  | {
+      /** No control, only a removable chip. For a filter that a link from
+       * another page sets, like a confusion matrix cell, so it is never
+       * active without showing. */
+      kind: 'chip';
+      key: string;
+      chipLabel: (value: string) => string;
     };
+
+/** The fields that render a control in the bar or in More. */
+type ControlFieldDef = Exclude<FilterFieldDef, { kind: 'chip' }>;
 
 export type DisplayControlDef = {
   key: string;
@@ -134,7 +146,7 @@ const VALUE_KEYS = (field: FilterFieldDef): string[] => {
   return [field.key];
 };
 
-const isPrimary = (field: FilterFieldDef): boolean => field.primary !== false;
+const isPrimary = (field: ControlFieldDef): boolean => field.primary !== false;
 
 const isFieldActive = (
   field: FilterFieldDef,
@@ -160,10 +172,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   displayValues,
   onDisplayChange,
 }) => {
-  const primaryFields = useMemo(() => fields.filter(isPrimary), [fields]);
-  const overflowFields = useMemo(
-    () => fields.filter((f) => !isPrimary(f)),
+  const controlFields = useMemo(
+    () => fields.filter((f): f is ControlFieldDef => f.kind !== 'chip'),
     [fields],
+  );
+  const primaryFields = useMemo(() => controlFields.filter(isPrimary), [controlFields]);
+  const overflowFields = useMemo(
+    () => controlFields.filter((f) => !isPrimary(f)),
+    [controlFields],
   );
 
   const chips = useMemo(
@@ -236,7 +252,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 };
 
 const FieldCell: React.FC<{
-  field: FilterFieldDef;
+  field: ControlFieldDef;
   values: Record<string, FilterValue>;
   onChange: (patch: Record<string, FilterValue>) => void;
 }> = ({ field, values, onChange }) => (
@@ -249,7 +265,7 @@ const FieldCell: React.FC<{
 );
 
 const FieldControl: React.FC<{
-  field: FilterFieldDef;
+  field: ControlFieldDef;
   values: Record<string, FilterValue>;
   onChange: (patch: Record<string, FilterValue>) => void;
 }> = ({ field, values, onChange }) => {
@@ -468,7 +484,7 @@ const NativeSelect: React.FC<{
 );
 
 const MorePopover: React.FC<{
-  fields: FilterFieldDef[];
+  fields: ControlFieldDef[];
   values: Record<string, FilterValue>;
   onChange: (patch: Record<string, FilterValue>) => void;
   activeCount: number;
@@ -618,12 +634,12 @@ function buildChips(
         onRemove: () =>
           onChange({ [field.fromKey]: undefined, [field.toKey]: undefined }),
       });
-    } else if (field.kind === 'search') {
+    } else if (field.kind === 'search' || field.kind === 'chip') {
       const value = asString(values[field.key]);
       if (!value) continue;
       chips.push({
         key: `${field.key}:${value}`,
-        label: value,
+        label: field.kind === 'chip' ? field.chipLabel(value) : value,
         onRemove: () => onChange({ [field.key]: undefined }),
       });
     } else if (field.kind === 'range') {
