@@ -24,10 +24,12 @@ import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
 import { SortableHeader, type SortState } from '../components/ui/SortableHeader';
 import { FilterBar, type FilterFieldDef, type FilterValue } from '../components/ui/FilterBar';
 import { useToast } from '../components/ui/Toaster';
-import { AssignTasksDialog, LogVisitDialog, PlanServiceDialog } from '../components/service/ServiceDialogs';
+import { AssignTasksDialog, LogVisitDialog, PlanServiceDialog, sharedAssignee } from '../components/service/ServiceDialogs';
 import { usePlanService } from '../components/service/usePlanService';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import { useProject } from '../contexts/ProjectContext';
+import { sitesApi } from '../api/sites';
+import { camerasApi } from '../api/cameras';
 import {
   serviceApi,
   serviceKeys,
@@ -44,8 +46,9 @@ type Tab = 'open' | 'done';
 type TaskColumn = 'site' | 'camera' | 'due' | 'assignee';
 type VisitColumn = 'date' | 'site' | 'camera' | 'performer';
 
+// The remembered filters. The tab is not one of them: it is where you are,
+// so the sidebar link (whose badge counts open tasks) always opens Open.
 const FILTER_SCHEMA: FilterSchema = {
-  tab: 'string',
   site: 'string',
   camera: 'string',
   person: 'string',
@@ -124,13 +127,16 @@ export const ServicePage: React.FC = () => {
     Object.keys(FILTER_SCHEMA).map((key) => [key, asString(parsed[key]) || undefined]),
   );
   const f = Object.fromEntries(Object.keys(FILTER_SCHEMA).map((key) => [key, asString(parsed[key])]));
-  const tab: Tab = f.tab === 'done' ? 'done' : 'open';
+  const tab: Tab = searchParams.get('tab') === 'done' ? 'done' : 'open';
 
-  const onFilterChange = (patch: Record<string, FilterValue>) =>
-    setSearchParams(filtersToSearchParams({ ...filterValues, ...patch }, FILTER_SCHEMA), { replace: true });
-  // Clear all keeps the tab; it is where you are, not a filter.
-  const onClearAll = () =>
-    setSearchParams(filtersToSearchParams({ tab: filterValues.tab }, FILTER_SCHEMA), { replace: true });
+  /** Write filters and tab together; the tab param only exists for Done. */
+  const writeParams = (values: Record<string, FilterValue>, nextTab: Tab) => {
+    const next = filtersToSearchParams(values, FILTER_SCHEMA);
+    if (nextTab === 'done') next.set('tab', 'done');
+    setSearchParams(next, { replace: true });
+  };
+  const onFilterChange = (patch: Record<string, FilterValue>) => writeParams({ ...filterValues, ...patch }, tab);
+  const onClearAll = () => writeParams({}, tab);
 
   const { selected, toggle, clear, setMany } = useBulkSelection();
   const [taskSort, setTaskSort] = useState<SortState<TaskColumn>>({ column: null, direction: 'asc' });
@@ -225,17 +231,28 @@ export const ServicePage: React.FC = () => {
     onError: onError('delete the visits'),
   });
 
-  // Filter options come from the rows themselves, so they only offer
-  // values that can match.
-  const siteOptions = useMemo(() => {
-    const names = new Map<number, string>();
-    [...(tasks ?? []), ...(visits ?? [])].forEach((r) => {
-      if (r.site_id !== null && r.site_name) names.set(r.site_id, r.site_name);
-    });
-    return [...names.entries()]
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([id, name]) => ({ value: String(id), label: name }));
-  }, [tasks, visits]);
+  // Sites and cameras come from their own lists (shared with the Sites and
+  // Cameras pages, scoped for viewers), so a link to a site or camera
+  // without any service still shows its name.
+  const { data: sites } = useQuery({
+    queryKey: ['sites', projectId],
+    queryFn: () => sitesApi.list(projectId),
+    enabled: projectId > 0,
+  });
+  const { data: cameras } = useQuery({
+    queryKey: ['cameras', projectId],
+    queryFn: () => camerasApi.getAll(projectId),
+    enabled: projectId > 0,
+  });
+  const siteOptions = useMemo(
+    () =>
+      [...(sites ?? [])]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((site) => ({ value: String(site.id), label: site.name })),
+    [sites],
+  );
+
+  // People come from the rows, so the filter only offers who can match.
 
   const personOptions = useMemo(() => {
     const people = new Map<number, string>();
@@ -250,11 +267,10 @@ export const ServicePage: React.FC = () => {
       .map(([id, email]) => ({ value: String(id), label: email }));
   }, [tasks, visits]);
 
-  const cameraLabel = useMemo(() => {
-    const labels = new Map<string, string>();
-    [...(tasks ?? []), ...(visits ?? [])].forEach((r) => labels.set(String(r.camera_id), r.camera_label));
-    return labels;
-  }, [tasks, visits]);
+  const cameraLabel = useMemo(
+    () => new Map((cameras ?? []).map((c) => [String(c.id), c.name])),
+    [cameras],
+  );
 
   // Shared fields first, then the one that only applies to this tab.
   const fields: FilterFieldDef[] = [
@@ -355,7 +371,7 @@ export const ServicePage: React.FC = () => {
           { key: 'done', label: 'Done' },
         ]}
         value={tab}
-        onChange={(key) => onFilterChange({ tab: key === 'open' ? undefined : key })}
+        onChange={(key) => writeParams(filterValues, key)}
       />
 
       {canAdmin && selected.size > 0 && (
@@ -566,6 +582,7 @@ export const ServicePage: React.FC = () => {
             onClose={() => setAssignOpen(false)}
             projectId={projectId}
             count={selected.size}
+            initialAssignee={sharedAssignee((tasks ?? []).filter((t) => selected.has(t.id)))}
             isPending={assignMutation.isPending}
             onConfirm={(assignee, notify) => assignMutation.mutate({ assignee, notify })}
           />
@@ -574,9 +591,9 @@ export const ServicePage: React.FC = () => {
             onClose={() => setConfirmCancel(false)}
             onConfirm={() => cancelMutation.mutate()}
             title={`Cancel ${plural(selected.size, 'task')}?`}
-            body="The tasks are removed. Nothing is logged, because the work was not done."
-            confirmLabel="Cancel tasks"
-            cancelLabel="Keep tasks"
+            body="Nothing is logged, because the work was not done."
+            confirmLabel={selected.size === 1 ? 'Cancel task' : 'Cancel tasks'}
+            cancelLabel={selected.size === 1 ? 'Keep task' : 'Keep tasks'}
             variant="destructive"
             isPending={cancelMutation.isPending}
             focusCancel

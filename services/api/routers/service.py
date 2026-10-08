@@ -138,6 +138,10 @@ def task_email_context(project_name: str, assigner_email: str, tasks: List[dict]
     }
 
 
+def _id_list(ids) -> str:
+    return ", ".join(str(i) for i in sorted(ids))
+
+
 def _bad_request(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
@@ -186,7 +190,7 @@ async def _load_project_cameras(db: AsyncSession, project_id: int, camera_ids: L
     )).scalars().all()
     missing = wanted - {c.id for c in cameras}
     if missing:
-        raise _bad_request(f"Cameras not in this project: {sorted(missing)}")
+        raise _bad_request(f"Cameras {_id_list(missing)} are not in this project")
     return list(cameras)
 
 
@@ -243,7 +247,7 @@ async def _load_tasks(db: AsyncSession, project_id: int, task_ids: List[int]) ->
     )).scalars().all()
     missing = wanted - {t.id for t in tasks}
     if missing:
-        raise _not_found(f"Service tasks not found: {sorted(missing)}")
+        raise _not_found(f"Service tasks {_id_list(missing)} no longer exist, they were done or cancelled already")
     return list(tasks)
 
 
@@ -452,7 +456,7 @@ async def delete_visits(
     )).scalars().all()
     missing = wanted - {v.id for v in visits}
     if missing:
-        raise _not_found(f"Service visits not found: {sorted(missing)}")
+        raise _not_found(f"Service visits {_id_list(missing)} no longer exist")
     for visit in visits:
         await db.delete(visit)
     await db.commit()

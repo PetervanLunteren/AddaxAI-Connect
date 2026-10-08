@@ -1,8 +1,8 @@
 /**
  * The bar above a table while rows are selected, shared by the cameras,
  * sites and service tables. The page passes its action buttons as
- * children; the count and the Cancel button that clears the selection are
- * the same everywhere.
+ * children; the count and the button that clears the selection are the
+ * same everywhere.
  */
 import React from 'react';
 import { Button } from './Button';
@@ -24,7 +24,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ selected, total, n
     <div className="flex gap-2 flex-wrap ml-auto">
       {children}
       <Button variant="ghost" size="sm" onClick={onClear}>
-        Cancel
+        Clear selection
       </Button>
     </div>
   </div>

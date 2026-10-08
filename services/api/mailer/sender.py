@@ -496,7 +496,7 @@ class EmailSender:
         html_content, text_content = render_email(
             "service_tasks_assigned.html", service_url=service_url, **context
         )
-        subject = f"{context['project_name']}: service tasks for you"
+        subject = f"Service tasks for you in {context['project_name']}"
         await self.send_email(email, subject, text_content, html_content)
         logger.info("Service tasks email sent", email=email, project_id=project_id)
 

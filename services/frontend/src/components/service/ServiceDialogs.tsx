@@ -65,16 +65,23 @@ const ActionCheckboxes: React.FC<{
 );
 
 /** Registered project members, for the assignee and performer dropdowns.
- * Pending invitations have no user id yet. */
+ * Pending invitations have no user id yet.
+ *
+ * `onlyMember` turns anyone else into nobody: a server admin without a
+ * membership, or an assignee who left the project, would otherwise be a
+ * hidden value the API refuses. Until the list has loaded, values pass. */
 function useMembers(projectId: number, enabled: boolean) {
-  const { data } = useQuery({
+  const { data, isSuccess } = useQuery({
     queryKey: ['project-users', projectId],
     queryFn: () => projectsApi.getUsers(projectId),
     enabled,
   });
-  return (data ?? []).filter(
+  const members = (data ?? []).filter(
     (u): u is typeof u & { user_id: number } => u.is_registered && u.user_id !== null,
   );
+  const onlyMember = (value: number | ''): number | '' =>
+    !isSuccess || members.some((m) => m.user_id === value) ? value : '';
+  return { members, onlyMember };
 }
 
 const MemberSelect: React.FC<{
@@ -174,11 +181,11 @@ export const PlanServiceDialog: React.FC<PlanServiceDialogProps> = ({
   open, onClose, projectId, task, initialCameraIds, notice, isPending, onConfirm,
 }) => {
   const { user } = useAuth();
-  const members = useMembers(projectId, open);
+  const { members, onlyMember } = useMembers(projectId, open);
   const [cameraIds, setCameraIds] = useState<number[]>([]);
   const [actions, setActions] = useState<MaintenanceActionType[]>([]);
   const [dueDate, setDueDate] = useState('');
-  const [assignee, setAssignee] = useState<number | ''>('');
+  const [assigneeState, setAssignee] = useState<number | ''>('');
   const [notify, setNotify] = useState(false);
   const [note, setNote] = useState('');
 
@@ -192,6 +199,7 @@ export const PlanServiceDialog: React.FC<PlanServiceDialogProps> = ({
     setNote(task?.note ?? '');
   }, [open, task, initialCameraIds]);
 
+  const assignee = onlyMember(assigneeState);
   const canEmail = assignee !== '' && assignee !== user?.id;
   const canConfirm = cameraIds.length > 0 && actions.length > 0 && !isPending;
 
@@ -274,7 +282,7 @@ export const PlanServiceDialog: React.FC<PlanServiceDialogProps> = ({
 // ---------------------------------------------------------------------------
 
 /** The person all the tasks share, else nobody. */
-function sharedAssignee(tasks: ServiceTask[]): number | '' {
+export function sharedAssignee(tasks: ServiceTask[]): number | '' {
   const ids = new Set(tasks.map((t) => t.assigned_to_user_id));
   const [only] = [...ids];
   return ids.size === 1 && only !== null ? only : '';
@@ -295,7 +303,7 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
   open, onClose, projectId, tasks, isPending, onConfirm,
 }) => {
   const { user } = useAuth();
-  const members = useMembers(projectId, open);
+  const { members, onlyMember } = useMembers(projectId, open);
   const completing = tasks !== undefined && tasks.length > 0;
   const single = completing && tasks.length === 1 ? tasks[0] : null;
   const showDetails = !completing || single !== null;
@@ -315,10 +323,8 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
     setNote(single?.note ?? '');
   }, [open, tasks, single, completing, user?.id]);
 
-  // The default performer is you, but only a project member can be picked.
-  // A server admin without a membership falls back to "Not specified"
-  // instead of a hidden value the server would refuse.
-  const performer = members.some((m) => m.user_id === performedBy) ? performedBy : '';
+  // The default performer is you or the assignee, if still a member.
+  const performer = onlyMember(performedBy);
 
   // The server rejects future dates against its own timezone; catch the
   // obvious case here, the server stays the source of truth at midnight.
@@ -416,24 +422,27 @@ interface AssignTasksDialogProps {
   onClose: () => void;
   projectId: number;
   count: number;
+  /** The selection's shared assignee, so confirming unchanged changes nothing. */
+  initialAssignee: number | '';
   isPending: boolean;
   onConfirm: (assignedToUserId: number | null, notify: boolean) => void;
 }
 
 export const AssignTasksDialog: React.FC<AssignTasksDialogProps> = ({
-  open, onClose, projectId, count, isPending, onConfirm,
+  open, onClose, projectId, count, initialAssignee, isPending, onConfirm,
 }) => {
   const { user } = useAuth();
-  const members = useMembers(projectId, open);
-  const [assignee, setAssignee] = useState<number | ''>('');
+  const { members, onlyMember } = useMembers(projectId, open);
+  const [assigneeState, setAssignee] = useState<number | ''>('');
   const [notify, setNotify] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setAssignee('');
+    setAssignee(initialAssignee);
     setNotify(false);
-  }, [open]);
+  }, [open, initialAssignee]);
 
+  const assignee = onlyMember(assigneeState);
   const canEmail = assignee !== '' && assignee !== user?.id;
 
   return (

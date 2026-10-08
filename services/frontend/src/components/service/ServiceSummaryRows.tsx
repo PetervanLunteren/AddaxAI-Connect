@@ -45,8 +45,10 @@ export const ServiceSummaryRows: React.FC<ServiceSummaryRowsProps> = ({ projectI
   // Visits arrive newest first, so the first match is the latest.
   const last = lastService !== undefined ? lastService : (visits?.find(matches)?.event_date ?? null);
   const open = (tasks ?? []).filter(matches);
+  const overdue = open.filter((t) => t.overdue).length;
   // Tasks arrive sorted by due date, so the first dated one is the next due.
   const nextDue = open.find((t) => t.due_date)?.due_date;
+  const detail = overdue > 0 ? `${overdue} overdue` : nextDue ? `next due ${formatServiceDate(nextDue)}` : null;
 
   const base = `/projects/${projectId}/service`;
 
@@ -58,7 +60,7 @@ export const ServiceSummaryRows: React.FC<ServiceSummaryRowsProps> = ({ projectI
           'None'
         ) : (
           <Link to={`${base}?${by}=${id}`} className="text-primary hover:underline">
-            {nextDue ? `${open.length}, next due ${formatServiceDate(nextDue)}` : open.length}
+            {detail ? `${open.length}, ${detail}` : open.length}
           </Link>
         )}
       </Row>
