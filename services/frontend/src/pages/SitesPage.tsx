@@ -63,6 +63,8 @@ import { ColumnPicker } from '../components/ui/ColumnPicker';
 import { SortableHeader } from '../components/ui/SortableHeader';
 import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
 import { useBulkSelection } from '../hooks/useBulkSelection';
+import { BulkActionBar } from '../components/ui/BulkActionBar';
+import { TabStrip } from '../components/ui/TabStrip';
 import {
   BulkAddTagsDialog,
   BulkRemoveTagsDialog,
@@ -611,87 +613,66 @@ export const SitesPage: React.FC = () => {
               row (map view only) so it stays visible without a separate bar.
               The row wraps, so on phones the colour control drops to its
               own line instead of pushing off screen. */}
-          <div className="flex flex-wrap items-center justify-between gap-y-2 border-b">
-            <div className="flex">
-              <button
-                onClick={() => setViewMode('table')}
-                className={cn(
-                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-                  viewMode === 'table'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
+          <TabStrip
+            tabs={[
+              { key: 'table', label: 'Table', icon: TableIcon },
+              { key: 'map', label: 'Map', icon: MapIcon },
+            ]}
+            value={viewMode}
+            onChange={setViewMode}
+            extra={
+              <div className="flex flex-wrap items-center gap-2 pb-1">
+                {viewMode === 'map' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Colour</span>
+                    <div className="inline-flex rounded-md border divide-x overflow-hidden">
+                      {COLOR_MODES.map((m) => (
+                        <button
+                          key={m.value}
+                          onClick={() => setColorMode(m.value)}
+                          className={cn(
+                            'px-3 py-1.5 text-sm transition-colors',
+                            colorMode === m.value
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-background text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              >
-                <TableIcon className="h-4 w-4" />
-                Table
-              </button>
-              <button
-                onClick={() => setViewMode('map')}
-                className={cn(
-                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-                  viewMode === 'map'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
-                )}
-              >
-                <MapIcon className="h-4 w-4" />
-                Map
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 pb-1">
-            {viewMode === 'map' && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Colour</span>
-                <div className="inline-flex rounded-md border divide-x overflow-hidden">
-                  {COLOR_MODES.map((m) => (
-                    <button
-                      key={m.value}
-                      onClick={() => setColorMode(m.value)}
-                      className={cn(
-                        'px-3 py-1.5 text-sm transition-colors',
-                        colorMode === m.value
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-background text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
               </div>
-            )}
-            </div>
-          </div>
+            }
+          />
         </div>
       )}
 
       {/* Bulk-action bar. Only renders for admins with at least one site
-          selected. Sits between the toolbar and the table, same shape as
-          the cameras page's bulk bar. */}
+          selected. Sits between the toolbar and the table, shared with the
+          cameras and service tables. */}
       {/* Selection belongs to the table; the map tab is only for looking. */}
       {canEdit && viewMode === 'table' && selectedSiteIds.size > 0 && sites && sites.length > 0 && (
-        <div className="flex items-center gap-3 p-3 mb-3 bg-muted rounded-md flex-wrap">
-          <span className="text-sm font-medium">
-            {selectedSiteIds.size} of {sites.length} sites selected
-          </span>
-          <div className="flex gap-2 flex-wrap ml-auto">
-            <Button variant="outline" size="sm" onClick={() => setShowBulkAddTags(true)}>
-              Add tags
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowBulkRemoveTags(true)}>
-              Remove tags
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowBulkSetHabitat(true)}>
-              Set habitat
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowBulkSetNotes(true)}>
-              Set notes
-            </Button>
-            <Button variant="ghost" size="sm" onClick={clearSiteSelection}>
-              Cancel
-            </Button>
-          </div>
-        </div>
+        <BulkActionBar
+          selected={selectedSiteIds.size}
+          total={sites.length}
+          noun="sites"
+          onClear={clearSiteSelection}
+        >
+          <Button variant="outline" size="sm" onClick={() => setShowBulkAddTags(true)}>
+            Add tags
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowBulkRemoveTags(true)}>
+            Remove tags
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowBulkSetHabitat(true)}>
+            Set habitat
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowBulkSetNotes(true)}>
+            Set notes
+          </Button>
+        </BulkActionBar>
       )}
 
       {/* List / empty / loading */}

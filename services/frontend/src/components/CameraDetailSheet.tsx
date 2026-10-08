@@ -36,10 +36,10 @@ import { CameraHealthHistoryChart } from './CameraHealthHistoryChart';
 import { CameraDeploymentHistory } from './CameraDeploymentHistory';
 import { CameraRejectionsTab } from './CameraRejectionsTab';
 import { ServiceSummaryRows } from './service/ServiceSummaryRows';
+import { TabStrip } from './ui/TabStrip';
 import { TagInput } from './TagInput';
 import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
-import { cn } from '../lib/utils';
 import { formatDateTime } from '../utils/datetime';
 import { getSignalLabel } from '../utils/camera-colors';
 import { CameraStatusBadge } from './CameraStatusBadge';
@@ -258,20 +258,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   };
 
   // Tab button helper
-  const TabButton = ({ tab, label }: { tab: TabType; label: string }) => (
-    <button
-      onClick={() => setActiveTab(tab)}
-      className={cn(
-        'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-        activeTab === tab
-          ? 'border-primary text-foreground'
-          : 'border-transparent text-muted-foreground hover:text-foreground'
-      )}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <>
       <Sheet open={isOpen} onOpenChange={onClose}>
@@ -285,13 +271,18 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
           <SheetBody className="space-y-6">
             {/* Tab navigation */}
-            <div className="flex flex-wrap border-b -mt-2">
-              <TabButton tab="overview" label="Overview" />
-              <TabButton tab="history" label="History" />
-              <TabButton tab="deployments" label="Placements" />
-              {camera.rejected_count_recent !== null && <TabButton tab="rejections" label="Rejected" />}
-              {canAdmin && <TabButton tab="details" label="Details" />}
-            </div>
+            <TabStrip<TabType>
+              className="-mt-2"
+              tabs={[
+                { key: 'overview', label: 'Overview' },
+                { key: 'history', label: 'History' },
+                { key: 'deployments', label: 'Placements' },
+                ...(camera.rejected_count_recent !== null ? [{ key: 'rejections' as const, label: 'Rejected' }] : []),
+                ...(canAdmin ? [{ key: 'details' as const, label: 'Details' }] : []),
+              ]}
+              value={activeTab}
+              onChange={setActiveTab}
+            />
 
             {/* Overview tab: key info (read by default, Edit toggles) then a read-only health card */}
             {activeTab === 'overview' && (

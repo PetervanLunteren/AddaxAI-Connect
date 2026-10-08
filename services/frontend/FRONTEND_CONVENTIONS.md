@@ -128,6 +128,8 @@ Location: `src/components/ui/`
 **Available Components:**
 - `Button`: Primary UI actions
 - `Callout`: Info, warning, error, and success message boxes. Every short status or hint message uses this, never a hand-rolled colored div
+- `TabStrip`: Underlined tabs for switching views on a page or in a slide-out, with an optional count badge and a right-hand `extra` slot. `tabClass` gives the same look to tabs that are links
+- `BulkActionBar`: The bar above a table while rows are selected (count, the page's action buttons, Cancel). Pair it with `useBulkSelection`, `SelectAllCheckbox` and `SortableHeader`, as the cameras, sites and service tables do
 - `Card`: Content containers
 - `Dialog`: Modals/popups
 - `Form`: Form wrapper with context

@@ -93,6 +93,7 @@ import { ColumnPicker } from '../components/ui/ColumnPicker';
 import { SortableHeader } from '../components/ui/SortableHeader';
 import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
 import { useBulkSelection } from '../hooks/useBulkSelection';
+import { BulkActionBar } from '../components/ui/BulkActionBar';
 import {
   BulkAddTagsDialog,
   BulkRemoveTagsDialog,
@@ -977,34 +978,31 @@ export const CamerasPage: React.FC = () => {
       )}
 
       {/* Bulk-action bar. Only renders for admins with at least one camera
-          selected. Sits between the toolbar and the table, same shape as
-          ManageImagesPage's bulk bar. */}
+          selected. Sits between the toolbar and the table, shared with the
+          sites and service tables. */}
       {canAdminCurrentProject && selectedCameraIds.size > 0 && cameras && cameras.length > 0 && (
-        <div className="flex items-center gap-3 p-3 mb-3 bg-muted rounded-md flex-wrap">
-          <span className="text-sm font-medium">
-            {selectedCameraIds.size} of {cameras.length} cameras selected
-          </span>
-          <div className="flex gap-2 flex-wrap ml-auto">
-            <Button variant="outline" size="sm" onClick={() => setShowBulkAddTags(true)}>
-              Add tags
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowBulkRemoveTags(true)}>
-              Remove tags
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowBulkSetSimExpiry(true)}>
-              Set SIM expiry
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setShowBulkSetNotes(true)}>
-              Set notes
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
-              Delete
-            </Button>
-            <Button variant="ghost" size="sm" onClick={clearCameraSelection}>
-              Cancel
-            </Button>
-          </div>
-        </div>
+        <BulkActionBar
+          selected={selectedCameraIds.size}
+          total={cameras.length}
+          noun="cameras"
+          onClear={clearCameraSelection}
+        >
+          <Button variant="outline" size="sm" onClick={() => setShowBulkAddTags(true)}>
+            Add tags
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowBulkRemoveTags(true)}>
+            Remove tags
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowBulkSetSimExpiry(true)}>
+            Set SIM expiry
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowBulkSetNotes(true)}>
+            Set notes
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
+            Delete
+          </Button>
+        </BulkActionBar>
       )}
 
       {/* Camera table */}

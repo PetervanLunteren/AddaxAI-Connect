@@ -45,9 +45,9 @@ import {
 import { TagInput, type TagManagement } from './TagInput';
 import { DeploymentJourney } from './DeploymentJourney';
 import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
-import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
 import { ServiceSummaryRows } from './service/ServiceSummaryRows';
+import { TabStrip } from './ui/TabStrip';
 
 type TabType = 'overview' | 'cameras' | 'deployments';
 
@@ -200,20 +200,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
     onError: (err) => toast.error(`Could not update site, ${errMsg(err)}`),
   });
 
-  const TabButton = ({ tab, label }: { tab: TabType; label: string }) => (
-    <button
-      onClick={() => setActiveTab(tab)}
-      className={cn(
-        'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-        activeTab === tab
-          ? 'border-primary text-foreground'
-          : 'border-transparent text-muted-foreground hover:text-foreground',
-      )}
-    >
-      {label}
-    </button>
-  );
-
   if (!siteId) return null;
 
   return (
@@ -228,11 +214,16 @@ export const SiteDetailSheet: React.FC<Props> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
-            <div className="flex border-b -mt-2">
-              <TabButton tab="overview" label="Overview" />
-              <TabButton tab="cameras" label="Cameras" />
-              <TabButton tab="deployments" label="History" />
-            </div>
+            <TabStrip<TabType>
+              className="-mt-2"
+              tabs={[
+                { key: 'overview', label: 'Overview' },
+                { key: 'cameras', label: 'Cameras' },
+                { key: 'deployments', label: 'History' },
+              ]}
+              value={activeTab}
+              onChange={setActiveTab}
+            />
 
             {isLoading || !detail ? (
               <div className="flex items-center justify-center py-12 text-muted-foreground">

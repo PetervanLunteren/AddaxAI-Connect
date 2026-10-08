@@ -12,7 +12,7 @@
  */
 import React from 'react';
 import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
-import { cn } from '../../lib/utils';
+import { tabClass } from '../../components/ui/TabStrip';
 import { SpeciesFilterHintBanner } from '../../components/dashboard';
 
 // One line per tab, because the two tabs answer different questions. How the
@@ -21,14 +21,6 @@ const CAPTIONS = {
   overview: 'The state of the project, across all species.',
   explore: 'One species at a time, over a date range you choose.',
 } as const;
-
-const tabClass = ({ isActive }: { isActive: boolean }) =>
-  cn(
-    'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-    isActive
-      ? 'border-primary text-foreground'
-      : 'border-transparent text-muted-foreground hover:text-foreground',
-  );
 
 export const DashboardLayout: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -51,10 +43,10 @@ export const DashboardLayout: React.FC = () => {
       <div className="flex border-b">
         {/* `end` is required, otherwise the Explore route would also mark
             this tab active. */}
-        <NavLink end to={{ pathname: base, search }} className={tabClass}>
+        <NavLink end to={{ pathname: base, search }} className={({ isActive }) => tabClass(isActive)}>
           Overview
         </NavLink>
-        <NavLink to={{ pathname: `${base}/explore`, search }} className={tabClass}>
+        <NavLink to={{ pathname: `${base}/explore`, search }} className={({ isActive }) => tabClass(isActive)}>
           Explore
         </NavLink>
       </div>

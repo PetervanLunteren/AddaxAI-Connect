@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera as CameraIcon, Check, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody } from './ui/Sheet';
 import { Button } from './ui/Button';
+import { TabStrip } from './ui/TabStrip';
 import { Select } from './ui/Select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog';
 import { ConfirmDialog } from './ui/ConfirmDialog';
@@ -25,7 +26,6 @@ import { FEED_PAGE, feedApi, needsReview, type FeedEventItem, type ResolveReques
 import { deploymentsApi } from '../api/deployments';
 import { autoSiteName, isAutoSiteName } from '../utils/site-names';
 import { UnnamedSiteChip } from './sites/UnnamedSiteChip';
-import { cn } from '../lib/utils';
 
 interface CameraUpdatesSheetProps {
   open: boolean;
@@ -408,51 +408,28 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
-            {/* Same switcher as the Sites page table/map toggle. */}
-            <div className="flex items-center justify-between border-b mb-4">
-              <div className="flex">
-                <button
-                  type="button"
-                  onClick={() => setTab('review')}
-                  className={cn(
-                    'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-                    tab === 'review'
-                      ? 'border-primary text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  Needs review
-                  {fresh.length > 0 && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#71b7ba] text-white">
-                      {fresh.length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTab('reviewed')}
-                  className={cn(
-                    'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-                    tab === 'reviewed'
-                      ? 'border-primary text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  Reviewed
-                </button>
-              </div>
-              {tab === 'review' && canEdit && fresh.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mb-1"
-                  onClick={() => setDialog({ kind: 'review_all' })}
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  Mark all as reviewed
-                </Button>
-              )}
-            </div>
+            <TabStrip
+              className="mb-4"
+              tabs={[
+                { key: 'review', label: 'Needs review', count: fresh.length },
+                { key: 'reviewed', label: 'Reviewed' },
+              ]}
+              value={tab}
+              onChange={setTab}
+              extra={
+                tab === 'review' && canEdit && fresh.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mb-1"
+                    onClick={() => setDialog({ kind: 'review_all' })}
+                  >
+                    <Check className="h-4 w-4 mr-1" />
+                    Mark all as reviewed
+                  </Button>
+                )
+              }
+            />
 
             {isLoading && (
               <div className="flex justify-center py-8">
