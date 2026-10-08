@@ -1058,7 +1058,7 @@ async def _build_camera_rows(
     })
 
     headers = [
-        'CameraID', 'Name', 'Notes', 'Tags', 'SimExpiryDate',
+        'CameraID', 'Notes', 'Tags', 'SimExpiryDate',
         'Manufacturer', 'Model', 'HardwareRevision',
         'Status', 'BatteryPercent', 'SignalQuality', 'SDUsedPercent',
         'TemperatureC', 'LastReportTimestamp', 'LastImageTimestamp',
@@ -1076,7 +1076,6 @@ async def _build_camera_rows(
         custom = camera.custom_fields if isinstance(camera.custom_fields, dict) else {}
 
         row = [
-            camera.device_id or '',
             camera.device_id or '',
             camera.notes or '',
             ','.join(camera.tags) if camera.tags else '',
@@ -1300,7 +1299,7 @@ def _build_spatial_layers(
             "lat": float(row.lat) if row.lat is not None else 0.0,
             "properties": {
                 "camera_id": row.camera_name,
-                "site_id": row.site_id if row.site_id is not None else "",
+                "site_id": row.site_id,
                 "site_name": row.site_name or "",
                 "deployment_id": row.deployment_number,
                 "start_date": row.start_date.isoformat() if row.start_date else "",
@@ -1421,7 +1420,7 @@ def _serialize_spatial_shapefile(layers: Dict[str, list]) -> bytes:
     layer_fields = {
         "deployments": [
             ("cam_id",    "C", 80,  0),
-            ("site_id",   "C", 20,  0),
+            ("site_id",   "N", 10,  0),
             ("site_name", "C", 80,  0),
             ("deploy_id", "N", 10,  0),
             ("start_date","C", 10,  0),
@@ -1603,7 +1602,7 @@ def _serialize_spatial_geopackage(layers: Dict[str, list]) -> bytes:
         layer_columns = {
             "deployments": [
                 ("camera_id", "TEXT"),
-                ("site_id", "TEXT"),
+                ("site_id", "INTEGER"),
                 ("site_name", "TEXT"),
                 ("deployment_id", "INTEGER"),
                 ("start_date", "TEXT"),

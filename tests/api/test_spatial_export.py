@@ -189,6 +189,9 @@ class TestSerializers:
             assert rec["n_deploys"] == 2
             assert rec["det_count"] == 5
             assert rec["n_species"] == 1
+            # Same field type in every layer, so GIS joins on site_id work
+            deps = shapefile.Reader(dbf=io.BytesIO(zf.read("deployments.dbf")))
+            assert deps.record(0)["site_id"] == 10
 
     def test_geopackage_round_trips_sites(self):
         import tempfile
