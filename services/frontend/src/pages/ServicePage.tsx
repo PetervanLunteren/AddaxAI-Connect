@@ -9,19 +9,13 @@
  */
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarPlus, Check, ClipboardCheck, MoreHorizontal, Pencil, Trash2, X } from 'lucide-react';
+import { CalendarPlus, Check, ClipboardCheck, Pencil, Trash2, X } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { StatusPill } from '../components/ui/StatusPill';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../components/ui/DropdownMenu';
 import { FilterBar, type FilterFieldDef, type FilterValue } from '../components/ui/FilterBar';
 import { useToast } from '../components/ui/Toaster';
 import { LogVisitDialog, PlanServiceDialog } from '../components/service/ServiceDialogs';
@@ -61,14 +55,36 @@ const SiteCell: React.FC<{ siteName: string | null; cameraLabel: string }> = ({ 
   </div>
 );
 
+/** In vocabulary order, whatever order they were ticked in. */
 const ActionPills: React.FC<{ actions: MaintenanceActionType[] }> = ({ actions }) => (
   <div className="flex flex-wrap gap-1">
-    {actions.map((a) => (
+    {ACTION_TYPES.filter((a) => actions.includes(a)).map((a) => (
       <span key={a} className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground">
         {ACTION_LABELS[a] ?? a}
       </span>
     ))}
   </div>
+);
+
+/** A row action as an icon button. Inline rather than a menu: the table
+ * scrolls sideways, which would clip a dropdown, and one tap beats two in
+ * the field. */
+const IconAction: React.FC<{
+  label: string;
+  onClick: () => void;
+  destructive?: boolean;
+  children: React.ReactNode;
+}> = ({ label, onClick, destructive, children }) => (
+  <Button
+    variant="ghost"
+    size="sm"
+    aria-label={label}
+    title={label}
+    onClick={onClick}
+    className={destructive ? 'text-muted-foreground hover:text-destructive' : 'text-muted-foreground hover:text-foreground'}
+  >
+    {children}
+  </Button>
 );
 
 const NoteCell: React.FC<{ note: string | null }> = ({ note }) =>
@@ -310,7 +326,7 @@ export const ServicePage: React.FC = () => {
                     <TableHead>Due</TableHead>
                     <TableHead>Assigned to</TableHead>
                     <TableHead>Note</TableHead>
-                    {canAdmin && <TableHead className="w-12" />}
+                    {canAdmin && <TableHead />}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -334,27 +350,17 @@ export const ServicePage: React.FC = () => {
                       <TableCell><NoteCell note={task.note} /></TableCell>
                       {canAdmin && (
                         <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" aria-label="Task actions">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setCompleteTask(task)}>
-                                <Check className="h-4 w-4 mr-2" />
-                                Mark done
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setEditTask(task)}>
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setCancelTarget(task)}>
-                                <X className="h-4 w-4 mr-2" />
-                                Cancel task
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex justify-end gap-1">
+                            <IconAction label="Mark done" onClick={() => setCompleteTask(task)}>
+                              <Check className="h-4 w-4" />
+                            </IconAction>
+                            <IconAction label="Edit" onClick={() => setEditTask(task)}>
+                              <Pencil className="h-4 w-4" />
+                            </IconAction>
+                            <IconAction label="Cancel task" onClick={() => setCancelTarget(task)} destructive>
+                              <X className="h-4 w-4" />
+                            </IconAction>
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>
@@ -395,7 +401,7 @@ export const ServicePage: React.FC = () => {
                     <TableHead>Actions</TableHead>
                     <TableHead>Performed by</TableHead>
                     <TableHead>Note</TableHead>
-                    {canAdmin && <TableHead className="w-12" />}
+                    {canAdmin && <TableHead />}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -410,15 +416,11 @@ export const ServicePage: React.FC = () => {
                       <TableCell><NoteCell note={visit.note} /></TableCell>
                       {canAdmin && (
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label="Delete visit"
-                            onClick={() => setDeleteTarget(visit)}
-                            className="text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex justify-end">
+                            <IconAction label="Delete visit" onClick={() => setDeleteTarget(visit)} destructive>
+                              <Trash2 className="h-4 w-4" />
+                            </IconAction>
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>

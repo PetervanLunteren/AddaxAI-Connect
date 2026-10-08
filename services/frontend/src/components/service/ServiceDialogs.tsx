@@ -126,7 +126,6 @@ const CameraPicker: React.FC<{
         options={options}
         value={selected}
         onChange={(next) => onChange(next.map((o) => o.value as number))}
-        placeholder="Pick sites or cameras"
         isLoading={isLoading}
         selectedNoun="cameras"
         className="flex-1 min-w-0"
