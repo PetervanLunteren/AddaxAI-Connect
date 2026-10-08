@@ -1174,7 +1174,7 @@ async def _build_maintenance_rows(
 
     Admin-only data, so no site scope is applied (admins are project-wide).
     """
-    from routers.camera_maintenance import ACTION_LABELS
+    from routers.service import ACTION_LABELS
 
     performer = aliased(User)
     logger_user = aliased(User)

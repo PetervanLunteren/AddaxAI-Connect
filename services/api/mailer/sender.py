@@ -475,6 +475,31 @@ class EmailSender:
             project_name=project_name,
         )
 
+    async def send_service_tasks_email(
+        self,
+        email: str,
+        project_id: int,
+        context: dict,
+    ) -> None:
+        """
+        Send one email listing the service tasks just assigned to a user.
+
+        Args:
+            email: Assignee's email address
+            project_id: Project the tasks belong to, for the page link
+            context: Template values built by routers.service.task_email_context
+
+        Raises:
+            aiosmtplib.SMTPException: If email sending fails
+        """
+        service_url = f"https://{self.settings.domain_name}/projects/{project_id}/service"
+        html_content, text_content = render_email(
+            "service_tasks_assigned.html", service_url=service_url, **context
+        )
+        subject = f"{context['project_name']}: service tasks for you"
+        await self.send_email(email, subject, text_content, html_content)
+        logger.info("Service tasks email sent", email=email, project_id=project_id)
+
 
 # Singleton instance
 _email_sender: Optional[EmailSender] = None

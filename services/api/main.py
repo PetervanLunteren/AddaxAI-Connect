@@ -16,7 +16,7 @@ from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.storage import StorageObjectNotFound
 from auth.routes import get_auth_router
-from routers import admin, logs, cameras, site_groups, camera_reference_images, camera_maintenance, images, image_admin, statistics, projects, devtools, ingestion_monitoring, project_images, project_documents, notifications, reminders, camera_alert_rules, detection_alert_rules, scheduled_reports, theft_watch_rules, users, export, species, bulk_upload, sites, deployments, feed, live_feed, integrations
+from routers import admin, logs, cameras, site_groups, camera_reference_images, service, images, image_admin, statistics, projects, devtools, ingestion_monitoring, project_images, project_documents, notifications, reminders, camera_alert_rules, detection_alert_rules, scheduled_reports, theft_watch_rules, users, export, species, bulk_upload, sites, deployments, feed, live_feed, integrations
 from routers import health as health_router
 from middleware.logging import RequestLoggingMiddleware
 
@@ -186,7 +186,7 @@ app.include_router(logs.router, prefix="/api", tags=["logs"])
 app.include_router(cameras.router)
 app.include_router(site_groups.router)
 app.include_router(camera_reference_images.router)
-app.include_router(camera_maintenance.router)
+app.include_router(service.router)
 app.include_router(images.router)
 app.include_router(image_admin.router)
 app.include_router(statistics.router)

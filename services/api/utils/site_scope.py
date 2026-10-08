@@ -97,6 +97,29 @@ def cameras_current_site_clause(site_id_list: List[int]):
     )
 
 
+def site_of_camera(camera_id_col, on_date_col=None):
+    """Correlated scalar subquery: the site a camera stood at.
+
+    Without a date it is the current site (latest deployment), the rule of
+    cameras_current_site_clause. With a date it is the deployment covering
+    that day; on a move day both deployments cover it and the newest wins.
+    NULL when there is no such deployment or it has no site, so a scope
+    filter on the result fails closed.
+    """
+    query = select(Deployment.site_id).where(Deployment.camera_id == camera_id_col)
+    if on_date_col is not None:
+        query = query.where(
+            Deployment.start_date <= on_date_col,
+            (Deployment.end_date.is_(None)) | (Deployment.end_date >= on_date_col),
+        )
+    return (
+        query.order_by(Deployment.deployment_number.desc())
+        .limit(1)
+        .correlate_except(Deployment)
+        .scalar_subquery()
+    )
+
+
 def validate_membership_site_ids(
     role: str,
     site_ids: Optional[List[int]],

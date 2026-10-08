@@ -155,7 +155,7 @@ class CameraMaintenanceEvent(Base):
     bulk action. event_date is a plain Date, field visits are day-granular
     and need no timezone math (same reasoning as Camera.sim_expiry_date).
     action_types holds a non-empty list from a fixed vocabulary, validated
-    by the API (see routers/camera_maintenance.py). The derived
+    by the API (see routers/service.py). The derived
     max(event_date) per camera is shown as "last maintenance" in the
     camera list, detail sheet, and export.
     """
@@ -172,6 +172,33 @@ class CameraMaintenanceEvent(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # Who logged the event, distinct from who performed it.
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+
+class CameraServiceTask(Base):
+    """
+    One planned service visit to a camera, open work only.
+
+    A row exists while the work is still to do. Completing it logs a
+    CameraMaintenanceEvent and deletes the row in one transaction, so the
+    service log stays the one history; cancelling deletes the row. There
+    is no status column: open is "the row exists", overdue is derived from
+    due_date against today in the server timezone. Same action vocabulary
+    as the service log (see routers/service.py).
+    """
+    __tablename__ = "camera_service_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    # e.g. ["vegetation_clearing"]
+    action_types = Column(JSON, nullable=False)
+    note = Column(Text, nullable=True)
+    # Optional deadline, a plain Date like event_date.
+    due_date = Column(Date, nullable=True, index=True)
+    # Optional, a member of the camera's project. SET NULL keeps the task
+    # when the user is deleted.
+    assigned_to_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class SiteGroup(Base):
