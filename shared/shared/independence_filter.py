@@ -563,14 +563,14 @@ async def compute_event_assignments(
 
     Images with multiple species get multiple entries keyed by (uuid, species).
     """
+    # The shared builder fills the CTE template, so a new slot in it cannot
+    # break this query again.
+    cte_sql, _ = _build_cte()
     params = {"project_ids": [project_id], "interval": interval_minutes}
 
     # Extended CTE that also returns per-image info needed for export
     query = f"""
-    {_INDEPENDENCE_CTE.format(
-        verified_filters="",
-        unverified_branches=_build_unverified_branches("", ""),
-    )}
+    {cte_sql}
     , event_boundaries AS (
         SELECT pool_id, species, event_id,
                MIN(ts) as event_start,

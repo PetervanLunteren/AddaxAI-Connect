@@ -151,3 +151,32 @@ class TestCtePoolIdStructure:
     def test_new_event_flagged_when_gap_exceeds_interval(self):
         """A new event is flagged when the gap exceeds the interval or is the first observation."""
         assert "gap_min IS NULL OR gap_min > :interval" in _INDEPENDENCE_CTE
+
+
+class TestCamtrapDpEventAssignments:
+    """The CamtrapDP export pre-computes events with its own query."""
+
+    def test_query_builds_and_runs(self):
+        """Regression: it filled the CTE template by hand and missed the
+        {verified_scope} slot, so every CamtrapDP export with an
+        independence interval set failed with a KeyError."""
+        import asyncio
+
+        from shared.independence_filter import compute_event_assignments
+
+        executed = []
+
+        class _Result:
+            def all(self):
+                return []
+
+        class _Session:
+            async def execute(self, stmt, params):
+                executed.append((str(stmt), params))
+                return _Result()
+
+        result = asyncio.run(compute_event_assignments(_Session(), project_id=1, interval_minutes=30))
+        assert result == {}
+        sql, params = executed[0]
+        assert "{" not in sql and "}" not in sql
+        assert params == {"project_ids": [1], "interval": 30}
