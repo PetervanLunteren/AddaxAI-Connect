@@ -142,6 +142,13 @@ def _id_list(ids) -> str:
     return ", ".join(str(i) for i in sorted(ids))
 
 
+def gone_message(noun: str, ids, why: str) -> str:
+    """Rows another admin handled in the meantime, singular or plural."""
+    if len(ids) == 1:
+        return f"{noun} {_id_list(ids)} no longer exists, it was {why} already"
+    return f"{noun}s {_id_list(ids)} no longer exist, they were {why} already"
+
+
 def _bad_request(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
@@ -190,7 +197,10 @@ async def _load_project_cameras(db: AsyncSession, project_id: int, camera_ids: L
     )).scalars().all()
     missing = wanted - {c.id for c in cameras}
     if missing:
-        raise _bad_request(f"Cameras {_id_list(missing)} are not in this project")
+        raise _bad_request(
+            f"Camera {_id_list(missing)} is not in this project" if len(missing) == 1
+            else f"Cameras {_id_list(missing)} are not in this project"
+        )
     return list(cameras)
 
 
@@ -247,7 +257,7 @@ async def _load_tasks(db: AsyncSession, project_id: int, task_ids: List[int]) ->
     )).scalars().all()
     missing = wanted - {t.id for t in tasks}
     if missing:
-        raise _not_found(f"Service tasks {_id_list(missing)} no longer exist, they were done or cancelled already")
+        raise _not_found(gone_message("Service task", missing, "done or cancelled"))
     return list(tasks)
 
 
@@ -456,7 +466,7 @@ async def delete_visits(
     )).scalars().all()
     missing = wanted - {v.id for v in visits}
     if missing:
-        raise _not_found(f"Service visits {_id_list(missing)} no longer exist")
+        raise _not_found(gone_message("Service visit", missing, "deleted"))
     for visit in visits:
         await db.delete(visit)
     await db.commit()

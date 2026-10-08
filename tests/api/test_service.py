@@ -16,6 +16,7 @@ from routers.service import (  # noqa: E402
     VALID_ACTION_TYPES,
     _tasks_query,
     _visits_query,
+    gone_message,
     is_overdue,
     task_email_context,
     validate_actions_and_note,
@@ -193,3 +194,13 @@ class TestSiteScope:
     def test_scoped_to_project(self):
         assert "cameras.project_id = " in _sql(_visits_query(1, None))
         assert "cameras.project_id = " in _sql(_tasks_query(1, None))
+
+
+class TestGoneMessage:
+    def test_one(self):
+        assert gone_message("Service task", {10}, "done or cancelled") == \
+            "Service task 10 no longer exists, it was done or cancelled already"
+
+    def test_several_sorted(self):
+        assert gone_message("Service visit", {12, 3}, "deleted") == \
+            "Service visits 3, 12 no longer exist, they were deleted already"
