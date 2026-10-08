@@ -7,7 +7,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from shared.models import User, Project, Camera, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Site
 from shared.database import get_async_session
@@ -65,14 +65,14 @@ def build_project_image_urls(project: Project) -> tuple[str | None, str | None]:
 
 class ProjectCreate(BaseModel):
     """Request body for creating a project"""
-    name: str
+    name: str = Field(min_length=1, max_length=255)
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
 
 
 class ProjectUpdate(BaseModel):
     """Request body for updating a project"""
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
     detection_threshold: Optional[float] = None

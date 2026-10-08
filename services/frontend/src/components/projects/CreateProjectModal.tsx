@@ -141,6 +141,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Wildlife monitoring"
                 className="w-full px-3 py-2 border rounded-md"
+                maxLength={255}
                 required
               />
             </div>
