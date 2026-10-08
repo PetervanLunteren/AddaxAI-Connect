@@ -2,8 +2,8 @@
  * Service summary lines for the camera and site slide-outs.
  *
  * The slide-outs only summarise; the Service page is where service is
- * listed and changed, so the last line links there, filtered to this
- * camera or site. Reads the same cached lists as the page.
+ * listed and changed, so the open tasks and the history link there,
+ * filtered to this camera or site. Reads the same cached lists as the page.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -48,14 +48,22 @@ export const ServiceSummaryRows: React.FC<ServiceSummaryRowsProps> = ({ projectI
   // Tasks arrive sorted by due date, so the first dated one is the next due.
   const nextDue = open.find((t) => t.due_date)?.due_date;
 
+  const base = `/projects/${projectId}/service`;
+
   return (
     <>
       <Row label="Last service">{last ? formatServiceDate(last) : '-'}</Row>
       <Row label="Open service tasks">
-        {open.length === 0 ? 'None' : nextDue ? `${open.length}, next due ${formatServiceDate(nextDue)}` : open.length}
+        {open.length === 0 ? (
+          'None'
+        ) : (
+          <Link to={`${base}?${by}=${id}`} className="text-primary hover:underline">
+            {nextDue ? `${open.length}, next due ${formatServiceDate(nextDue)}` : open.length}
+          </Link>
+        )}
       </Row>
       <Row label="Service history">
-        <Link to={`/projects/${projectId}/service?${by}=${id}`} className="text-primary hover:underline">
+        <Link to={`${base}?tab=done&${by}=${id}`} className="text-primary hover:underline">
           Show
         </Link>
       </Row>

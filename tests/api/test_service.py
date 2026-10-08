@@ -132,37 +132,35 @@ class TestOverdue:
 
 
 class TestTaskEmail:
-    def context(self, **overrides):
-        values = dict(
+    def context(self):
+        def task(site, camera, actions, due=None):
+            return {"site_name": site, "camera_label": camera, "action_types": actions, "due_date": due, "note": None}
+
+        return task_email_context(
             project_name="SPW",
             assigner_email="admin@example.org",
-            action_types=["battery_change", "sd_card_swap"],
-            due_date=date(2026, 10, 20),
-            note=None,
-            cameras=[
-                {"site_name": "Waterhole South", "camera_label": "861"},
-                {"site_name": None, "camera_label": "999"},
-                {"site_name": "big oak north", "camera_label": "862"},
+            tasks=[
+                task("Waterhole South", "861", ["sd_card_swap", "battery_change"], date(2026, 10, 20)),
+                task(None, "999", ["cleaning"]),
+                task("big oak north", "862", ["vegetation_clearing"]),
             ],
         )
-        values.update(overrides)
-        return task_email_context(**values)
 
-    def test_one_email_lists_every_camera(self):
+    def test_one_email_lists_every_task(self):
         assert self.context()["task_count"] == 3
 
-    def test_actions_use_labels(self):
-        assert self.context()["actions_label"] == "Battery change, SD card swap"
+    def test_sorted_by_site_name_without_site_first(self):
+        labels = [t["camera_label"] for t in self.context()["tasks"]]
+        assert labels == ["999", "862", "861"]
+
+    def test_each_task_keeps_its_own_actions_in_vocabulary_order(self):
+        last = self.context()["tasks"][-1]
+        assert last["actions_label"] == "Battery change, SD card swap"
 
     def test_due_label(self):
-        assert self.context()["due_label"] == "20 Oct 2026"
-
-    def test_no_due_date(self):
-        assert self.context(due_date=None)["due_label"] is None
-
-    def test_sorted_by_site_name_without_site_first(self):
-        labels = [c["camera_label"] for c in self.context()["cameras"]]
-        assert labels == ["999", "862", "861"]
+        tasks = self.context()["tasks"]
+        assert tasks[-1]["due_label"] == "20 Oct 2026"
+        assert tasks[0]["due_label"] is None
 
 
 def _sql(query) -> str:

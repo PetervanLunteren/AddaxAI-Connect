@@ -1,6 +1,6 @@
 /**
- * The Service page dialogs: plan (and edit) a task, log (and complete)
- * a visit.
+ * The Service page dialogs: plan (and edit) a task, log a visit or mark
+ * tasks done, and assign tasks.
  *
  * Co-located because they share the camera picker, the action checkboxes
  * and the member dropdown, the same reasoning as BulkEditDialogs. Both
@@ -24,7 +24,7 @@ import { MapSelectButton, MapSelectDialog } from '../map/MapSelectDialog';
 import { camerasApi } from '../../api/cameras';
 import { projectsApi } from '../../api/projects';
 import type { Camera, MaintenanceActionType } from '../../api/types';
-import type { ServiceTask, TaskFields, VisitFields } from '../../api/service';
+import type { CompleteFields, ServiceTask, TaskFields } from '../../api/service';
 import { useAuth } from '../../hooks/useAuth';
 import { ACTION_LABELS, ACTION_TYPES, NOTE_MAX_LENGTH, localToday } from '../../lib/service-actions';
 
@@ -264,24 +264,36 @@ export const PlanServiceDialog: React.FC<PlanServiceDialogProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Log a visit, or complete a task as one
+// Log a visit, or mark tasks done
 // ---------------------------------------------------------------------------
+
+/** The person all the tasks share, else nobody. */
+function sharedAssignee(tasks: ServiceTask[]): number | '' {
+  const ids = new Set(tasks.map((t) => t.assigned_to_user_id));
+  const [only] = [...ids];
+  return ids.size === 1 && only !== null ? only : '';
+}
 
 interface LogVisitDialogProps {
   open: boolean;
   onClose: () => void;
   projectId: number;
-  // Set when completing; the visit is prefilled from it and its camera is fixed.
-  task?: ServiceTask | null;
+  /** Set when marking tasks done. One task shows its planned actions and
+   * note to adjust; several keep their own and only share date and person. */
+  tasks?: ServiceTask[];
   isPending: boolean;
-  onConfirm: (cameraIds: number[], fields: VisitFields) => void;
+  onConfirm: (cameraIds: number[], fields: CompleteFields) => void;
 }
 
 export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
-  open, onClose, projectId, task, isPending, onConfirm,
+  open, onClose, projectId, tasks, isPending, onConfirm,
 }) => {
   const { user } = useAuth();
   const members = useMembers(projectId, open);
+  const completing = tasks !== undefined && tasks.length > 0;
+  const single = completing && tasks.length === 1 ? tasks[0] : null;
+  const showDetails = !completing || single !== null;
+
   const [cameraIds, setCameraIds] = useState<number[]>([]);
   const [date, setDate] = useState(localToday());
   const [actions, setActions] = useState<MaintenanceActionType[]>([]);
@@ -290,12 +302,12 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
 
   useEffect(() => {
     if (!open) return;
-    setCameraIds(task ? [task.camera_id] : []);
+    setCameraIds([]);
     setDate(localToday());
-    setActions(task?.action_types ?? []);
-    setPerformedBy(task ? (task.assigned_to_user_id ?? '') : (user?.id ?? ''));
-    setNote(task?.note ?? '');
-  }, [open, task, user?.id]);
+    setActions(single?.action_types ?? []);
+    setPerformedBy(completing ? sharedAssignee(tasks) : (user?.id ?? ''));
+    setNote(single?.note ?? '');
+  }, [open, tasks, single, completing, user?.id]);
 
   // The default performer is you, but only a project member can be picked.
   // A server admin without a membership falls back to "Not specified"
@@ -305,23 +317,33 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
   // The server rejects future dates against its own timezone; catch the
   // obvious case here, the server stays the source of truth at midnight.
   const dateInFuture = date !== '' && date > localToday();
-  const canConfirm = cameraIds.length > 0 && actions.length > 0 && date !== '' && !dateInFuture && !isPending;
+  const canConfirm =
+    (completing || cameraIds.length > 0) &&
+    (!showDetails || actions.length > 0) &&
+    date !== '' &&
+    !dateInFuture &&
+    !isPending;
+
+  const title = !completing
+    ? 'Log visit'
+    : single
+      ? `Mark done at ${single.site_name ?? single.camera_label}`
+      : `Mark ${tasks.length} tasks done`;
+  const description = !completing
+    ? 'One visit with the same date and actions is logged on every camera you pick.'
+    : single
+      ? 'The task moves to Done with what was actually done.'
+      : 'Each task moves to Done with its own planned actions and note.';
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
         <DialogHeader>
-          <DialogTitle>
-            {task ? `Mark done at ${task.site_name ?? task.camera_label}` : 'Log visit'}
-          </DialogTitle>
-          <DialogDescription>
-            {task
-              ? 'The task moves to the visits with what was actually done.'
-              : 'One visit with the same date and actions is logged on every camera you pick.'}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-4">
-          {!task && (
+          {!completing && (
             <Field label="Cameras">
               <CameraPicker projectId={projectId} enabled={open} value={cameraIds} onChange={setCameraIds} />
             </Field>
@@ -336,22 +358,26 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
             />
             {dateInFuture && <p className="text-xs text-destructive mt-1">The date cannot be in the future.</p>}
           </Field>
-          <Field label="Actions">
-            <ActionCheckboxes value={actions} onChange={setActions} />
-          </Field>
+          {showDetails && (
+            <Field label="Actions">
+              <ActionCheckboxes value={actions} onChange={setActions} />
+            </Field>
+          )}
           <Field label="Performed by">
             <MemberSelect value={performer} onChange={setPerformedBy} members={members} emptyLabel="Not specified" />
           </Field>
-          <Field label="Note">
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional, e.g. lens fogged up, replaced the desiccant"
-              className={inputClass}
-              rows={2}
-              maxLength={NOTE_MAX_LENGTH}
-            />
-          </Field>
+          {showDetails && (
+            <Field label="Note">
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Optional, e.g. lens fogged up, replaced the desiccant"
+                className={inputClass}
+                rows={2}
+                maxLength={NOTE_MAX_LENGTH}
+              />
+            </Field>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
@@ -360,14 +386,78 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
             onClick={() =>
               onConfirm(cameraIds, {
                 event_date: date,
-                action_types: actions,
                 performed_by_user_id: performer === '' ? null : performer,
-                note: note.trim() || null,
+                action_types: showDetails ? actions : null,
+                note: showDetails ? note.trim() || null : null,
               })
             }
           >
             {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            {task ? 'Mark done' : 'Log visit'}
+            {completing ? 'Mark done' : 'Log visit'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Assign tasks
+// ---------------------------------------------------------------------------
+
+interface AssignTasksDialogProps {
+  open: boolean;
+  onClose: () => void;
+  projectId: number;
+  count: number;
+  isPending: boolean;
+  onConfirm: (assignedToUserId: number | null, notify: boolean) => void;
+}
+
+export const AssignTasksDialog: React.FC<AssignTasksDialogProps> = ({
+  open, onClose, projectId, count, isPending, onConfirm,
+}) => {
+  const { user } = useAuth();
+  const members = useMembers(projectId, open);
+  const [assignee, setAssignee] = useState<number | ''>('');
+  const [notify, setNotify] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setAssignee('');
+    setNotify(false);
+  }, [open]);
+
+  const canEmail = assignee !== '' && assignee !== user?.id;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle>Assign {count === 1 ? '1 task' : `${count} tasks`}</DialogTitle>
+          <DialogDescription>Every selected task goes to the same person. Pick nobody to unassign them.</DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-4">
+          <Field label="Assigned to">
+            <MemberSelect value={assignee} onChange={setAssignee} members={members} emptyLabel="Nobody" />
+          </Field>
+          {canEmail && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={notify}
+                onChange={(e) => setNotify(e.target.checked)}
+                className="h-4 w-4 cursor-pointer accent-primary"
+              />
+              Send email to assignee
+            </label>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button disabled={isPending} onClick={() => onConfirm(assignee === '' ? null : assignee, canEmail && notify)}>
+            {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            Assign
           </Button>
         </DialogFooter>
       </DialogContent>

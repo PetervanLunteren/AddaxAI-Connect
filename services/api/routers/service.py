@@ -108,27 +108,33 @@ def is_overdue(due_date: Optional[date], today: date) -> bool:
     return due_date is not None and due_date < today
 
 
-def task_email_context(
-    project_name: str,
-    assigner_email: str,
-    action_types: List[str],
-    due_date: Optional[date],
-    note: Optional[str],
-    cameras: List[dict],
-) -> dict:
-    """Template values for the one email a create or edit request sends.
+def _date_label(d: Optional[date]) -> Optional[str]:
+    return f"{d.day} {d:%b %Y}" if d else None
 
-    `cameras` holds {site_name, camera_label} per task. Sorted by site so
-    the assignee reads the list as a route through the field.
+
+def task_email_context(project_name: str, assigner_email: str, tasks: List[dict]) -> dict:
+    """Template values for the one email a request sends to an assignee.
+
+    `tasks` holds {site_name, camera_label, action_types, due_date, note}
+    per task. Sorted by site so the assignee reads the list as a route
+    through the field; actions in vocabulary order.
     """
+    rows = [
+        {
+            "site_name": t["site_name"],
+            "camera_label": t["camera_label"],
+            "actions_label": ", ".join(label for key, label in ACTION_LABELS.items() if key in t["action_types"]),
+            "due_label": _date_label(t["due_date"]),
+            "note": t["note"],
+        }
+        for t in tasks
+    ]
+    rows.sort(key=lambda r: ((r["site_name"] or "").lower(), r["camera_label"]))
     return {
         "project_name": project_name,
         "assigner_email": assigner_email,
-        "task_count": len(cameras),
-        "actions_label": ", ".join(ACTION_LABELS[a] for a in action_types),
-        "due_label": f"{due_date.day} {due_date:%b %Y}" if due_date else None,
-        "note": note,
-        "cameras": sorted(cameras, key=lambda c: ((c["site_name"] or "").lower(), c["camera_label"])),
+        "task_count": len(rows),
+        "tasks": rows,
     }
 
 
@@ -221,50 +227,58 @@ def _tasks_query(project_id: int, site_scope: Optional[List[int]]):
     return query
 
 
-async def _load_task(db: AsyncSession, project_id: int, task_id: int) -> CameraServiceTask:
-    task = (await db.execute(
+async def _load_tasks(db: AsyncSession, project_id: int, task_ids: List[int]) -> List[CameraServiceTask]:
+    """The requested open tasks of the project, 404 when any is gone.
+
+    A task that is gone was completed or cancelled already, so a double
+    click can never log a visit twice.
+    """
+    if not task_ids:
+        raise _bad_request("task_ids must not be empty")
+    wanted = set(task_ids)
+    tasks = (await db.execute(
         select(CameraServiceTask)
         .join(Camera, Camera.id == CameraServiceTask.camera_id)
-        .where(CameraServiceTask.id == task_id, Camera.project_id == project_id)
-    )).scalar_one_or_none()
-    if task is None:
-        raise _not_found(f"Service task {task_id} not found")
-    return task
+        .where(CameraServiceTask.id.in_(wanted), Camera.project_id == project_id)
+    )).scalars().all()
+    missing = wanted - {t.id for t in tasks}
+    if missing:
+        raise _not_found(f"Service tasks not found: {sorted(missing)}")
+    return list(tasks)
+
+
+def _should_email(notify: bool, assignee_id: Optional[int], user: User) -> bool:
+    """Only when asked, and never to yourself."""
+    return notify and assignee_id is not None and assignee_id != user.id
 
 
 async def _email_assignee(
-    db: AsyncSession,
-    project_id: int,
-    assignee_id: int,
-    assigner: User,
-    action_types: List[str],
-    due_date: Optional[date],
-    note: Optional[str],
-    camera_ids: List[int],
+    db: AsyncSession, project_id: int, assignee_id: int, assigner: User, task_ids: List[int]
 ) -> None:
     """Send the one assignment email of a request. Best effort, after commit.
 
-    A failed send is logged and never fails the request, the same as the
-    invitation and role change emails.
+    Built from the tasks as stored, so every request that assigns work sends
+    the same email. A failed send is logged and never fails the request, the
+    same as the invitation and role change emails.
     """
     try:
         assignee_email = (await db.execute(select(User.email).where(User.id == assignee_id))).scalar_one()
         project_name = (await db.execute(select(Project.name).where(Project.id == project_id))).scalar_one()
-        site_id = site_of_camera(Camera.id)
         rows = (await db.execute(
-            select(Camera, Site.name)
-            .outerjoin(Site, Site.id == site_id)
-            .where(Camera.id.in_(camera_ids))
+            _tasks_query(project_id, None).where(CameraServiceTask.id.in_(task_ids))
         )).all()
         context = task_email_context(
             project_name=project_name,
             assigner_email=assigner.email,
-            action_types=action_types,
-            due_date=due_date,
-            note=note,
-            cameras=[
-                {"site_name": site_name, "camera_label": _camera_label(camera)}
-                for camera, site_name in rows
+            tasks=[
+                {
+                    "site_name": site_name,
+                    "camera_label": _camera_label(camera),
+                    "action_types": task.action_types,
+                    "due_date": task.due_date,
+                    "note": task.note,
+                }
+                for task, camera, _site_id, site_name, _assignee_email in rows
             ],
         )
         await get_email_sender().send_service_tasks_email(assignee_email, project_id, context)
@@ -301,6 +315,33 @@ class TaskFields(BaseModel):
 class PlanTasksRequest(TaskFields):
     """One task per camera"""
     camera_ids: List[int]
+
+
+class TaskIdsRequest(BaseModel):
+    task_ids: List[int]
+
+
+class AssignTasksRequest(TaskIdsRequest):
+    """Hand the selected tasks to one member, or to nobody with null."""
+    assigned_to_user_id: Optional[int] = None
+    notify: bool = False
+
+
+class CompleteTasksRequest(TaskIdsRequest):
+    """Mark the selected tasks done on one day, by one person.
+
+    action_types and note travel together: given, they replace what each
+    task planned (the single-task dialog, which shows them); omitted, every
+    task keeps its own (marking a whole field day done at once).
+    """
+    event_date: date
+    performed_by_user_id: Optional[int] = None
+    action_types: Optional[List[str]] = None
+    note: Optional[str] = None
+
+
+class VisitIdsRequest(BaseModel):
+    visit_ids: List[int]
 
 
 class ServiceVisitResponse(BaseModel):
@@ -393,22 +434,27 @@ async def log_visits(
     return CountResponse(count=len(cameras))
 
 
-@router.delete("/service-visits/{visit_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_visit(
+@router.post("/service-visits/delete", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_visits(
     project_id: int,
-    visit_id: int,
+    request: VisitIdsRequest,
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Delete one visit."""
-    visit = (await db.execute(
+    """Delete the selected visits, for entries logged by mistake."""
+    if not request.visit_ids:
+        raise _bad_request("visit_ids must not be empty")
+    wanted = set(request.visit_ids)
+    visits = (await db.execute(
         select(CameraMaintenanceEvent)
         .join(Camera, Camera.id == CameraMaintenanceEvent.camera_id)
-        .where(CameraMaintenanceEvent.id == visit_id, Camera.project_id == project_id)
-    )).scalar_one_or_none()
-    if visit is None:
-        raise _not_found(f"Service visit {visit_id} not found")
-    await db.delete(visit)
+        .where(CameraMaintenanceEvent.id.in_(wanted), Camera.project_id == project_id)
+    )).scalars().all()
+    missing = wanted - {v.id for v in visits}
+    if missing:
+        raise _not_found(f"Service visits not found: {sorted(missing)}")
+    for visit in visits:
+        await db.delete(visit)
     await db.commit()
 
 
@@ -451,11 +497,6 @@ async def _validate_task_fields(db: AsyncSession, project_id: int, fields: TaskF
     await _check_member(db, fields.assigned_to_user_id, project_id, "Assignee")
 
 
-def _should_email(fields: TaskFields, user: User) -> bool:
-    """Only when asked, and never to yourself."""
-    return fields.notify and fields.assigned_to_user_id is not None and fields.assigned_to_user_id != user.id
-
-
 @router.post("/service-tasks", response_model=CountResponse, status_code=status.HTTP_201_CREATED)
 async def plan_tasks(
     project_id: int,
@@ -467,23 +508,25 @@ async def plan_tasks(
     cameras = await _load_project_cameras(db, project_id, request.camera_ids)
     await _validate_task_fields(db, project_id, request)
 
-    for camera in cameras:
-        db.add(CameraServiceTask(
+    tasks = [
+        CameraServiceTask(
             camera_id=camera.id,
             action_types=request.action_types,
             note=request.note or None,
             due_date=request.due_date,
             assigned_to_user_id=request.assigned_to_user_id,
             created_by_user_id=user.id,
-        ))
+        )
+        for camera in cameras
+    ]
+    db.add_all(tasks)
+    await db.flush()
+    task_ids = [t.id for t in tasks]
     await db.commit()
 
-    if _should_email(request, user):
-        await _email_assignee(
-            db, project_id, request.assigned_to_user_id, user, request.action_types,
-            request.due_date, request.note or None, [c.id for c in cameras],
-        )
-    return CountResponse(count=len(cameras))
+    if _should_email(request.notify, request.assigned_to_user_id, user):
+        await _email_assignee(db, project_id, request.assigned_to_user_id, user, task_ids)
+    return CountResponse(count=len(task_ids))
 
 
 @router.patch("/service-tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -495,64 +538,76 @@ async def update_task(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Replace a task's fields. Any project admin may edit any task."""
-    task = await _load_task(db, project_id, task_id)
+    [task] = await _load_tasks(db, project_id, [task_id])
     await _validate_task_fields(db, project_id, request)
 
     task.action_types = request.action_types
     task.note = request.note or None
     task.due_date = request.due_date
     task.assigned_to_user_id = request.assigned_to_user_id
-    camera_id = task.camera_id
     await db.commit()
 
-    if _should_email(request, user):
-        await _email_assignee(
-            db, project_id, request.assigned_to_user_id, user, request.action_types,
-            request.due_date, request.note or None, [camera_id],
-        )
+    if _should_email(request.notify, request.assigned_to_user_id, user):
+        await _email_assignee(db, project_id, request.assigned_to_user_id, user, [task_id])
 
 
-@router.delete("/service-tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def cancel_task(
+@router.post("/service-tasks/assign", status_code=status.HTTP_204_NO_CONTENT)
+async def assign_tasks(
     project_id: int,
-    task_id: int,
+    request: AssignTasksRequest,
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Cancel a task. It never happened, so nothing is kept."""
-    task = await _load_task(db, project_id, task_id)
-    await db.delete(task)
+    """Hand the selected tasks to one member, with at most one email."""
+    tasks = await _load_tasks(db, project_id, request.task_ids)
+    await _check_member(db, request.assigned_to_user_id, project_id, "Assignee")
+    for task in tasks:
+        task.assigned_to_user_id = request.assigned_to_user_id
     await db.commit()
 
+    if _should_email(request.notify, request.assigned_to_user_id, user):
+        await _email_assignee(db, project_id, request.assigned_to_user_id, user, request.task_ids)
 
-@router.post("/service-tasks/{task_id}/complete", status_code=status.HTTP_201_CREATED)
-async def complete_task(
+
+@router.post("/service-tasks/cancel", status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_tasks(
     project_id: int,
-    task_id: int,
-    request: VisitFields,
+    request: TaskIdsRequest,
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Mark a task done: log the visit and delete the task in one commit.
+    """Cancel the selected tasks. They never happened, so nothing is kept."""
+    for task in await _load_tasks(db, project_id, request.task_ids):
+        await db.delete(task)
+    await db.commit()
 
-    A second click finds no task and gets 404, so the visit is never
-    logged twice.
-    """
-    task = await _load_task(db, project_id, task_id)
-    error = validate_maintenance_event(
-        request.action_types, request.event_date, await _server_today(db), request.note
-    )
-    if error:
-        raise _bad_request(error)
+
+@router.post("/service-tasks/complete", status_code=status.HTTP_201_CREATED)
+async def complete_tasks(
+    project_id: int,
+    request: CompleteTasksRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Mark the selected tasks done: one visit each, tasks deleted, one commit."""
+    tasks = await _load_tasks(db, project_id, request.task_ids)
+    today = await _server_today(db)
     await _check_member(db, request.performed_by_user_id, project_id, "Performed-by user")
 
-    db.add(CameraMaintenanceEvent(
-        camera_id=task.camera_id,
-        event_date=request.event_date,
-        action_types=request.action_types,
-        performed_by_user_id=request.performed_by_user_id,
-        note=request.note or None,
-        created_by_user_id=user.id,
-    ))
-    await db.delete(task)
+    for task in tasks:
+        replace = request.action_types is not None
+        action_types = request.action_types if replace else task.action_types
+        note = (request.note or None) if replace else task.note
+        error = validate_maintenance_event(action_types, request.event_date, today, note)
+        if error:
+            raise _bad_request(error)
+        db.add(CameraMaintenanceEvent(
+            camera_id=task.camera_id,
+            event_date=request.event_date,
+            action_types=action_types,
+            performed_by_user_id=request.performed_by_user_id,
+            note=note,
+            created_by_user_id=user.id,
+        ))
+        await db.delete(task)
     await db.commit()

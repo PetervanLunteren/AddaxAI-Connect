@@ -1,39 +1,51 @@
 /**
  * Service page: the one place to see and act on camera service.
  *
- * Open tasks on top (planned work, overdue first), visits below (the
- * service log). Marking a task done logs it as a visit and removes the
- * task, so the visits are the one history. Every member can read, scoped
- * to their sites by the API; project admins plan, log, complete, edit,
- * cancel and delete. The camera and site slide-outs only link here.
+ * Two tabs over the same tables, filters and selection as the cameras and
+ * sites pages. Open is planned work (overdue first), Done is the service
+ * log. Marking a task done logs it as a visit and removes the task, so
+ * Done is the one history. Every member can read, scoped to their sites by
+ * the API; project admins plan, log and act on selected rows from the bulk
+ * bar, and a row click edits a task. The camera and site slide-outs only
+ * link here.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarPlus, Check, ClipboardCheck, Pencil, Trash2, X } from 'lucide-react';
+import { CalendarPlus, ClipboardCheck } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Card, CardContent } from '../components/ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import { StatusPill } from '../components/ui/StatusPill';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { TabStrip } from '../components/ui/TabStrip';
+import { BulkActionBar } from '../components/ui/BulkActionBar';
+import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
+import { SortableHeader, type SortState } from '../components/ui/SortableHeader';
 import { FilterBar, type FilterFieldDef, type FilterValue } from '../components/ui/FilterBar';
 import { useToast } from '../components/ui/Toaster';
-import { LogVisitDialog, PlanServiceDialog } from '../components/service/ServiceDialogs';
+import { AssignTasksDialog, LogVisitDialog, PlanServiceDialog } from '../components/service/ServiceDialogs';
+import { useBulkSelection } from '../hooks/useBulkSelection';
 import { useProject } from '../contexts/ProjectContext';
 import {
   serviceApi,
   serviceKeys,
+  type CompleteFields,
   type ServiceTask,
   type ServiceVisit,
   type TaskFields,
-  type VisitFields,
 } from '../api/service';
 import type { MaintenanceActionType } from '../api/types';
 import { ACTION_LABELS, ACTION_TYPES, formatServiceDate } from '../lib/service-actions';
 import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } from '../lib/filter-url';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
+type Tab = 'open' | 'done';
+type TaskColumn = 'site' | 'due' | 'assignee';
+type VisitColumn = 'date' | 'site' | 'performer';
+
 const FILTER_SCHEMA: FilterSchema = {
+  tab: 'string',
   site: 'string',
   camera: 'string',
   person: 'string',
@@ -46,6 +58,31 @@ const FILTER_SCHEMA: FilterSchema = {
 const asString = (v: FilterValue): string => (typeof v === 'string' ? v : '');
 
 const errorText = (error: any) => error?.response?.data?.detail || error?.message;
+
+/** Sort by one value with empty values last, like the cameras table. No
+ * column keeps the server order: overdue first for tasks, newest first for visits. */
+function sortRows<T>(rows: T[], direction: 'asc' | 'desc', value: ((row: T) => string | null) | null): T[] {
+  if (!value) return rows;
+  const sign = direction === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const va = value(a);
+    const vb = value(b);
+    if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1;
+    return sign * va.localeCompare(vb, undefined, { sensitivity: 'base' });
+  });
+}
+
+const TASK_SORT: Record<TaskColumn, (t: ServiceTask) => string | null> = {
+  site: (t) => t.site_name,
+  due: (t) => t.due_date,
+  assignee: (t) => t.assigned_to_email,
+};
+
+const VISIT_SORT: Record<VisitColumn, (v: ServiceVisit) => string | null> = {
+  date: (v) => v.event_date,
+  site: (v) => v.site_name,
+  performer: (v) => v.performed_by_email,
+};
 
 /** Site first, the camera id small below it. */
 const SiteCell: React.FC<{ siteName: string | null; cameraLabel: string }> = ({ siteName, cameraLabel }) => (
@@ -60,35 +97,26 @@ const ActionPills: React.FC<{ actions: MaintenanceActionType[] }> = ({ actions }
   <div className="flex flex-wrap gap-1">
     {ACTION_TYPES.filter((a) => actions.includes(a)).map((a) => (
       <span key={a} className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground">
-        {ACTION_LABELS[a] ?? a}
+        {ACTION_LABELS[a]}
       </span>
     ))}
   </div>
 );
 
-/** A row action as an icon button. Inline rather than a menu: the table
- * scrolls sideways, which would clip a dropdown, and one tap beats two in
- * the field. */
-const IconAction: React.FC<{
-  label: string;
-  onClick: () => void;
-  destructive?: boolean;
-  children: React.ReactNode;
-}> = ({ label, onClick, destructive, children }) => (
-  <Button
-    variant="ghost"
-    size="sm"
-    aria-label={label}
-    title={label}
-    onClick={onClick}
-    className={destructive ? 'text-muted-foreground hover:text-destructive' : 'text-muted-foreground hover:text-foreground'}
-  >
-    {children}
-  </Button>
-);
-
 const NoteCell: React.FC<{ note: string | null }> = ({ note }) =>
   note ? <p className="text-xs whitespace-pre-wrap break-words max-w-xs">{note}</p> : <span className="text-muted-foreground">-</span>;
+
+const RowCheckbox: React.FC<{ label: string; checked: boolean; onToggle: () => void }> = ({ label, checked, onToggle }) => (
+  <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+    <input
+      type="checkbox"
+      aria-label={label}
+      checked={checked}
+      onChange={onToggle}
+      className="w-4 h-4 cursor-pointer accent-primary"
+    />
+  </TableCell>
+);
 
 export const ServicePage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject: canAdmin } = useProject();
@@ -101,9 +129,23 @@ export const ServicePage: React.FC = () => {
   const filterValues: Record<string, FilterValue> = Object.fromEntries(
     Object.keys(FILTER_SCHEMA).map((key) => [key, asString(parsed[key]) || undefined]),
   );
+  const f = Object.fromEntries(Object.keys(FILTER_SCHEMA).map((key) => [key, asString(parsed[key])]));
+  const tab: Tab = f.tab === 'done' ? 'done' : 'open';
+
   const onFilterChange = (patch: Record<string, FilterValue>) =>
     setSearchParams(filtersToSearchParams({ ...filterValues, ...patch }, FILTER_SCHEMA), { replace: true });
-  const onClearAll = () => setSearchParams(new URLSearchParams(), { replace: true });
+  // Clear all keeps the tab; it is where you are, not a filter.
+  const onClearAll = () =>
+    setSearchParams(filtersToSearchParams({ tab: filterValues.tab }, FILTER_SCHEMA), { replace: true });
+
+  const { selected, toggle, clear, setMany } = useBulkSelection();
+  const [taskSort, setTaskSort] = useState<SortState<TaskColumn>>({ column: null, direction: 'asc' });
+  const [visitSort, setVisitSort] = useState<SortState<VisitColumn>>({ column: null, direction: 'desc' });
+  const nextSort = <C extends string>(prev: SortState<C>, column: C): SortState<C> =>
+    prev.column === column ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' } : { column, direction: 'asc' };
+
+  // A selection belongs to one table.
+  useEffect(() => clear(), [tab, clear]);
 
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: serviceKeys.tasks(projectId),
@@ -116,13 +158,14 @@ export const ServicePage: React.FC = () => {
     enabled: projectId > 0,
   });
 
-  // Dialog state. A task set on a dialog means edit or complete that task.
+  // Dialog state. Task lists are snapshots taken when a dialog opens.
   const [planOpen, setPlanOpen] = useState(false);
   const [editTask, setEditTask] = useState<ServiceTask | null>(null);
   const [logOpen, setLogOpen] = useState(false);
-  const [completeTask, setCompleteTask] = useState<ServiceTask | null>(null);
-  const [cancelTarget, setCancelTarget] = useState<ServiceTask | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ServiceVisit | null>(null);
+  const [doneTasks, setDoneTasks] = useState<ServiceTask[] | null>(null);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const refresh = (what: { tasks?: boolean; visits?: boolean }) => {
     if (what.tasks) queryClient.invalidateQueries({ queryKey: serviceKeys.tasks(projectId) });
@@ -132,6 +175,9 @@ export const ServicePage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
     }
   };
+  const onError = (what: string) => (error: any) => toast.error(`Could not ${what}. ${errorText(error)}`);
+  const selectedIds = Array.from(selected);
+  const plural = (n: number, one: string) => (n === 1 ? `1 ${one}` : `${n} ${one}s`);
 
   const planMutation = useMutation({
     mutationFn: ({ cameraIds, fields }: { cameraIds: number[]; fields: TaskFields }) =>
@@ -144,39 +190,54 @@ export const ServicePage: React.FC = () => {
       setPlanOpen(false);
       setEditTask(null);
     },
-    onError: (error: any) => toast.error(`Could not save the task. ${errorText(error)}`),
+    onError: onError('save the task'),
   });
 
   const logMutation = useMutation({
-    mutationFn: ({ cameraIds, fields }: { cameraIds: number[]; fields: VisitFields }) =>
-      completeTask
-        ? serviceApi.completeTask(projectId, completeTask.id, fields)
-        : serviceApi.logVisits(projectId, cameraIds, fields),
+    mutationFn: ({ cameraIds, fields }: { cameraIds: number[]; fields: CompleteFields }) =>
+      doneTasks
+        ? serviceApi.completeTasks(projectId, doneTasks.map((t) => t.id), fields)
+        : serviceApi.logVisits(projectId, cameraIds, { ...fields, action_types: fields.action_types ?? [] }),
     onSuccess: () => {
-      refresh({ tasks: !!completeTask, visits: true });
-      toast.success(completeTask ? 'Task done and logged as a visit' : 'Visit logged');
+      refresh({ tasks: !!doneTasks, visits: true });
+      toast.success(doneTasks ? `${plural(doneTasks.length, 'task')} done` : 'Visit logged');
       setLogOpen(false);
-      setCompleteTask(null);
+      setDoneTasks(null);
+      clear();
     },
-    onError: (error: any) => toast.error(`Could not log the visit. ${errorText(error)}`),
+    onError: onError('log the visit'),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: ({ assignee, notify }: { assignee: number | null; notify: boolean }) =>
+      serviceApi.assignTasks(projectId, selectedIds, assignee, notify),
+    onSuccess: () => {
+      refresh({ tasks: true });
+      toast.success(`${plural(selectedIds.length, 'task')} assigned`);
+      setAssignOpen(false);
+      clear();
+    },
+    onError: onError('assign the tasks'),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (task: ServiceTask) => serviceApi.cancelTask(projectId, task.id),
+    mutationFn: () => serviceApi.cancelTasks(projectId, selectedIds),
     onSuccess: () => {
       refresh({ tasks: true });
-      setCancelTarget(null);
+      setConfirmCancel(false);
+      clear();
     },
-    onError: (error: any) => toast.error(`Could not cancel the task. ${errorText(error)}`),
+    onError: onError('cancel the tasks'),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (visit: ServiceVisit) => serviceApi.deleteVisit(projectId, visit.id),
+    mutationFn: () => serviceApi.deleteVisits(projectId, selectedIds),
     onSuccess: () => {
       refresh({ visits: true });
-      setDeleteTarget(null);
+      setConfirmDelete(false);
+      clear();
     },
-    onError: (error: any) => toast.error(`Could not delete the visit. ${errorText(error)}`),
+    onError: onError('delete the visits'),
   });
 
   // Filter options come from the rows themselves, so they only offer
@@ -210,6 +271,7 @@ export const ServicePage: React.FC = () => {
     return labels;
   }, [tasks, visits]);
 
+  // Shared fields first, then the one that only applies to this tab.
   const fields: FilterFieldDef[] = [
     { kind: 'select', key: 'site', label: 'Site', options: siteOptions, primary: true },
     { kind: 'select', key: 'person', label: 'Person', options: personOptions, primary: true },
@@ -220,39 +282,41 @@ export const ServicePage: React.FC = () => {
       options: ACTION_TYPES.map((a) => ({ value: a, label: ACTION_LABELS[a] })),
       primary: true,
     },
-    { kind: 'select', key: 'due', label: 'Due', options: [{ value: 'overdue', label: 'Overdue' }], primary: true },
-    { kind: 'date-range', fromKey: 'from', toKey: 'to', label: 'Visit date', primary: false },
-    // Set by the "Service history" link in a camera slide-out.
+    tab === 'open'
+      ? { kind: 'select', key: 'due', label: 'Due', options: [{ value: 'overdue', label: 'Overdue' }], primary: true }
+      : { kind: 'date-range', fromKey: 'from', toKey: 'to', label: 'Date', primary: true },
+    // Set by the links in the camera slide-out.
     { kind: 'chip', key: 'camera', chipLabel: (id) => `Camera ${cameraLabel.get(id) ?? id}` },
   ];
 
-  const f = {
-    site: asString(parsed.site),
-    camera: asString(parsed.camera),
-    person: asString(parsed.person),
-    action: asString(parsed.action),
-    due: asString(parsed.due),
-    from: asString(parsed.from),
-    to: asString(parsed.to),
-  };
-
-  // The shared filters apply to both lists; due only to tasks, the date only to visits.
   const matchesShared = (row: ServiceTask | ServiceVisit, personId: number | null) =>
     (!f.site || String(row.site_id) === f.site) &&
     (!f.camera || String(row.camera_id) === f.camera) &&
     (!f.person || String(personId) === f.person) &&
     (!f.action || row.action_types.includes(f.action as MaintenanceActionType));
 
-  const shownTasks = (tasks ?? []).filter(
-    (t) => matchesShared(t, t.assigned_to_user_id) && (f.due !== 'overdue' || t.overdue),
+  const shownTasks = sortRows(
+    (tasks ?? []).filter((t) => matchesShared(t, t.assigned_to_user_id) && (f.due !== 'overdue' || t.overdue)),
+    taskSort.direction,
+    taskSort.column ? TASK_SORT[taskSort.column] : null,
   );
-  const shownVisits = (visits ?? []).filter(
-    (v) =>
-      matchesShared(v, v.performed_by_user_id) &&
-      (!f.from || v.event_date >= f.from) &&
-      (!f.to || v.event_date <= f.to),
+  const shownVisits = sortRows(
+    (visits ?? []).filter(
+      (v) =>
+        matchesShared(v, v.performed_by_user_id) &&
+        (!f.from || v.event_date >= f.from) &&
+        (!f.to || v.event_date <= f.to),
+    ),
+    visitSort.direction,
+    visitSort.column ? VISIT_SORT[visitSort.column] : null,
   );
-  const isFiltered = Object.values(f).some(Boolean);
+
+  const rows = tab === 'open' ? (tasks ?? []) : (visits ?? []);
+  const shown = tab === 'open' ? shownTasks : shownVisits;
+  const loading = tab === 'open' ? tasksLoading : visitsLoading;
+  const noun = tab === 'open' ? 'tasks' : 'visits';
+  const tabFilterKeys = ['site', 'person', 'action', 'camera', ...(tab === 'open' ? ['due'] : ['from', 'to'])];
+  const isFiltered = tabFilterKeys.some((key) => f[key]);
 
   if (!selectedProject) {
     return (
@@ -283,154 +347,202 @@ export const ServicePage: React.FC = () => {
         )}
       </div>
 
-      <FilterBar
-        fields={fields}
-        values={filterValues}
-        onChange={onFilterChange}
-        onClearAll={onClearAll}
-        displayControls={[]}
-        displayValues={{}}
-        onDisplayChange={() => {}}
+      <div className="space-y-3">
+        <FilterBar
+          fields={fields}
+          values={filterValues}
+          onChange={onFilterChange}
+          onClearAll={onClearAll}
+          displayControls={[]}
+          displayValues={{}}
+          onDisplayChange={() => {}}
+        />
+        {isFiltered && rows.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {shown.length} of {rows.length} {noun}
+          </p>
+        )}
+      </div>
+
+      <TabStrip<Tab>
+        tabs={[
+          { key: 'open', label: 'Open', count: tasks?.length },
+          { key: 'done', label: 'Done' },
+        ]}
+        value={tab}
+        onChange={(key) => onFilterChange({ tab: key === 'open' ? undefined : key })}
       />
 
-      {/* Open tasks */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            Open tasks
-            {tasks && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {isFiltered ? `${shownTasks.length} of ${tasks.length}` : tasks.length}
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {tasksLoading ? (
-            <p className="px-6 pb-6 text-sm text-muted-foreground">Loading tasks...</p>
-          ) : shownTasks.length === 0 ? (
-            <p className="px-6 pb-6 text-sm text-muted-foreground">
-              {tasks && tasks.length > 0
-                ? 'No open tasks match your filters.'
-                : canAdmin
-                  ? 'Nothing planned. Use Plan service to add work for the next field trip.'
-                  : 'Nothing planned.'}
-            </p>
+      {canAdmin && selected.size > 0 && (
+        <BulkActionBar selected={selected.size} total={rows.length} noun={noun} onClear={clear}>
+          {tab === 'open' ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDoneTasks((tasks ?? []).filter((t) => selected.has(t.id)))}
+              >
+                Mark done
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
+                Assign
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => setConfirmCancel(true)}>
+                Cancel tasks
+              </Button>
+            </>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Site</TableHead>
-                    <TableHead>Actions</TableHead>
-                    <TableHead>Due</TableHead>
-                    <TableHead>Assigned to</TableHead>
-                    <TableHead>Note</TableHead>
-                    {canAdmin && <TableHead />}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {shownTasks.map((task) => (
-                    <TableRow key={task.id}>
-                      <TableCell><SiteCell siteName={task.site_name} cameraLabel={task.camera_label} /></TableCell>
-                      <TableCell><ActionPills actions={task.action_types} /></TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {task.due_date ? (
-                          <div className="flex flex-col items-start gap-1">
-                            <span>{formatServiceDate(task.due_date)}</span>
-                            {task.overdue && <StatusPill tone="error">Overdue</StatusPill>}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {task.assigned_to_email ?? <span className="text-muted-foreground">Nobody yet</span>}
-                      </TableCell>
-                      <TableCell><NoteCell note={task.note} /></TableCell>
-                      {canAdmin && (
-                        <TableCell>
-                          <div className="flex justify-end gap-1">
-                            <IconAction label="Mark done" onClick={() => setCompleteTask(task)}>
-                              <Check className="h-4 w-4" />
-                            </IconAction>
-                            <IconAction label="Edit" onClick={() => setEditTask(task)}>
-                              <Pencil className="h-4 w-4" />
-                            </IconAction>
-                            <IconAction label="Cancel task" onClick={() => setCancelTarget(task)} destructive>
-                              <X className="h-4 w-4" />
-                            </IconAction>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <Button variant="destructive" size="sm" onClick={() => setConfirmDelete(true)}>
+              Delete
+            </Button>
           )}
-        </CardContent>
-      </Card>
+        </BulkActionBar>
+      )}
 
-      {/* Visits */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            Visits
-            {visits && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {isFiltered ? `${shownVisits.length} of ${visits.length}` : visits.length}
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {visitsLoading ? (
-            <p className="px-6 pb-6 text-sm text-muted-foreground">Loading visits...</p>
-          ) : shownVisits.length === 0 ? (
-            <p className="px-6 pb-6 text-sm text-muted-foreground">
-              {visits && visits.length > 0 ? 'No visits match your filters.' : 'No visits logged yet.'}
-            </p>
-          ) : (
+      {loading ? (
+        <p className="py-8 text-center text-muted-foreground">Loading {noun}...</p>
+      ) : rows.length === 0 ? (
+        <p className="py-8 text-center text-muted-foreground">
+          {tab === 'done'
+            ? 'No visits logged yet.'
+            : canAdmin
+              ? 'Nothing planned. Use Plan service to add work for the next field trip.'
+              : 'Nothing planned.'}
+        </p>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Site</TableHead>
-                    <TableHead>Actions</TableHead>
-                    <TableHead>Performed by</TableHead>
-                    <TableHead>Note</TableHead>
-                    {canAdmin && <TableHead />}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {shownVisits.map((visit) => (
-                    <TableRow key={visit.id}>
-                      <TableCell className="whitespace-nowrap">{formatServiceDate(visit.event_date)}</TableCell>
-                      <TableCell><SiteCell siteName={visit.site_name} cameraLabel={visit.camera_label} /></TableCell>
-                      <TableCell><ActionPills actions={visit.action_types} /></TableCell>
-                      <TableCell className="text-sm">
-                        {visit.performed_by_email ?? <span className="text-muted-foreground">-</span>}
-                      </TableCell>
-                      <TableCell><NoteCell note={visit.note} /></TableCell>
-                      {canAdmin && (
-                        <TableCell>
-                          <div className="flex justify-end">
-                            <IconAction label="Delete visit" onClick={() => setDeleteTarget(visit)} destructive>
-                              <Trash2 className="h-4 w-4" />
-                            </IconAction>
-                          </div>
-                        </TableCell>
+                {tab === 'open' ? (
+                  <>
+                    <TableHeader>
+                      <TableRow>
+                        {canAdmin && (
+                          <TableHead className="w-10">
+                            <SelectAllCheckbox
+                              visibleIds={shownTasks.map((t) => t.id)}
+                              selected={selected}
+                              onToggle={setMany}
+                              ariaLabel="Select all visible tasks"
+                            />
+                          </TableHead>
+                        )}
+                        <TableHead>
+                          <SortableHeader label="Site" column="site" sort={taskSort} onSort={(c) => setTaskSort((p) => nextSort(p, c))} />
+                        </TableHead>
+                        <TableHead>Actions</TableHead>
+                        <TableHead>
+                          <SortableHeader label="Due" column="due" sort={taskSort} onSort={(c) => setTaskSort((p) => nextSort(p, c))} />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader label="Assigned to" column="assignee" sort={taskSort} onSort={(c) => setTaskSort((p) => nextSort(p, c))} />
+                        </TableHead>
+                        <TableHead>Note</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {shownTasks.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={canAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                            No open tasks match your filters.
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableRow>
-                  ))}
-                </TableBody>
+                      {shownTasks.map((task) => (
+                        <TableRow
+                          key={task.id}
+                          className={canAdmin ? 'cursor-pointer' : undefined}
+                          onClick={canAdmin ? () => setEditTask(task) : undefined}
+                        >
+                          {canAdmin && (
+                            <RowCheckbox
+                              label={`Select task at ${task.site_name ?? task.camera_label}`}
+                              checked={selected.has(task.id)}
+                              onToggle={() => toggle(task.id)}
+                            />
+                          )}
+                          <TableCell><SiteCell siteName={task.site_name} cameraLabel={task.camera_label} /></TableCell>
+                          <TableCell><ActionPills actions={task.action_types} /></TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {task.due_date ? (
+                              <div className="flex flex-col items-start gap-1">
+                                <span>{formatServiceDate(task.due_date)}</span>
+                                {task.overdue && <StatusPill tone="error">Overdue</StatusPill>}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {task.assigned_to_email ?? <span className="text-muted-foreground">Nobody yet</span>}
+                          </TableCell>
+                          <TableCell><NoteCell note={task.note} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </>
+                ) : (
+                  <>
+                    <TableHeader>
+                      <TableRow>
+                        {canAdmin && (
+                          <TableHead className="w-10">
+                            <SelectAllCheckbox
+                              visibleIds={shownVisits.map((v) => v.id)}
+                              selected={selected}
+                              onToggle={setMany}
+                              ariaLabel="Select all visible visits"
+                            />
+                          </TableHead>
+                        )}
+                        <TableHead>
+                          <SortableHeader label="Date" column="date" sort={visitSort} onSort={(c) => setVisitSort((p) => nextSort(p, c))} />
+                        </TableHead>
+                        <TableHead>
+                          <SortableHeader label="Site" column="site" sort={visitSort} onSort={(c) => setVisitSort((p) => nextSort(p, c))} />
+                        </TableHead>
+                        <TableHead>Actions</TableHead>
+                        <TableHead>
+                          <SortableHeader label="Performed by" column="performer" sort={visitSort} onSort={(c) => setVisitSort((p) => nextSort(p, c))} />
+                        </TableHead>
+                        <TableHead>Note</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {shownVisits.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={canAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                            No visits match your filters.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {shownVisits.map((visit) => (
+                        <TableRow key={visit.id}>
+                          {canAdmin && (
+                            <RowCheckbox
+                              label={`Select visit at ${visit.site_name ?? visit.camera_label}`}
+                              checked={selected.has(visit.id)}
+                              onToggle={() => toggle(visit.id)}
+                            />
+                          )}
+                          <TableCell className="whitespace-nowrap">{formatServiceDate(visit.event_date)}</TableCell>
+                          <TableCell><SiteCell siteName={visit.site_name} cameraLabel={visit.camera_label} /></TableCell>
+                          <TableCell><ActionPills actions={visit.action_types} /></TableCell>
+                          <TableCell className="text-sm">
+                            {visit.performed_by_email ?? <span className="text-muted-foreground">-</span>}
+                          </TableCell>
+                          <TableCell><NoteCell note={visit.note} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </>
+                )}
               </Table>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {canAdmin && (
         <>
@@ -446,35 +558,43 @@ export const ServicePage: React.FC = () => {
             onConfirm={(cameraIds, fields) => planMutation.mutate({ cameraIds, fields })}
           />
           <LogVisitDialog
-            open={logOpen || completeTask !== null}
+            open={logOpen || doneTasks !== null}
             onClose={() => {
               setLogOpen(false);
-              setCompleteTask(null);
+              setDoneTasks(null);
             }}
             projectId={projectId}
-            task={completeTask}
+            tasks={doneTasks ?? undefined}
             isPending={logMutation.isPending}
             onConfirm={(cameraIds, fields) => logMutation.mutate({ cameraIds, fields })}
           />
+          <AssignTasksDialog
+            open={assignOpen}
+            onClose={() => setAssignOpen(false)}
+            projectId={projectId}
+            count={selected.size}
+            isPending={assignMutation.isPending}
+            onConfirm={(assignee, notify) => assignMutation.mutate({ assignee, notify })}
+          />
           <ConfirmDialog
-            open={cancelTarget !== null}
-            onClose={() => setCancelTarget(null)}
-            onConfirm={() => cancelTarget && cancelMutation.mutate(cancelTarget)}
-            title="Cancel this task?"
-            body="The task is removed. Nothing is logged, because the work was not done."
-            confirmLabel="Cancel task"
-            cancelLabel="Keep task"
+            open={confirmCancel}
+            onClose={() => setConfirmCancel(false)}
+            onConfirm={() => cancelMutation.mutate()}
+            title={`Cancel ${plural(selected.size, 'task')}?`}
+            body="The tasks are removed. Nothing is logged, because the work was not done."
+            confirmLabel="Cancel tasks"
+            cancelLabel="Keep tasks"
             variant="destructive"
             isPending={cancelMutation.isPending}
             focusCancel
           />
           <ConfirmDialog
-            open={deleteTarget !== null}
-            onClose={() => setDeleteTarget(null)}
-            onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
-            title="Delete this visit?"
-            body="The visit is removed from the service history. This cannot be undone."
-            confirmLabel="Delete visit"
+            open={confirmDelete}
+            onClose={() => setConfirmDelete(false)}
+            onConfirm={() => deleteMutation.mutate()}
+            title={`Delete ${plural(selected.size, 'visit')}?`}
+            body="The visits are removed from the service history. This cannot be undone."
+            confirmLabel="Delete"
             variant="destructive"
             isPending={deleteMutation.isPending}
             focusCancel

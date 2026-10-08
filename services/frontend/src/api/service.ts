@@ -44,6 +44,15 @@ export interface VisitFields {
   note: string | null;
 }
 
+/** Marking tasks done. action_types and note travel together: given, they
+ * replace what each task planned; null, every task keeps its own. */
+export interface CompleteFields {
+  event_date: string;
+  performed_by_user_id: number | null;
+  action_types: MaintenanceActionType[] | null;
+  note: string | null;
+}
+
 export interface TaskFields {
   action_types: MaintenanceActionType[];
   note: string | null;
@@ -60,8 +69,8 @@ export const serviceApi = {
     await apiClient.post(`/api/projects/${projectId}/service-visits`, { camera_ids: cameraIds, ...fields });
   },
 
-  deleteVisit: async (projectId: number, visitId: number): Promise<void> => {
-    await apiClient.delete(`/api/projects/${projectId}/service-visits/${visitId}`);
+  deleteVisits: async (projectId: number, visitIds: number[]): Promise<void> => {
+    await apiClient.post(`/api/projects/${projectId}/service-visits/delete`, { visit_ids: visitIds });
   },
 
   listTasks: async (projectId: number): Promise<ServiceTask[]> =>
@@ -75,12 +84,25 @@ export const serviceApi = {
     await apiClient.patch(`/api/projects/${projectId}/service-tasks/${taskId}`, fields);
   },
 
-  cancelTask: async (projectId: number, taskId: number): Promise<void> => {
-    await apiClient.delete(`/api/projects/${projectId}/service-tasks/${taskId}`);
+  assignTasks: async (
+    projectId: number,
+    taskIds: number[],
+    assignedToUserId: number | null,
+    notify: boolean,
+  ): Promise<void> => {
+    await apiClient.post(`/api/projects/${projectId}/service-tasks/assign`, {
+      task_ids: taskIds,
+      assigned_to_user_id: assignedToUserId,
+      notify,
+    });
   },
 
-  completeTask: async (projectId: number, taskId: number, fields: VisitFields): Promise<void> => {
-    await apiClient.post(`/api/projects/${projectId}/service-tasks/${taskId}/complete`, fields);
+  cancelTasks: async (projectId: number, taskIds: number[]): Promise<void> => {
+    await apiClient.post(`/api/projects/${projectId}/service-tasks/cancel`, { task_ids: taskIds });
+  },
+
+  completeTasks: async (projectId: number, taskIds: number[], fields: CompleteFields): Promise<void> => {
+    await apiClient.post(`/api/projects/${projectId}/service-tasks/complete`, { task_ids: taskIds, ...fields });
   },
 };
 
