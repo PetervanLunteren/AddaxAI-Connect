@@ -30,7 +30,7 @@ A task has no "in progress" state. Work on a camera trap is usually one visit, s
 
 ## Sites, not device ids
 
-Tasks and visits belong to a camera, but the page shows the site first, with the camera id small below it. People know "Big Oak North", not a device id.
+Tasks and visits belong to a camera, but the tables show the site first, with the camera id in its own column next to it, the same as on the Cameras page. People know "Big Oak North", not a device id.
 
 - An open task shows the site where the camera is now.
 - A visit shows the site where the camera stood on the day of the visit. When a camera moved on the same day, the visit counts for the new site.

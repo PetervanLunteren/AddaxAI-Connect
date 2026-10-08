@@ -41,8 +41,8 @@ import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } fro
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
 type Tab = 'open' | 'done';
-type TaskColumn = 'site' | 'due' | 'assignee';
-type VisitColumn = 'date' | 'site' | 'performer';
+type TaskColumn = 'site' | 'camera' | 'due' | 'assignee';
+type VisitColumn = 'date' | 'site' | 'camera' | 'performer';
 
 const FILTER_SCHEMA: FilterSchema = {
   tab: 'string',
@@ -74,6 +74,7 @@ function sortRows<T>(rows: T[], direction: 'asc' | 'desc', value: ((row: T) => s
 
 const TASK_SORT: Record<TaskColumn, (t: ServiceTask) => string | null> = {
   site: (t) => t.site_name,
+  camera: (t) => t.camera_label,
   due: (t) => t.due_date,
   assignee: (t) => t.assigned_to_email,
 };
@@ -81,16 +82,9 @@ const TASK_SORT: Record<TaskColumn, (t: ServiceTask) => string | null> = {
 const VISIT_SORT: Record<VisitColumn, (v: ServiceVisit) => string | null> = {
   date: (v) => v.event_date,
   site: (v) => v.site_name,
+  camera: (v) => v.camera_label,
   performer: (v) => v.performed_by_email,
 };
-
-/** Site first, the camera id small below it. */
-const SiteCell: React.FC<{ siteName: string | null; cameraLabel: string }> = ({ siteName, cameraLabel }) => (
-  <div>
-    <div className="font-medium">{siteName ?? 'No site'}</div>
-    <div className="text-xs text-muted-foreground">{cameraLabel}</div>
-  </div>
-);
 
 /** In vocabulary order, whatever order they were ticked in. */
 const ActionPills: React.FC<{ actions: MaintenanceActionType[] }> = ({ actions }) => (
@@ -431,6 +425,9 @@ export const ServicePage: React.FC = () => {
                         <TableHead>
                           <SortableHeader label="Site" column="site" sort={taskSort} onSort={(c) => setTaskSort((p) => nextSort(p, c))} />
                         </TableHead>
+                        <TableHead>
+                          <SortableHeader label="Camera ID" column="camera" sort={taskSort} onSort={(c) => setTaskSort((p) => nextSort(p, c))} />
+                        </TableHead>
                         <TableHead>Actions</TableHead>
                         <TableHead>
                           <SortableHeader label="Due" column="due" sort={taskSort} onSort={(c) => setTaskSort((p) => nextSort(p, c))} />
@@ -444,7 +441,7 @@ export const ServicePage: React.FC = () => {
                     <TableBody>
                       {shownTasks.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={canAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={canAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
                             No open tasks match your filters.
                           </TableCell>
                         </TableRow>
@@ -462,7 +459,8 @@ export const ServicePage: React.FC = () => {
                               onToggle={() => toggle(task.id)}
                             />
                           )}
-                          <TableCell><SiteCell siteName={task.site_name} cameraLabel={task.camera_label} /></TableCell>
+                          <TableCell className="font-medium">{task.site_name ?? 'No site'}</TableCell>
+                          <TableCell>{task.camera_label}</TableCell>
                           <TableCell><ActionPills actions={task.action_types} /></TableCell>
                           <TableCell className="whitespace-nowrap">
                             {task.due_date ? (
@@ -502,6 +500,9 @@ export const ServicePage: React.FC = () => {
                         <TableHead>
                           <SortableHeader label="Site" column="site" sort={visitSort} onSort={(c) => setVisitSort((p) => nextSort(p, c))} />
                         </TableHead>
+                        <TableHead>
+                          <SortableHeader label="Camera ID" column="camera" sort={visitSort} onSort={(c) => setVisitSort((p) => nextSort(p, c))} />
+                        </TableHead>
                         <TableHead>Actions</TableHead>
                         <TableHead>
                           <SortableHeader label="Performed by" column="performer" sort={visitSort} onSort={(c) => setVisitSort((p) => nextSort(p, c))} />
@@ -512,7 +513,7 @@ export const ServicePage: React.FC = () => {
                     <TableBody>
                       {shownVisits.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={canAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={canAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
                             No visits match your filters.
                           </TableCell>
                         </TableRow>
@@ -527,7 +528,8 @@ export const ServicePage: React.FC = () => {
                             />
                           )}
                           <TableCell className="whitespace-nowrap">{formatServiceDate(visit.event_date)}</TableCell>
-                          <TableCell><SiteCell siteName={visit.site_name} cameraLabel={visit.camera_label} /></TableCell>
+                          <TableCell className="font-medium">{visit.site_name ?? 'No site'}</TableCell>
+                          <TableCell>{visit.camera_label}</TableCell>
                           <TableCell><ActionPills actions={visit.action_types} /></TableCell>
                           <TableCell className="text-sm">
                             {visit.performed_by_email ?? <span className="text-muted-foreground">-</span>}
