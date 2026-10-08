@@ -22,7 +22,12 @@ export function naiveMs(value: string | null | undefined): number | null {
   const m = value ? NAIVE_RE.exec(value) : null;
   if (!m) return null;
   const [, y, mo, d, h, mi, s] = m;
-  return Date.UTC(+y, +mo - 1, +d, +h, +mi, s ? +s : 0);
+  // Date.UTC reads years 0 to 99 as 1900 to 1999, and Chrome reports a
+  // half-typed year such as 0002 to onChange. Writing 1902 back would wipe
+  // what the user is typing, so the year is set on its own.
+  const date = new Date(Date.UTC(2000, 0, 1, +h, +mi, s ? +s : 0));
+  date.setUTCFullYear(+y, +mo - 1, +d);
+  return date.getTime();
 }
 
 /** Inverse of naiveMs, in the datetime-local input format. */

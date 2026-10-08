@@ -75,11 +75,11 @@ export function ClockOffsetDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // A new photo starts unzoomed.
+  // Opening the dialog or moving to a new photo starts unzoomed.
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
-  }, [index]);
+  }, [open, index]);
 
   const sample = samples[index];
   const imageUrl = useMemo(() => (sample ? URL.createObjectURL(sample.file) : null), [sample]);
@@ -135,7 +135,8 @@ export function ClockOffsetDialog({
             A wrong camera clock is off by the same amount on every photo. Scroll
             on the photo to zoom in and read its printed date stamp. If it differs
             from the camera date, set the right date for one photo, browse a few
-            more to check, then apply.
+            more to check, then apply. Photos already in the project keep their
+            old date, so delete those first if they need correcting too.
           </DialogDescription>
         </DialogHeader>
 
