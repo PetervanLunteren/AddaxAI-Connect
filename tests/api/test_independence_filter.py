@@ -87,6 +87,11 @@ class TestBuildCte:
         assert "LOWER(cl.species) = ANY(CAST(:species_filter AS text[]))" in sql
         assert params["species_filter"] == ["fox"]
 
+    def test_hidden_images_left_out_of_every_branch(self):
+        """The human branch and both AI branches skip hidden images."""
+        sql, _ = _build_cte()
+        assert sql.count("i.is_hidden = FALSE") == 3
+
     def test_no_format_placeholders_remain(self):
         """After formatting, no {placeholder} strings should remain."""
         sql, _ = _build_cte()

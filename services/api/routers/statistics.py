@@ -648,6 +648,7 @@ async def fetch_site_buckets(
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
                 AND {verified_scope}
+                AND i.is_hidden = FALSE
                 -- Half-open range on the raw timestamp rather than casting
                 -- every row to a date. Same rows, one less conversion per
                 -- image, and there are three of these joins over 58k images.
@@ -684,6 +685,7 @@ async def fetch_site_buckets(
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
                 AND {ai_scope}
+                AND i.is_hidden = FALSE
                 -- Half-open range on the raw timestamp rather than casting
                 -- every row to a date. Same rows, one less conversion per
                 -- image, and there are three of these joins over 58k images.
@@ -714,6 +716,7 @@ async def fetch_site_buckets(
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
                 AND {ai_scope}
+                AND i.is_hidden = FALSE
                 -- Half-open range on the raw timestamp rather than casting
                 -- every row to a date. Same rows, one less conversion per
                 -- image, and there are three of these joins over 58k images.

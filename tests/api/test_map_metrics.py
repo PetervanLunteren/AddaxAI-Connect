@@ -147,6 +147,11 @@ class TestMapQuerySource:
         src = self._source()
         assert src.count("= ANY(CAST(:species_list AS text[]))") == 3
 
+    def test_hidden_images_left_out_of_every_branch(self):
+        # Hidden means hidden from analysis; the old spatial export dropped
+        # them and the map and export share this query.
+        assert self._source().count("AND i.is_hidden = FALSE") == 3
+
     def test_pooling_goes_through_the_helper(self):
         src = self._source()
         assert "pool_map_rows(rows, indep_counts)" in src

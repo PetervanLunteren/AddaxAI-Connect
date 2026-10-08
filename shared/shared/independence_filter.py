@@ -33,7 +33,7 @@ WITH raw_obs AS (
     FROM human_observations ho
     JOIN images i ON ho.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
-    WHERE {verified_scope} AND c.project_id = ANY(:project_ids)
+    WHERE {verified_scope} AND c.project_id = ANY(:project_ids) AND i.is_hidden = FALSE
       {verified_filters}{unverified_branches}
 ),
 -- Per-image: sum all detections of same species in same image
@@ -105,7 +105,7 @@ _UNVERIFIED_BRANCHES = """
     JOIN images i ON d.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
     JOIN projects p ON c.project_id = p.id
-    WHERE {ai_scope} AND c.project_id = ANY(:project_ids)
+    WHERE {ai_scope} AND c.project_id = ANY(:project_ids) AND i.is_hidden = FALSE
       AND d.confidence >= p.detection_threshold
       AND {classification_filter}
       {unverified_filters}
@@ -116,7 +116,7 @@ _UNVERIFIED_BRANCHES = """
     JOIN images i ON d.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
     JOIN projects p ON c.project_id = p.id
-    WHERE {ai_scope} AND c.project_id = ANY(:project_ids)
+    WHERE {ai_scope} AND c.project_id = ANY(:project_ids) AND i.is_hidden = FALSE
       AND d.category IN ('person', 'vehicle')
       AND d.confidence >= p.detection_threshold
       {pv_filters}"""
