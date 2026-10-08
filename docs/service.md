@@ -35,7 +35,7 @@ You can also plan from the Cameras and Sites pages. Select rows there, for examp
 Tasks and visits belong to a camera, but the tables show the site first, with the camera id in its own column next to it, the same as on the Cameras page. People know "Big Oak North", not a device id.
 
 - An open task shows the site where the camera is now.
-- A visit shows the site where the camera stood on the day of the visit. When a camera moved on the same day, the visit counts for the new site.
+- A visit shows the site where the camera stood on the day of the visit: its newest placement that started on or before that day. When a camera moved on the same day, the visit counts for the new site.
 - A visit from before the camera sent its first photo has no site yet. It shows as "No site".
 
 Because a task follows its camera, a task cannot be planned for a site that has no camera at the moment. When a camera moves to another site before the work is done, its open task moves with it.

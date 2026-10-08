@@ -172,11 +172,15 @@ class TestSiteScope:
     """Visits use the site on the visit date, tasks the current site. A
     restricted scope filters on that site, so rows without one drop out."""
 
-    def test_visit_site_is_the_deployment_on_the_visit_date(self):
+    def test_visit_site_is_the_newest_deployment_started_by_the_visit_date(self):
         sql = _sql(_visits_query(1, None))
         assert "deployments.start_date <= camera_maintenance_events.event_date" in sql
-        assert "deployments.end_date >= camera_maintenance_events.event_date" in sql
         assert "ORDER BY deployments.deployment_number DESC" in sql
+
+    def test_visit_site_ignores_the_end_date(self):
+        # A bulk-upload deployment ends at its last photo; a card swap after
+        # that still happened at the same site.
+        assert "deployments.end_date" not in _sql(_visits_query(1, None))
 
     def test_task_site_is_the_current_site(self):
         sql = _sql(_tasks_query(1, None))

@@ -692,9 +692,10 @@ before today in the server timezone). Everything lives in
 `camera.project_id == project_id` check covers access and membership.
 User docs: `docs/service.md`.
 
-- Stored per camera, shown by site. A visit's site is the deployment
-  covering its date (on a move day the newest wins), a task's site is the
-  camera's current site. Both come from `site_of_camera` in
+- Stored per camera, shown by site. A visit's site is the newest
+  deployment that started on or before its date (end dates ignored, a
+  bulk-upload deployment ends at its last photo while the camera stays),
+  a task's site is the camera's current site. Both come from `site_of_camera` in
   `utils/site_scope.py`, which is also what the viewer scope filters on,
   so a row without a site is invisible to a restricted viewer.
 - Every member reads, admins write. The frontend has one place to act,
