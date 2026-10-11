@@ -68,6 +68,9 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
 };
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) => {
+  // Deleting wipes every camera, site and image of the project, so the API
+  // keeps it for server admins, also on projects a project admin created.
+  const canDelete = project.role === 'server-admin';
   const navigate = useNavigate();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -119,13 +122,15 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
                     <Edit className="h-4 w-4 mr-2" />
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setShowDeleteModal(true)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
+                  {canDelete && (
+                    <DropdownMenuItem
+                      onClick={() => setShowDeleteModal(true)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -158,7 +163,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
       )}
 
       {/* Delete Modal */}
-      {canManage && (
+      {canDelete && (
         <DeleteProjectModal
           project={project}
           open={showDeleteModal}
