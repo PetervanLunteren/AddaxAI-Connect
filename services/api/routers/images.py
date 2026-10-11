@@ -33,7 +33,7 @@ from utils.detection_filtering import (
     strongest_hidden_detection,
 )
 from utils.sun_time import day_or_night
-from utils.tags import normalize_tags
+from utils.tags import normalize_tags, tag_length_error
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -1726,6 +1726,8 @@ async def set_image_tags(
 
     await _check_image_in_scope(db, current_user, image, camera.project_id)
 
+    if error := tag_length_error(request.tags, image.tags):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
     image.tags = normalize_tags(request.tags)
     await db.commit()
 

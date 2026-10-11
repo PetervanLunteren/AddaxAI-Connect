@@ -65,14 +65,16 @@ def build_project_image_urls(project: Project) -> tuple[str | None, str | None]:
 
 class ProjectCreate(BaseModel):
     """Request body for creating a project"""
-    name: str = Field(min_length=1, max_length=255)
+    # pattern: at least one character that is not a space. The UI trims the
+    # name; a direct API call must not create a project named "   ".
+    name: str = Field(min_length=1, max_length=255, pattern=r"\S")
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
 
 
 class ProjectUpdate(BaseModel):
     """Request body for updating a project"""
-    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255, pattern=r"\S")
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
     detection_threshold: Optional[float] = None

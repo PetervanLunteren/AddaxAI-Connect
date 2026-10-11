@@ -30,7 +30,7 @@ from auth.permissions import require_project_access, require_project_admin_acces
 from auth.project_access import get_site_scope
 from utils.deployment_edits import recompute_site_location
 from utils.site_scope import site_in_scope
-from utils.tags import normalize_tags, rename_tag_in_list
+from utils.tags import normalize_tags, rename_tag_in_list, tag_length_error
 
 logger = get_logger("api.sites")
 
@@ -363,6 +363,8 @@ async def bulk_add_tags(
         )
 
     sites = await _load_bulk_sites(db, project_id, request.site_ids)
+    if error := tag_length_error(request.tags):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
     incoming = normalize_tags(request.tags)
     for site in sites:
         site.tags = normalize_tags(list(site.tags or []) + incoming)
@@ -430,6 +432,8 @@ async def rename_site_tag(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Both the current and the new tag are required",
         )
+    if error := tag_length_error(new):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
 
     updated = 0
     for site in await _sites_with_tags(db, project_id):
@@ -540,6 +544,8 @@ async def update_site(
     if body.notes is not None:
         site.notes = body.notes or None
     if body.tags is not None:
+        if error := tag_length_error(body.tags, site.tags):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
         site.tags = normalize_tags(body.tags)
     try:
         await db.commit()

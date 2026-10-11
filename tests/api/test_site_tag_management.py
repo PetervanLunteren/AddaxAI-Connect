@@ -8,7 +8,7 @@ _api = os.path.abspath(_api)
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from utils.tags import rename_tag_in_list  # noqa: E402
+from utils.tags import MAX_TAG_LENGTH, rename_tag_in_list, tag_length_error  # noqa: E402
 
 
 class TestRenameTagInList:
@@ -31,6 +31,31 @@ class TestRenameTagInList:
 
     def test_none_list(self):
         assert rename_tag_in_list(None, "bridge", "wetland") == []
+
+
+class TestTagLengthError:
+    def test_limit_is_inclusive(self):
+        assert tag_length_error(["a" * MAX_TAG_LENGTH]) is None
+        assert tag_length_error(["a" * (MAX_TAG_LENGTH + 1)]) is not None
+
+    def test_measured_after_normalizing(self):
+        # Surrounding spaces and commas are stripped before the count.
+        assert tag_length_error(["  " + "a" * MAX_TAG_LENGTH + ",  "]) is None
+
+    def test_tag_already_on_the_row_passes(self):
+        long_tag = "a" * (MAX_TAG_LENGTH + 10)
+        assert tag_length_error([long_tag, "forest"], [long_tag]) is None
+        assert tag_length_error([long_tag], ["forest"]) is not None
+
+    def test_empty_and_none(self):
+        assert tag_length_error(None) is None
+        assert tag_length_error([]) is None
+
+    def test_every_tag_writer_checks_the_length(self):
+        from routers import cameras, images, sites
+
+        for module, count in ((sites, 3), (cameras, 3), (images, 1)):
+            assert inspect.getsource(module).count("tag_length_error(") == count
 
 
 class TestTagEndpointsSource:

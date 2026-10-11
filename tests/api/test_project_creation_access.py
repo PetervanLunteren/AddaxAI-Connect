@@ -97,3 +97,21 @@ class TestCreateProjectSource:
         assert "require_server_admin" in str(
             sig.parameters["current_user"].default
         )
+
+
+class TestProjectName:
+    def test_blank_name_is_refused(self):
+        from pydantic import ValidationError
+
+        from routers.projects import ProjectCreate, ProjectUpdate
+
+        for model in (ProjectCreate, ProjectUpdate):
+            with pytest.raises(ValidationError):
+                model(name="   ")
+
+    def test_name_with_spaces_inside_is_fine(self):
+        from routers.projects import ProjectCreate, ProjectUpdate
+
+        assert ProjectCreate(name="Mont de Grange").name == "Mont de Grange"
+        assert ProjectUpdate(name=" x").name == " x"
+        assert ProjectUpdate().name is None

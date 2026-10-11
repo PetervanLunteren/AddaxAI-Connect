@@ -27,7 +27,7 @@ from shared.camera_status import camera_status as _camera_status
 from utils.camera_recency import fetch_camera_recency
 from utils.camera_rejections import fetch_recent_rejection_counts, REJECTED_RECENT_DAYS
 from utils.site_scope import cameras_current_site_clause, site_in_scope
-from utils.tags import normalize_tags
+from utils.tags import normalize_tags, tag_length_error
 
 logger = get_logger(__name__)
 
@@ -564,6 +564,8 @@ async def bulk_add_tags(
     cameras = await _load_bulk_cameras(db, request.camera_ids)
     await _verify_admin_on_all_projects(current_user, cameras, db)
 
+    if error := tag_length_error(request.tags):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
     incoming = normalize_tags(request.tags)
     for camera in cameras:
         merged = list(camera.tags or []) + incoming
@@ -1038,6 +1040,9 @@ async def create_camera(
             detail=f"Project with ID {request.project_id} not found",
         )
 
+    if error := tag_length_error(request.tags):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+
     # Create camera
     camera = Camera(
         device_id=request.device_id,
@@ -1106,6 +1111,8 @@ async def update_camera(
     if request.notes is not None:
         camera.notes = request.notes
     if request.tags is not None:
+        if error := tag_length_error(request.tags, camera.tags):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
         camera.tags = normalize_tags(request.tags)
     # Clearing must be possible (typo recovery, retired camera), so check
     # whether the field was sent explicitly rather than only checking for
