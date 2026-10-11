@@ -13,8 +13,10 @@
  * be fixed on the row where it is seen. Those actions change the tag
  * everywhere in the project, not just on the row being edited, so hosts pass
  * them only in admin contexts and confirm deletes themselves (the widget just
- * reports the wish). The icons render always, not on hover, because hover
- * does not exist on phones.
+ * reports the wish). Once the server has done it, the host reports it back
+ * in `lastChange` and the widget updates its own chips, so a dialog left
+ * open cannot write the old tag back. The icons render always, not on
+ * hover, because hover does not exist on phones.
  *
  * The list sits in the normal page flow rather than floating over it, so a
  * dialog or sheet with its own scroll area cannot clip it or hide buttons.
@@ -31,6 +33,14 @@ export interface TagManagement {
   counts: Record<string, number>;
   /** What a row is called, e.g. "site", so the count reads "on 3 sites". */
   noun: string;
+  /** The last rename (to the new name) or delete (to null) the server
+   * finished. A new object each time. */
+  lastChange?: TagChange | null;
+}
+
+export interface TagChange {
+  from: string;
+  to: string | null;
 }
 
 interface TagInputProps {
@@ -67,6 +77,21 @@ export const TagInput: React.FC<TagInputProps> = ({
   const [renameValue, setRenameValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // A change made before this widget mounted is already in its value.
+  const seenChange = useRef(management?.lastChange);
+
+  useEffect(() => {
+    const change = management?.lastChange;
+    if (!change || change === seenChange.current) return;
+    seenChange.current = change;
+    if (!value.includes(change.from)) return;
+    onChange(
+      value.flatMap((t) =>
+        t !== change.from ? [t] : change.to && !value.includes(change.to) ? [change.to] : [],
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [management?.lastChange]);
 
   const typed = inputValue.trim() !== '';
   const onRow = (tag: string) => value.includes(tag);

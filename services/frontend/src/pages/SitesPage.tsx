@@ -58,7 +58,7 @@ import { MapSelectButton, MapSelectDialog } from '../components/map/MapSelectDia
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
-import type { TagManagement } from '../components/TagInput';
+import type { TagChange, TagManagement } from '../components/TagInput';
 import { ColumnPicker } from '../components/ui/ColumnPicker';
 import { SortableHeader } from '../components/ui/SortableHeader';
 import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
@@ -170,6 +170,7 @@ export const SitesPage: React.FC = () => {
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
   // Tag picked for project-wide deletion from inside a TagInput.
   const [deleteTagTarget, setDeleteTagTarget] = useState<string | null>(null);
+  const [lastTagChange, setLastTagChange] = useState<TagChange | null>(null);
   const [showMapSelect, setShowMapSelect] = useState(false);
 
   // Bulk-edit selection, shared hook with the cameras page.
@@ -439,8 +440,9 @@ export const SitesPage: React.FC = () => {
   const renameTagMutation = useMutation({
     mutationFn: ({ oldTag, newTag }: { oldTag: string; newTag: string }) =>
       sitesApi.renameTag(pid, oldTag, newTag),
-    onSuccess: (res) => {
+    onSuccess: (res, { oldTag, newTag }) => {
       invalidate();
+      setLastTagChange({ from: oldTag, to: newTag });
       toast.success(
         `Renamed the tag on ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`,
       );
@@ -449,9 +451,10 @@ export const SitesPage: React.FC = () => {
   });
   const deleteTagMutation = useMutation({
     mutationFn: (tag: string) => sitesApi.deleteTag(pid, tag),
-    onSuccess: (res) => {
+    onSuccess: (res, tag) => {
       invalidate();
       setDeleteTagTarget(null);
+      setLastTagChange({ from: tag, to: null });
       toast.success(
         `Removed the tag from ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`,
       );
@@ -476,10 +479,11 @@ export const SitesPage: React.FC = () => {
             onDeleteTag: setDeleteTagTarget,
             counts: tagCounts,
             noun: 'site',
+            lastChange: lastTagChange,
           }
         : undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [canEdit, tagCounts, renameTagMutation.mutate],
+    [canEdit, tagCounts, renameTagMutation.mutate, lastTagChange],
   );
 
   const mergeMutation = useMutation({
