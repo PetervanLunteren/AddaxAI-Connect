@@ -40,6 +40,10 @@ export interface PerformanceData {
   /** Total cells in the matrix, one per paired subject */
   matrix_subjects: number;
   by_site: PerformanceSiteRow[];
+  /** Client side only, set by the Labels filter: the classes that get a
+   * per-class row and count in the averages. The matrix also keeps their
+   * partner classes. */
+  selected_classes?: string[];
 }
 
 export interface PerformanceFilters {

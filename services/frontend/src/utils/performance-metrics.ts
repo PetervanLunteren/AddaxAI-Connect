@@ -8,7 +8,7 @@
  * matrix cells and the F1 column.
  */
 import type { PerformanceData } from '../api/performance';
-import { normalizeLabel } from './labels';
+import { DETECTOR_CATEGORIES, normalizeLabel } from './labels';
 
 /**
  * Options for the Labels filter: every class in the data, plus any label
@@ -67,11 +67,15 @@ export interface DetailedMetrics {
  * Narrow the performance data to the selected labels, the same mental model
  * as the Labels filter on the Images page. An empty selection means all.
  *
- * Dropping a class removes its row AND its column, so a subject paired with
- * a deselected class disappears from every number instead of counting as an
- * error. That is the point: a validator who retypes mustelids as pine
- * marten can deselect the classes involved and read the AI's performance on
- * everything else. The by-site table is computed on the server and passes
+ * A subject stays when the person or the AI named a selected class, so a
+ * selected class keeps its misses (its row) and its false alarms (its
+ * column), and its precision and recall do not change with the selection.
+ * Only subjects where both sides name a deselected class drop out. That
+ * keeps the original use: a validator who retypes mustelids as pine marten
+ * deselects both classes and reads the AI's performance on everything else.
+ * The partner classes (empty, a species the AI confused it with) stay in
+ * the matrix; per-class rows and averages cover the selection only, through
+ * selected_classes. The by-site table is computed on the server and passes
  * through unchanged.
  */
 export function filterPerformanceClasses(
@@ -80,13 +84,18 @@ export function filterPerformanceClasses(
 ): PerformanceData {
   if (selected.length === 0) return data;
   const keep = new Set(selected);
-  const indices = data.matrix_classes
-    .map((cls, idx) => ({ cls, idx }))
-    .filter(({ cls }) => keep.has(cls));
-
-  const matrix = indices.map(({ idx: r }) =>
-    indices.map(({ idx: c }) => data.matrix[r][c]),
+  const kept = data.matrix.map((row, r) =>
+    row.map((v, c) =>
+      keep.has(data.matrix_classes[r]) || keep.has(data.matrix_classes[c]) ? v : 0,
+    ),
   );
+  const rowSum = (r: number) => kept[r].reduce((s, v) => s + v, 0);
+  const colSum = (c: number) => kept.reduce((s, row) => s + row[c], 0);
+  const indices = data.matrix_classes
+    .map((_, idx) => idx)
+    .filter((idx) => rowSum(idx) > 0 || colSum(idx) > 0);
+
+  const matrix = indices.map((r) => indices.map((c) => kept[r][c]));
   const rowTotals = matrix.map((row) => row.reduce((s, v) => s + v, 0));
   const colTotals = indices.map((_, j) =>
     matrix.reduce((s, row) => s + row[j], 0),
@@ -97,14 +106,21 @@ export function filterPerformanceClasses(
   return {
     ...data,
     aggregate: data.aggregate.filter((row) => keep.has(row.species)),
-    matrix_classes: indices.map(({ cls }) => cls),
+    matrix_classes: indices.map((idx) => data.matrix_classes[idx]),
     matrix,
     matrix_row_totals: rowTotals,
     matrix_col_totals: colTotals,
     matrix_correct: correct,
     matrix_accuracy: subjects > 0 ? correct / subjects : 0,
     matrix_subjects: subjects,
+    selected_classes: selected,
   };
+}
+
+/** True when the class gets its own per-class row: no Labels filter, or
+ * the filter selected it. */
+export function isShownClass(data: PerformanceData, cls: string): boolean {
+  return !data.selected_classes || data.selected_classes.includes(cls);
 }
 
 export function formatPercent(value: number): string {
@@ -184,25 +200,32 @@ export function computeDetailedMetrics(data: PerformanceData): DetailedMetrics {
     return { species: cls, support, precision, recall, f1 };
   });
 
-  // Drop classes with no signal at all.
-  const present = perClass.filter((c) => c.support > 0 || (c.precision !== null && c.precision >= 0));
+  // Drop classes with no signal at all, and the partner classes a Labels
+  // filter keeps only for the matrix.
+  const present = perClass.filter(
+    (c) => (c.support > 0 || c.precision !== null) && isShownClass(data, c.species),
+  );
+  // Averages cover the classifier's classes only. Empty, person and vehicle
+  // are detector categories, kept in perClass but not averaged, the same
+  // rule as the Per-class performance table.
+  const averaged = present.filter((c) => !DETECTOR_CATEGORIES.has(c.species));
 
-  // Macro: simple mean across present classes, ignoring nulls.
-  const validP = present.filter((c) => c.precision !== null);
-  const validR = present.filter((c) => c.recall !== null);
-  const validF1 = present.filter((c) => c.f1 !== null);
+  // Macro: simple mean across averaged classes, ignoring nulls.
+  const validP = averaged.filter((c) => c.precision !== null);
+  const validR = averaged.filter((c) => c.recall !== null);
+  const validF1 = averaged.filter((c) => c.f1 !== null);
   const mean = (xs: number[]): number | null => (xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
   const macroP = mean(validP.map((c) => c.precision as number));
   const macroR = mean(validR.map((c) => c.recall as number));
   const macroF1 = mean(validF1.map((c) => c.f1 as number));
 
   // Weighted: weighted by support.
-  const totalSupport = present.reduce((s, c) => s + c.support, 0);
+  const totalSupport = averaged.reduce((s, c) => s + c.support, 0);
   const weighted = (key: 'precision' | 'recall' | 'f1'): number | null => {
     if (totalSupport === 0) return null;
     let acc = 0;
     let weight = 0;
-    for (const c of present) {
+    for (const c of averaged) {
       const v = c[key];
       if (v === null) continue;
       acc += v * c.support;

@@ -32,9 +32,11 @@ import { PerformanceSummaryCards } from '../../components/performance/Performanc
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import { normalizeLabel, DETECTOR_CATEGORIES } from '../../utils/labels';
 import {
+  computeDetailedMetrics,
   f1DivergingColor,
   filterPerformanceClasses,
   formatPercent,
+  isShownClass,
   labelFilterOptions,
   performanceImagesUrl,
 } from '../../utils/performance-metrics';
@@ -119,7 +121,7 @@ function buildRows(data: PerformanceData, topN: number | null): ClassRow[] {
         freq: m.support + data.matrix_col_totals[idx],
       };
     })
-    .filter((row) => row.support > 0 || row.colTotal > 0)
+    .filter((row) => (row.support > 0 || row.colTotal > 0) && isShownClass(data, row.cls))
     .sort((a, b) => {
       if (b.support !== a.support) return b.support - a.support;
       return a.cls.localeCompare(b.cls);
@@ -188,42 +190,17 @@ function fmtMetric(v: number | null): string {
   return v === null ? '–' : formatPercent(v);
 }
 
-function averageOver(rows: ClassRow[], key: 'precision' | 'recall' | 'f1'): number | null {
-  const eligible = rows.filter(
-    (r) => !r.isDetectorCategory && !r.isOther && r[key] !== null,
-  );
-  if (eligible.length === 0) return null;
-  return eligible.reduce((s, r) => s + (r[key] as number), 0) / eligible.length;
-}
-
-function weightedAverage(
-  rows: ClassRow[],
-  key: 'precision' | 'recall' | 'f1',
-): number | null {
-  const eligible = rows.filter(
-    (r) => !r.isDetectorCategory && !r.isOther && r[key] !== null && r.support > 0,
-  );
-  const totalSupport = eligible.reduce((s, r) => s + r.support, 0);
-  if (totalSupport === 0) return null;
-  return (
-    eligible.reduce((s, r) => s + (r[key] as number) * r.support, 0) /
-    totalSupport
-  );
-}
-
 const MetricsTable: React.FC<{
+  data: PerformanceData;
   rows: ClassRow[];
   projectId: number;
   scope: ImagesScope;
-}> = ({ rows, projectId, scope }) => {
+}> = ({ data, rows, projectId, scope }) => {
   const navigate = useNavigate();
 
-  const macroP = averageOver(rows, 'precision');
-  const macroR = averageOver(rows, 'recall');
-  const macroF1 = averageOver(rows, 'f1');
-  const weightedP = weightedAverage(rows, 'precision');
-  const weightedR = weightedAverage(rows, 'recall');
-  const weightedF1 = weightedAverage(rows, 'f1');
+  // The same averages as the summary cards: every shown classifier class,
+  // also the ones folded into "Other".
+  const m = useMemo(() => computeDetailedMetrics(data), [data]);
 
   const handleRowClick = (row: ClassRow) => {
     if (row.isOther || row.isDetectorCategory) return;
@@ -253,7 +230,7 @@ const MetricsTable: React.FC<{
             const rowTitle = row.isDetectorCategory
               ? 'Detector category, not a classifier class. Excluded from macro / weighted averages.'
               : row.isOther
-                ? 'Bucket of classes outside the Show-top limit. Excluded from macro / weighted averages.'
+                ? 'Bucket of classes outside the Show-top limit. The averages count each of these classes on its own.'
                 : undefined;
             return (
               <tr
@@ -287,8 +264,8 @@ const MetricsTable: React.FC<{
           })}
         </tbody>
         <tfoot className="border-t-2">
-          <SummaryRow label="Macro avg" p={macroP} r={macroR} f1={macroF1} />
-          <SummaryRow label="Weighted avg" p={weightedP} r={weightedR} f1={weightedF1} />
+          <SummaryRow label="Macro avg" p={m.macroP} r={m.macroR} f1={m.macroF1} />
+          <SummaryRow label="Weighted avg" p={m.weightedP} r={m.weightedR} f1={m.weightedF1} />
         </tfoot>
       </table>
     </div>
@@ -597,7 +574,8 @@ export const PerClassPerformancePage: React.FC = () => {
 
   const totalClasses = effectiveData?.matrix_classes.filter((_, i) => {
     if (!effectiveData) return false;
-    return effectiveData.matrix_row_totals[i] > 0 || effectiveData.matrix_col_totals[i] > 0;
+    return (effectiveData.matrix_row_totals[i] > 0 || effectiveData.matrix_col_totals[i] > 0)
+      && isShownClass(effectiveData, effectiveData.matrix_classes[i]);
   }).length ?? 0;
   const foldedCount = topN === null ? 0 : Math.max(0, totalClasses - topN);
 
@@ -641,7 +619,7 @@ export const PerClassPerformancePage: React.FC = () => {
         <>
           <PerformanceSummaryCards data={effectiveData} />
           <div className="rounded-lg border bg-card p-4 space-y-3">
-            <MetricsTable rows={rows} projectId={projectIdNum} scope={imagesScope} />
+            <MetricsTable data={effectiveData} rows={rows} projectId={projectIdNum} scope={imagesScope} />
             <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 shrink-0" />
               <span>
@@ -711,11 +689,13 @@ export const PerClassPerformancePage: React.FC = () => {
             The F1 cell uses a diverging palette from red (low) through mid teal to dark teal
             (high) so strong and weak classes are easy to spot. Click any row to open the
             underlying verified images. Detector categories (<em>empty</em>, <em>person</em>,{' '}
-            <em>vehicle</em>) and the <em>other</em> bucket render in italics and are excluded
-            from the macro / weighted averages because they are not classifier predictions.
-            The Labels filter narrows every number on this page except the by-site table,
-            which always covers all labels. Deselect a label to keep a known mismatch, like
-            hand-typed species the AI cannot know, out of the scores.
+            <em>vehicle</em>) render in italics and are excluded from the macro / weighted
+            averages because they are not classifier predictions. The <em>other</em> bucket
+            is not averaged either, but each class inside it is. The Labels filter picks the
+            classes to show. A selected class keeps all its misses and false alarms, so its
+            scores do not change. Deselect the labels on both sides of a known mismatch, like
+            hand-typed species the AI cannot know, to keep those subjects out of the scores.
+            The by-site table always covers all labels.
           </p>
         }
       />
