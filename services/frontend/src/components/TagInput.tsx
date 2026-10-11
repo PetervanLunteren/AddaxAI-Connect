@@ -319,6 +319,10 @@ export const TagInput: React.FC<TagInputProps> = ({
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={(e) => {
                         e.stopPropagation();
+                        // The text was typed to find this tag. Clear it, or
+                        // the host's confirmation takes focus and the blur
+                        // commits it as a new tag.
+                        setInputValue('');
                         setShowSuggestions(false);
                         management.onDeleteTag(suggestion);
                       }}
