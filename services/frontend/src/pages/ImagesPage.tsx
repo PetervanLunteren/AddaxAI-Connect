@@ -3,6 +3,7 @@
  */
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 import { Calendar, MapPin, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
@@ -75,6 +76,9 @@ export const ImagesPage: React.FC = () => {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
   const [searchParams, setSearchParams] = usePersistedFilterParams('images', FILTER_SCHEMA);
+  // The plain setter, for a write that must not become the remembered
+  // filters (a link is followed, the user changed nothing).
+  const [, setLinkParams] = useSearchParams();
   const [page, setPage] = useState(1);
   // The open image lives in the URL, so the address bar always matches the
   // screen and a link to one image can be shared and refreshed.
@@ -149,15 +153,16 @@ export const ImagesPage: React.FC = () => {
   // Write the filter params, keeping the open image. filtersToSearchParams
   // rebuilds the query string from FILTER_SCHEMA alone, so ?image= would be
   // dropped on every filter change without this. Every writer goes through
-  // here for that reason.
-  const writeFilters = useCallback((values: Record<string, FilterValue>) => {
-    setSearchParams((prev) => {
+  // here for that reason. remember=false keeps the write out of the
+  // remembered filters.
+  const writeFilters = useCallback((values: Record<string, FilterValue>, remember = true) => {
+    (remember ? setSearchParams : setLinkParams)((prev) => {
       const next = filtersToSearchParams(values, FILTER_SCHEMA);
       const image = prev.get('image');
       if (image) next.set('image', image);
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [setSearchParams, setLinkParams]);
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
     writeFilters({ ...filterValues, ...patch });
@@ -293,7 +298,8 @@ export const ImagesPage: React.FC = () => {
       );
     }
 
-    writeFilters(next);
+    // Following a link never overwrites the remembered filters.
+    writeFilters(next, false);
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameras, rawLabelOptions]);

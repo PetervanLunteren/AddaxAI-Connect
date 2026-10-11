@@ -14,13 +14,16 @@
  * - The restored params are returned synchronously on the first render
  *   (the URL catches up in an effect), so queries never fire unfiltered
  *   first and refetch filtered a render later.
+ * - The project comes from the address, not the selected project, which
+ *   catches up in an effect a render later. Otherwise the first render on
+ *   another project's page would restore and save the previous project's
+ *   filters (site ids) there.
  * - localStorage reads and writes are wrapped: with storage blocked the
  *   page behaves exactly as before, filters just stop persisting.
  */
 import { useCallback, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { useProject } from '../contexts/ProjectContext';
 import type { FilterSchema } from './filter-url';
 
 type ParamsInit = URLSearchParams | ((prev: URLSearchParams) => URLSearchParams);
@@ -57,11 +60,11 @@ export function usePersistedFilterParams(
   schema: FilterSchema,
 ): [URLSearchParams, SetParams] {
   const { user } = useAuth();
-  const { selectedProject } = useProject();
+  const { projectId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const storageKey =
-    `addaxai:filters:${user?.id ?? 'anon'}:${selectedProject?.id ?? 'none'}:${page}`;
+    `addaxai:filters:${user?.id ?? 'anon'}:${projectId ?? 'none'}:${page}`;
 
   // Saved filters to restore, or null. An empty string (filters cleared)
   // counts as nothing to restore. Once the URL carries them it is no longer
