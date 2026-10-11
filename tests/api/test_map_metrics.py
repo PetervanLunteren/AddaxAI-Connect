@@ -93,6 +93,16 @@ class TestPoolMapRows:
         assert b["detections"] == 6
         assert b["trap_days"] == 100
 
+    def test_independence_override_sums_casings(self):
+        # The independence query groups on the raw species, so "Fox" from a
+        # validator and "fox" from the AI arrive as two keys and must add up
+        buckets = self._pool(
+            [_row(1, 10, "fox", 9, camera_id=5, deployment_number=1)],
+            indep_counts={(5, 1): {"Fox": 2, "fox": 5}},
+        )
+        assert buckets[10]["species_counts"] == {"fox": 7}
+        assert buckets[10]["detections"] == 7
+
     def test_independence_override_missing_deployment_means_zero(self):
         buckets = self._pool(
             [_row(1, 10, "fox", 9, camera_id=7, deployment_number=1)],

@@ -1791,6 +1791,7 @@ async def export_spatial(
                 AND i.captured_at::date >= di.start_date
                 AND (di.end_date IS NULL OR i.captured_at::date <= di.end_date)
                 AND i.status = 'classified'
+                AND i.is_hidden = FALSE
             LEFT JOIN detections d
                 ON d.image_id = i.id
                 AND d.confidence >= :detection_threshold

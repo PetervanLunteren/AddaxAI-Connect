@@ -565,12 +565,14 @@ def pool_map_rows(rows, indep_counts: Optional[dict] = None) -> dict:
     for d in deployments.values():
         counts = d["species_counts"]
         if indep_counts is not None:
-            counts = {
-                species.lower(): count
-                for species, count in indep_counts.get(
-                    (d["camera_id"], d["deployment_number"]), {}
-                ).items()
-            }
+            # Summed, not assigned: "Fox" typed by a validator and "fox"
+            # from the AI are separate events that land on one key.
+            counts = {}
+            for species, count in indep_counts.get(
+                (d["camera_id"], d["deployment_number"]), {}
+            ).items():
+                key = species.lower()
+                counts[key] = counts.get(key, 0) + count
 
         b = buckets.get(d["site_id"])
         if b is None:

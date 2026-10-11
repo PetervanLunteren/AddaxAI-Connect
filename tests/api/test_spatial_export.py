@@ -214,3 +214,16 @@ class TestSerializers:
             ).fetchone()
             conn.close()
         assert row == (10, 2, 5, 1)
+
+
+class TestDeploymentLayerQuery:
+    def test_hidden_images_are_not_counted(self):
+        # The sites layer drops hidden images in fetch_site_buckets; the
+        # deployments layer must too, or a site's deployments stop adding up
+        # to the site's own total in the same file
+        import inspect
+
+        from routers.export import export_spatial
+
+        src = inspect.getsource(export_spatial)
+        assert "AND i.is_hidden = FALSE" in src
