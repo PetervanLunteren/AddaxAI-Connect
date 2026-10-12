@@ -80,10 +80,16 @@ export const imageAdminApi = {
     return response.data;
   },
 
-  bulkDelete: async (projectId: number, target: BulkActionTarget): Promise<BulkActionResponse> => {
+  // keepRecords replaces the photo files with the privacy placeholder and
+  // keeps the rows, instead of deleting everything.
+  bulkDelete: async (
+    projectId: number,
+    target: BulkActionTarget,
+    keepRecords = false,
+  ): Promise<BulkActionResponse> => {
     const response = await apiClient.post<BulkActionResponse>(
       '/api/admin/images/delete',
-      target,
+      { ...target, keep_records: keepRecords },
       { params: { project_id: projectId } },
     );
     return response.data;

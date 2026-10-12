@@ -353,6 +353,10 @@ export const ManageImagesPage: React.FC = () => {
   // timeout; the loop below repeats until everything is gone.
   const BULK_DELETE_BATCH = 500;
   const [deleteProgress, setDeleteProgress] = useState<number | null>(null);
+  // 'all' deletes the images and their records, 'photos' replaces the photo
+  // files with the privacy placeholder and keeps the records.
+  const [deleteMode, setDeleteMode] = useState<'all' | 'photos'>('all');
+  const keepRecords = deleteMode === 'photos';
 
   const deleteMutation = useMutation({
     mutationFn: async (target: BulkActionTarget) => {
@@ -367,13 +371,14 @@ export const ManageImagesPage: React.FC = () => {
         for (let i = 0; i < target.image_uuids.length; i += BULK_DELETE_BATCH) {
           collect(await imageAdminApi.bulkDelete(projectId!, {
             image_uuids: target.image_uuids.slice(i, i + BULK_DELETE_BATCH),
-          }));
+          }, keepRecords));
         }
       } else {
-        // Filters target. Deleted images stop matching the filters, so the
-        // same request repeats until a response comes back under the cap.
+        // Filters target. Deleted (or already replaced) images stop matching
+        // the filters, so the same request repeats until a response comes
+        // back under the cap.
         for (;;) {
-          const result = await imageAdminApi.bulkDelete(projectId!, target);
+          const result = await imageAdminApi.bulkDelete(projectId!, target, keepRecords);
           collect(result);
           if (result.success_count < BULK_DELETE_BATCH) break;
         }
@@ -389,7 +394,11 @@ export const ManageImagesPage: React.FC = () => {
       setShowDeleteConfirm(false);
       setDeleteConfirmText('');
       setDeleteProgress(null);
-      setSuccessMessage(`${total} image(s) permanently deleted`);
+      setSuccessMessage(
+        keepRecords
+          ? `${total} photo(s) removed, records kept`
+          : `${total} image(s) permanently deleted`,
+      );
       setTimeout(() => setSuccessMessage(null), 3000);
       setEmptiedSites(emptied);
     },
@@ -958,21 +967,61 @@ export const ManageImagesPage: React.FC = () => {
               <DialogTitle>Delete images permanently</DialogTitle>
             </div>
             <DialogDescription>
-              This action cannot be undone. This will permanently delete {effectiveSelectionCount} image(s) and all associated data.
+              This action cannot be undone. It applies to {effectiveSelectionCount} image(s).
             </DialogDescription>
           </DialogHeader>
+
+          {/* What goes. Photos only keeps the rows, so counts, alerts and
+              camera status stay as they are; the photo becomes a placeholder
+              that says what it showed. */}
+          <div className="space-y-2 text-sm" role="radiogroup" aria-label="What to delete">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="delete-mode"
+                className="mt-0.5 accent-primary"
+                checked={deleteMode === 'all'}
+                onChange={() => setDeleteMode('all')}
+                disabled={deleteMutation.isPending}
+              />
+              <span>
+                <span className="font-medium">Delete photos and records</span>
+                <span className="block text-muted-foreground">The images disappear from everywhere, including counts and statistics.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="delete-mode"
+                className="mt-0.5 accent-primary"
+                checked={deleteMode === 'photos'}
+                onChange={() => setDeleteMode('photos')}
+                disabled={deleteMutation.isPending}
+              />
+              <span>
+                <span className="font-medium">Delete photos, keep records</span>
+                <span className="block text-muted-foreground">Each photo becomes a placeholder that says what it showed. Detections, observations and counts stay.</span>
+              </span>
+            </label>
+          </div>
 
           <div className="border-2 border-destructive rounded-md p-4 my-4 bg-destructive/5">
             <div className="flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
               <div className="space-y-2 text-sm">
                 <p className="font-semibold text-destructive">Warning: This will delete:</p>
-                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li>{effectiveSelectionCount} image(s) and their files</li>
-                  <li>All associated detections and classifications</li>
-                  <li>All human observations</li>
-                  <li>All crop and thumbnail files</li>
-                </ul>
+                {keepRecords ? (
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>The photo and thumbnail files of {effectiveSelectionCount} image(s)</li>
+                  </ul>
+                ) : (
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>{effectiveSelectionCount} image(s) and their files</li>
+                    <li>All associated detections and classifications</li>
+                    <li>All human observations</li>
+                    <li>All crop and thumbnail files</li>
+                  </ul>
+                )}
               </div>
             </div>
           </div>
@@ -1019,7 +1068,9 @@ export const ManageImagesPage: React.FC = () => {
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete {effectiveSelectionCount} image(s)
+                  {keepRecords
+                    ? `Delete ${effectiveSelectionCount} photo(s), keep records`
+                    : `Delete ${effectiveSelectionCount} image(s)`}
                 </>
               )}
             </Button>

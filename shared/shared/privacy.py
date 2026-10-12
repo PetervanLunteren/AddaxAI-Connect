@@ -27,19 +27,25 @@ FALLBACK_SIZE = (1600, 1200)
 THUMBNAIL_WIDTH = 300
 
 
+def shown_categories(detections: Iterable, threshold: float) -> list[str]:
+    """The person/vehicle categories the image shows at or above the threshold.
+
+    The same rule as the blur. Works on anything with .category and
+    .confidence (the workers' DetectionInfo, the ORM Detection).
+    """
+    present = {d.category for d in detections if d.confidence >= threshold}
+    return [c for c in PRIVACY_CATEGORIES if c in present]
+
+
 def removed_categories(detections: Iterable, project) -> list[str]:
     """Categories this project removes that the image shows above its threshold.
 
-    The same rule as the blur: a detection counts when its confidence is at
-    or above Project.detection_threshold. Works on anything with .category
-    and .confidence (the workers' DetectionInfo, the ORM Detection). An
-    empty list means the photo is kept.
+    An empty list means the photo is kept.
     """
     wanted = project.delete_categories()
-    present = {
-        d.category for d in detections if d.confidence >= project.detection_threshold
-    }
-    return [c for c in PRIVACY_CATEGORIES if c in wanted and c in present]
+    return [
+        c for c in shown_categories(detections, project.detection_threshold) if c in wanted
+    ]
 
 
 def removal_sentence(categories: list[str]) -> str:

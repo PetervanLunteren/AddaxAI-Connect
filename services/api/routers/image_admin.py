@@ -5,7 +5,7 @@ Allows project admins to manage images: hide from analysis, restore hidden image
 or permanently delete images and their associated data.
 """
 from typing import List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import io
 import re
 import zipfile
@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment, Site, BulkUploadJob
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
+from shared.privacy import replace_with_placeholder, shown_categories
 from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold
 from auth.users import current_verified_user
@@ -190,6 +191,9 @@ class BulkImageActionRequest(BaseModel):
     """
     image_uuids: Optional[List[str]] = None
     filters: Optional[AdminImageFilterParams] = None
+    # Delete only: replace the photo files with the privacy placeholder and
+    # keep the rows (see shared/privacy.py), instead of deleting everything.
+    keep_records: bool = False
 
 
 class EmptiedSite(BaseModel):
@@ -334,6 +338,14 @@ async def _build_filter_clauses(
                         select(Detection.image_id)
                         .join(Classification)
                         .where(Classification.species.in_(species_list))
+                        .distinct()
+                    ),
+                    # person and vehicle are detector categories with no
+                    # classification row, the species dropdown offers them
+                    # and the Images page matches them this way too
+                    Image.id.in_(
+                        select(Detection.image_id)
+                        .where(Detection.category.in_(species_list))
                         .distinct()
                     ),
                     Image.id.in_(
@@ -782,11 +794,13 @@ async def delete_images_by_ids(
             # Delete image record
             await db.delete(image)
 
-            # Delete MinIO files
+            # Delete MinIO files. The raw bucket is versioned, so a plain
+            # delete would keep the bytes as a previous version on servers
+            # without the cold-tier expiry rule; delete every version.
             try:
                 storage = StorageClient()
                 if image.storage_path:
-                    storage.delete_object(BUCKET_RAW_IMAGES, image.storage_path)
+                    storage.delete_object_versions(BUCKET_RAW_IMAGES, image.storage_path)
                 if image.thumbnail_path:
                     storage.delete_object(BUCKET_THUMBNAILS, image.thumbnail_path)
                 # Delete crops (named {image_uuid}_{idx}.jpg)
@@ -810,6 +824,46 @@ async def delete_images_by_ids(
     return success_count, errors, emptied_sites
 
 
+async def replace_images_by_ids(
+    db: AsyncSession, image_ids: List[int], project: Project
+) -> Tuple[int, List[str]]:
+    """
+    Replace the photo files of the given images with the privacy placeholder
+    and keep the rows, their detections and their observations. The curation
+    side of the automatic removal in the classifiers, through the same helper
+    (shared/privacy.py), so the two paths cannot drift. The caller skips rows
+    that were replaced before. Returns (success_count, errors).
+    """
+    errors: List[str] = []
+    if not image_ids:
+        return 0, errors
+
+    images = (
+        await db.execute(
+            select(Image)
+            .where(Image.id.in_(image_ids))
+            .options(selectinload(Image.detections))
+        )
+    ).scalars().all()
+
+    storage = StorageClient()
+    now = datetime.now(timezone.utc)
+    success_count = 0
+    for image in images:
+        try:
+            # Objects first, stamp second, same order as the classifier.
+            categories = shown_categories(image.detections, project.detection_threshold)
+            replace_with_placeholder(storage, image, categories)
+            image.privacy_removed_at = now
+            success_count += 1
+        except Exception as e:
+            errors.append(f"Failed to replace image {image.uuid}: {str(e)}")
+            logger.error("Failed to replace image with placeholder", image_uuid=image.uuid, error=str(e))
+
+    await db.commit()
+    return success_count, errors
+
+
 @router.post(
     "/delete",
     response_model=BulkImageActionResponse,
@@ -820,7 +874,11 @@ async def bulk_delete_images(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
-    """Permanently delete images and all associated data (detections, classifications, files)."""
+    """Permanently delete images and all associated data (detections, classifications, files).
+
+    With `keep_records` only the photo files go: they are replaced by the
+    privacy placeholder and the rows stay, see shared/privacy.py.
+    """
     if not await can_admin_project(current_user, project_id, db):
         raise HTTPException(status_code=403, detail="Project admin access required")
 
@@ -828,6 +886,15 @@ async def bulk_delete_images(
     requested_count = (
         len(body.image_uuids) if body.image_uuids is not None else len(valid_uuids)
     )
+
+    if body.keep_records and image_ids:
+        # Rows replaced before drop out here, so a filters target stops
+        # matching after one pass and the UI loop ends, the same way deleted
+        # rows stop matching for the full delete.
+        image_ids = list((await db.execute(
+            select(Image.id).where(Image.id.in_(image_ids), Image.privacy_removed_at.is_(None))
+        )).scalars().all())
+        requested_count = len(image_ids)
 
     if not image_ids:
         return BulkImageActionResponse(
@@ -845,7 +912,12 @@ async def bulk_delete_images(
         image_ids = image_ids[:BULK_DELETE_MAX_IMAGES]
         requested_count = len(image_ids)
 
-    success_count, delete_errors, emptied_sites = await delete_images_by_ids(db, image_ids)
+    if body.keep_records:
+        project = (await db.execute(select(Project).where(Project.id == project_id))).scalar_one()
+        success_count, delete_errors = await replace_images_by_ids(db, image_ids, project)
+        emptied_sites: List[EmptiedSite] = []
+    else:
+        success_count, delete_errors, emptied_sites = await delete_images_by_ids(db, image_ids)
     return BulkImageActionResponse(
         success_count=success_count,
         failed_count=requested_count - success_count,
