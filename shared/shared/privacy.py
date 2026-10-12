@@ -59,44 +59,37 @@ def removal_sentence(categories: list[str]) -> str:
 
 
 def placeholder_jpeg(width: int, height: int, sentence: str) -> bytes:
-    """A plain grey JPEG of the given size with the sentence centred on it.
+    """A plain grey JPEG of the given size with the sentence tiled across it
+    as a small watermark, at 45 degrees.
 
+    Tiled on purpose: the placeholder is an ordinary image to the rest of
+    the app. The privacy blur still smears the person box on it, a crop can
+    be cut from it, a thumbnail is resized from it, and in every case some
+    of the text survives, so nothing downstream needs a special case.
     Pillow's built-in font is used, so the images need no font files.
     """
     from PIL import Image, ImageDraw, ImageFont
 
-    image = Image.new("RGB", (width, height), (120, 120, 120))
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.load_default(size=max(12, width // 28))
-    lines = _wrap(sentence, draw, font, max_width=int(width * 0.8))
+    canvas = Image.new("RGB", (width, height), (120, 120, 120))
 
-    line_height = draw.textbbox((0, 0), "Ag", font=font)[3]
-    gap = line_height // 2
-    total = len(lines) * line_height + (len(lines) - 1) * gap
-    y = (height - total) // 2
-    for line in lines:
-        x = (width - draw.textlength(line, font=font)) / 2
-        draw.text((x, y), line, fill=(245, 245, 245), font=font)
-        y += line_height + gap
+    # One tile: the sentence on a transparent strip, rotated.
+    font = ImageFont.load_default(size=max(10, width // 70))
+    probe = ImageDraw.Draw(canvas)
+    left, top, right, bottom = probe.textbbox((0, 0), sentence, font=font)
+    strip = Image.new("RGBA", (right - left + 8, bottom - top + 8), (0, 0, 0, 0))
+    ImageDraw.Draw(strip).text((4 - left, 4 - top), sentence, fill=(225, 225, 225, 255), font=font)
+    tile = strip.rotate(45, expand=True)
+
+    # The text runs along one diagonal of its tile. Rows step by a third
+    # of a tile, so the lines of text sit close together; columns step by
+    # a whole tile, so two tiles never print on the same stretch of a line.
+    for y in range(-tile.height, height, tile.height // 3):
+        for x in range(-tile.width, width, tile.width):
+            canvas.paste(tile, (x, y), tile)
 
     buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=85)
+    canvas.save(buffer, format="JPEG", quality=85)
     return buffer.getvalue()
-
-
-def _wrap(text: str, draw, font, max_width: int) -> list[str]:
-    """Greedy word wrap so no line is wider than max_width."""
-    lines: list[str] = []
-    line = ""
-    for word in text.split():
-        candidate = f"{line} {word}".strip()
-        if not line or draw.textlength(candidate, font=font) <= max_width:
-            line = candidate
-        else:
-            lines.append(line)
-            line = word
-    lines.append(line)
-    return lines
 
 
 def replace_with_placeholder(storage: StorageClient, image, categories: list[str]) -> None:

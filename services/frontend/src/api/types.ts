@@ -80,6 +80,9 @@ export interface ImageListItem {
   top_species: string | null;
   max_confidence: number | null;
   thumbnail_url: string | null;
+  // Same cache-busting rule as thumbnail_url for a replaced photo. Use it
+  // instead of building the URL from the uuid.
+  full_image_url: string | null;
   detections: Detection[];
   image_width: number | null;
   image_height: number | null;

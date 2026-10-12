@@ -84,6 +84,10 @@ class ImageListItemResponse(BaseModel):
     top_species: Optional[str] = None
     max_confidence: Optional[float] = None
     thumbnail_url: Optional[str] = None
+    # Same cache-busting rule as thumbnail_url, see removed_suffix. The
+    # dashboard cards open the full image from a list item, so they must
+    # not build the URL from the uuid themselves.
+    full_image_url: Optional[str] = None
     detections: List[DetectionResponse] = []
     image_width: Optional[int] = None
     image_height: Optional[int] = None
@@ -1179,6 +1183,7 @@ async def list_images(
             top_species=top_species,
             max_confidence=max_confidence,
             thumbnail_url=thumbnail_url,
+            full_image_url=f"/api/images/{image.uuid}/full{removed_suffix(image)}" if image.storage_path else None,
             detections=detections_response,
             image_width=image_width,
             image_height=image_height,
@@ -1762,17 +1767,11 @@ async def blur_regions_for_images(
     if not categories or not image_ids:
         return {}
 
-    # A photo replaced by the privacy placeholder (Image.privacy_removed_at,
-    # see shared/privacy.py) keeps its person/vehicle detections, but there
-    # is nothing left to hide and a blur would only smear the sentence.
     result = await db.execute(
-        select(Detection)
-        .join(Image, Detection.image_id == Image.id)
-        .where(
+        select(Detection).where(
             Detection.image_id.in_(image_ids),
             Detection.category.in_(categories),
             Detection.confidence >= project.detection_threshold,
-            Image.privacy_removed_at.is_(None),
         )
     )
 

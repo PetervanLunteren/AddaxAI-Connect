@@ -136,8 +136,8 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
                     full image downloads, so the wall appears at once on slow
                     connections. */}
                 <DetectionCrop
-                  imageUrl={`/api/images/${image.uuid}/full`}
-                  previewUrl={`/api/images/${image.uuid}/thumbnail`}
+                  imageUrl={image.full_image_url ?? `/api/images/${image.uuid}/full`}
+                  previewUrl={image.thumbnail_url ?? `/api/images/${image.uuid}/thumbnail`}
                   alt={image.top_species ? normalizeLabel(image.top_species) : 'Detection'}
                   detections={
                     cannotTellWhichAnimal(image, chosenSpecies) ? [] : image.detections

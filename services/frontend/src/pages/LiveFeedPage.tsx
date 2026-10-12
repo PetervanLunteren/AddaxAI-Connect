@@ -88,12 +88,16 @@ const FeedTile: React.FC<{
   const badgeText = isRejection ? reasonLabel(item.reason) : statusLabel(item.status);
   // Hero shows the full image so it stays sharp when enlarged; thumbnails use
   // the small thumbnail. Rejected files only have their on-disk image.
+  // Both image URLs come from the API, which busts the browser cache for a
+  // photo replaced by the privacy placeholder.
   const baseSrc = isRejection
     ? item.image_url
-    : hero && item.uuid
-      ? `/api/images/${item.uuid}/full`
+    : hero
+      ? item.full_image_url
       : item.thumbnail_url;
-  const src = baseSrc && unblurred ? `${baseSrc}?unblurred=true` : baseSrc;
+  const src = baseSrc && unblurred
+    ? `${baseSrc}${baseSrc.includes('?') ? '&' : '?'}unblurred=true`
+    : baseSrc;
 
   const fallback = (
     <div className="flex h-full w-full items-center justify-center text-muted-foreground">

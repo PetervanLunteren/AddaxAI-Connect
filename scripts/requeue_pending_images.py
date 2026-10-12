@@ -52,10 +52,21 @@ logger = get_logger("requeue_pending_images")
 
 # An image sitting pending longer than this has no queue message behind it.
 STALE_AFTER_MINUTES = 10
+# A 'failed' image this recent most likely died in the update window: past
+# detection when the new classifier started, and its first read of the
+# project or image hit a column the migration had not added yet. Older
+# failures are real (a broken file) and stay failed.
+FAILED_WITHIN_MINUTES = 30
 
 
-def find_stranded(db: Session, minutes: int) -> list[dict]:
-    """Images stuck in 'pending' with no queue message left to carry them.
+def find_stranded(db: Session, minutes: int, failed_minutes: int) -> list[dict]:
+    """Images the update window left behind, with no queue message to carry them.
+
+    Two shapes. Stuck in 'pending' longer than `minutes`: detection died on
+    the old schema. 'failed' and ingested in the last `failed_minutes`: it
+    was past detection when the new classifier started and died there. The
+    second gets a clean re-run from detection, see main, so it costs one
+    inference and never doubles its detections.
 
     storage_path must be present: without it there is nothing for the
     detection worker to download, so republishing would only fail again.
@@ -63,17 +74,42 @@ def find_stranded(db: Session, minutes: int) -> list[dict]:
     rows = db.execute(
         text(
             """
-            SELECT uuid, storage_path, camera_id, origin, ingested_at
+            SELECT uuid, storage_path, camera_id, origin, ingested_at, status
             FROM images
-            WHERE status = 'pending'
-              AND storage_path IS NOT NULL
-              AND ingested_at < now() - make_interval(mins => :minutes)
+            WHERE storage_path IS NOT NULL
+              AND (
+                (status = 'pending'
+                 AND ingested_at < now() - make_interval(mins => :minutes))
+                OR
+                (status = 'failed'
+                 AND ingested_at > now() - make_interval(mins => :failed_minutes))
+              )
             ORDER BY ingested_at
             """
         ),
-        {"minutes": minutes},
+        {"minutes": minutes, "failed_minutes": failed_minutes},
     ).fetchall()
     return [dict(r._mapping) for r in rows]
+
+
+def clear_detections(db: Session, image_uuid: str) -> None:
+    """Drop a failed image's detections so the re-run starts clean."""
+    db.execute(
+        text(
+            """
+            DELETE FROM classifications
+             WHERE detection_id IN (
+                SELECT d.id FROM detections d JOIN images i ON i.id = d.image_id
+                 WHERE i.uuid = :uuid)
+            """
+        ),
+        {"uuid": image_uuid},
+    )
+    db.execute(
+        text("DELETE FROM detections WHERE image_id = (SELECT id FROM images WHERE uuid = :uuid)"),
+        {"uuid": image_uuid},
+    )
+    db.commit()
 
 
 def main() -> None:
@@ -84,34 +120,40 @@ def main() -> None:
                         help="actually publish; without this it only reports")
     parser.add_argument("--minutes", type=int, default=STALE_AFTER_MINUTES,
                         help=f"how long pending counts as stranded (default {STALE_AFTER_MINUTES})")
+    parser.add_argument("--failed-minutes", type=int, default=FAILED_WITHIN_MINUTES,
+                        help="also re-run images that failed within this many minutes "
+                             f"(default {FAILED_WITHIN_MINUTES})")
     args = parser.parse_args()
 
     engine = create_engine(settings.database_url)
     with Session(engine) as db:
-        stranded = find_stranded(db, args.minutes)
+        stranded = find_stranded(db, args.minutes, args.failed_minutes)
 
-    if not stranded:
-        print(f"No images pending longer than {args.minutes} minutes. Nothing to do.")
-        return
+        if not stranded:
+            print(f"No images pending longer than {args.minutes} minutes and none failed "
+                  f"in the last {args.failed_minutes} minutes. Nothing to do.")
+            return
 
-    mode = "APPLY" if args.apply else "DRY RUN"
-    print(f"\n=== {mode}: {len(stranded)} stranded image(s) ===")
+        mode = "APPLY" if args.apply else "DRY RUN"
+        print(f"\n=== {mode}: {len(stranded)} stranded image(s) ===")
 
-    live = RedisQueue(QUEUE_IMAGE_INGESTED)
-    bulk = RedisQueue(QUEUE_IMAGE_INGESTED_BULK)
+        live = RedisQueue(QUEUE_IMAGE_INGESTED)
+        bulk = RedisQueue(QUEUE_IMAGE_INGESTED_BULK)
 
-    published = 0
-    for img in stranded:
-        queue = bulk if img["origin"] == "bulk" else live
-        print(f"  {img['uuid']}  {img['origin']:5s}  {img['ingested_at']}  -> {queue.queue_name}")
-        if args.apply:
-            # Same three fields ingestion publishes, see services/ingestion/main.py.
-            queue.publish({
-                "image_uuid": str(img["uuid"]),
-                "storage_path": img["storage_path"],
-                "camera_id": img["camera_id"],
-            })
-            published += 1
+        published = 0
+        for img in stranded:
+            queue = bulk if img["origin"] == "bulk" else live
+            print(f"  {img['uuid']}  {img['origin']:5s}  {img['status']:7s}  {img['ingested_at']}  -> {queue.queue_name}")
+            if args.apply:
+                if img["status"] == "failed":
+                    clear_detections(db, str(img["uuid"]))
+                # Same three fields ingestion publishes, see services/ingestion/main.py.
+                queue.publish({
+                    "image_uuid": str(img["uuid"]),
+                    "storage_path": img["storage_path"],
+                    "camera_id": img["camera_id"],
+                })
+                published += 1
 
     print(f"\n=== summary ===")
     print(f"  stranded  : {len(stranded)}")

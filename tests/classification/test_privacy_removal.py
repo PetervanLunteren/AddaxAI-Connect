@@ -53,6 +53,14 @@ class TestHook:
         assert "if not is_bulk:" in src
         assert 'pv_dets, None, message.get("timestamp")' in src
 
+    def test_a_failed_publish_loses_the_alert_not_the_image(self, worker):
+        # Same rule as both branches: the placeholder is written and the row
+        # stamped by then, so a Redis hiccup must not fail the image.
+        src = _function(_source(worker), "remove_private_image")
+        publish = src.index("publish_person_vehicle_events(")
+        assert src.rindex("try:", 0, publish) > src.index("replace_with_placeholder(")
+        assert "except Exception as e:" in src[publish:]
+
 
 @pytest.mark.parametrize("worker", sorted(WORKERS))
 class TestOnePublishPath:

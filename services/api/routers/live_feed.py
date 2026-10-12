@@ -27,7 +27,7 @@ from auth.project_access import (
     narrow_to_project,
     get_allowed_site_ids,
 )
-from routers.images import needs_full_blur
+from routers.images import needs_full_blur, removed_suffix
 from utils.image_processing import blur_whole_image, generate_thumbnail
 from utils.site_scope import site_image_clause
 
@@ -60,6 +60,7 @@ class LiveFeedItem(BaseModel):
     status: Optional[str] = None  # pending | processing | detected | classifying | classified | failed
     captured_at: Optional[str] = None  # camera clock, naive ISO
     thumbnail_url: Optional[str] = None
+    full_image_url: Optional[str] = None
 
     # rejection only
     rejection_id: Optional[int] = None
@@ -133,7 +134,8 @@ async def get_live_feed(
                 uuid=image.uuid,
                 status=image.status,
                 captured_at=image.captured_at.isoformat() if image.captured_at else None,
-                thumbnail_url=f"/api/images/{image.uuid}/thumbnail",
+                thumbnail_url=f"/api/images/{image.uuid}/thumbnail{removed_suffix(image)}",
+                full_image_url=f"/api/images/{image.uuid}/full{removed_suffix(image)}",
                 fully_blurred=needs_full_blur(image, project),
             ),
         ))

@@ -29,17 +29,6 @@ class TestDeleteCategories:
 
 
 class TestProjectApi:
-    def test_update_turns_blur_on_when_delete_is_turned_on(self):
-        # Photos stored before the switch stay and must at least be blurred,
-        # so the stored pair never says delete without blur.
-        from routers.projects import update_project
-
-        src = inspect.getsource(update_project)
-        assert "if project_data.delete_people:" in src
-        assert "project.blur_people = True" in src
-        assert "if project_data.delete_vehicles:" in src
-        assert "project.blur_vehicles = True" in src
-
     def test_request_and_response_carry_the_flags(self):
         from routers.projects import ProjectResponse, ProjectUpdate
 
@@ -55,13 +44,30 @@ class TestProjectApi:
         assert "delete_vehicles" in ProjectWithRole.model_fields
 
 
-class TestBlurGate:
-    def test_blur_query_skips_removed_photos(self):
-        # A placeholder keeps its person/vehicle detections. Blurring those
-        # boxes would only smear the sentence drawn on it.
+class TestPlaceholderIsAnOrdinaryImage:
+    def test_blur_query_has_no_special_case(self):
+        # The placeholder tiles its text, so the blur may smear a box on it
+        # like on any photo and nothing downstream needs to know about it.
         from routers.images import blur_regions_for_images
 
-        assert "Image.privacy_removed_at.is_(None)" in inspect.getsource(blur_regions_for_images)
+        assert "privacy_removed_at" not in inspect.getsource(blur_regions_for_images)
+
+    def test_update_keeps_the_pair_consistent_on_a_partial_body(self):
+        # Blur false alone, while delete is already true, must not stick.
+        from routers.projects import update_project
+
+        src = inspect.getsource(update_project)
+        assert "if project.delete_people:\n        project.blur_people = True" in src
+        assert "if project.delete_vehicles:\n        project.blur_vehicles = True" in src
+
+    def test_live_feed_and_list_hand_out_both_image_urls(self):
+        # The pages that open a full image from a list item must take the
+        # URL from the API, which carries the cache-busting suffix.
+        from routers import images, live_feed
+
+        assert "/full{removed_suffix(image)}" in inspect.getsource(images.list_images)
+        assert "full_image_url" in live_feed.LiveFeedItem.model_fields
+        assert "/full{removed_suffix(image)}" in inspect.getsource(live_feed.get_live_feed)
 
 
 class TestCurationDelete:
@@ -109,9 +115,13 @@ class TestCurationDelete:
         assert "/full{removed_suffix(image)}" in inspect.getsource(images.get_image)
         assert "/thumbnail{removed_suffix(image)}" in inspect.getsource(image_admin.list_all_images)
 
-    def test_curation_species_filter_matches_person_and_vehicle(self):
+    def test_curation_species_filter_matches_person_and_vehicle_above_threshold(self):
         # person and vehicle are detector categories with no classification
-        # row; the dropdown offers them, so the filter must find them.
+        # row; the dropdown offers them, so the filter must find them, and
+        # only at or above the project threshold, like the Images page. A
+        # sub-threshold box must not pull a photo into a bulk delete.
         from routers.image_admin import _build_filter_clauses
 
-        assert "Detection.category.in_(species_list)" in inspect.getsource(_build_filter_clauses)
+        src = inspect.getsource(_build_filter_clauses)
+        start = src.index("Detection.category.in_(species_list)")
+        assert "Detection.confidence >= Project.detection_threshold" in src[start:start + 200]

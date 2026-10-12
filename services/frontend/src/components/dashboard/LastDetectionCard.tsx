@@ -95,8 +95,8 @@ export const LastDetectionCard: React.FC<LastDetectionCardProps> = ({
             thumbnail bridges the wait: it shows blurred right away and the
             full image replaces it when downloaded. */}
         <DetectionCrop
-          imageUrl={`/api/images/${image.uuid}/full`}
-          previewUrl={`/api/images/${image.uuid}/thumbnail`}
+          imageUrl={image.full_image_url ?? `/api/images/${image.uuid}/full`}
+          previewUrl={image.thumbnail_url ?? `/api/images/${image.uuid}/thumbnail`}
           alt={species}
           detections={image.detections}
           imageWidth={image.image_width}

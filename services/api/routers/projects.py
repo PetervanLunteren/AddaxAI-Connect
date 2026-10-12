@@ -408,16 +408,17 @@ async def update_project(
         project.blur_people = project_data.blur_people
     if project_data.blur_vehicles is not None:
         project.blur_vehicles = project_data.blur_vehicles
-    # Delete implies blur: photos stored before the switch stay and must at
-    # least be blurred, so the stored pair never contradicts itself.
     if project_data.delete_people is not None:
         project.delete_people = project_data.delete_people
-        if project_data.delete_people:
-            project.blur_people = True
     if project_data.delete_vehicles is not None:
         project.delete_vehicles = project_data.delete_vehicles
-        if project_data.delete_vehicles:
-            project.blur_vehicles = True
+    # Delete implies blur: photos stored before the switch stay and must at
+    # least be blurred. Enforced on the stored pair, whatever the body sent,
+    # so a partial update cannot turn blur off while delete stays on.
+    if project.delete_people:
+        project.blur_people = True
+    if project.delete_vehicles:
+        project.blur_vehicles = True
     if project_data.independence_interval_minutes is not None:
         if not (0 <= project_data.independence_interval_minutes <= 1440):
             raise HTTPException(

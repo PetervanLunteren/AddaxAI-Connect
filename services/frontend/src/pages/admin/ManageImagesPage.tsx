@@ -357,6 +357,13 @@ export const ManageImagesPage: React.FC = () => {
   // files with the privacy placeholder and keeps the records.
   const [deleteMode, setDeleteMode] = useState<'all' | 'photos'>('all');
   const keepRecords = deleteMode === 'photos';
+  // One way out of the dialog, so every close (cancel, X, backdrop, done)
+  // forgets the typed word and the chosen mode alike.
+  const closeDeleteDialog = () => {
+    setShowDeleteConfirm(false);
+    setDeleteConfirmText('');
+    setDeleteMode('all');
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (target: BulkActionTarget) => {
@@ -391,8 +398,7 @@ export const ManageImagesPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setSelectedUuids(new Set());
       setSelectAllMatching(false);
-      setShowDeleteConfirm(false);
-      setDeleteConfirmText('');
+      closeDeleteDialog();
       setDeleteProgress(null);
       setSuccessMessage(
         keepRecords
@@ -950,16 +956,11 @@ export const ManageImagesPage: React.FC = () => {
 
       {/* Delete confirmation dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={(open) => {
-        if (!deleteMutation.isPending) {
-          setShowDeleteConfirm(open);
-          if (!open) setDeleteConfirmText('');
-        }
+        if (deleteMutation.isPending) return;
+        if (open) setShowDeleteConfirm(true); else closeDeleteDialog();
       }}>
         <DialogContent onClose={() => {
-          if (!deleteMutation.isPending) {
-            setShowDeleteConfirm(false);
-            setDeleteConfirmText('');
-          }
+          if (!deleteMutation.isPending) closeDeleteDialog();
         }}>
           <DialogHeader>
             <div className="flex items-center gap-2 text-destructive">
@@ -1052,10 +1053,7 @@ export const ManageImagesPage: React.FC = () => {
           <DialogFooter className="mt-4">
             <Button
               variant="outline"
-              onClick={() => {
-                setShowDeleteConfirm(false);
-                setDeleteConfirmText('');
-              }}
+              onClick={closeDeleteDialog}
               disabled={deleteMutation.isPending}
             >
               Cancel

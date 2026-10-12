@@ -18,6 +18,7 @@ export interface LiveFeedItem {
   status?: string | null;
   captured_at?: string | null;
   thumbnail_url?: string | null;
+  full_image_url?: string | null;
 
   // rejection only
   rejection_id?: number | null;

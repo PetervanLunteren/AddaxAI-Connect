@@ -341,11 +341,19 @@ async def _build_filter_clauses(
                         .distinct()
                     ),
                     # person and vehicle are detector categories with no
-                    # classification row, the species dropdown offers them
-                    # and the Images page matches them this way too
+                    # classification row. The species dropdown offers them,
+                    # and the Images page matches them the same way: at or
+                    # above the project threshold, so a sub-threshold box
+                    # cannot pull a photo into a bulk action.
                     Image.id.in_(
                         select(Detection.image_id)
-                        .where(Detection.category.in_(species_list))
+                        .join(Image, Detection.image_id == Image.id)
+                        .join(Camera, Image.camera_id == Camera.id)
+                        .join(Project, Camera.project_id == Project.id)
+                        .where(
+                            Detection.category.in_(species_list),
+                            Detection.confidence >= Project.detection_threshold,
+                        )
                         .distinct()
                     ),
                     Image.id.in_(

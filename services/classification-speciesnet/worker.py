@@ -154,12 +154,17 @@ def remove_private_image(image_uuid: str, detections, message: dict, is_bulk: bo
         )
 
         # Same fan-out rule as a kept photo: live images alert, bulk never.
+        # A failed publish loses the alert, not the image, like the branches
+        # below: the placeholder is written and the row stamped by now.
         if not is_bulk:
             pv_dets = [d for d in detections
                        if d.category in PRIVACY_CATEGORIES and d.confidence >= project.detection_threshold]
-            publish_person_vehicle_events(
-                camera, image_record, image_uuid, pv_dets, None, message.get("timestamp")
-            )
+            try:
+                publish_person_vehicle_events(
+                    camera, image_record, image_uuid, pv_dets, None, message.get("timestamp")
+                )
+            except Exception as e:
+                logger.error("Failed to publish pv notification event", error=str(e))
 
     update_image_status(image_uuid, "classified")
     return True
