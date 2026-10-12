@@ -83,5 +83,15 @@ echo ""
 echo "Restarting api to pick up the new schema..."
 docker compose restart api > /dev/null
 
+# The bulk upload worker recovers stuck jobs once, at startup, which lands in
+# that same window: with v0.14.0 the recovery hit a column the migration had
+# not added yet, logged an error and gave up, so a job interrupted by the
+# update stayed stuck. Restarting after the migration reruns the recovery on
+# the new schema. Only where it runs, demo's profile has no bulk upload.
+if docker compose ps --services --status running | grep -qx bulk-upload; then
+  echo "Restarting bulk-upload to recover interrupted jobs on the new schema..."
+  docker compose restart bulk-upload > /dev/null
+fi
+
 echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."
