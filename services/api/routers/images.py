@@ -1128,7 +1128,7 @@ async def list_images(
                                 top_species = classification.species
 
         # Generate thumbnail URL using the streaming endpoint
-        thumbnail_url = f"/api/images/{image.uuid}/thumbnail" if image.storage_path else None
+        thumbnail_url = f"/api/images/{image.uuid}/thumbnail{removed_suffix(image)}" if image.storage_path else None
 
         # Build detections response (only visible detections — sub-threshold
         # detections were already filtered above)
@@ -1275,7 +1275,7 @@ async def get_image(
         visible_detections.append(d)
 
     # Generate full image URL using the streaming endpoint
-    full_image_url = f"/api/images/{image.uuid}/full"
+    full_image_url = f"/api/images/{image.uuid}/full{removed_suffix(image)}"
 
     # Build detections response (only visible detections)
     detections_response = []
@@ -1732,6 +1732,15 @@ async def set_image_tags(
     await db.commit()
 
     return SetTagsResponse(tags=image.tags or [])
+
+
+def removed_suffix(image: Image) -> str:
+    """Query suffix for the image URLs of a photo replaced by the privacy
+    placeholder. The browser caches thumbnails for an hour and full images
+    for a day, so after a curation delete that kept the records the old
+    pixels would still show from the cache. A changed URL is a new cache
+    entry. Empty for every image whose photo is still there."""
+    return "?v=removed" if image.privacy_removed_at else ""
 
 
 async def blur_regions_for_images(

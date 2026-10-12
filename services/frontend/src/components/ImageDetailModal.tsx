@@ -288,8 +288,15 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     enabled: isOpen && selectedProject?.id !== undefined,
   });
 
-  // Construct URL directly from UUID - don't wait for imageDetail
-  const fullImageUrl = `/api/images/${imageUuid}/full${showUnblurred ? '?unblurred=true' : ''}`;
+  // Construct URL directly from UUID - don't wait for imageDetail. Once the
+  // detail arrives, use its URL: for a photo replaced by the privacy
+  // placeholder it carries a cache-busting suffix, so the old pixels do not
+  // come back from the browser cache. For every other image it is the same
+  // URL, so nothing refetches.
+  const fullImageBase = imageDetail?.full_image_url ?? `/api/images/${imageUuid}/full`;
+  const fullImageUrl = showUnblurred
+    ? `${fullImageBase}${fullImageBase.includes('?') ? '&' : '?'}unblurred=true`
+    : fullImageBase;
 
   // Blur-up: show the small thumbnail while the full image downloads, so
   // the modal keeps its proportions instead of collapsing to a spinner.

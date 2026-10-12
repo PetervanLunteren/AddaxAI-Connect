@@ -2,6 +2,7 @@
 import inspect
 import os
 import sys
+from types import SimpleNamespace
 
 _api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "services", "api"))
 if _api not in sys.path:
@@ -96,6 +97,17 @@ class TestCurationDelete:
 
         src = inspect.getsource(delete_images_by_ids)
         assert "delete_object_versions(BUCKET_RAW_IMAGES" in src
+
+    def test_replaced_photos_get_a_fresh_url_so_the_browser_cache_misses(self):
+        # Thumbnails are cached an hour and full images a day. Without a
+        # changed URL the admin who just removed photos keeps seeing them.
+        from routers import image_admin, images
+
+        assert images.removed_suffix(SimpleNamespace(privacy_removed_at=None)) == ""
+        assert images.removed_suffix(SimpleNamespace(privacy_removed_at="2026-10-12")) == "?v=removed"
+        assert "/thumbnail{removed_suffix(image)}" in inspect.getsource(images.list_images)
+        assert "/full{removed_suffix(image)}" in inspect.getsource(images.get_image)
+        assert "/thumbnail{removed_suffix(image)}" in inspect.getsource(image_admin.list_all_images)
 
     def test_curation_species_filter_matches_person_and_vehicle(self):
         # person and vehicle are detector categories with no classification

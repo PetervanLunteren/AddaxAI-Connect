@@ -24,7 +24,7 @@ from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
-from routers.images import blur_regions_for_images, needs_full_blur
+from routers.images import blur_regions_for_images, needs_full_blur, removed_suffix
 from utils.image_processing import apply_privacy_blur, blur_whole_image
 
 # Caps for the bulk-download endpoint. Count is the hard ceiling so the
@@ -644,7 +644,7 @@ async def list_all_images(
 
         thumbnail_url = None
         if image.storage_path:
-            thumbnail_url = f"/api/images/{image.uuid}/thumbnail"
+            thumbnail_url = f"/api/images/{image.uuid}/thumbnail{removed_suffix(image)}"
 
         items.append(AdminImageListItemResponse(
             uuid=image.uuid,
