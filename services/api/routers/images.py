@@ -1753,11 +1753,17 @@ async def blur_regions_for_images(
     if not categories or not image_ids:
         return {}
 
+    # A photo replaced by the privacy placeholder (Image.privacy_removed_at,
+    # see shared/privacy.py) keeps its person/vehicle detections, but there
+    # is nothing left to hide and a blur would only smear the sentence.
     result = await db.execute(
-        select(Detection).where(
+        select(Detection)
+        .join(Image, Detection.image_id == Image.id)
+        .where(
             Detection.image_id.in_(image_ids),
             Detection.category.in_(categories),
             Detection.confidence >= project.detection_threshold,
+            Image.privacy_removed_at.is_(None),
         )
     )
 

@@ -28,6 +28,12 @@ class Image(Base):
     status = Column(String(50), nullable=False, default="pending", index=True)
     image_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
 
+    # When the photo was replaced by the privacy placeholder (aware UTC), see
+    # shared/privacy.py. Null means the real photo is in storage. The row,
+    # its detections and its timestamps stay, so counts, alerts and camera
+    # liveness keep working; only the pixels are gone.
+    privacy_removed_at = Column(DateTime(timezone=True), nullable=True)
+
     # Server wall-clock at ingestion (aware UTC). captured_at is the camera clock,
     # which can be wrong at setup, so it is not a reliable arrival order. This is
     # the chronological key for the Live feed and is directly comparable to
@@ -402,6 +408,12 @@ class Project(Base):
     classification_thresholds = Column(JSON, nullable=True)  # Optional {"default": float, "overrides": {species: float}}; null = no filtering
     blur_people = Column(Boolean, nullable=False, server_default='true')  # Blur detected people in all images for privacy
     blur_vehicles = Column(Boolean, nullable=False, server_default='true')  # Blur detected vehicles in all images for privacy
+    # Replace the photo of a detected person / vehicle with a placeholder on
+    # arrival (shared/privacy.py). Delete implies blur: the API sets the
+    # matching blur flag when a delete flag is turned on, so photos stored
+    # before the switch are at least blurred.
+    delete_people = Column(Boolean, nullable=False, server_default='false')
+    delete_vehicles = Column(Boolean, nullable=False, server_default='false')
     independence_interval_minutes = Column(Integer, nullable=False, server_default='30')  # Group same-species detections within N minutes as one event (0 = disabled)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
@@ -417,6 +429,20 @@ class Project(Base):
         if self.blur_people:
             categories.append("person")
         if self.blur_vehicles:
+            categories.append("vehicle")
+        return categories
+
+    def delete_categories(self) -> list:
+        """Detector categories whose photos this project removes on arrival.
+
+        Same shape and same role as blur_categories(): the one place that
+        turns the two flags into the category list the classifier and the
+        curation delete check against.
+        """
+        categories = []
+        if self.delete_people:
+            categories.append("person")
+        if self.delete_vehicles:
             categories.append("vehicle")
         return categories
 

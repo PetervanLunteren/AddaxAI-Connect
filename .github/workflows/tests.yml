@@ -43,9 +43,10 @@ jobs:
             reqs: -r services/notifications-earthranger/requirements.txt
           - dir: tests/notifications_sensingclues
             reqs: -r services/notifications-sensingclues/requirements.txt
-          # Only the shared package itself, no service.
+          # The shared package itself, no service. Pillow for shared/privacy.py,
+          # which draws the placeholder; same pin as the services that call it.
           - dir: tests/shared
-            reqs: ""
+            reqs: Pillow==12.3.0
           # These two import cropper and annotated_image, which need Pillow and
           # nothing else. Their service requirements pull megadetector and
           # torch, over a gigabyte, for 35 tests that never touch a model. Same

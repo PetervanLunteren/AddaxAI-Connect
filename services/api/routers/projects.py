@@ -81,6 +81,8 @@ class ProjectUpdate(BaseModel):
     classification_thresholds: Optional[Dict[str, Any]] = None
     blur_people: Optional[bool] = None
     blur_vehicles: Optional[bool] = None
+    delete_people: Optional[bool] = None
+    delete_vehicles: Optional[bool] = None
     independence_interval_minutes: Optional[int] = None
 
 
@@ -103,6 +105,8 @@ class ProjectResponse(BaseModel):
     classification_thresholds: Optional[Dict[str, Any]] = None
     blur_people: bool
     blur_vehicles: bool
+    delete_people: bool
+    delete_vehicles: bool
     independence_interval_minutes: int
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
@@ -195,6 +199,8 @@ async def list_projects(
             classification_thresholds=project.classification_thresholds,
             blur_people=project.blur_people,
             blur_vehicles=project.blur_vehicles,
+            delete_people=project.delete_people,
+            delete_vehicles=project.delete_vehicles,
             independence_interval_minutes=project.independence_interval_minutes,
             image_url=image_url,
             thumbnail_url=thumbnail_url,
@@ -254,6 +260,8 @@ async def get_project(
         classification_thresholds=project.classification_thresholds,
         blur_people=project.blur_people,
         blur_vehicles=project.blur_vehicles,
+        delete_people=project.delete_people,
+        delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -338,6 +346,8 @@ async def create_project(
         classification_thresholds=project.classification_thresholds,
         blur_people=project.blur_people,
         blur_vehicles=project.blur_vehicles,
+        delete_people=project.delete_people,
+        delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -398,6 +408,16 @@ async def update_project(
         project.blur_people = project_data.blur_people
     if project_data.blur_vehicles is not None:
         project.blur_vehicles = project_data.blur_vehicles
+    # Delete implies blur: photos stored before the switch stay and must at
+    # least be blurred, so the stored pair never contradicts itself.
+    if project_data.delete_people is not None:
+        project.delete_people = project_data.delete_people
+        if project_data.delete_people:
+            project.blur_people = True
+    if project_data.delete_vehicles is not None:
+        project.delete_vehicles = project_data.delete_vehicles
+        if project_data.delete_vehicles:
+            project.blur_vehicles = True
     if project_data.independence_interval_minutes is not None:
         if not (0 <= project_data.independence_interval_minutes <= 1440):
             raise HTTPException(
@@ -443,6 +463,8 @@ async def update_project(
         classification_thresholds=project.classification_thresholds,
         blur_people=project.blur_people,
         blur_vehicles=project.blur_vehicles,
+        delete_people=project.delete_people,
+        delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,
         thumbnail_url=thumbnail_url,

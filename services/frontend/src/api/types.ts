@@ -308,6 +308,10 @@ export interface Project {
   classification_thresholds: ClassificationThresholds | null;
   blur_people: boolean;
   blur_vehicles: boolean;
+  // Replace the photo of a detected person / vehicle with a placeholder on
+  // arrival. Delete implies blur, the API keeps the pair consistent.
+  delete_people: boolean;
+  delete_vehicles: boolean;
   independence_interval_minutes: number;
   created_at: string;
   updated_at: string | null;
@@ -328,6 +332,8 @@ export interface ProjectUpdate {
   included_species?: string[] | null;
   blur_people?: boolean;
   blur_vehicles?: boolean;
+  delete_people?: boolean;
+  delete_vehicles?: boolean;
   independence_interval_minutes?: number;
   classification_thresholds?: { default: number; overrides: Record<string, number> };
 }

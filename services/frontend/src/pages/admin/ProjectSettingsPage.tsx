@@ -12,6 +12,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Callout } from '../../components/ui/Callout';
 import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
 import { SiteGroupsModal } from '../../components/SiteGroupsModal';
 import { ClassificationThresholdsModal } from '../../components/ClassificationThresholdsModal';
@@ -35,6 +36,49 @@ const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 60, label: '60 minutes' },
 ];
 
+// What happens with a detected person or vehicle. Stored as two booleans
+// per category (blur, delete); delete implies blur, so delete wins when
+// reading the pair back.
+type PrivacyChoice = 'keep' | 'blur' | 'delete';
+
+function privacyChoice(blur: boolean | undefined, remove: boolean | undefined): PrivacyChoice {
+  if (remove) return 'delete';
+  if (blur ?? true) return 'blur';
+  return 'keep';
+}
+
+const PRIVACY_OPTIONS: { value: PrivacyChoice; label: string }[] = [
+  { value: 'keep', label: 'Keep' },
+  { value: 'blur', label: 'Blur' },
+  { value: 'delete', label: 'Delete' },
+];
+
+// Three buttons, one selected. Same teal as the toggles elsewhere on the page.
+const PrivacySegmented: React.FC<{
+  value: PrivacyChoice;
+  onChange: (value: PrivacyChoice) => void;
+  disabled?: boolean;
+  ariaLabel: string;
+}> = ({ value, onChange, disabled, ariaLabel }) => (
+  <div role="radiogroup" aria-label={ariaLabel} className="inline-flex overflow-hidden rounded-md border divide-x">
+    {PRIVACY_OPTIONS.map((option) => (
+      <button
+        key={option.value}
+        type="button"
+        role="radio"
+        aria-checked={value === option.value}
+        disabled={disabled}
+        onClick={() => onChange(option.value)}
+        className={`px-3 py-1 text-sm transition-colors ${
+          value === option.value ? 'bg-[#0f6064] text-white' : 'bg-white hover:bg-muted'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      >
+        {option.label}
+      </button>
+    ))}
+  </div>
+);
+
 // Data collected after save to populate the modal
 interface ModalData {
   observations: { before: DetectionCountResponse; after: DetectionCountResponse };
@@ -55,8 +99,13 @@ export const ProjectSettingsPage: React.FC = () => {
   // Form state
   const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.2);
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
-  const [blurPeople, setBlurPeople] = useState<boolean>(currentProject?.blur_people ?? true);
-  const [blurVehicles, setBlurVehicles] = useState<boolean>(currentProject?.blur_vehicles ?? true);
+  const [peoplePrivacy, setPeoplePrivacy] = useState<PrivacyChoice>(
+    privacyChoice(currentProject?.blur_people, currentProject?.delete_people),
+  );
+  const [vehiclesPrivacy, setVehiclesPrivacy] = useState<PrivacyChoice>(
+    privacyChoice(currentProject?.blur_vehicles, currentProject?.delete_vehicles),
+  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 30);
   const [classificationDefault, setClassificationDefault] = useState<number>(
     currentProject?.classification_thresholds?.default ?? 0.0,
@@ -87,8 +136,8 @@ export const ProjectSettingsPage: React.FC = () => {
   useEffect(() => {
     if (currentProject) {
       setThreshold(currentProject.detection_threshold ?? 0.2);
-      setBlurPeople(currentProject.blur_people ?? true);
-      setBlurVehicles(currentProject.blur_vehicles ?? true);
+      setPeoplePrivacy(privacyChoice(currentProject.blur_people, currentProject.delete_people));
+      setVehiclesPrivacy(privacyChoice(currentProject.blur_vehicles, currentProject.delete_vehicles));
       setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
       setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
       setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
@@ -209,9 +258,15 @@ export const ProjectSettingsPage: React.FC = () => {
     ? '__all__'
     : includedSpecies.map(s => s.value as string).sort().join(',');
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
-  const hasBlurChanges =
-    blurPeople !== (currentProject.blur_people ?? true) ||
-    blurVehicles !== (currentProject.blur_vehicles ?? true);
+  const hasPrivacyChanges =
+    peoplePrivacy !== privacyChoice(currentProject.blur_people, currentProject.delete_people) ||
+    vehiclesPrivacy !== privacyChoice(currentProject.blur_vehicles, currentProject.delete_vehicles);
+  // Categories that move to Delete with this save. Irreversible for every
+  // photo from then on, so the Save button asks first.
+  const newlyDeleting = [
+    peoplePrivacy === 'delete' && !currentProject.delete_people ? 'people' : null,
+    vehiclesPrivacy === 'delete' && !currentProject.delete_vehicles ? 'vehicles' : null,
+  ].filter((c): c is string => c !== null);
   const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 30);
 
   const hasClassificationThresholdChanges = (() => {
@@ -245,7 +300,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const hasUnsavedChanges =
     hasThresholdChanges ||
     hasSpeciesChanges ||
-    hasBlurChanges ||
+    hasPrivacyChanges ||
     hasIntervalChanges ||
     hasGroupChanges ||
     hasClassificationThresholdChanges;
@@ -284,7 +339,7 @@ export const ProjectSettingsPage: React.FC = () => {
         );
       }
 
-      if (hasSpeciesChanges || hasBlurChanges || hasIntervalChanges) {
+      if (hasSpeciesChanges || hasPrivacyChanges || hasIntervalChanges) {
         const update: ProjectUpdate = {};
         if (hasSpeciesChanges) {
           // Every species selected is stored as an empty list ("all"), so the
@@ -293,9 +348,13 @@ export const ProjectSettingsPage: React.FC = () => {
             ? []
             : includedSpecies.map(s => s.value as string);
         }
-        if (hasBlurChanges) {
-          update.blur_people = blurPeople;
-          update.blur_vehicles = blurVehicles;
+        if (hasPrivacyChanges) {
+          // keep = neither, blur = blur only, delete = both (the API enforces
+          // delete implies blur as well)
+          update.blur_people = peoplePrivacy !== 'keep';
+          update.delete_people = peoplePrivacy === 'delete';
+          update.blur_vehicles = vehiclesPrivacy !== 'keep';
+          update.delete_vehicles = vehiclesPrivacy === 'delete';
         }
         if (hasIntervalChanges) {
           update.independence_interval_minutes = independenceInterval;
@@ -384,8 +443,8 @@ export const ProjectSettingsPage: React.FC = () => {
   // Reset form to currently saved values
   const handleResetUnsaved = () => {
     setThreshold(currentProject.detection_threshold ?? 0.2);
-    setBlurPeople(currentProject.blur_people ?? true);
-    setBlurVehicles(currentProject.blur_vehicles ?? true);
+    setPeoplePrivacy(privacyChoice(currentProject.blur_people, currentProject.delete_people));
+    setVehiclesPrivacy(privacyChoice(currentProject.blur_vehicles, currentProject.delete_vehicles));
     setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
     setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
     setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
@@ -399,8 +458,8 @@ export const ProjectSettingsPage: React.FC = () => {
   // Restore defaults (fill form only, user must save)
   const handleRestoreDefaults = () => {
     setThreshold(0.5);
-    setBlurPeople(true);
-    setBlurVehicles(true);
+    setPeoplePrivacy('blur');
+    setVehiclesPrivacy('blur');
     setIndependenceInterval(30);
     setClassificationDefault(0.0);
     setClassificationOverrides({});
@@ -412,6 +471,15 @@ export const ProjectSettingsPage: React.FC = () => {
   }));
 
   const isSaving = saveStatus === 'saving';
+
+  // Save asks first when a category newly moves to Delete.
+  const requestSave = () => {
+    if (newlyDeleting.length > 0) {
+      setShowDeleteConfirm(true);
+    } else {
+      void handleSave();
+    }
+  };
 
   return (
     <div>
@@ -550,57 +618,35 @@ export const ProjectSettingsPage: React.FC = () => {
           {/* Divider */}
           <div className="border-t my-6" />
 
-          {/* Privacy blur, one row, people and vehicles toggle independently */}
+          {/* Privacy, one row, people and vehicles choose independently */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
             <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">
-                Blur people and vehicles
+                Privacy
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Automatically blur detected people and vehicles in all images for privacy. The two categories work independently. Applies everywhere images are shown or exported. Statistics stay unaffected.
+                Blur hides people and vehicles everywhere images appear. Delete removes the photo on arrival and keeps only the record. Cannot be undone. Older images stay, remove them in Curation.
               </p>
             </div>
-            <div className="flex-1 flex items-center gap-6">
-              <label className="flex items-center gap-2 text-sm">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={blurPeople}
-                  aria-label="Blur people"
-                  onClick={() => setBlurPeople(!blurPeople)}
+            <div className="flex-1 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="w-16">People</span>
+                <PrivacySegmented
+                  value={peoplePrivacy}
+                  onChange={setPeoplePrivacy}
                   disabled={isSaving}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                    blurPeople ? 'bg-[#0f6064]' : 'bg-gray-300'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      blurPeople ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-                People
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={blurVehicles}
-                  aria-label="Blur vehicles"
-                  onClick={() => setBlurVehicles(!blurVehicles)}
+                  ariaLabel="People"
+                />
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="w-16">Vehicles</span>
+                <PrivacySegmented
+                  value={vehiclesPrivacy}
+                  onChange={setVehiclesPrivacy}
                   disabled={isSaving}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                    blurVehicles ? 'bg-[#0f6064]' : 'bg-gray-300'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      blurVehicles ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-                Vehicles
-              </label>
+                  ariaLabel="Vehicles"
+                />
+              </div>
             </div>
           </div>
 
@@ -690,7 +736,7 @@ export const ProjectSettingsPage: React.FC = () => {
               </Button>
             </div>
             <Button
-              onClick={handleSave}
+              onClick={requestSave}
               disabled={isSaving || !hasUnsavedChanges}
               size="sm"
             >
@@ -742,6 +788,21 @@ export const ProjectSettingsPage: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Asked once, when a category newly moves to Delete */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          void handleSave();
+        }}
+        title={`Delete photos of ${newlyDeleting.join(' and ')} from now on`}
+        body="Every new photo that shows one is replaced by a placeholder within a minute of arrival. The record and its counts stay. This cannot be undone."
+        confirmLabel="Delete from now on"
+        variant="destructive"
+        focusCancel
+      />
 
       {/* Merged sites modal */}
       <SiteGroupsModal

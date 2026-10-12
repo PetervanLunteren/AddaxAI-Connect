@@ -61,6 +61,110 @@ def tier_bulk_raw_cold(image_uuid: str) -> None:
         logger.warning("Failed to tag bulk image cold", image_uuid=image_uuid, error=str(e))
 
 
+def event_location_and_timestamp(image_record, fallback_timestamp):
+    """Where and when for a species_detection event, from the photo's own EXIF.
+
+    GPS comes from the photo (gps_decimal in its metadata), never from the
+    camera row. The timestamp is DateTimeOriginal, or the queue message's
+    timestamp when the photo carries none.
+    """
+    metadata = image_record.image_metadata or {}
+    location = None
+    gps_decimal = metadata.get('gps_decimal')
+    if gps_decimal and len(gps_decimal) == 2:
+        location = {"lat": gps_decimal[0], "lon": gps_decimal[1]}
+    timestamp = metadata.get('DateTimeOriginal') or fallback_timestamp
+    return location, timestamp
+
+
+def publish_person_vehicle_events(camera, image_record, image_uuid, pv_dets,
+                                  annotated_minio_path, fallback_timestamp) -> None:
+    """Publish one species_detection event per person/vehicle category.
+
+    pv_dets are the person and vehicle detections at or above the project
+    threshold. annotated_minio_path is None when there is no photo to attach
+    (privacy removal, or the annotation failed); the delivery workers then
+    send text only.
+    """
+    location, timestamp = event_location_and_timestamp(image_record, fallback_timestamp)
+    notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
+    for category in sorted(set(d.category for d in pv_dets)):
+        best_det = max(
+            (d for d in pv_dets if d.category == category),
+            key=lambda d: d.confidence
+        )
+        notification_queue.publish({
+            "event_type": "species_detection",
+            "project_id": camera.project_id,
+            "image_uuid": image_uuid,
+            "camera_id": camera.id,
+            "camera_name": camera.device_id,
+            "camera_location": location,
+            "species": category,
+            "confidence": best_det.confidence,
+            "detection_confidence": best_det.confidence,
+            "detection_count": len(pv_dets),
+            "species_count": sum(1 for d in pv_dets if d.category == category),
+            "annotated_minio_path": annotated_minio_path,
+            "timestamp": timestamp
+        })
+        logger.info(
+            "Published person/vehicle detection notification",
+            species=category,
+            confidence=best_det.confidence,
+            annotated_minio_path=annotated_minio_path
+        )
+
+
+def remove_private_image(image_uuid: str, detections, message: dict, is_bulk: bool) -> bool:
+    """Replace the photo with the privacy placeholder when the project asks for it.
+
+    Runs before anything is downloaded. True means the image is finished
+    here: the placeholder is in storage, the row is stamped and classified,
+    and the person/vehicle alerts went out without a photo. False means the
+    photo is kept and the normal pipeline continues. See shared/privacy.py.
+    """
+    from datetime import datetime, timezone
+    from shared.database import get_db_session
+    from shared.models import Image as ImageModel, Camera, Project
+    from shared.privacy import PRIVACY_CATEGORIES, removed_categories, replace_with_placeholder
+    from shared.storage import StorageClient
+
+    with get_db_session() as db:
+        image_record = db.query(ImageModel).filter(ImageModel.uuid == image_uuid).first()
+        camera = db.query(Camera).filter(Camera.id == image_record.camera_id).first() if image_record else None
+        project = db.query(Project).filter(Project.id == camera.project_id).first() if camera else None
+        if not (image_record and camera and project):
+            return False
+        categories = removed_categories(detections, project)
+        if not categories:
+            return False
+
+        # Objects first, stamp second. A failed upload raises here and leaves
+        # an unstamped row (the image ends up failed, visible), never a
+        # stamped row with the bytes still in storage.
+        replace_with_placeholder(StorageClient(), image_record, categories)
+        image_record.privacy_removed_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.info(
+            "Replaced photo with privacy placeholder",
+            image_uuid=image_uuid,
+            project_id=project.id,
+            categories=categories,
+        )
+
+        # Same fan-out rule as a kept photo: live images alert, bulk never.
+        if not is_bulk:
+            pv_dets = [d for d in detections
+                       if d.category in PRIVACY_CATEGORIES and d.confidence >= project.detection_threshold]
+            publish_person_vehicle_events(
+                camera, image_record, image_uuid, pv_dets, None, message.get("timestamp")
+            )
+
+    update_image_status(image_uuid, "classified")
+    return True
+
+
 def process_detection_complete(message: dict, classifier) -> None:
     """
     Process detection-complete message through classification pipeline.
@@ -114,6 +218,13 @@ def process_detection_complete(message: dict, classifier) -> None:
 
         # Step 2: Fetch detection records and project config from database
         image_id, image_width, image_height, detections, included_species = get_detections_for_image(image_uuid)
+
+        # Privacy removal comes first, before any download: a project that
+        # deletes photos of people or vehicles never has this photo touched
+        # again, and nothing below runs for it.
+        if remove_private_image(image_uuid, detections, message, is_bulk):
+            logger.info("Image processing complete (photo removed for privacy)", image_uuid=image_uuid)
+            return
 
         # Check if any detections are animals
         animal_detections = [d for d in detections if d.category == "animal"]
@@ -210,44 +321,10 @@ def process_detection_complete(message: dict, classifier) -> None:
                                         error=str(e)
                                     )
 
-                                # Build location and timestamp
-                                location = None
-                                metadata = image_record.image_metadata or {}
-                                gps_decimal = metadata.get('gps_decimal')
-                                if gps_decimal and len(gps_decimal) == 2:
-                                    location = {"lat": gps_decimal[0], "lon": gps_decimal[1]}
-                                datetime_original = metadata.get('DateTimeOriginal')
-                                timestamp = datetime_original if datetime_original else message.get("timestamp")
-
-                                # Publish one notification per person/vehicle category
-                                notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
-                                pv_categories = set(d.category for d in pv_dets)
-                                for category in pv_categories:
-                                    best_det = max(
-                                        (d for d in pv_dets if d.category == category),
-                                        key=lambda d: d.confidence
-                                    )
-                                    notification_queue.publish({
-                                        "event_type": "species_detection",
-                                        "project_id": camera.project_id,
-                                        "image_uuid": image_uuid,
-                                        "camera_id": camera.id,
-                                        "camera_name": camera.device_id,
-                                        "camera_location": location,
-                                        "species": category,
-                                        "confidence": best_det.confidence,
-                                        "detection_confidence": best_det.confidence,
-                                        "detection_count": len(pv_dets),
-                                        "species_count": sum(1 for d in pv_dets if d.category == category),
-                                        "annotated_minio_path": annotated_minio_path,
-                                        "timestamp": timestamp
-                                    })
-                                    logger.info(
-                                        "Published person/vehicle detection notification",
-                                        species=category,
-                                        confidence=best_det.confidence,
-                                        annotated_minio_path=annotated_minio_path
-                                    )
+                                publish_person_vehicle_events(
+                                    camera, image_record, image_uuid, pv_dets,
+                                    annotated_minio_path, message.get("timestamp")
+                                )
                         except Exception as e:
                             logger.error("Failed to publish pv notification event", error=str(e))
 
@@ -425,23 +502,10 @@ def process_detection_complete(message: dict, classifier) -> None:
                                     error=str(e)
                                 )
 
-                            # Use image EXIF timestamp (DateTimeOriginal) or GPS from image, not camera
-                            # Priority: Image GPS > Camera GPS
-                            location = None
-                            metadata = image.image_metadata or {}
-
-                            # GPS coordinates are stored as gps_decimal: [lat, lon] tuple in metadata
-                            gps_decimal = metadata.get('gps_decimal')
-                            if gps_decimal and len(gps_decimal) == 2:
-                                # Use GPS from image EXIF
-                                location = {
-                                    "lat": gps_decimal[0],
-                                    "lon": gps_decimal[1]
-                                }
-
-                            # DateTimeOriginal is stored as ISO string in metadata
-                            datetime_original = metadata.get('DateTimeOriginal')
-                            timestamp = datetime_original if datetime_original else message.get("timestamp")
+                            # Where and when from the photo's own EXIF, not the camera row
+                            location, timestamp = event_location_and_timestamp(
+                                image, message.get("timestamp")
+                            )
 
                             notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
 
@@ -472,33 +536,10 @@ def process_detection_complete(message: dict, classifier) -> None:
 
                             # Also publish notifications for person/vehicle detections
                             if pv_above:
-                                pv_categories = set(d.category for d in pv_above)
-                                for category in pv_categories:
-                                    best_det = max(
-                                        (d for d in pv_above if d.category == category),
-                                        key=lambda d: d.confidence
-                                    )
-                                    notification_queue.publish({
-                                        "event_type": "species_detection",
-                                        "project_id": camera.project_id,
-                                        "image_uuid": image_uuid,
-                                        "camera_id": camera.id,
-                                        "camera_name": camera.device_id,
-                                        "camera_location": location,
-                                        "species": category,
-                                        "confidence": best_det.confidence,
-                                        "detection_confidence": best_det.confidence,
-                                        "detection_count": len(pv_above),
-                                        "species_count": sum(1 for d in pv_above if d.category == category),
-                                        "annotated_minio_path": annotated_minio_path,
-                                        "timestamp": timestamp
-                                    })
-                                    logger.info(
-                                        "Published person/vehicle detection notification",
-                                        species=category,
-                                        confidence=best_det.confidence,
-                                        annotated_minio_path=annotated_minio_path
-                                    )
+                                publish_person_vehicle_events(
+                                    camera, image, image_uuid, pv_above,
+                                    annotated_minio_path, message.get("timestamp")
+                                )
             except Exception as e:
                 logger.error("Failed to publish notification event", error=str(e))
 

@@ -185,6 +185,38 @@ class StorageClient:
         """
         self.client.delete_object(Bucket=bucket, Key=object_name)
 
+    def delete_object_versions(self, bucket: str, object_name: str) -> None:
+        """
+        Delete every version of one object, delete markers included.
+
+        On a versioned bucket (raw-images) delete_object only writes a delete
+        marker and keeps the bytes as a previous version. This is the call for
+        when the bytes must really go. The listing takes a prefix, so entries
+        are matched on the exact key. An empty listing is a no-op, which makes
+        a retry safe; an error on any version raises instead of being skipped.
+
+        Args:
+            bucket: Bucket name
+            object_name: Object name
+        """
+        paginator = self.client.get_paginator("list_object_versions")
+        for page in paginator.paginate(Bucket=bucket, Prefix=object_name):
+            targets = [
+                {"Key": entry["Key"], "VersionId": entry["VersionId"]}
+                for group in ("Versions", "DeleteMarkers")
+                for entry in page.get(group, [])
+                if entry["Key"] == object_name
+            ]
+            if not targets:
+                continue
+            response = self.client.delete_objects(
+                Bucket=bucket, Delete={"Objects": targets, "Quiet": True}
+            )
+            if response.get("Errors"):
+                raise RuntimeError(
+                    f"Could not delete versions of {bucket}/{object_name}: {response['Errors']}"
+                )
+
     def list_objects(self, bucket: str, prefix: Optional[str] = None) -> list[str]:
         """
         List objects in bucket.
