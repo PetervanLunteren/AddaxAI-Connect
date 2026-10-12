@@ -975,34 +975,41 @@ export const ManageImagesPage: React.FC = () => {
               camera status stay as they are; the photo becomes a placeholder
               that says what it showed. */}
           <div className="space-y-2 text-sm" role="radiogroup" aria-label="What to delete">
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="delete-mode"
-                className="mt-0.5 accent-primary"
-                checked={deleteMode === 'all'}
-                onChange={() => setDeleteMode('all')}
-                disabled={deleteMutation.isPending}
-              />
-              <span>
-                <span className="font-medium">Delete photos and records</span>
-                <span className="block text-muted-foreground">The images disappear from everywhere, including counts and statistics.</span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="delete-mode"
-                className="mt-0.5 accent-primary"
-                checked={deleteMode === 'photos'}
-                onChange={() => setDeleteMode('photos')}
-                disabled={deleteMutation.isPending}
-              />
-              <span>
-                <span className="font-medium">Delete photos, keep records</span>
-                <span className="block text-muted-foreground">Each photo becomes a placeholder that says what it showed. Detections, observations and counts stay.</span>
-              </span>
-            </label>
+            {([
+              {
+                mode: 'all',
+                title: 'Delete photos and records',
+                detail: 'The images disappear from everywhere, including counts and statistics.',
+              },
+              {
+                mode: 'photos',
+                title: 'Delete photos, keep records',
+                detail: 'Each photo becomes a placeholder that says what it showed. Detections, observations and counts stay.',
+              },
+            ] as const).map((option) => {
+              const selected = deleteMode === option.mode;
+              return (
+                <label
+                  key={option.mode}
+                  className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
+                    selected ? 'border-[#0f6064] bg-[#0f6064]/5' : 'hover:bg-muted'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="delete-mode"
+                    className="mt-0.5 accent-primary"
+                    checked={selected}
+                    onChange={() => setDeleteMode(option.mode)}
+                    disabled={deleteMutation.isPending}
+                  />
+                  <span>
+                    <span className="font-medium">{option.title}</span>
+                    <span className="block text-muted-foreground">{option.detail}</span>
+                  </span>
+                </label>
+              );
+            })}
           </div>
 
           <div className="border-2 border-destructive rounded-md p-4 my-4 bg-destructive/5">
