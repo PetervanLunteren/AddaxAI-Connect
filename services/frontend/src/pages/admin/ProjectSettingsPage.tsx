@@ -628,9 +628,10 @@ export const ProjectSettingsPage: React.FC = () => {
                 Blur hides people and vehicles everywhere images appear. Delete removes the photo on arrival and keeps only the record. Cannot be undone. Older images stay, remove them in Curation.
               </p>
             </div>
-            <div className="flex-1 flex flex-wrap items-center gap-x-6 gap-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="w-16">People</span>
+            {/* Same label-above-control shape as the filter bars */}
+            <div className="flex-1 flex flex-wrap gap-x-6 gap-y-3">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-muted-foreground">People</label>
                 <PrivacySegmented
                   value={peoplePrivacy}
                   onChange={setPeoplePrivacy}
@@ -638,8 +639,8 @@ export const ProjectSettingsPage: React.FC = () => {
                   ariaLabel="People"
                 />
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="w-16">Vehicles</span>
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-muted-foreground">Vehicles</label>
                 <PrivacySegmented
                   value={vehiclesPrivacy}
                   onChange={setVehiclesPrivacy}

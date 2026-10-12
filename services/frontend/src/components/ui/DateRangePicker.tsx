@@ -92,7 +92,8 @@ interface DateRangePickerProps {
   maxDate?: string | null;
   /** Label shown when no dates are picked. Defaults to "All dates". */
   placeholder?: string;
-  /** Trigger button className override. Defaults to a full-width h-9 style. */
+  /** Trigger button className override. Defaults to a full-width h-10 style,
+   * the same height as every other filter bar control. */
   className?: string;
 }
 
@@ -133,7 +134,7 @@ export function DateRangePicker({
         <Button
           variant="outline"
           size="sm"
-          className={className ?? 'w-full h-9 justify-start text-sm font-normal'}
+          className={className ?? 'w-full h-10 justify-start text-sm font-normal'}
         >
           <span className="truncate">{label}</span>
         </Button>
