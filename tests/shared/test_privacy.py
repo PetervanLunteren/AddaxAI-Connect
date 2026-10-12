@@ -65,8 +65,8 @@ class TestRemovalSentence:
             "This photo showed a person and a vehicle and was removed for privacy."
         )
 
-    def test_generic_when_nothing_is_named(self):
-        assert removal_sentence([]) == "This photo was removed for privacy."
+    def test_generic_when_nothing_is_named_claims_no_reason(self):
+        assert removal_sentence([]) == "This photo was removed. Only the record is kept."
 
 
 def _decode(data: bytes):

@@ -51,7 +51,9 @@ def removed_categories(detections: Iterable, project) -> list[str]:
 def removal_sentence(categories: list[str]) -> str:
     """The sentence drawn on the placeholder."""
     if not categories:
-        return "This photo was removed for privacy."
+        # A curation removal of a photo with no person or vehicle in it. The
+        # admin never said why, so the placeholder does not claim a reason.
+        return "This photo was removed. Only the record is kept."
     what = " and ".join(f"a {c}" for c in categories)
     return f"This photo showed {what} and was removed for privacy."
 
