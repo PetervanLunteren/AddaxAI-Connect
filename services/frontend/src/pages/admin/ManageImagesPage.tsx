@@ -353,16 +353,18 @@ export const ManageImagesPage: React.FC = () => {
   // timeout; the loop below repeats until everything is gone.
   const BULK_DELETE_BATCH = 500;
   const [deleteProgress, setDeleteProgress] = useState<number | null>(null);
-  // 'all' deletes the images and their records, 'photos' replaces the photo
-  // files with the privacy placeholder and keeps the records.
-  const [deleteMode, setDeleteMode] = useState<'all' | 'photos'>('all');
+  // 'photos' replaces the photo files with the privacy placeholder and keeps
+  // the records, 'all' deletes the images and their records. Photos only is
+  // the default because a wrong photos-only delete can be followed by the
+  // full one, while a wrong full delete cannot be undone.
+  const [deleteMode, setDeleteMode] = useState<'all' | 'photos'>('photos');
   const keepRecords = deleteMode === 'photos';
   // One way out of the dialog, so every close (cancel, X, backdrop, done)
   // forgets the typed word and the chosen mode alike.
   const closeDeleteDialog = () => {
     setShowDeleteConfirm(false);
     setDeleteConfirmText('');
-    setDeleteMode('all');
+    setDeleteMode('photos');
   };
 
   const deleteMutation = useMutation({
@@ -978,14 +980,14 @@ export const ManageImagesPage: React.FC = () => {
           <div className="space-y-2 text-sm" role="radiogroup" aria-label="What to delete">
             {([
               {
-                mode: 'all',
-                title: 'Delete photos and records',
-                detail: 'The images disappear from everywhere, including counts and statistics.',
-              },
-              {
                 mode: 'photos',
                 title: 'Delete photos, keep records',
                 detail: 'Each photo becomes a placeholder that says what it showed. Detections, observations and counts stay.',
+              },
+              {
+                mode: 'all',
+                title: 'Delete photos and records',
+                detail: 'The images disappear from everywhere, including counts and statistics.',
               },
             ] as const).map((option) => {
               const selected = deleteMode === option.mode;
