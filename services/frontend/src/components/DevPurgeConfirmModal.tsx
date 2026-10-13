@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from './ui/Dialog';
 import { Button } from './ui/Button';
+import { ConfirmWordField } from './ui/ConfirmWordField';
 import { useToast } from './ui/Toaster';
 import { adminApi } from '../api/admin';
 import type { DevModeStatus } from '../api/types';
@@ -56,10 +57,7 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isConfirmValid) {
-      setError('Domain does not match');
-      return;
-    }
+    if (!isConfirmValid) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -126,22 +124,12 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="confirm-domain" className="text-sm font-medium block">
-              Type <span className="font-mono font-bold">{expectedDomain}</span>{' '}
-              to confirm
-            </label>
-            <input
-              id="confirm-domain"
-              type="text"
-              value={confirmDomain}
-              onChange={(e) => setConfirmDomain(e.target.value)}
-              placeholder="Enter domain name"
-              className="w-full px-3 py-2 border rounded-md"
-              autoComplete="off"
-              disabled={submitting}
-            />
-          </div>
+          <ConfirmWordField
+            word={expectedDomain}
+            value={confirmDomain}
+            onChange={setConfirmDomain}
+            disabled={submitting}
+          />
 
           {error && (
             <div className="mt-4 p-3 bg-destructive/10 text-destructive text-sm rounded-md">

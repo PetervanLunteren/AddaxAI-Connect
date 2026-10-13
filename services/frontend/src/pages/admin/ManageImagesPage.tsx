@@ -27,6 +27,7 @@ import {
 } from '../../lib/filter-url';
 import type { AdminImageFilterParams, BulkActionTarget, EmptiedSite } from '../../api/imageAdmin';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { ConfirmWordField } from '../../components/ui/ConfirmWordField';
 import { statisticsApi } from '../../api/statistics';
 import {
   Dialog,
@@ -1036,21 +1037,12 @@ export const ManageImagesPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="delete-confirm" className="text-sm font-medium block">
-              Type <span className="font-mono font-bold">DELETE</span> to confirm:
-            </label>
-            <input
-              id="delete-confirm"
-              type="text"
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder="Type DELETE"
-              className="w-full px-3 py-2 border rounded-md"
-              autoComplete="off"
-              disabled={deleteMutation.isPending}
-            />
-          </div>
+          <ConfirmWordField
+            word="DELETE"
+            value={deleteConfirmText}
+            onChange={setDeleteConfirmText}
+            disabled={deleteMutation.isPending}
+          />
 
           <DialogFooter className="mt-4">
             <Button

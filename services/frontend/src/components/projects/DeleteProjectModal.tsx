@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
+import { ConfirmWordField } from '../ui/ConfirmWordField';
 import { projectsApi } from '../../api/projects';
 import { DeleteImpactList } from '../DeleteImpactList';
 import type { Project, ProjectDeleteResponse } from '../../api/types';
@@ -82,18 +83,14 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (confirmName !== project.name) {
-      setError('Project name does not match');
-      return;
-    }
-    deleteMutation.mutate();
-  };
-
   // Fail closed. Nobody confirms a delete whose size we could not read.
   const canDelete =
     confirmName === project.name && !impactLoading && !impactError && impact != null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (canDelete) deleteMutation.mutate();
+  };
 
   // Show success results
   if (deleteResult) {
@@ -169,22 +166,12 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
             </div>
           </div>
 
-          {/* Confirmation Input */}
-          <div className="space-y-2">
-            <label htmlFor="confirm" className="text-sm font-medium block">
-              Type <span className="font-mono font-bold">{project.name}</span> to confirm
-            </label>
-            <input
-              id="confirm"
-              type="text"
-              value={confirmName}
-              onChange={(e) => setConfirmName(e.target.value)}
-              placeholder="Enter project name"
-              className="w-full px-3 py-2 border rounded-md"
-              autoComplete="off"
-              disabled={deleteMutation.isPending}
-            />
-          </div>
+          <ConfirmWordField
+            word={project.name}
+            value={confirmName}
+            onChange={setConfirmName}
+            disabled={deleteMutation.isPending}
+          />
 
           {/* Error Message */}
           {error && (

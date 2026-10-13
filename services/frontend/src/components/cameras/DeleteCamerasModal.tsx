@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
+import { ConfirmWordField } from '../ui/ConfirmWordField';
 import { camerasApi, type CameraBulkDeleteResponse } from '../../api/cameras';
 
 interface DeleteCamerasModalProps {
@@ -86,18 +87,14 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (confirmText !== CONFIRM_WORD) {
-      setError(`Type ${CONFIRM_WORD} to confirm`);
-      return;
-    }
-    deleteMutation.mutate();
-  };
-
   // Fail closed. Nobody confirms a delete whose size we could not read.
   const canDelete =
     confirmText === CONFIRM_WORD && !impactLoading && !impactError && impact != null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (canDelete) deleteMutation.mutate();
+  };
 
   // Show success results
   if (deleteResult) {
@@ -173,22 +170,12 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
             </div>
           </div>
 
-          {/* Confirmation Input */}
-          <div className="space-y-2">
-            <label htmlFor="confirm" className="text-sm font-medium block">
-              Type <span className="font-mono font-bold">{CONFIRM_WORD}</span> to confirm
-            </label>
-            <input
-              id="confirm"
-              type="text"
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              placeholder={`Enter ${CONFIRM_WORD}`}
-              className="w-full px-3 py-2 border rounded-md"
-              autoComplete="off"
-              disabled={deleteMutation.isPending}
-            />
-          </div>
+          <ConfirmWordField
+            word={CONFIRM_WORD}
+            value={confirmText}
+            onChange={setConfirmText}
+            disabled={deleteMutation.isPending}
+          />
 
           {/* Error Message */}
           {error && (

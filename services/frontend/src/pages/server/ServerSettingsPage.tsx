@@ -8,7 +8,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Download, Save, FileSpreadsheet } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Check, Download, Save, FileSpreadsheet } from 'lucide-react';
+import { CopyButton } from '../../components/ui/CopyButton';
 import { Card, CardContent } from '../../components/ui/Card';
 import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
 import { Switch } from '../../components/ui/Switch';
@@ -30,36 +31,6 @@ const generateBotUsername = (): string => {
     hash += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return `addaxai_connect_${hash}_bot`;
-};
-
-// Copy button component for inline code examples
-const CopyButton: React.FC<{ text: string }> = ({ text }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="inline-flex items-center justify-center p-2 ml-1 hover:bg-accent rounded transition-colors"
-      title="Copy to clipboard"
-    >
-      {copied ? (
-        <Check className="h-3 w-3 text-green-500" />
-      ) : (
-        <Copy className="h-3 w-3 text-muted-foreground" />
-      )}
-    </button>
-  );
 };
 
 // Download button component for logo
@@ -828,28 +799,28 @@ export const ServerSettingsPage: React.FC = () => {
                           Search for{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             @BotFather
-                            <CopyButton text="@BotFather" />
+                            <CopyButton className="ml-1" text="@BotFather" />
                           </code>
                         </li>
                         <li>
                           Send the command{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             /newbot
-                            <CopyButton text="/newbot" />
+                            <CopyButton className="ml-1" text="/newbot" />
                           </code>
                         </li>
                         <li>
                           Name your bot{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             AddaxAI Connect
-                            <CopyButton text="AddaxAI Connect" />
+                            <CopyButton className="ml-1" text="AddaxAI Connect" />
                           </code>
                                                   </li>
                         <li>
                           Choose username{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             {botUsername}
-                            <CopyButton text={botUsername} />
+                            <CopyButton className="ml-1" text={botUsername} />
                           </code>
                                                   </li>
                         <li>Copy the bot token (looks like: <em>123456789:ABCdefGHIjklMNOpqrs-TUVwxyz_A1</em>)</li>
@@ -980,7 +951,7 @@ export const ServerSettingsPage: React.FC = () => {
                   Open{' '}
                   <code className="px-1.5 py-0.5 bg-muted rounded inline-flex items-center">
                     @BotFather
-                    <CopyButton text="@BotFather" />
+                    <CopyButton className="ml-1" text="@BotFather" />
                   </code>
                   {' '}in Telegram
                 </li>
