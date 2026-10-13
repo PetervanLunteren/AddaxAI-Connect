@@ -1,11 +1,12 @@
 /**
  * The typed-word guard on destructive dialogs, one shape for all of them.
  *
- * Shows the word to type in a code chip with a copy button, then the input.
- * The caller keeps the typed value in state and disables its button until
- * `value === word`; no error message, the button simply does not work until
- * the word is right. Used by the camera, project and image deletes and the
- * dev purge.
+ * One line, GitHub style: "Type DELETE to confirm" with the word as an inline
+ * code chip and a copy button right after it, then the input with the word as
+ * its placeholder. The caller keeps the typed value in state and disables its
+ * button until `value === word`; no error message, the button simply does not
+ * work until the word is right. Used by the camera, project and image deletes
+ * and the dev purge.
  */
 import React from 'react';
 import { CopyButton } from './CopyButton';
@@ -27,17 +28,19 @@ export const ConfirmWordField: React.FC<ConfirmWordFieldProps> = ({
 }) => (
   <div className="space-y-2">
     <label htmlFor={id} className="text-sm font-medium block">
-      Type this to confirm
+      Type{' '}
+      <code className="rounded bg-muted px-1.5 py-0.5 font-mono font-semibold break-all select-all">
+        {word}
+      </code>
+      <CopyButton text={word} className="p-1 align-middle" />
+      to confirm
     </label>
-    <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-3 py-1 font-mono text-sm">
-      <span className="break-all select-all">{word}</span>
-      <CopyButton text={word} className="-mr-1 shrink-0" />
-    </div>
     <input
       id={id}
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      placeholder={word}
       className="w-full px-3 py-2 border rounded-md"
       autoComplete="off"
       autoCapitalize="off"
