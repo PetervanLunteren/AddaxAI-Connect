@@ -233,6 +233,8 @@ export const ActivityOverlapPage: React.FC = () => {
         options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
         placeholder: 'Any tags',
         summary: (n) => `${n} tags`,
+        // Species A and B, Sites and Date range fill the four inline cells.
+        primary: false,
       },
       {
         kind: 'date-range',

@@ -555,37 +555,14 @@ export const ManageImagesPage: React.FC = () => {
     onSelect: setModalImageUuid,
   });
 
+  // Inline: Search, then the same three as the Images page in the same
+  // order, so the two image pages read alike. Everything else is in More.
   const filterFields: FilterFieldDef[] = [
     {
       kind: 'search',
       key: 'search',
       label: 'Search',
       placeholder: 'Search filename',
-    },
-    {
-      kind: 'multi-select',
-      key: 'site_id',
-      label: 'Sites',
-      options: (sites ?? []).map((s) => ({ value: String(s.id), label: s.name })),
-      placeholder: 'All sites',
-      summary: (n) => `${n} sites`,
-    },
-    {
-      kind: 'select',
-      key: 'camera_id',
-      label: 'Camera',
-      options: (cameras ?? []).map((cam) => ({
-        value: String(cam.id),
-        label: cam.name,
-      })),
-    },
-    {
-      kind: 'multi-select',
-      key: 'tags',
-      label: 'Site tags',
-      options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
-      placeholder: 'Any tags',
-      summary: (n) => `${n} tags`,
     },
     {
       kind: 'select',
@@ -605,6 +582,33 @@ export const ManageImagesPage: React.FC = () => {
       label: 'Date range',
       minDate: overview?.first_image_date,
       maxDate: overview?.last_image_date,
+    },
+    {
+      kind: 'multi-select',
+      key: 'site_id',
+      label: 'Sites',
+      options: (sites ?? []).map((s) => ({ value: String(s.id), label: s.name })),
+      placeholder: 'All sites',
+      summary: (n) => `${n} sites`,
+    },
+    {
+      kind: 'multi-select',
+      key: 'tags',
+      label: 'Site tags',
+      options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+      placeholder: 'Any tags',
+      summary: (n) => `${n} tags`,
+      primary: false,
+    },
+    {
+      kind: 'select',
+      key: 'camera_id',
+      label: 'Camera',
+      options: (cameras ?? []).map((cam) => ({
+        value: String(cam.id),
+        label: cam.name,
+      })),
+      primary: false,
     },
     {
       kind: 'select',

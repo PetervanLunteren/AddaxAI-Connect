@@ -1,8 +1,9 @@
 /**
  * Shared filter bar used across Connect.
  *
- * Always-visible row of labelled controls. Primary fields render inline.
- * Fields marked `primary: false` overflow into a "More" popover on the
+ * Always-visible row of labelled controls. Primary fields render inline,
+ * at most MAX_PRIMARY_FIELDS of them; fields marked `primary: false` and
+ * any primary field past the cap overflow into a "More" popover on the
  * right. Chart and table display controls live in a separate "Display"
  * popover so "Clear all" never wipes them. Active filters render as
  * chips below the bar with a "Clear all" link. A `chip` field has no
@@ -148,6 +149,14 @@ const VALUE_KEYS = (field: FilterFieldDef): string[] => {
 
 const isPrimary = (field: ControlFieldDef): boolean => field.primary !== false;
 
+/**
+ * How many fields the bar shows inline. Four cells plus the More and
+ * Display buttons fit the content area of a 1280 px laptop; five wrap
+ * onto a second row. Pages order their fields by how often they are used
+ * and the bar takes the first four, so no page can drift past the cap.
+ */
+const MAX_PRIMARY_FIELDS = 4;
+
 const isFieldActive = (
   field: FilterFieldDef,
   values: Record<string, FilterValue>,
@@ -176,10 +185,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     () => fields.filter((f): f is ControlFieldDef => f.kind !== 'chip'),
     [fields],
   );
-  const primaryFields = useMemo(() => controlFields.filter(isPrimary), [controlFields]);
-  const overflowFields = useMemo(
-    () => controlFields.filter((f) => !isPrimary(f)),
+  const primaryFields = useMemo(
+    () => controlFields.filter(isPrimary).slice(0, MAX_PRIMARY_FIELDS),
     [controlFields],
+  );
+  const overflowFields = useMemo(
+    () => controlFields.filter((f) => !primaryFields.includes(f)),
+    [controlFields, primaryFields],
   );
 
   const chips = useMemo(
