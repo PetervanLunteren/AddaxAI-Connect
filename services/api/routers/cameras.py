@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from shared.models import User, Camera, Project, Image, CameraHealthReport, CameraMaintenanceEvent, CameraServiceTask, Deployment, Detection, Classification, BulkUploadJob, Rejection
 from shared.database import get_async_session
 from auth.users import current_verified_user
-from auth.permissions import can_admin_project
+from auth.permissions import can_access_project, can_admin_project
 from auth.project_access import (
     get_accessible_project_ids,
     narrow_to_project,
@@ -1023,6 +1023,34 @@ async def get_camera_health_history(
     )
 
 
+async def device_id_in_use_detail(
+    db: AsyncSession, existing: Camera, user: Optional[User], project_id: int,
+) -> str:
+    """
+    The refusal when a Camera ID is already on a camera in service.
+
+    Says where the camera is and what to do about it, because the person
+    hitting this is usually moving a device between projects: retire it in
+    the old project, then add it here. The other project is named only when
+    the caller is a member of it (or a server admin), so one project's admin
+    does not learn another project's name from a typo.
+    """
+    if existing.project_id == project_id:
+        return f"Camera ID {existing.device_id} is already in use in this project."
+    name = None
+    if user is not None and existing.project_id is not None:
+        if await can_access_project(user, existing.project_id, db):
+            project = (
+                await db.execute(select(Project).where(Project.id == existing.project_id))
+            ).scalar_one_or_none()
+            name = project.name if project else None
+    where = f"project {name}" if name else "another project"
+    return (
+        f"Camera ID {existing.device_id} is already in use in {where}. "
+        "Retire it there first, then add it here."
+    )
+
+
 @router.post(
     "",
     response_model=CameraResponse,
@@ -1064,7 +1092,7 @@ async def create_camera(
     if existing_camera:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Camera with ID {request.device_id} already exists",
+            detail=await device_id_in_use_detail(db, existing_camera, current_user, request.project_id),
         )
 
     # Verify project exists
@@ -1565,7 +1593,7 @@ async def import_cameras_csv(
                 row_number=idx,
                 device_id=device_id,
                 success=False,
-                error=f"Camera with ID {device_id} already exists"
+                error=await device_id_in_use_detail(db, existing_camera, current_user, project_id),
             ))
             failed_count += 1
             continue

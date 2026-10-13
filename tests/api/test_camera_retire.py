@@ -238,3 +238,54 @@ class TestDeleteEndpointsOfferKeepData:
             # A running bulk upload blocks a retire too, the worker would
             # otherwise write images onto a camera that is leaving.
             assert body.index("await _assert_no_live_bulk_jobs(") < body.index("await _retire_camera("), name
+
+
+class TestDeviceIdInUseDetail:
+    """The refusal when a Camera ID is live elsewhere must say what to do,
+    and must only name the other project to someone who can see it."""
+
+    @pytest.fixture(autouse=True)
+    def _imports(self):
+        from shared.models import Project, User  # noqa: F401
+        from routers.cameras import device_id_in_use_detail
+        self.detail = device_id_in_use_detail
+        self.Project = Project
+        self.User = User
+
+    def _existing(self, project_id=1):
+        return Camera(id=3, device_id="861943070143788", project_id=project_id)
+
+    @pytest.mark.asyncio
+    async def test_same_project_says_so(self):
+        text = await self.detail(_FakeSession(), self._existing(1), None, 1)
+        assert text == "Camera ID 861943070143788 is already in use in this project."
+
+    @pytest.mark.asyncio
+    async def test_member_of_the_other_project_sees_its_name(self, monkeypatch):
+        async def can_access(user, project_id, db):
+            return True
+        monkeypatch.setattr(cameras_module, "can_access_project", can_access)
+        db = _FakeSession(selects=[self.Project(id=1, name="Forêt d'Anlier")])
+        text = await self.detail(db, self._existing(1), self.User(id=5), 2)
+        assert text == (
+            "Camera ID 861943070143788 is already in use in project Forêt d'Anlier. "
+            "Retire it there first, then add it here."
+        )
+
+    @pytest.mark.asyncio
+    async def test_outsider_does_not_learn_the_project_name(self, monkeypatch):
+        async def can_access(user, project_id, db):
+            return False
+        monkeypatch.setattr(cameras_module, "can_access_project", can_access)
+        db = _FakeSession()
+        text = await self.detail(db, self._existing(1), self.User(id=5), 2)
+        assert "another project" in text
+        assert "Anlier" not in text
+        assert db.statements == []  # no project lookup for an outsider
+
+    @pytest.mark.asyncio
+    async def test_no_user_means_generic(self):
+        text = await self.detail(_FakeSession(), self._existing(1), None, 2)
+        assert text.startswith("Camera ID 861943070143788 is already in use in another project.")
+        # UI copy carries no colons, see the repo conventions.
+        assert ":" not in text

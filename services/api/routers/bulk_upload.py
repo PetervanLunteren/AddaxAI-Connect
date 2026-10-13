@@ -43,6 +43,7 @@ from shared.models import BulkUploadJob, Camera, Image, Site, User
 from shared.queue import QUEUE_BULK_UPLOAD_JOB_PROCESS, RedisQueue
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 from auth.permissions import require_project_admin_access
+from routers.cameras import device_id_in_use_detail
 from routers.image_admin import delete_images_by_ids
 
 router = APIRouter(
@@ -549,14 +550,15 @@ async def check_duplicates(
 
 
 async def _get_or_create_camera_by_device_id(
-    db: AsyncSession, project_id: int, device_id: str
+    db: AsyncSession, project_id: int, device_id: str, user: Optional[User] = None,
 ) -> Camera:
     """
     Return the project's camera for this device_id, creating it if needed.
 
     Unlike live FTPS ingestion (which rejects unknown device_ids because an
     incoming file has no project context), a bulk job already carries its
-    project, so it is safe to auto-create the camera here.
+    project, so it is safe to auto-create the camera here. `user` only serves
+    the refusal text when the device is live in another project.
     """
     # A retired camera does not count as registered, so an upload for its
     # device id registers it again, in whichever project the job belongs to.
@@ -569,7 +571,7 @@ async def _get_or_create_camera_by_device_id(
         if camera.project_id != project_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"Camera {device_id} belongs to another project",
+                detail=await device_id_in_use_detail(db, camera, user, project_id),
             )
         return camera
 
@@ -649,7 +651,7 @@ async def create_bulk_upload_job(
     manifest = dict(body.manifest or {})
     if body.device_id:
         camera = await _get_or_create_camera_by_device_id(
-            db, project_id, body.device_id
+            db, project_id, body.device_id, user
         )
     else:
         site_id = (

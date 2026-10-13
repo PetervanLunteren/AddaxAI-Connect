@@ -63,6 +63,17 @@ Select the camera on the `Cameras` tab and choose `Delete`. The dialog gives two
 
 A retired camera that still uploads is treated as an unknown camera until it is registered again.
 
+### Moving a camera to another project
+
+A camera belongs to one project at a time, and its Camera ID cannot be registered twice while it is in service. To move a device, for example from a project that is winding down to one that lost cameras to theft:
+
+1. In the old project, select the camera on the `Cameras` tab, choose `Delete`, and pick `Retire, keep the data`. The old project keeps every photo and all history of that camera, shown under a retired camera.
+2. In the new project, add the camera with the same Camera ID, by hand or by CSV. It starts there with a clean history. Nothing changes on the camera itself; its next upload lands in the new project.
+
+Photos do not move with the camera. The old project keeps what the camera recorded there, the new project collects what it records from now on.
+
+If you add a Camera ID that is still in service elsewhere, the app refuses with `Camera ID ... is already in use in project ...` and names the project when you are a member of it. Retire it there first.
+
 ## Invite users
 
 You can invite other people to your projects. There are two project roles:

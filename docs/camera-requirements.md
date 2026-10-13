@@ -71,6 +71,7 @@ Images uploading but not showing up? Here are the most common causes:
 - **Missing required metadata**: if the camera profile requires GPS or date/time and the image doesn't have it, it gets rejected. These files still carry the camera ID, so they show up on the Cameras page as a `Rejected files` count and in the `Rejected` tab of that camera, for every project member.
 - **Wrong file format**: only JPEG images are accepted (max 10 MB).
 - **Daily reports not parsed**: reports must be under 1 MB and match the expected format for the camera profile.
+- **Camera ID is already in use**: the same device is still registered in another project, or in this one. Retire it there first, see [moving a camera to another project](setup-guide.md#moving-a-camera-to-another-project).
 
 ![Screenshot 2026-03-25 at 16 29 08](https://github.com/user-attachments/assets/3a6b8ed0-2e39-4547-afcd-a325b6ecb8e7)
 
