@@ -48,6 +48,10 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
   const [mode, setMode] = useState<Mode>('retire');
   const [confirmText, setConfirmText] = useState('');
   const [result, setResult] = useState<CameraBulkDeleteResponse | null>(null);
+  // Snapshot of the preview at submit time. The parent clears its selection
+  // on success, which empties cameraIds and with it the preview query, so
+  // the success screen cannot read the kept counts from `impact` any more.
+  const [keptImages, setKeptImages] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const many = cameraIds.length !== 1;
   const noun = many ? 'cameras' : 'camera';
@@ -111,12 +115,13 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (canSubmit) mutation.mutate();
+    if (!canSubmit) return;
+    setKeptImages(impactTotals(impact).images);
+    mutation.mutate();
   };
 
   if (result) {
     const retired = result.retired_cameras > 0;
-    const kept = impactTotals(impact);
     return (
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent onClose={handleClose}>
@@ -141,7 +146,7 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
                 </div>
                 <div className="p-3 bg-gray-50 rounded-md">
                   <p className="text-muted-foreground">Images kept</p>
-                  <p className="text-2xl font-bold">{kept.images}</p>
+                  <p className="text-2xl font-bold">{keptImages}</p>
                 </div>
                 <div className="p-3 bg-gray-50 rounded-md">
                   <p className="text-muted-foreground">Open service tasks removed</p>
