@@ -76,10 +76,11 @@ def get_overview_stats(
         )
     ).scalar_one()
 
-    # Total cameras
+    # Total cameras, the fleet in service. Retired cameras keep their
+    # images in the counts above but are not cameras anyone maintains.
     total_cameras = db.execute(
         select(func.count(Camera.id))
-        .where(Camera.project_id == project_id)
+        .where(Camera.project_id == project_id, Camera.retired_at.is_(None))
     ).scalar_one()
 
     # Total unique species (all-time)
@@ -350,7 +351,7 @@ def get_camera_health_summary(
         - high_sd_cameras: List of {'name': str, 'sd_percent': int}
     """
     cameras = db.execute(
-        select(Camera).where(Camera.project_id == project_id)
+        select(Camera).where(Camera.project_id == project_id, Camera.retired_at.is_(None))
     ).scalars().all()
 
     total = len(cameras)

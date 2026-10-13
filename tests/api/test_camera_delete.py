@@ -28,7 +28,7 @@ _api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "serv
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from shared.models import BulkUploadJob, Camera  # noqa: E402
+from shared.models import BulkUploadJob, Camera, Image  # noqa: E402
 from routers.cameras import (  # noqa: E402
     LIVE_BULK_STATUSES,
     _assert_no_live_bulk_jobs,
@@ -194,19 +194,26 @@ class TestCascadeClearsFinishedJobs:
         camera = _camera()
         db = _FakeSession(rowcounts={"images": 3, "bulk_upload_jobs": 1})
 
-        counts, device_id = await _delete_camera_cascade(db, camera)
+        counts, image_refs = await _delete_camera_cascade(db, camera)
 
         assert counts["images"] == 3
-        assert device_id == "CAM-1"
+        assert image_refs == []
         assert camera in db.deleted_objects
         # Without this the delete dies at commit on the foreign key.
         assert "bulk_upload_jobs" in db.deleted_tables
 
     @pytest.mark.asyncio
-    async def test_device_id_falls_back_to_the_row_id(self):
-        db = _FakeSession()
-        _, device_id = await _delete_camera_cascade(db, _camera(42, None))
-        assert device_id == "42"
+    async def test_image_refs_are_collected_before_the_rows_go(self):
+        """Storage cleanup runs after the commit, when the rows are gone, so
+        the object keys have to be read while they still exist."""
+        image = Image(id=5, uuid="u-5", filename="a.jpg", camera_id=1,
+                      storage_path="CAM-1/2026/10/u-5_a.jpg",
+                      thumbnail_path="CAM-1/2026/10/u-5_a.jpg")
+        db = _FakeSession(selects=[[image]])
+        _, image_refs = await _delete_camera_cascade(db, _camera())
+        assert [(r.uuid, r.storage_path, r.thumbnail_path) for r in image_refs] == [
+            ("u-5", "CAM-1/2026/10/u-5_a.jpg", "CAM-1/2026/10/u-5_a.jpg"),
+        ]
 
 
 def _function_source(path: Path, name: str) -> str:

@@ -54,6 +54,15 @@ Then configure your cameras to upload via FTPS. See [camera requirements](camera
 
 Once connected, images will be picked up and processed automatically. Results show up in the web interface after a few seconds. If not, check the [troubleshooting section](camera-requirements.md#troubleshooting) in the camera requirements doc.
 
+### Taking a camera out of a project
+
+Select the camera on the `Cameras` tab and choose `Delete`. The dialog gives two options.
+
+- **Retire, keep the data.** The camera stays in the project as a retired camera. Its photos, labels, placements, health and service history stay, its current placement is closed at its last photo, and its open service tasks are removed. The Camera ID is free again, so you can register the same device in another project, or in this one, and it starts there with a clean history. This is the option for a camera that moves to another project, is stolen, or breaks.
+- **Delete the camera and all its data.** Everything the camera recorded disappears, including the stored photo files. This cannot be undone.
+
+A retired camera that still uploads is treated as an unknown camera until it is registered again.
+
 ## Invite users
 
 You can invite other people to your projects. There are two project roles:

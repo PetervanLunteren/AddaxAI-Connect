@@ -1086,6 +1086,7 @@ async def _build_camera_rows(
             camera_status(
                 recency.last_report_arrival.get(camera.id),
                 recency.last_image_arrival.get(camera.id),
+                retired_at=camera.retired_at,
             ),
             health.get('battery_percentage', '') if health else '',
             health.get('signal_quality', '') if health else '',

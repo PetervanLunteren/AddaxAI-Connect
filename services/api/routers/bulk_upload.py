@@ -464,6 +464,7 @@ async def scan_profile(
             select(Camera.id).where(
                 Camera.device_id == device_id,
                 Camera.project_id == project_id,
+                Camera.retired_at.is_(None),
             )
         )
     ).scalar_one_or_none()
@@ -557,8 +558,12 @@ async def _get_or_create_camera_by_device_id(
     incoming file has no project context), a bulk job already carries its
     project, so it is safe to auto-create the camera here.
     """
+    # A retired camera does not count as registered, so an upload for its
+    # device id registers it again, in whichever project the job belongs to.
     camera = (
-        await db.execute(select(Camera).where(Camera.device_id == device_id))
+        await db.execute(
+            select(Camera).where(Camera.device_id == device_id, Camera.retired_at.is_(None))
+        )
     ).scalar_one_or_none()
     if camera is not None:
         if camera.project_id != project_id:

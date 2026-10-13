@@ -1,7 +1,7 @@
 """
 Camera endpoints for viewing camera trap devices and their health status.
 """
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import csv
@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text, delete as sql_delete
 from pydantic import BaseModel
 
-from shared.models import User, Camera, Project, Image, CameraHealthReport, CameraMaintenanceEvent, Detection, Classification, BulkUploadJob, Rejection
+from shared.models import User, Camera, Project, Image, CameraHealthReport, CameraMaintenanceEvent, CameraServiceTask, Deployment, Detection, Classification, BulkUploadJob, Rejection
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -50,7 +50,7 @@ class CameraResponse(BaseModel):
     sd_utilization_percentage: Optional[float] = None
     last_report_timestamp: Optional[str] = None
     last_image_timestamp: Optional[str] = None
-    status: str  # active, inactive, never_reported
+    status: str  # active, inactive, never_reported, retired
     total_images: Optional[int] = None
     sent_images: Optional[int] = None
     reference_image_url: Optional[str] = None
@@ -209,7 +209,7 @@ def camera_to_response(
         sd_utilization_percentage=health_data.get('sd_utilization_percentage'),
         last_report_timestamp=_localize(last_reported_at, tz),
         last_image_timestamp=_localize(last_captured_at, tz),
-        status=_camera_status(last_report_arrival, last_image_arrival),
+        status=_camera_status(last_report_arrival, last_image_arrival, retired_at=camera.retired_at),
         total_images=health_data.get('total_images'),
         sent_images=health_data.get('sent_images'),
         reference_image_url=f"/reference-images/{camera.reference_image_path}" if camera.reference_image_path else None,
@@ -437,24 +437,36 @@ class BulkSetNotesRequest(BulkCameraIdsRequest):
     notes: str
 
 
+class BulkDeleteRequest(BulkCameraIdsRequest):
+    # keep_data retires the cameras instead of deleting them: the rows stay
+    # with their photos, placements, health and service history, the device
+    # ids are freed for registration elsewhere. Only open service tasks go.
+    keep_data: bool = False
+
+
 class BulkUpdateResponse(BaseModel):
     updated_count: int
 
 
 class BulkDeleteResponse(BaseModel):
+    # One of deleted_cameras and retired_cameras is non-zero, never both.
     deleted_cameras: int
+    retired_cameras: int = 0
     deleted_images: int
     deleted_detections: int
     deleted_classifications: int
     deleted_minio_files: int
+    deleted_tasks: int = 0
 
 
 class CameraDeletePreviewItem(BaseModel):
-    """What one camera would lose. Shown before a delete is confirmed."""
+    """What one camera holds. Shown before a delete or retire is confirmed."""
     camera_id: int
     name: str
     images: int
     verified_images: int
+    # Open service tasks go in both modes, so the dialog names them too.
+    open_tasks: int
 
 
 async def camera_delete_counts(
@@ -475,17 +487,25 @@ async def camera_delete_counts(
     the whole selection.
     """
     counts: dict[int, tuple[int, int]] = {}
+    open_tasks: dict[int, int] = {}
     if cameras:
+        camera_ids = [c.id for c in cameras]
         rows = await db.execute(
             select(
                 Image.camera_id,
                 func.count(),
                 func.count().filter(Image.is_verified),
             )
-            .where(Image.camera_id.in_([c.id for c in cameras]))
+            .where(Image.camera_id.in_(camera_ids))
             .group_by(Image.camera_id)
         )
         counts = {cam_id: (total, verified) for cam_id, total, verified in rows.all()}
+        task_rows = await db.execute(
+            select(CameraServiceTask.camera_id, func.count())
+            .where(CameraServiceTask.camera_id.in_(camera_ids))
+            .group_by(CameraServiceTask.camera_id)
+        )
+        open_tasks = {cam_id: n for cam_id, n in task_rows.all()}
 
     items = [
         CameraDeletePreviewItem(
@@ -493,6 +513,7 @@ async def camera_delete_counts(
             name=_camera_label(camera),
             images=counts.get(camera.id, (0, 0))[0],
             verified_images=counts.get(camera.id, (0, 0))[1],
+            open_tasks=open_tasks.get(camera.id, 0),
         )
         for camera in cameras
     ]
@@ -653,13 +674,14 @@ async def delete_preview(
 
 @router.post("/bulk-delete", response_model=BulkDeleteResponse)
 async def bulk_delete(
-    request: BulkCameraIdsRequest,
+    request: BulkDeleteRequest,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
     """Delete every selected camera and all its data (images, detections,
-    classifications, MinIO objects; deployments and health reports cascade).
-    Requires project admin on each affected project. Irreversible.
+    classifications, stored files; deployments and health reports cascade),
+    or with keep_data retire them instead, see _retire_camera. Requires
+    project admin on each affected project. The delete is irreversible.
 
     Refuses the whole selection with a 409 when any camera still has a bulk
     upload running, naming every camera that blocks so one pass is enough."""
@@ -667,16 +689,32 @@ async def bulk_delete(
     await _verify_admin_on_all_projects(current_user, cameras, db)
     await _assert_no_live_bulk_jobs(db, cameras)
 
+    if request.keep_data:
+        today = await _server_today(db)
+        deleted_tasks = 0
+        for camera in cameras:
+            deleted_tasks += await _retire_camera(db, camera, today)
+        await db.commit()
+        return BulkDeleteResponse(
+            deleted_cameras=0,
+            retired_cameras=len(cameras),
+            deleted_images=0,
+            deleted_detections=0,
+            deleted_classifications=0,
+            deleted_minio_files=0,
+            deleted_tasks=deleted_tasks,
+        )
+
     totals = {"images": 0, "detections": 0, "classifications": 0}
-    device_ids = []
+    image_refs: List[ImageRef] = []
     for camera in cameras:
-        counts, device_id = await _delete_camera_cascade(db, camera)
+        counts, refs = await _delete_camera_cascade(db, camera)
         for key in totals:
             totals[key] += counts[key]
-        device_ids.append(device_id)
+        image_refs.extend(refs)
 
     await db.commit()
-    totals["minio_files"] = _delete_camera_storage(device_ids)
+    totals["minio_files"] = _delete_camera_storage(image_refs)
     return BulkDeleteResponse(
         deleted_cameras=len(cameras),
         deleted_images=totals["images"],
@@ -1016,9 +1054,10 @@ async def create_camera(
             detail=f"Project admin access required for project {request.project_id}",
         )
 
-    # Check if device ID already exists
+    # Check if device ID already exists on a camera in service. A retired
+    # camera does not block, that is how a device moves to another project.
     result = await db.execute(
-        select(Camera).where(Camera.device_id == request.device_id)
+        select(Camera).where(Camera.device_id == request.device_id, Camera.retired_at.is_(None))
     )
     existing_camera = result.scalar_one_or_none()
 
@@ -1189,30 +1228,84 @@ async def _assert_no_live_bulk_jobs(db: AsyncSession, cameras: List[Camera]) -> 
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
+class ImageRef(NamedTuple):
+    """The stored objects of one image, collected before its row is deleted
+    so storage can be cleaned up after the commit."""
+    uuid: str
+    storage_path: Optional[str]
+    thumbnail_path: Optional[str]
+
+
+async def _server_today(db: AsyncSession) -> date:
+    from routers.admin import get_server_timezone
+    return datetime.now(ZoneInfo(await get_server_timezone(db))).date()
+
+
+async def _retire_camera(db: AsyncSession, camera: Camera, today: date) -> int:
+    """
+    Take a camera out of service and keep everything it recorded.
+
+    Stamps retired_at, which frees the device id (partial unique index) and
+    turns the camera's status to retired everywhere. Closes the open
+    placement at the camera's last photo, so the old project stops counting
+    trap days for a camera that left; a placement is never closed before it
+    started, and a camera that never sent a photo closes today. Deletes the
+    open service tasks, they are work on a camera nobody services here any
+    more; the visit history stays. Returns how many tasks went.
+
+    Does not commit, the caller owns the transaction, same as the cascade.
+    """
+    camera.retired_at = datetime.now(timezone.utc)
+
+    open_deployment = (
+        await db.execute(
+            select(Deployment).where(
+                Deployment.camera_id == camera.id, Deployment.end_date.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if open_deployment is not None:
+        last_capture = (
+            await db.execute(
+                select(func.max(Image.captured_at)).where(Image.camera_id == camera.id)
+            )
+        ).scalar_one_or_none()
+        end = last_capture.date() if last_capture is not None else today
+        open_deployment.end_date = max(end, open_deployment.start_date)
+
+    result = await db.execute(
+        sql_delete(CameraServiceTask).where(CameraServiceTask.camera_id == camera.id)
+    )
+    return result.rowcount
+
+
 async def _delete_camera_cascade(
     db: AsyncSession, camera: Camera,
-) -> tuple[dict, str]:
+) -> tuple[dict, List[ImageRef]]:
     """
     Delete a camera and all data hanging off it: images, their detections and
     classifications, and its finished bulk-upload job rows. Deployments, health
-    reports, maintenance events and feed events cascade at the DB level.
+    reports, maintenance events, service tasks and feed events cascade at the
+    DB level.
 
     Does not commit and does not touch object storage, so single, bulk and
     project deletes share one cascade and the caller controls the transaction.
-    Returns the per-camera counts plus the storage prefix to clean up, which
-    the caller must only delete once the commit has succeeded. Deleting the
-    objects first would destroy them for good on a rolled-back transaction,
-    leaving rows that point at files that are gone.
+    Returns the per-camera counts plus the stored objects of the deleted
+    images, which the caller must only delete once the commit has succeeded.
+    Deleting the objects first would destroy them for good on a rolled-back
+    transaction, leaving rows that point at files that are gone.
 
     Call _assert_no_live_bulk_jobs first. A job the worker is still running is
     the one case the caller must reject instead of deleting.
     """
     counts = {"images": 0, "detections": 0, "classifications": 0}
-    camera_device_id = camera.device_id or str(camera.id)
 
     images = (
         await db.execute(select(Image).where(Image.camera_id == camera.id))
     ).scalars().all()
+    image_refs = [
+        ImageRef(image.uuid, image.storage_path, image.thumbnail_path) for image in images
+    ]
     for image in images:
         detections = (
             await db.execute(select(Detection).where(Detection.image_id == image.id))
@@ -1238,32 +1331,48 @@ async def _delete_camera_cascade(
     )
 
     await db.delete(camera)
-    return counts, camera_device_id
+    return counts, image_refs
 
 
-def _delete_camera_storage(device_ids: List[str]) -> int:
+def _delete_camera_storage(image_refs: List[ImageRef]) -> int:
     """
-    Remove the raw images, crops and thumbnails of deleted cameras.
+    Remove the raw image, thumbnail and crops of every deleted image.
+
+    Per image, never by camera prefix. Objects are stored under the device
+    id, and a retired camera and its re-registration share one, so a prefix
+    wipe for the new camera would take the old project's photos with it.
+    The crops have no device prefix at all (`{uuid}_{idx}.jpg`), which is why
+    the old prefix wipe never removed them. The raw bucket is versioned, so
+    the raw object needs every version gone, same as the Curation delete.
 
     Runs after the transaction has committed. Object storage has no rollback,
     so a failure here leaves orphaned files, which is recoverable, while
     deleting before the commit loses files the database still references,
-    which is not.
+    which is not. One failing image does not stop the rest.
     """
     deleted = 0
     try:
         storage = StorageClient()
-        for device_id in device_ids:
-            for bucket in [BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS]:
-                for obj_name in storage.list_objects(bucket, prefix=f"{device_id}/"):
-                    storage.delete_object(bucket, obj_name)
-                    deleted += 1
     except Exception as e:
-        logger.error(
-            "Failed to delete some MinIO files",
-            device_ids=device_ids,
-            error=str(e),
-        )
+        logger.error("Could not reach object storage to delete image files", error=str(e))
+        return deleted
+    for ref in image_refs:
+        try:
+            if ref.storage_path:
+                storage.delete_object_versions(BUCKET_RAW_IMAGES, ref.storage_path)
+                deleted += 1
+            if ref.thumbnail_path:
+                storage.delete_object(BUCKET_THUMBNAILS, ref.thumbnail_path)
+                deleted += 1
+            for obj_name in storage.list_objects(BUCKET_CROPS, prefix=f"{ref.uuid}_"):
+                storage.delete_object(BUCKET_CROPS, obj_name)
+                deleted += 1
+        except Exception as e:
+            logger.error(
+                "Failed to delete some MinIO files for image",
+                image_uuid=ref.uuid,
+                error=str(e),
+            )
     return deleted
 
 
@@ -1273,14 +1382,19 @@ def _delete_camera_storage(device_ids: List[str]) -> int:
 )
 async def delete_camera(
     camera_id: int,
+    keep_data: bool = Query(
+        False,
+        description="Retire the camera instead of deleting it, see bulk-delete",
+    ),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Delete camera (project admin or server admin)
+    Delete a camera, or retire it with keep_data (project admin or server admin)
 
     Args:
         camera_id: Camera ID
+        keep_data: retire instead of delete, see _retire_camera
         db: Database session
         current_user: Current authenticated user
 
@@ -1307,9 +1421,13 @@ async def delete_camera(
         )
 
     await _assert_no_live_bulk_jobs(db, [camera])
-    _, device_id = await _delete_camera_cascade(db, camera)
+    if keep_data:
+        await _retire_camera(db, camera, await _server_today(db))
+        await db.commit()
+        return
+    _, image_refs = await _delete_camera_cascade(db, camera)
     await db.commit()
-    _delete_camera_storage([device_id])
+    _delete_camera_storage(image_refs)
 
 
 @router.post(
@@ -1436,9 +1554,9 @@ async def import_cameras_csv(
             failed_count += 1
             continue
 
-        # Check if device ID already exists
+        # Check if device ID already exists on a camera in service
         result = await db.execute(
-            select(Camera).where(Camera.device_id == device_id)
+            select(Camera).where(Camera.device_id == device_id, Camera.retired_at.is_(None))
         )
         existing_camera = result.scalar_one_or_none()
 

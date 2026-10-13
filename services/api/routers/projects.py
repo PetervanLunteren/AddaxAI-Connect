@@ -563,14 +563,14 @@ async def delete_project(
     deleted_images = 0
     deleted_detections = 0
     deleted_classifications = 0
-    device_ids = []
+    image_refs = []
 
     for camera in cameras:
-        counts, device_id = await _delete_camera_cascade(db, camera)
+        counts, refs = await _delete_camera_cascade(db, camera)
         deleted_images += counts["images"]
         deleted_detections += counts["detections"]
         deleted_classifications += counts["classifications"]
-        device_ids.append(device_id)
+        image_refs.extend(refs)
 
     deleted_cameras = len(cameras)
 
@@ -588,7 +588,7 @@ async def delete_project(
     # Step 4: Storage cleanup, only now that the transaction has committed.
     # Object storage cannot roll back, so anything deleted before the commit
     # would be gone for good if the commit failed.
-    deleted_minio_files = _delete_camera_storage(device_ids)
+    deleted_minio_files = _delete_camera_storage(image_refs)
 
     delete_project_images(project.image_path, project.thumbnail_path)
 

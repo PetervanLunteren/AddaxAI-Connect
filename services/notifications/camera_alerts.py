@@ -322,7 +322,9 @@ def _load_camera_states(db, project_id: int, now: datetime) -> Dict[int, CamStat
             last_seen=None,
         )
         for row in db.execute(
-            select(Camera.id, Camera.device_id).where(Camera.project_id == project_id)
+            select(Camera.id, Camera.device_id).where(
+                Camera.project_id == project_id, Camera.retired_at.is_(None),
+            )
         ).all()
     }
     if not cameras:

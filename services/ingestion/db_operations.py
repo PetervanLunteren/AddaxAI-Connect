@@ -56,7 +56,9 @@ def get_camera_by_device_id(device_id: str) -> Optional[int]:
         Database ID of camera (integer) if found, None otherwise
     """
     with get_db_session() as session:
-        camera = session.query(Camera).filter_by(device_id=device_id).first()
+        # Retired cameras are skipped: a retired device that still
+        # uploads is an unknown camera until someone registers it again.
+        camera = session.query(Camera).filter_by(device_id=device_id, retired_at=None).first()
 
         if camera:
             db_id = camera.id  # Access ID before session closes
@@ -113,7 +115,7 @@ def create_rejection_record(
         camera_id = None
         project_id = None
         if device_id:
-            camera = session.query(Camera).filter_by(device_id=device_id).first()
+            camera = session.query(Camera).filter_by(device_id=device_id, retired_at=None).first()
             if camera:
                 camera_id = camera.id
                 project_id = camera.project_id
@@ -697,7 +699,7 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
         True if camera found and updated, False if camera not found
     """
     with get_db_session() as session:
-        camera = session.query(Camera).filter_by(device_id=device_id).first()
+        camera = session.query(Camera).filter_by(device_id=device_id, retired_at=None).first()
 
         if not camera:
             logger.warning(

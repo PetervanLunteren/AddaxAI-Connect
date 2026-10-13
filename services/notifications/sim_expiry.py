@@ -257,6 +257,7 @@ def _expiring_cameras(
         select(Camera)
         .where(
             Camera.project_id == project_id,
+            Camera.retired_at.is_(None),
             Camera.sim_expiry_date.isnot(None),
             Camera.sim_expiry_date <= threshold,
         )

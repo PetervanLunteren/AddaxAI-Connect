@@ -69,3 +69,21 @@ class TestClockSafety:
 
         with pytest.raises(TypeError):
             camera_status(None, datetime.now())
+
+
+class TestRetiredWins:
+    """A retired camera left on purpose, data kept. It must never read as
+    inactive (the alarm word) nor as active just because it sent a photo an
+    hour before it was retired."""
+
+    def test_retired_beats_recent_contact(self):
+        assert camera_status(_ago(hours=1), _ago(hours=1), retired_at=_ago(minutes=5)) == 'retired'
+
+    def test_retired_beats_silence(self):
+        assert camera_status(_ago(days=60), None, retired_at=_ago(days=30)) == 'retired'
+
+    def test_retired_beats_never_reported(self):
+        assert camera_status(None, None, retired_at=_ago(days=1)) == 'retired'
+
+    def test_none_means_in_service(self):
+        assert camera_status(_ago(hours=1), None, retired_at=None) == 'active'

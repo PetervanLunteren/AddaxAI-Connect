@@ -1,5 +1,5 @@
 /**
- * What a delete is about to destroy, per camera.
+ * What a delete or a retire is about to do, per camera.
  *
  * Shared by the camera delete and the project delete so the two dialogs can
  * never disagree. Both read the same backend helper.
@@ -9,15 +9,21 @@
  * months of verification work looked exactly the same. It also never named
  * the cameras, and the table selection survives filtering, so people could
  * delete rows that were not on screen.
+ *
+ * In retire mode the same numbers are what stays, so the person sees that
+ * nothing recorded is lost and only the open service tasks go.
  */
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import type { CameraDeletePreviewItem } from '../api/cameras';
 
+export type ImpactMode = 'delete' | 'retire';
+
 interface DeleteImpactListProps {
   items: CameraDeletePreviewItem[] | undefined;
   isLoading: boolean;
   error: string | null;
+  mode?: ImpactMode;
 }
 
 /** Totals across the whole selection. Derived here so the API stays lean. */
@@ -27,8 +33,9 @@ export function impactTotals(items: CameraDeletePreviewItem[] | undefined) {
       cameras: acc.cameras + 1,
       images: acc.images + item.images,
       verified: acc.verified + item.verified_images,
+      tasks: acc.tasks + item.open_tasks,
     }),
-    { cameras: 0, images: 0, verified: 0 },
+    { cameras: 0, images: 0, verified: 0, tasks: 0 },
   );
 }
 
@@ -38,7 +45,10 @@ export const DeleteImpactList: React.FC<DeleteImpactListProps> = ({
   items,
   isLoading,
   error,
+  mode = 'delete',
 }) => {
+  const verb = mode === 'retire' ? 'retiring' : 'deleting';
+
   if (isLoading) {
     return (
       <div className="min-w-0 flex-1 flex items-center gap-2 py-3 text-sm text-muted-foreground">
@@ -51,20 +61,22 @@ export const DeleteImpactList: React.FC<DeleteImpactListProps> = ({
   if (error) {
     return (
       <p className="min-w-0 flex-1 py-3 text-sm text-destructive">
-        Could not check what these cameras hold, so deleting is blocked. {error}
+        Could not check what these cameras hold, so {verb} is blocked. {error}
       </p>
     );
   }
 
   const totals = impactTotals(items);
+  const tasks = totals.tasks > 0 ? plural(totals.tasks, 'open service task') : null;
 
   return (
     // min-w-0 so this can shrink inside the dialog's flex row. Without it the
     // rows set a minimum width and the whole dialog runs off a phone screen.
     <div className="min-w-0 flex-1 space-y-3">
-      <p className="text-sm font-semibold text-destructive">
+      <p className={`text-sm font-semibold ${mode === 'retire' ? '' : 'text-destructive'}`}>
         {plural(totals.cameras, 'camera')}, {plural(totals.images, 'image')}
         {totals.verified > 0 && `, ${totals.verified} verified by hand`}
+        {mode === 'retire' && ' stay in the project'}
       </p>
 
       {/* Named rows, so nobody deletes a camera that is off screen. Scrolls on
@@ -90,10 +102,20 @@ export const DeleteImpactList: React.FC<DeleteImpactListProps> = ({
         ))}
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        Also removed, all detections, classifications, human observations,
-        deployment and health records, and the stored image files.
-      </p>
+      {mode === 'retire' ? (
+        <p className="text-sm text-muted-foreground">
+          Also kept, all detections, classifications, human observations,
+          placements, health records and service history. The current
+          placement is closed at the last photo.
+          {tasks && ` Removed, ${tasks}.`}
+        </p>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Also removed, all detections, classifications, human observations,
+          placements, health records, service history{tasks && `, ${tasks}`} and
+          the stored image files.
+        </p>
+      )}
     </div>
   );
 };

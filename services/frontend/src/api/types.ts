@@ -20,7 +20,8 @@ export interface Camera {
   sd_utilization_percentage: number | null;
   last_report_timestamp: string | null;
   last_image_timestamp: string | null;
-  status: 'active' | 'inactive' | 'never_reported';
+  // retired: taken out of the project with its data kept, see the delete dialog.
+  status: 'active' | 'inactive' | 'never_reported' | 'retired';
   total_images?: number;
   sent_images?: number;
   reference_image_url: string | null;

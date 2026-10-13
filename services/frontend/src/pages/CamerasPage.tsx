@@ -455,6 +455,7 @@ export const CamerasPage: React.FC = () => {
         { value: 'active', label: 'Active' },
         { value: 'inactive', label: 'Inactive' },
         { value: 'never_reported', label: 'No live signal yet' },
+        { value: 'retired', label: 'Retired' },
       ],
     },
     {

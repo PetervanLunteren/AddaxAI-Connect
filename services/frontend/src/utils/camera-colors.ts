@@ -9,12 +9,15 @@ export const STATUS_COLORS = {
   active: '#0f6064',
   inactive: '#882000',
   never_reported: '#71b7ba',
+  // Grey on purpose, a retired camera is neither good nor bad news.
+  retired: '#9ca3af',
 } as const;
 
 export const STATUS_LABELS = {
   active: 'Active',
   inactive: 'Inactive',
   never_reported: 'No live signal yet',
+  retired: 'Retired',
 } as const;
 
 // Unknown/null value color
@@ -79,6 +82,7 @@ export function getLegendItems(colorBy: ColorByMetric): LegendItem[] {
         { color: STATUS_COLORS.active, label: 'Active' },
         { color: STATUS_COLORS.inactive, label: 'Inactive' },
         { color: STATUS_COLORS.never_reported, label: 'No live signal yet' },
+        { color: STATUS_COLORS.retired, label: 'Retired' },
       ];
     case 'battery':
       return [

@@ -40,15 +40,19 @@ class _Rows:
 
 
 class _FakeSession:
-    """Compiles the query so the SQL shape can be asserted, then returns rows."""
+    """Compiles the query so the SQL shape can be asserted, then returns rows.
 
-    def __init__(self, rows=()):
+    The first query (images) gets `rows`, every later one (open service
+    tasks) gets `task_rows`, empty by default."""
+
+    def __init__(self, rows=(), task_rows=()):
         self._rows = list(rows)
+        self._task_rows = list(task_rows)
         self.compiled = []
 
     async def execute(self, query, params=None):
         self.compiled.append(str(query.compile(dialect=postgresql.dialect())))
-        return _Rows(self._rows)
+        return _Rows(self._rows if len(self.compiled) == 1 else self._task_rows)
 
 
 def _camera(camera_id: int, device_id: str | None = None) -> Camera:
@@ -115,7 +119,9 @@ class TestQueryShape:
         assert "group by images.camera_id" in sql
         # Verified images counted in the same pass, not a second query.
         assert "filter (where images.is_verified)" in sql
-        assert len(db.compiled) == 1
+        # One more query for the open service tasks, nothing else.
+        assert len(db.compiled) == 2
+        assert "from camera_service_tasks" in db.compiled[1].lower()
 
 
 def _function_source(path: Path, name: str) -> str:

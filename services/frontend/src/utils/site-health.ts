@@ -30,11 +30,15 @@ export interface SiteHealth {
 }
 
 // Higher number = more in need of attention. Inactive (was reporting, now
-// silent) outranks never_reported (newly placed) outranks active.
+// silent) outranks never_reported (newly placed) outranks active. A retired
+// camera ranks below everything: it left on purpose, so it never colours a
+// site that still has a live camera, and a site with only retired cameras
+// shows grey.
 const STATUS_SEVERITY: Record<Camera['status'], number> = {
-  inactive: 2,
-  never_reported: 1,
-  active: 0,
+  inactive: 3,
+  never_reported: 2,
+  active: 1,
+  retired: 0,
 };
 
 /**

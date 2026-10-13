@@ -45,16 +45,21 @@ export interface BulkUpdateResponse {
   updated_count: number;
 }
 
-/** One row of the delete confirmation, what this camera would lose. */
+/** One row of the delete confirmation, what this camera holds. */
 export interface CameraDeletePreviewItem {
   camera_id: number;
   name: string;
   images: number;
   verified_images: number;
+  // Open service tasks go in both modes, retire and delete.
+  open_tasks: number;
 }
 
 export interface CameraBulkDeleteResponse {
+  // One of deleted_cameras and retired_cameras is non-zero, never both.
   deleted_cameras: number;
+  retired_cameras: number;
+  deleted_tasks: number;
   deleted_images: number;
   deleted_detections: number;
   deleted_classifications: number;
@@ -207,13 +212,18 @@ export const camerasApi = {
   },
 
   /**
-   * Delete every selected camera and all its data. Irreversible; the caller
-   * confirms first. updated_count is the number of cameras deleted.
+   * Delete every selected camera and all its data, or with keepData retire
+   * them: the cameras stay in the project as retired, with their photos and
+   * history, and their Camera IDs are free to register again. The delete is
+   * irreversible; the caller confirms first.
    */
-  bulkDelete: async (cameraIds: number[]): Promise<CameraBulkDeleteResponse> => {
+  bulkDelete: async (
+    cameraIds: number[],
+    keepData: boolean = false,
+  ): Promise<CameraBulkDeleteResponse> => {
     const response = await apiClient.post<CameraBulkDeleteResponse>(
       '/api/cameras/bulk-delete',
-      { camera_ids: cameraIds },
+      { camera_ids: cameraIds, keep_data: keepData },
     );
     return response.data;
   },

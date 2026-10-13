@@ -4,7 +4,7 @@ SQLAlchemy database models
 Defines the database schema for all tables.
 All services import models from this file to ensure consistency.
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean, JSON, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean, JSON, Text, UniqueConstraint, Index, text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from geoalchemy2 import Geography
@@ -117,8 +117,12 @@ class Camera(Base):
     installed_at = Column(DateTime(timezone=True), nullable=True)
     config = Column(JSON)
 
-    # Identifiers
-    device_id = Column(String(50), nullable=True, index=True, unique=True)
+    # Identifiers. device_id is what the camera itself sends (EXIF serial,
+    # IMEI in the filename, path segment), so ingestion can match a file to
+    # a camera. Unique among cameras that are not retired only, see
+    # ix_cameras_device_id below: a retired camera keeps its id for its
+    # history while the same device can be registered again elsewhere.
+    device_id = Column(String(50), nullable=True)
     manufacturer = Column(String(100), nullable=True, index=True)
     model = Column(String(100), nullable=True, index=True)
     hardware_revision = Column(String(50), nullable=True)
@@ -129,6 +133,13 @@ class Camera(Base):
     # Project assignment
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
     status = Column(String(50), nullable=False, server_default='inventory', index=True)
+
+    # Retired: taken out of its project with its data kept. The row stays so
+    # the photos, placements, health and service history keep their camera;
+    # everything that treats a camera as live (ingestion lookups, alert
+    # scans, the liveness status) skips it. Null means in service. Set by
+    # the delete endpoints with keep_data, never by ingestion.
+    retired_at = Column(DateTime(timezone=True), nullable=True)
 
     # Health metrics (from daily reports)
     battery_percent = Column(Integer, nullable=True)
@@ -151,6 +162,15 @@ class Camera(Base):
 
     # Relationships
     images = relationship("Image", back_populates="camera")
+
+    __table_args__ = (
+        # Partial unique index: one live camera per device id. Retired rows
+        # fall outside it, so re-registering a retired device is an insert.
+        Index(
+            'ix_cameras_device_id', 'device_id', unique=True,
+            postgresql_where=text('retired_at IS NULL'),
+        ),
+    )
 
 
 class CameraMaintenanceEvent(Base):

@@ -799,7 +799,7 @@ def _load_watch_states(
     states: Dict[int, WatchCamState] = {}
     for row in db.execute(
         select(Camera.id, Camera.device_id, Camera.config)
-        .where(Camera.project_id == project_id)
+        .where(Camera.project_id == project_id, Camera.retired_at.is_(None))
     ).all():
         battery = None
         if isinstance(row.config, dict):

@@ -20,13 +20,18 @@ already define contact this way, so all three now agree.
 Only live images count. A bulk upload is an SD card carried in by hand,
 not the camera transmitting, so it must never make a stolen camera look
 alive.
+
+A retired camera (`Camera.retired_at` set) is `retired` whatever its last
+contact. It left its project on purpose, with its data kept, so it must
+never read as `inactive`, which is the alarm word, nor as `active` when it
+was retired an hour after its last photo.
 """
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
-CameraStatus = Literal['active', 'inactive', 'never_reported']
+CameraStatus = Literal['active', 'inactive', 'never_reported', 'retired']
 
 CAMERA_SILENCE_DAYS = 7
 
@@ -34,17 +39,22 @@ CAMERA_SILENCE_DAYS = 7
 def camera_status(
     last_report_arrival: Optional[datetime],
     last_image_arrival: Optional[datetime],
+    retired_at: Optional[datetime] = None,
 ) -> CameraStatus:
     """Classify a camera by when it last reached the server.
 
+    `retired` means the camera was taken out of its project, data kept.
     `active` means contact within `CAMERA_SILENCE_DAYS`.
     `inactive` means the camera reached the server before, but not recently.
     `never_reported` means it never reached the server at all.
 
-    Both arguments are aware UTC server receive times, or None when that
-    kind of contact never happened. Passing a naive datetime raises, which
-    is intended: it means a camera-clock column was wired in by mistake.
+    The arrival arguments are aware UTC server receive times, or None when
+    that kind of contact never happened. Passing a naive datetime raises,
+    which is intended: it means a camera-clock column was wired in by
+    mistake. `retired_at` is only tested for presence.
     """
+    if retired_at is not None:
+        return 'retired'
     stamps = [s for s in (last_report_arrival, last_image_arrival) if s is not None]
     if not stamps:
         return 'never_reported'
