@@ -16,6 +16,7 @@ import {
 } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { ConfirmWordField } from './ui/ConfirmWordField';
+import { ImpactBox } from './ui/ImpactBox';
 import { useToast } from './ui/Toaster';
 import { adminApi } from '../api/admin';
 import type { DevModeStatus } from '../api/types';
@@ -94,35 +95,26 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="border-2 border-destructive rounded-md p-4 my-4 bg-destructive/5">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-destructive">This will remove</p>
-                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li>{status.non_admin_user_count} non-admin user accounts</li>
-                  <li>{status.project_membership_count} project memberships</li>
-                  <li>
-                    {status.notification_preference_count} notification
-                    preferences
-                  </li>
-                  <li>
-                    {status.queued_notification_email_count} pending email
-                    notifications in the queue
-                  </li>
-                  <li>
-                    {status.queued_notification_telegram_count} pending Telegram
-                    notifications in the queue
-                  </li>
-                </ul>
-                <p className="text-muted-foreground pt-1">
-                  Historical attributions on projects, documents, reminders, bulk
-                  uploads, and human observations created by removed users will be
-                  reassigned to you.
-                </p>
-              </div>
-            </div>
-          </div>
+          <ImpactBox
+            sections={[
+              {
+                heading: 'This will remove',
+                bullets: [
+                  `${status.non_admin_user_count} non-admin user accounts`,
+                  `${status.project_membership_count} project memberships`,
+                  `${status.notification_preference_count} notification preferences`,
+                  `${status.queued_notification_email_count} pending email notifications in the queue`,
+                  `${status.queued_notification_telegram_count} pending Telegram notifications in the queue`,
+                ],
+              },
+            ]}
+          >
+            <p className="text-muted-foreground">
+              Historical attributions on projects, documents, reminders, bulk
+              uploads, and human observations created by removed users will be
+              reassigned to you.
+            </p>
+          </ImpactBox>
 
           <ConfirmWordField
             word={expectedDomain}

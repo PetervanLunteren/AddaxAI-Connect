@@ -130,6 +130,8 @@ Location: `src/components/ui/`
 - `Callout`: Info, warning, error, and success message boxes. Every short status or hint message uses this, never a hand-rolled colored div
 - `TabStrip`: Underlined tabs for switching views on a page or in a slide-out, with an optional count badge and a right-hand `extra` slot. `tabClass` gives the same look to tabs that are links
 - `BulkActionBar`: The bar above a table while rows are selected (count, the page's action buttons, Cancel). Pair it with `useBulkSelection`, `SelectAllCheckbox` and `SortableHeader`, as the cameras, sites and service tables do
+- `ChoiceCards`: The bordered radio options at the top of a destructive dialog (delete photos or records, retire or delete a camera). The safer option comes first and is preselected
+- `ImpactBox`: The box in a destructive dialog that says what the action does, a heading with bullets ("This will delete", no colon), red for a delete and grey for an action that keeps data, with optional named rows. Every delete dialog uses it, never a hand-rolled red div. `ConfirmWordField` goes under it
 - `Card`: Content containers
 - `Dialog`: Modals/popups
 - `Form`: Form wrapper with context

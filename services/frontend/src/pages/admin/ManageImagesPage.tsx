@@ -28,6 +28,8 @@ import {
 import type { AdminImageFilterParams, BulkActionTarget, EmptiedSite } from '../../api/imageAdmin';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { ConfirmWordField } from '../../components/ui/ConfirmWordField';
+import { ChoiceCards } from '../../components/ui/ChoiceCards';
+import { ImpactBox } from '../../components/ui/ImpactBox';
 import { statisticsApi } from '../../api/statistics';
 import {
   Dialog,
@@ -982,64 +984,41 @@ export const ManageImagesPage: React.FC = () => {
           {/* What goes. Photos only keeps the rows, so counts, alerts and
               camera status stay as they are; the photo becomes a placeholder
               that says what it showed. */}
-          <div className="space-y-2 text-sm" role="radiogroup" aria-label="What to delete">
-            {([
+          <ChoiceCards
+            name="delete-mode"
+            ariaLabel="What to delete"
+            value={deleteMode}
+            onChange={setDeleteMode}
+            disabled={deleteMutation.isPending}
+            options={[
               {
-                mode: 'photos',
+                value: 'photos',
                 title: 'Delete photos, keep records',
                 detail: 'Each photo becomes a placeholder that says what it showed. Detections, observations and counts stay.',
               },
               {
-                mode: 'all',
+                value: 'all',
                 title: 'Delete photos and records',
                 detail: 'The images disappear from everywhere, including counts and statistics.',
               },
-            ] as const).map((option) => {
-              const selected = deleteMode === option.mode;
-              return (
-                <label
-                  key={option.mode}
-                  className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
-                    selected ? 'border-[#0f6064] bg-[#0f6064]/5' : 'hover:bg-muted'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="delete-mode"
-                    className="mt-0.5 accent-primary"
-                    checked={selected}
-                    onChange={() => setDeleteMode(option.mode)}
-                    disabled={deleteMutation.isPending}
-                  />
-                  <span>
-                    <span className="font-medium">{option.title}</span>
-                    <span className="block text-muted-foreground">{option.detail}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+            ]}
+          />
 
-          <div className="border-2 border-destructive rounded-md p-4 my-4 bg-destructive/5">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-destructive">Warning: This will delete:</p>
-                {keepRecords ? (
-                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                    <li>The photo and thumbnail files of {effectiveSelectionCount} image(s)</li>
-                  </ul>
-                ) : (
-                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                    <li>{effectiveSelectionCount} image(s) and their files</li>
-                    <li>All associated detections and classifications</li>
-                    <li>All human observations</li>
-                    <li>All crop and thumbnail files</li>
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
+          <ImpactBox
+            sections={[
+              {
+                heading: 'This will delete',
+                bullets: keepRecords
+                  ? [`the photo and thumbnail files of ${effectiveSelectionCount} image(s)`]
+                  : [
+                      `${effectiveSelectionCount} image(s) and their files`,
+                      'all associated detections and classifications',
+                      'all human observations',
+                      'all crop and thumbnail files',
+                    ],
+              },
+            ]}
+          />
 
           <ConfirmWordField
             word="DELETE"

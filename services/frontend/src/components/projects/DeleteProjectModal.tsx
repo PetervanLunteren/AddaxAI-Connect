@@ -154,17 +154,11 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          {/* Danger Zone Warning */}
-          <div className="border-2 border-destructive rounded-md p-4 my-4 bg-destructive/5">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-              <DeleteImpactList
-                items={impact}
-                isLoading={impactLoading}
-                error={impactError ? (impactError as Error).message : null}
-              />
-            </div>
-          </div>
+          <DeleteImpactList
+            items={impact}
+            isLoading={impactLoading}
+            error={impactError ? (impactError as Error).message : null}
+          />
 
           <ConfirmWordField
             word={project.name}

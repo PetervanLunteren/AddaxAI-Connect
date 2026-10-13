@@ -23,6 +23,7 @@ import {
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 import { ConfirmWordField } from '../ui/ConfirmWordField';
+import { ChoiceCards, type ChoiceOption } from '../ui/ChoiceCards';
 import { camerasApi, type CameraBulkDeleteResponse } from '../../api/cameras';
 
 interface DeleteCamerasModalProps {
@@ -189,15 +190,15 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
     );
   }
 
-  const options: { mode: Mode; title: string; detail: string }[] = [
+  const options: ChoiceOption<Mode>[] = [
     {
-      mode: 'retire',
+      value: 'retire',
       title: `Retire the ${noun}, keep the data`,
       detail:
         `The ${noun} ${many ? 'stay' : 'stays'} in the project as retired. Photos, labels, placements, health and service history stay. The Camera ID is free to register again, in this project or another one.`,
     },
     {
-      mode: 'delete',
+      value: 'delete',
       title: `Delete the ${noun} and all ${many ? 'their' : 'its'} data`,
       detail:
         `Everything the ${noun} recorded disappears, including the stored photo files. This cannot be undone.`,
@@ -218,53 +219,22 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="space-y-2 text-sm" role="radiogroup" aria-label="What to do">
-            {options.map((option) => {
-              const selected = mode === option.mode;
-              return (
-                <label
-                  key={option.mode}
-                  className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
-                    selected ? 'border-[#0f6064] bg-[#0f6064]/5' : 'hover:bg-muted'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="camera-delete-mode"
-                    className="mt-0.5 accent-primary"
-                    checked={selected}
-                    onChange={() => switchMode(option.mode)}
-                    disabled={mutation.isPending}
-                  />
-                  <span>
-                    <span className="font-medium">{option.title}</span>
-                    <span className="block text-muted-foreground">{option.detail}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+          <ChoiceCards
+            name="camera-delete-mode"
+            ariaLabel="What to do"
+            value={mode}
+            onChange={switchMode}
+            disabled={mutation.isPending}
+            options={options}
+          />
 
           {/* What the cameras hold. Red only when it is about to go. */}
-          <div
-            className={`rounded-md p-4 my-4 ${
-              mode === 'delete'
-                ? 'border-2 border-destructive bg-destructive/5'
-                : 'border bg-muted/40'
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              {mode === 'delete' && (
-                <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-              )}
-              <DeleteImpactList
-                items={impact}
-                isLoading={impactLoading}
-                error={impactError ? (impactError as Error).message : null}
-                mode={mode}
-              />
-            </div>
-          </div>
+          <DeleteImpactList
+            items={impact}
+            isLoading={impactLoading}
+            error={impactError ? (impactError as Error).message : null}
+            mode={mode}
+          />
 
           <ConfirmWordField
             word={CONFIRM_WORDS[mode]}

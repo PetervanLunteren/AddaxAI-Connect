@@ -1,10 +1,11 @@
 /**
- * What a delete or a retire is about to do, per camera.
+ * What deleting or retiring cameras does, from the backend preview.
  *
  * Shared by the camera delete and the project delete so the two dialogs can
- * never disagree. Both read the same backend helper.
+ * never disagree. Both read the same backend helper, and both render through
+ * the shared ImpactBox so they look like every other destructive dialog.
  *
- * Why this exists: the old confirmation counted cameras and nothing else, so
+ * Why the names: the old confirmation counted cameras and nothing else, so
  * removing an empty registration and removing a camera with 374 images and
  * months of verification work looked exactly the same. It also never named
  * the cameras, and the table selection survives filtering, so people could
@@ -16,6 +17,7 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import type { CameraDeletePreviewItem } from '../api/cameras';
+import { ImpactBox, type ImpactSection } from './ui/ImpactBox';
 
 export type ImpactMode = 'delete' | 'retire';
 
@@ -47,75 +49,72 @@ export const DeleteImpactList: React.FC<DeleteImpactListProps> = ({
   error,
   mode = 'delete',
 }) => {
+  const tone = mode === 'retire' ? 'neutral' : 'destructive';
   const verb = mode === 'retire' ? 'retiring' : 'deleting';
 
   if (isLoading) {
     return (
-      <div className="min-w-0 flex-1 flex items-center gap-2 py-3 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Checking what these cameras hold
-      </div>
+      <ImpactBox tone={tone} sections={[]}>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking what these cameras hold
+        </div>
+      </ImpactBox>
     );
   }
 
   if (error) {
     return (
-      <p className="min-w-0 flex-1 py-3 text-sm text-destructive">
-        Could not check what these cameras hold, so {verb} is blocked. {error}
-      </p>
+      <ImpactBox tone={tone} sections={[]}>
+        <p className="text-destructive">
+          Could not check what these cameras hold, so {verb} is blocked. {error}
+        </p>
+      </ImpactBox>
     );
   }
 
   const totals = impactTotals(items);
+  const recorded = [
+    plural(totals.cameras, 'camera'),
+    totals.verified > 0
+      ? `${plural(totals.images, 'image')}, ${totals.verified} verified by hand`
+      : plural(totals.images, 'image'),
+    'all detections, classifications and human observations',
+    'placements, health records and service history',
+  ];
   const tasks = totals.tasks > 0 ? plural(totals.tasks, 'open service task') : null;
 
-  return (
-    // min-w-0 so this can shrink inside the dialog's flex row. Without it the
-    // rows set a minimum width and the whole dialog runs off a phone screen.
-    <div className="min-w-0 flex-1 space-y-3">
-      <p className={`text-sm font-semibold ${mode === 'retire' ? '' : 'text-destructive'}`}>
-        {plural(totals.cameras, 'camera')}, {plural(totals.images, 'image')}
-        {totals.verified > 0 && `, ${totals.verified} verified by hand`}
-        {mode === 'retire' && ' stay in the project'}
-      </p>
+  const sections: ImpactSection[] =
+    mode === 'retire'
+      ? [
+          { heading: 'This will keep', bullets: recorded },
+          {
+            heading: 'This will remove',
+            bullets: [
+              ...(tasks ? [tasks] : []),
+              'the cameras from service, each current placement is closed at its last photo',
+            ],
+          },
+        ]
+      : [
+          {
+            heading: 'This will delete',
+            bullets: [...recorded, ...(tasks ? [tasks] : []), 'the stored image files'],
+          },
+        ];
 
-      {/* Named rows, so nobody deletes a camera that is off screen. Scrolls on
-          its own for a long selection. Deliberately not a table: fixed columns
-          cannot shrink, so the counts wrap under the name on a narrow screen
-          instead of pushing the dialog sideways. */}
-      <div className="max-h-48 overflow-y-auto rounded-md border bg-white divide-y">
-        {(items ?? []).map((item) => (
-          <div
-            key={item.camera_id}
-            className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-1.5"
-          >
-            <span className="font-mono text-xs break-all">{item.name}</span>
-            <span className="text-sm whitespace-nowrap">
-              {plural(item.images, 'image')}
-              {item.verified_images > 0 && (
-                <span className="text-muted-foreground">
-                  , {item.verified_images} verified
-                </span>
-              )}
-            </span>
-          </div>
-        ))}
-      </div>
+  const rows = (items ?? []).map((item) => ({
+    key: item.camera_id,
+    name: item.name,
+    detail: (
+      <>
+        {plural(item.images, 'image')}
+        {item.verified_images > 0 && (
+          <span className="text-muted-foreground">, {item.verified_images} verified</span>
+        )}
+      </>
+    ),
+  }));
 
-      {mode === 'retire' ? (
-        <p className="text-sm text-muted-foreground">
-          Also kept, all detections, classifications, human observations,
-          placements, health records and service history. The current
-          placement is closed at the last photo.
-          {tasks && ` Removed, ${tasks}.`}
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Also removed, all detections, classifications, human observations,
-          placements, health records, service history{tasks && `, ${tasks}`} and
-          the stored image files.
-        </p>
-      )}
-    </div>
-  );
+  return <ImpactBox tone={tone} sections={sections} rows={rows} />;
 };
