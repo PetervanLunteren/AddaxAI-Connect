@@ -64,8 +64,30 @@ An animal with no line in the file is "unknown to SpeciesNet". SpeciesNet can ne
 
 - Use the user's language. Latin names stay latin.
 - Each round covers one topic: show what you found, propose an answer, ask one question.
-- Use tables for animals: latin name, common name, family, record count, flag.
+- Show animals and rows always as a checklist, in the format below, never as a table or a loose list.
 - Keep it short.
+
+### The checklist
+
+Every list of animals or rows you show the user uses this format:
+
+- Group the items under group names an ecologist uses: canids, cats, mustelids, deer, wild boar and pigs, cattle, sheep and goats, horses, hares and rabbits, hedgehogs, squirrels, beavers, small mammals, and so on. Usually one group is one family; merge small families into the group an ecologist would expect.
+- Number the items straight through the whole list, not per group, so the user can answer with numbers.
+- Start each item with ☑ when you propose it, ☐ when you don't.
+- After the box: the common name, the latin name in brackets, then the record count and the flags when you have them.
+- End with one line asking the user to switch items on or off by number, or to add animals.
+
+For example:
+
+**Canids**
+1. ☑ grey wolf (Canis lupus), 141 records
+2. ☑ red fox (Vulpes vulpes), 6,708 records
+3. ☐ golden jackal (Canis aureus), 2 records, rare, moving in
+
+**Mustelids**
+4. ☑ European badger (Meles meles), 4,100 records
+
+After each answer, show the updated checklist once, so the user sees what is now selected.
 
 ## The rounds
 
@@ -113,26 +135,27 @@ Give every animal its flags:
 - **introduced or escaped**: not native to the region, for example a wallaby, muskrat or raccoon
 - **unknown to SpeciesNet**: no line in the taxonomy file
 
-Show the pool as a table grouped by order and family, with the counts and the flags. Ask what to remove or add.
+Show the pool as a checklist. Tick what a camera trap here will likely see, untick the doubtful ones, like a single old record. Ask what to switch or add.
 
 ## Round 3: domestic animals
 
-GBIF hardly records domestic animals, so ask. Propose dog, cat, cattle, sheep, goat, horse and pig, with their SpeciesNet names, and let the user remove what never appears on their cameras.
+GBIF hardly records domestic animals, so ask. Show dog, cat, cattle, sheep, goat, horse and pig as a checklist, all ticked, with their SpeciesNet names, and let the user untick what never appears on their cameras.
 
 ## Round 4: targets
 
-This round decides how much detail each group of animals gets, so explain that to the user in a few sentences:
+This round decides how much detail each group of animals gets. Ask it in these words, in the user's language: "Which animals do you want named down to the species?" Then explain in a few sentences:
 
-- A target is an animal the user wants to tell apart, for alerts or for counts. Its group gets one label per species, plus an "unknown" label for the unsure cases, for example wolf, domestic dog, red fox and unknown canid.
+- Animals named to the species, the targets, get one label per species in their group, plus an "unknown" label for the unsure cases, for example wolf, domestic dog, red fox and unknown canid.
 - Every other group gets one plain label, for example "mustelid" for all martens, badgers and weasels.
+- A species label is wrong much more often than a group label. "Mustelid" is almost always right, "stone marten" or "pine marten" is often a guess. So only pick the animals where the species really matters, for alerts or for counts, and leave the rest as groups.
 
-Then ask which animals they want to tell apart, and propose a set from the inventory, based on what you know of the place.
+Show the inventory as a checklist, with the animals you propose as targets ticked, based on what you know of the place.
 
-Push back when the answer is everything: species labels for animals nobody looks at give a noisy dashboard and many uncertain labels. Push back when the answer is nothing: then no alert can single out a species. Most projects have one to five target groups.
+Push back when the answer is everything: species labels for animals nobody looks at give more mistakes and a noisy dashboard. Push back when the answer is nothing: then no alert can single out a species. Most projects have one to five target groups.
 
 ## Round 5: target groups
 
-For each target, take its group, usually the family. From the pool and the domestic animals, list every animal in that group. Propose:
+For each target, take its group, usually the family. From the pool and the domestic animals, list every animal in that group as a checklist, all ticked. Propose:
 
 - one row per species
 - one family row named "unknown" plus the group, for example `canidae, unknown canid`
@@ -149,16 +172,23 @@ canidae, unknown canid
 
 ## Round 6: other groups
 
-For every other group in the pool, propose one row with a plain name, for example `mustelidae, mustelid`. Never use "unknown" or "other" for these. The label covers every animal in the group. Skip the small mammals (rodents, shrews and moles); round 7 handles them.
+For every other group in the pool, propose one row with a plain name, for example `mustelidae, mustelid`. Show these rows as a checklist, one item per row, all ticked. Never use "unknown" or "other" for these. The label covers every animal in the group. Skip rodents, shrews, moles and hedgehogs; round 7 handles them.
 
 ## Round 7: small mammals
 
-Mice, voles, rats, shrews and moles walk past camera traps, and are rarely a target. Unless one of them is a target, ask whether they want:
+Rodents (Rodentia) and shrews, moles and hedgehogs (Eulipotyphla) are two separate orders. The first group above both is Mammalia, so no single row catches only them. Two rows can share one label, though.
 
-- one row per order, for example `rodentia, rodent` and `eulipotyphla, shrew or mole`, or
-- nothing, so they land on the `mammalia` backstop.
+1. First take out the animals of these two orders that a camera clearly shows and people name: hedgehog, squirrel, beaver, and large introduced rodents like muskrat or coypu. Show a checklist with a group row for each one in the inventory, all ticked, for example `erinaceidae, hedgehog` and `castoridae, beaver`. Skip this for an animal that is already a target.
+2. Then propose one shared label for the rest, the mice, voles, rats, shrews and moles:
 
-Propose the first.
+```
+rodentia, small mammal
+eulipotyphla, small mammal
+```
+
+A carve-out at species level needs one more row when its family also holds small mammals. The muskrat is a species in the vole family (Cricetidae). Alone there, the mapper widens it to the whole family and every vole becomes "muskrat". Add the family with the shared label, `cricetidae, small mammal`, and the muskrat stays at its own genus.
+
+Ask whether the user agrees, or prefers no small-mammal rows, so these animals land on the `mammalia` backstop.
 
 ## Round 8: birds and reptiles
 
