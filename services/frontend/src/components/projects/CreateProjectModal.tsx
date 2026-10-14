@@ -140,6 +140,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
       setError('Species labels are required');
       return;
     }
+    setError(null); // a new attempt, so the last attempt's error no longer applies
     createMutation.mutate();
   };
 
