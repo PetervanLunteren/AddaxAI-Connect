@@ -116,10 +116,12 @@ def patch_info_json(model_dir: str) -> None:
 
 def load_ensemble(model_dir: str) -> Any:
     """
-    Load SpeciesNet ensemble for geofencing and taxonomic rollup.
+    Load SpeciesNet ensemble for its taxonomy and geofence tables.
 
-    Always loaded. Country code is read from the database per-classification,
-    not at load time.
+    Only `taxonomy_map` and `geofence_map` are used, by the geofence and
+    rollup functions in classifier.py; `combine()` is not. Always loaded.
+    Country code is read from the database per-classification, not at load
+    time.
 
     Returns:
         SpeciesNetEnsemble instance
@@ -127,7 +129,7 @@ def load_ensemble(model_dir: str) -> Any:
     from speciesnet import SpeciesNetEnsemble
 
     ensemble = SpeciesNetEnsemble(model_name=model_dir, geofence=True)
-    logger.info("Ensemble loaded for geofencing")
+    logger.info("Ensemble tables loaded for geofencing and rollup")
     return ensemble
 
 

@@ -343,8 +343,8 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
         temp_files.append(image_path)
 
         # Step 4: Run classification on animal detections
-        # SpeciesNet ignores included_species (no filtering — taxonomy mapping handles it)
-        classifications = run_classification(classifier, image_path, detections, None, taxonomy_map, ensemble, geofencing_config)
+        # SpeciesNet ignores included_species, the taxonomy mapping replaces it
+        classifications = run_classification(classifier, image_path, detections, taxonomy_map, ensemble, geofencing_config)
 
         logger.info(
             "Classifications generated",
