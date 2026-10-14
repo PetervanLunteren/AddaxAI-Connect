@@ -168,7 +168,7 @@ def _stub_detection(monkeypatch):
 
     monkeypatch.setattr(ic, "queue_event", fake_queue_event)
     monkeypatch.setattr(ic, "site_location", lambda db, sid: (51.0, 4.0))
-    monkeypatch.setattr(ic, "scientific_name", lambda db, s: "Canis lupus")
+    monkeypatch.setattr(ic, "scientific_name", lambda db, project_id, s, model: "Canis lupus")
     monkeypatch.setattr(da, "get_server_timezone", lambda db: AMS)
     monkeypatch.setattr(da.settings, "domain_name", "connect.example.org")
     monkeypatch.setattr(da.settings, "classification_model", "deepfaune")
@@ -228,7 +228,7 @@ class TestDetectionBranch:
 
     def test_sensingclues_person_is_human_activity(self, monkeypatch):
         sent = _stub_detection(monkeypatch)
-        monkeypatch.setattr(ic, "scientific_name", lambda db, s: None)
+        monkeypatch.setattr(ic, "scientific_name", lambda db, project_id, s, model: None)
         da._notify_rule(
             None, None, None, _rule(channels=["sensingclues"], species=["person"]),
             _user(), _project(), _event(species="person"), CAPTURED_AT, 4, "North gate",

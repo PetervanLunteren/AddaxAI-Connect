@@ -21,7 +21,7 @@ import torch
 from shared.device import select_device
 from classifier import run_classification
 from storage_operations import download_image_from_minio
-from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_taxonomy_mapping, get_project_geofence
+from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_project_species_config
 from annotated_image import (
     generate_annotated_image,
     upload_annotated_image_to_minio,
@@ -170,7 +170,7 @@ def remove_private_image(image_uuid: str, detections, message: dict, is_bulk: bo
     return True
 
 
-def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str], ensemble) -> None:
+def process_detection_complete(message: dict, classifier, ensemble) -> None:
     """
     Process detection-complete message through classification pipeline.
 
@@ -331,7 +331,7 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
 
         # The project's classification config is read only now, after every
         # early return, so images without animals never depend on it.
-        geofencing_config = get_project_geofence(project_id)
+        taxonomy_map, geofencing_config = get_project_species_config(project_id)
 
         # Step 3: Download full image from MinIO
         # Note: We need to fetch storage_path from database since it's not in queue message
@@ -578,8 +578,6 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
 
 def main():
     """Main entry point for SpeciesNet classification worker"""
-    import time
-
     logger.info("SpeciesNet classification worker starting", log_level=settings.log_level)
 
     # Decide the device before the model download, so a GPU server that
@@ -589,23 +587,14 @@ def main():
     classifier, ensemble = load_model(device)
     logger.info("Model loaded successfully")
 
-    # Wait for the taxonomy mapping to be configured via UI
-    taxonomy_map = get_taxonomy_mapping()
-    while not taxonomy_map:
-        logger.warning("Taxonomy mapping not configured, waiting 30s...")
-        time.sleep(30)
-        taxonomy_map = get_taxonomy_mapping()
-    logger.info("Taxonomy mapping loaded", num_entries=len(taxonomy_map))
-
     # Initialize queue consumer. Priority BRPOP keeps live ahead of bulk.
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
     queue.record_device(DEVICE_KEY_CLASSIFICATION, device)
     priority_queues = [QUEUE_DETECTION_COMPLETE, QUEUE_DETECTION_COMPLETE_BULK]
 
-    # Process messages forever, refresh config on each message
+    # Process messages forever. Each image reads its own project's config.
     def handle_message(msg):
-        current_map = get_taxonomy_mapping()
-        process_detection_complete(msg, classifier, current_map, ensemble)
+        process_detection_complete(msg, classifier, ensemble)
         # Only reached when classification succeeded (it raises on failure).
         if msg.get("origin") == "bulk":
             tier_bulk_raw_cold(msg.get("image_uuid"))

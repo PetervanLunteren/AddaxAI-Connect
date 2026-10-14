@@ -22,7 +22,7 @@ from speciesnet.geofence_utils import (
 )
 
 from shared.logger import get_logger
-from shared.taxonomy import apply_taxonomy_walkup
+from shared.taxonomy import UNKNOWN_ANIMAL, apply_taxonomy_walkup
 from config import get_settings
 
 logger = get_logger("classification-speciesnet.classifier")
@@ -147,7 +147,8 @@ def run_classification(
         classifier: Loaded SpeciesNetClassifier instance
         image_path: Path to full image file
         detections: List of DetectionInfo objects with bbox coordinates
-        taxonomy_map: Taxonomy CSV mapping dict
+        taxonomy_map: The project's taxonomy CSV mapping, never empty (the
+            worker refuses to classify for a project without one)
         ensemble: SpeciesNetEnsemble, the source of the taxonomy and geofence tables
         geofencing_config: Dict with 'country_code' and 'admin1_region', or None
 
@@ -155,14 +156,8 @@ def run_classification(
         List of Classification objects (top-1 predictions per animal)
 
     Raises:
-        ValueError: If the taxonomy mapping is empty. Labels come only from
-            the mapping; without one the image fails rather than fall back to
-            SpeciesNet's own names.
         Exception: If inference fails
     """
-    if not taxonomy_map:
-        raise ValueError("Taxonomy mapping is empty, upload one in Server settings")
-
     country = geofencing_config.get("country_code") if geofencing_config else None
     admin1_region = speciesnet_admin1(
         geofencing_config.get("admin1_region") if geofencing_config else None
@@ -245,7 +240,7 @@ def run_classification(
             else:
                 classification = Classification(
                     detection_id=detection.detection_id,
-                    species="unknown",
+                    species=UNKNOWN_ANIMAL,
                     confidence=0.0,
                     raw_prediction=None,
                     raw_confidence=None

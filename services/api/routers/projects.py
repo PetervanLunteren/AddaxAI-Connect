@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
-from shared.models import User, Project, Camera, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Site
+from shared.models import User, Project, Camera, ProjectMembership, UserInvitation, ServerSettings, Site
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_PROJECT_DOCUMENTS
@@ -23,6 +23,7 @@ from auth.permissions import (
     can_admin_project,
 )
 from auth.project_access import get_accessible_project_ids, check_site_scope_or_400
+from utils.taxonomy_csv import parse_taxonomy_csv, replace_project_taxonomy
 from routers.cameras import (
     CameraDeletePreviewItem,
     _assert_no_live_bulk_jobs,
@@ -103,6 +104,10 @@ class ProjectCreate(BaseModel):
     included_species: Optional[List[str]] = None
     country_code: str
     admin1_region: Optional[str] = None
+    # The SpeciesNet taxonomy mapping CSV, as text. Required on SpeciesNet
+    # servers and refused elsewhere (checked in create_project, where the
+    # model is known), so a project never exists without its label list.
+    taxonomy_csv: Optional[str] = Field(default=None, max_length=1_000_000)
 
     _country = field_validator("country_code")(normalize_country_code)
     _admin1 = field_validator("admin1_region")(normalize_admin1_region)
@@ -343,28 +348,33 @@ async def create_project(
     one project; a non-server-admin creator becomes project admin of the
     new project. Deleting a project stays server admin only.
 
-    Requires server setup to be complete: timezone must be configured,
-    and for SpeciesNet servers, a taxonomy mapping must be set. The country
-    comes with the request.
+    Requires the server timezone to be configured. The country, and on
+    SpeciesNet servers the taxonomy mapping CSV, come with the request and
+    are stored in the same commit as the project.
     """
-    # Check server setup prerequisites
-    missing = []
     result = await db.execute(select(ServerSettings).limit(1))
     server_settings = result.scalar_one_or_none()
-
     if not server_settings or not server_settings.timezone:
-        missing.append("timezone")
-
-    model = settings.classification_model or "deepfaune"
-    if model == "speciesnet":
-        taxonomy_result = await db.execute(select(TaxonomyMapping.id).limit(1))
-        if taxonomy_result.scalar_one_or_none() is None:
-            missing.append("taxonomy mapping")
-
-    if missing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Server setup incomplete. Configure {', '.join(missing)} in server settings before creating a project.",
+            detail="Server setup incomplete. Configure timezone in server settings before creating a project.",
+        )
+
+    taxonomy_rows = None
+    if (settings.classification_model or "deepfaune") == "speciesnet":
+        if not project_data.taxonomy_csv:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A taxonomy mapping CSV is required for a SpeciesNet project",
+            )
+        try:
+            taxonomy_rows = parse_taxonomy_csv(project_data.taxonomy_csv)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    elif project_data.taxonomy_csv is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A taxonomy mapping CSV is only used on SpeciesNet servers",
         )
 
     project = Project(
@@ -377,6 +387,9 @@ async def create_project(
 
     db.add(project)
     await db.flush()
+
+    if taxonomy_rows is not None:
+        await replace_project_taxonomy(db, project.id, taxonomy_rows)
 
     # Server admins reach every project implicitly and never get membership
     # rows. Anyone else needs one, or they lose access to their own project

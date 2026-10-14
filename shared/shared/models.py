@@ -980,11 +980,20 @@ class ServerSettings(Base):
 
 
 class TaxonomyMapping(Base):
-    """Taxonomy mapping entry for SpeciesNet walk-up algorithm"""
+    """One row of a project's SpeciesNet taxonomy mapping (walk-up algorithm).
+
+    The rows of a project are its label list: 'common' is the label users
+    see, 'latin' the SpeciesNet taxon it covers. Several rows may share one
+    label.
+    """
     __tablename__ = "taxonomy_mapping"
+    __table_args__ = (
+        UniqueConstraint('project_id', 'latin', name='uq_taxonomy_mapping_project_latin'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
-    latin = Column(String(255), unique=True, nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    latin = Column(String(255), nullable=False)
     common = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

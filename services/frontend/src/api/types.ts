@@ -334,6 +334,8 @@ export interface ProjectCreate {
   included_species?: string[] | null;
   country_code: string;
   admin1_region?: string | null;
+  // The taxonomy mapping CSV text, required on SpeciesNet servers only
+  taxonomy_csv?: string;
 }
 
 export interface ProjectUpdate {
@@ -855,7 +857,13 @@ export interface TaxonomyMappingEntry {
 export interface TaxonomyMappingResponse {
   count: number;
   entries: TaxonomyMappingEntry[];
-  reprocessed_count?: number;
+}
+
+export interface TaxonomyUploadResponse extends TaxonomyMappingResponse {
+  // Unverified classifications that got a new label
+  reprocessed_count: number;
+  // Labels still used by rules or thresholds that the new mapping no longer has
+  stale_labels: string[];
 }
 
 export interface DevModeStatus {

@@ -18,6 +18,7 @@ import { CountrySelect } from '../../components/ui/CountrySelect';
 import { StateSelect } from '../../components/ui/StateSelect';
 import { SiteGroupsModal } from '../../components/SiteGroupsModal';
 import { ClassificationThresholdsModal } from '../../components/ClassificationThresholdsModal';
+import { ProjectTaxonomyCard } from '../../components/projects/ProjectTaxonomyCard';
 import { ThresholdCheckButton, ThresholdCheckDialog } from '../../components/ThresholdCheckDialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
@@ -199,8 +200,9 @@ export const ProjectSettingsPage: React.FC = () => {
 
   // Available species query (model-dependent)
   const { data: availableSpeciesData } = useQuery({
-    queryKey: ['available-species'],
-    queryFn: () => speciesApi.getAvailable(),
+    queryKey: ['available-species', currentProject?.id],
+    queryFn: () => speciesApi.getAvailable(currentProject!.id),
+    enabled: !!currentProject,
   });
   const isSpeciesNet = availableSpeciesData?.model === 'speciesnet';
 
@@ -608,7 +610,7 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Species Filtering (DeepFaune only, SpeciesNet uses taxonomy mapping) */}
+          {/* Species Filtering (DeepFaune only, SpeciesNet uses the Species labels card below) */}
           {!isSpeciesNet && (
             <>
               <div className="border-t my-6" />
@@ -803,6 +805,9 @@ export const ProjectSettingsPage: React.FC = () => {
 
         </CardContent>
       </Card>
+
+      {/* SpeciesNet label list, saved on its own: it relabels images */}
+      {isSpeciesNet && <ProjectTaxonomyCard projectId={currentProject.id} />}
 
       {/* Toast notification */}
       {showToast && (

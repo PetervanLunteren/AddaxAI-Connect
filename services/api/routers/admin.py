@@ -9,7 +9,7 @@ import secrets
 import httpx
 import base64
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update, func
 from pydantic import BaseModel, EmailStr
@@ -21,9 +21,6 @@ from shared.models import (
     ProjectMembership,
     UserInvitation,
     ServerSettings,
-    TaxonomyMapping,
-    Classification as ClassificationModel,
-    Detection,
     Image,
     HumanObservation,
     ProjectReminder,
@@ -1572,7 +1569,6 @@ class SetupStatusResponse(BaseModel):
     """Server setup status for project creation prerequisites"""
     model: str
     timezone: bool
-    taxonomy_mapping: bool
     telegram: bool
     ready: bool
 
@@ -1588,9 +1584,10 @@ async def get_setup_status(
     """
     Check if all server setup prerequisites are met for project creation.
 
-    For DeepFaune: only timezone is required.
-    For SpeciesNet: timezone and taxonomy mapping are required. The country
-    is set per project, in the create request.
+    Only the timezone is a server-level prerequisite. The country and, on
+    SpeciesNet, the taxonomy mapping come with each project's create
+    request. The model is reported so the create dialog knows whether to
+    ask for the mapping.
     """
     model = settings.classification_model or "deepfaune"
 
@@ -1603,205 +1600,14 @@ async def get_setup_status(
     telegram_config = telegram_result.scalar_one_or_none()
     has_telegram = telegram_config is not None and telegram_config.is_configured
 
-    if model == "speciesnet":
-        taxonomy_result = await db.execute(select(TaxonomyMapping.id).limit(1))
-        has_taxonomy = taxonomy_result.scalar_one_or_none() is not None
-        ready = has_timezone and has_taxonomy
-    else:
-        has_taxonomy = True
-        ready = has_timezone
+    ready = has_timezone
 
     return SetupStatusResponse(
         model=model,
         timezone=has_timezone,
-        taxonomy_mapping=has_taxonomy,
         telegram=has_telegram,
         ready=ready,
     )
-
-
-# ============================================================================
-# Taxonomy Mapping
-# ============================================================================
-
-
-class TaxonomyMappingEntry(BaseModel):
-    id: int
-    latin: str
-    common: str
-
-    class Config:
-        from_attributes = True
-
-
-class TaxonomyMappingResponse(BaseModel):
-    count: int
-    entries: list[TaxonomyMappingEntry]
-    reprocessed_count: int | None = None
-
-
-@router.get("/taxonomy", response_model=TaxonomyMappingResponse)
-async def get_taxonomy_mapping(
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_server_admin),
-):
-    """List all taxonomy mapping entries, ordered by latin name."""
-    result = await db.execute(
-        select(TaxonomyMapping).order_by(TaxonomyMapping.latin)
-    )
-    entries = result.scalars().all()
-
-    return TaxonomyMappingResponse(
-        count=len(entries),
-        entries=[TaxonomyMappingEntry.model_validate(e) for e in entries],
-    )
-
-
-@router.post("/taxonomy/upload", response_model=TaxonomyMappingResponse)
-async def upload_taxonomy_mapping(
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_server_admin),
-):
-    """
-    Upload a taxonomy mapping CSV (replaces all existing rows).
-
-    CSV must have 'latin' and 'common' columns. Extra columns are ignored.
-    After inserting, reprocesses all existing classifications that have a raw_prediction.
-    """
-    import csv
-    import io
-
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File must be a .csv file",
-        )
-
-    content = await file.read()
-    try:
-        text = content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File must be UTF-8 encoded",
-        )
-
-    reader = csv.DictReader(io.StringIO(text))
-
-    if not reader.fieldnames:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="CSV file is empty or has no header row",
-        )
-
-    fieldnames_lower = [f.lower().strip() for f in reader.fieldnames]
-    if "latin" not in fieldnames_lower or "common" not in fieldnames_lower:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"CSV must have 'latin' and 'common' columns. Found: {', '.join(reader.fieldnames)}",
-        )
-
-    rows = []
-    seen_latin: set[str] = set()
-    for i, row in enumerate(reader, start=2):
-        normalized = {k.lower().strip(): v for k, v in row.items()}
-        latin = (normalized.get("latin") or "").strip().lower()
-        common = (normalized.get("common") or "").strip()
-
-        if not latin:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Row {i}: empty 'latin' value",
-            )
-        if not common:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Row {i}: empty 'common' value",
-            )
-        if latin in seen_latin:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Row {i}: duplicate latin value '{latin}'",
-            )
-
-        seen_latin.add(latin)
-        rows.append({"latin": latin, "common": common})
-
-    if not rows:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="CSV has no data rows",
-        )
-
-    # Replace all existing rows
-    await db.execute(delete(TaxonomyMapping))
-    for row in rows:
-        db.add(TaxonomyMapping(latin=row["latin"], common=row["common"]))
-    await db.flush()
-
-    # Reprocess existing classifications with new mapping (batched for memory)
-    from shared.taxonomy import apply_taxonomy_walkup
-
-    taxonomy_map = {row["latin"]: row["common"] for row in rows}
-    reprocessed_count = 0
-    batch_size = 500
-
-    stream = await db.stream(
-        select(ClassificationModel)
-        .join(Detection, ClassificationModel.detection_id == Detection.id)
-        .join(Image, Detection.image_id == Image.id)
-        .where(
-            ClassificationModel.raw_prediction.isnot(None),
-            Image.is_verified == False,
-        )
-        .execution_options(yield_per=batch_size)
-    )
-
-    async for partition in stream.scalars().partitions(batch_size):
-        for classification in partition:
-            new_species = apply_taxonomy_walkup(classification.raw_prediction, taxonomy_map)
-            if classification.species != new_species:
-                classification.species = new_species
-                reprocessed_count += 1
-
-    await db.commit()
-
-    # Refresh entries to get IDs
-    result = await db.execute(
-        select(TaxonomyMapping).order_by(TaxonomyMapping.latin)
-    )
-    entries = result.scalars().all()
-
-    logger.info(
-        "Taxonomy mapping uploaded",
-        count=len(entries),
-        reprocessed_count=reprocessed_count,
-        uploaded_by=current_user.email,
-    )
-
-    return TaxonomyMappingResponse(
-        count=len(entries),
-        entries=[TaxonomyMappingEntry.model_validate(e) for e in entries],
-        reprocessed_count=reprocessed_count,
-    )
-
-
-@router.delete("/taxonomy")
-async def clear_taxonomy_mapping(
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_server_admin),
-):
-    """Clear all taxonomy mapping entries."""
-    result = await db.execute(select(TaxonomyMapping))
-    count = len(result.scalars().all())
-
-    await db.execute(delete(TaxonomyMapping))
-    await db.commit()
-
-    logger.info("Taxonomy mapping cleared", deleted_count=count, cleared_by=current_user.email)
-
-    return {"deleted_count": count}
 
 
 class DevModeStatusResponse(BaseModel):

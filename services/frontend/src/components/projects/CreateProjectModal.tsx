@@ -2,7 +2,9 @@
  * Create Project Modal
  *
  * Form to create a new project with name, description, country, and image
- * upload. The country is required. Uses React Dropzone for image upload with
+ * upload. The country is required, and on SpeciesNet servers so is the
+ * taxonomy mapping CSV: it travels in the create request, so a project never
+ * exists without its label list. Uses React Dropzone for image upload with
  * preview.
  */
 import React, { useState, useCallback } from 'react';
@@ -21,19 +23,23 @@ import { Button } from '../ui/Button';
 import { Callout } from '../ui/Callout';
 import { CountrySelect } from '../ui/CountrySelect';
 import { StateSelect } from '../ui/StateSelect';
+import { TaxonomyDropzone } from './TaxonomyDropzone';
 import { projectsApi } from '../../api/projects';
 
 interface CreateProjectModalProps {
   open: boolean;
   onClose: () => void;
+  /** SpeciesNet server: the project needs a taxonomy mapping CSV */
+  requireTaxonomy: boolean;
 }
 
-export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, onClose }) => {
+export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, onClose, requireTaxonomy }) => {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [countryCode, setCountryCode] = useState('');
   const [admin1Region, setAdmin1Region] = useState('');
+  const [taxonomyFile, setTaxonomyFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +53,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
         included_species: null, // All species allowed
         country_code: countryCode,
         admin1_region: admin1Region || null,
+        taxonomy_csv: requireTaxonomy && taxonomyFile ? await taxonomyFile.text() : undefined,
       });
 
       // Then upload image if provided
@@ -107,6 +114,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
     setDescription('');
     setCountryCode('');
     setAdmin1Region('');
+    setTaxonomyFile(null);
     setImageFile(null);
     setImagePreview(null);
     setError(null);
@@ -126,6 +134,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
     }
     if (!countryCode) {
       setError('Country is required');
+      return;
+    }
+    if (requireTaxonomy && !taxonomyFile) {
+      setError('Species labels are required');
       return;
     }
     createMutation.mutate();
@@ -200,6 +212,28 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               </div>
             )}
 
+            {/* Species labels, SpeciesNet only */}
+            {requireTaxonomy && (
+              <div>
+                <label className="text-sm font-medium block mb-1">
+                  Species labels <span className="text-destructive">*</span>
+                </label>
+                <TaxonomyDropzone file={taxonomyFile} onFileChange={setTaxonomyFile} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  A CSV with latin and common columns. See the{' '}
+                  <a
+                    href="https://connect.addaxai.com/speciesnet-setup/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    SpeciesNet setup guide
+                  </a>{' '}
+                  for how to make one.
+                </p>
+              </div>
+            )}
+
             {/* Image Upload */}
             <div>
               <label className="text-sm font-medium block mb-1">
@@ -250,7 +284,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createMutation.isPending || !name.trim() || !countryCode}>
+            <Button type="submit" disabled={createMutation.isPending || !name.trim() || !countryCode || (requireTaxonomy && !taxonomyFile)}>
               {createMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

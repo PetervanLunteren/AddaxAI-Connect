@@ -46,8 +46,9 @@ export function SpeciesFilterHintBanner() {
   const [dismissed, setDismissed] = useState<boolean>(() => readDismissed());
 
   const { data: availableSpeciesData } = useQuery({
-    queryKey: ['available-species'],
-    queryFn: () => speciesApi.getAvailable(),
+    queryKey: ['available-species', selectedProject?.id],
+    queryFn: () => speciesApi.getAvailable(selectedProject!.id),
+    enabled: !!selectedProject,
   });
 
   // Only admins can change the species list, so only they get the nudge.

@@ -14,45 +14,33 @@ from classifier import Classification, DetectionInfo
 logger = get_logger("classification-speciesnet.db_operations")
 
 
-def get_taxonomy_mapping() -> dict[str, str]:
+def get_project_species_config(project_id: int | None) -> tuple[dict[str, str], dict[str, str]]:
     """
-    Fetch all taxonomy mapping rows and return as {latin: common} dict.
+    The project's classification config: its taxonomy mapping and its geofence.
+
+    Raises ValueError when the image has no project, or the project has no
+    taxonomy mapping or no country, so the image fails visibly instead of
+    being classified without its label list or geofence. A SpeciesNet project
+    gets both when it is created.
 
     Returns:
-        Dict mapping lowercase latin names to common names.
-        Empty dict if no mapping is configured.
-    """
-    try:
-        with get_db_session() as db:
-            rows = db.query(TaxonomyMapping).all()
-            return {row.latin: row.common for row in rows}
-    except Exception as e:
-        logger.error("Failed to fetch taxonomy mapping", error=str(e), exc_info=True)
-        raise
-
-
-def get_project_geofence(project_id: int | None) -> dict[str, str]:
-    """
-    Country code and admin1 region of a project, for the SpeciesNet geofence.
-
-    Raises ValueError when the image has no project or the project has no
-    country, so the image fails visibly instead of being classified without
-    a geofence. Every project made since the country moved to the project
-    has one.
-
-    Returns:
-        Dict with 'country_code' and 'admin1_region' ('' when unset).
+        ({lowercase latin: common}, {'country_code', 'admin1_region' ('' when unset)})
     """
     if project_id is None:
-        raise ValueError("Image has no project, cannot geofence")
+        raise ValueError("Image has no project, cannot classify")
     with get_db_session() as db:
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project or not project.country_code:
             raise ValueError(f"Project {project_id} has no country, set one in project settings")
-        return {
+        rows = db.query(TaxonomyMapping).filter(TaxonomyMapping.project_id == project_id).all()
+        if not rows:
+            raise ValueError(f"Project {project_id} has no taxonomy mapping, upload one in project settings")
+        taxonomy_map = {row.latin: row.common for row in rows}
+        geofence = {
             "country_code": project.country_code,
             "admin1_region": project.admin1_region or "",
         }
+        return taxonomy_map, geofence
 
 
 def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], int | None]:

@@ -21,13 +21,14 @@ from sqlalchemy import select, text
 from shared.classification_models import model_info
 from shared.earthranger import build_camera_event, build_detection_event
 from shared.logger import get_logger
-from shared.models import ProjectIntegration, SpeciesTaxonomy
+from shared.models import ProjectIntegration, SpeciesTaxonomy, TaxonomyMapping
 from shared.project_channels import EARTHRANGER, SENSINGCLUES, project_channel_of  # noqa: F401  (re-exported)
 from shared.queue import (
     RedisQueue,
     QUEUE_NOTIFICATION_EARTHRANGER,
     QUEUE_NOTIFICATION_SENSINGCLUES,
 )
+from shared.taxonomy import scientific_names
 from shared.sensingclues import (
     build_camera_observation,
     build_detection_observation,
@@ -103,8 +104,23 @@ def camera_site(db, camera_id: int) -> Tuple[Optional[str], Optional[float], Opt
     return row.site_name, row.lat, row.lon
 
 
-def scientific_name(db, species: str) -> Optional[str]:
-    """The taxonomy table's scientific name for a label, or None."""
+def scientific_name(db, project_id: int, species: str, classification_model: Optional[str]) -> Optional[str]:
+    """The scientific name for a label, or None.
+
+    DeepFaune labels come from the species_taxonomy table. SpeciesNet labels
+    are the project's own, so only its taxonomy mapping speaks for them: the
+    latin of the label's row when the label has exactly one (see
+    shared.taxonomy.scientific_names), never a DeepFaune entry of the same
+    name.
+    """
+    if (classification_model or "deepfaune") == "speciesnet":
+        rows = db.execute(
+            select(TaxonomyMapping.latin, TaxonomyMapping.common).where(
+                TaxonomyMapping.project_id == project_id,
+                TaxonomyMapping.common == species,
+            )
+        ).all()
+        return scientific_names(rows).get(species)
     return db.execute(
         select(SpeciesTaxonomy.scientific_name).where(
             SpeciesTaxonomy.common_name == species

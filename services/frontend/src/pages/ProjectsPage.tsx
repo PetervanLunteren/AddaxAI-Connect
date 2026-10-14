@@ -31,11 +31,12 @@ export const ProjectsPage: React.FC = () => {
   const canCreateProject =
     isServerAdmin || (projects ?? []).some((p) => p.role === 'project-admin');
 
-  // Check server setup status (server admins only)
+  // Server setup status, for everyone who may create a project: it gates
+  // the button on the timezone and tells the dialog which model runs.
   const { data: setupStatus } = useQuery({
     queryKey: ['setup-status'],
     queryFn: adminApi.getSetupStatus,
-    enabled: isServerAdmin,
+    enabled: canCreateProject,
   });
 
   // On first-ever load for a server admin, seed the server timezone from the
@@ -100,7 +101,7 @@ export const ProjectsPage: React.FC = () => {
               size="sm"
               onClick={() => setShowCreateModal(true)}
               disabled={setupStatus && !setupStatus.ready}
-              title={setupStatus && !setupStatus.ready ? 'Server setup incomplete. Complete the setup steps below before creating a project.' : undefined}
+              title={setupStatus && !setupStatus.ready ? 'Server setup incomplete. A server admin sets the timezone in server settings first.' : undefined}
               className="self-start whitespace-nowrap"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -108,29 +109,6 @@ export const ProjectsPage: React.FC = () => {
             </Button>
           )}
         </div>
-
-        {/* Setup incomplete banner (server admins only). Timezone is seeded
-            automatically from the browser on first login, so it is not listed
-            here and the banner no longer gates on it. */}
-        {isServerAdmin && setupStatus && !setupStatus.taxonomy_mapping && (
-          <Callout
-            variant="warning"
-            className="mb-6"
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={() => navigate('/server/settings')}
-                className="whitespace-nowrap"
-              >
-                Server settings
-              </Button>
-            }
-          >
-            Server setup incomplete. Upload a taxonomy mapping.
-          </Callout>
-        )}
 
         {/* Telegram not configured banner (server admins only) */}
         {isServerAdmin && setupStatus && !setupStatus.telegram && (
@@ -186,6 +164,7 @@ export const ProjectsPage: React.FC = () => {
           <CreateProjectModal
             open={showCreateModal}
             onClose={() => setShowCreateModal(false)}
+            requireTaxonomy={setupStatus?.model === 'speciesnet'}
           />
         )}
       </main>

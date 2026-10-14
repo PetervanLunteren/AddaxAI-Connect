@@ -27,7 +27,7 @@ def _function_source(name: str) -> str:
 
 def test_config_is_read_after_the_early_returns_and_before_the_download():
     body = _function_source("process_detection_complete")
-    config = body.index("get_project_geofence(project_id)")
+    config = body.index("get_project_species_config(project_id)")
     assert body.index("animal_detections = ") < config
     assert body.index('logger.info("Image processing complete (no animals)"') < config
     assert config < body.index("download_image_from_minio(storage_path)")
@@ -37,4 +37,5 @@ def test_config_is_read_after_the_early_returns_and_before_the_download():
 def test_no_server_wide_config_wait_at_startup():
     main = _function_source("main")
     assert "get_geofencing_config" not in main
-    assert "Country code not configured" not in main
+    assert "get_taxonomy_mapping" not in main
+    assert "time.sleep" not in main

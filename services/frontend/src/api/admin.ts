@@ -16,7 +16,6 @@ import type {
   TelegramConfig,
   TelegramConfigureRequest,
   ServerSettings,
-  TaxonomyMappingResponse,
   ClassificationThresholds,
   DevModeStatus,
   PurgeNonAdminUsersResponse,
@@ -262,37 +261,14 @@ export const adminApi = {
   /**
    * Check server setup status for project creation prerequisites
    */
-  getSetupStatus: async (): Promise<{ model: string; timezone: boolean; taxonomy_mapping: boolean; telegram: boolean; ready: boolean }> => {
+  getSetupStatus: async (): Promise<{ model: string; timezone: boolean; telegram: boolean; ready: boolean }> => {
     const response = await apiClient.get('/api/admin/setup-status');
     return response.data;
   },
 
-  // Detection Threshold Management
   /**
    * Update detection confidence threshold for a project
    */
-  // Taxonomy Mapping
-  getTaxonomyMapping: async (): Promise<TaxonomyMappingResponse> => {
-    const response = await apiClient.get<TaxonomyMappingResponse>('/api/admin/taxonomy');
-    return response.data;
-  },
-
-  uploadTaxonomyMapping: async (file: File): Promise<TaxonomyMappingResponse> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await apiClient.post<TaxonomyMappingResponse>(
-      '/api/admin/taxonomy/upload',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
-    );
-    return response.data;
-  },
-
-  clearTaxonomyMapping: async (): Promise<{ deleted_count: number }> => {
-    const response = await apiClient.delete<{ deleted_count: number }>('/api/admin/taxonomy');
-    return response.data;
-  },
-
   updateDetectionThreshold: async (
     projectId: number,
     threshold: number

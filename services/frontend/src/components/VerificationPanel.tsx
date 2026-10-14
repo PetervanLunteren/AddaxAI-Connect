@@ -196,9 +196,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const includedSpecies = selectedProject?.included_species ?? null;
   const needsGlobalCatalog = !includedSpecies || includedSpecies.length === 0;
   const { data: globalCatalog, isLoading: globalLoading } = useQuery({
-    queryKey: ['available-species'],
-    queryFn: () => speciesApi.getAvailable(),
-    enabled: needsGlobalCatalog,
+    queryKey: ['available-species', projectId],
+    queryFn: () => speciesApi.getAvailable(projectId!),
+    enabled: needsGlobalCatalog && projectId !== undefined,
   });
 
   const speciesLoading = observedLoading || globalLoading;

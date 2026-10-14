@@ -8,6 +8,8 @@ import type {
   ProjectCreate,
   ProjectUpdate,
   ProjectDeleteResponse,
+  TaxonomyMappingResponse,
+  TaxonomyUploadResponse,
   ProjectUserInfo,
   InvitationResponse,
   AddProjectUserByEmailRequest,
@@ -54,6 +56,28 @@ export const projectsApi = {
     const formData = new FormData();
     formData.append('file', file);
     const response = await apiClient.post<Project>(`/api/projects/${id}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * The project's taxonomy mapping (SpeciesNet label list)
+   */
+  getTaxonomy: async (id: number): Promise<TaxonomyMappingResponse> => {
+    const response = await apiClient.get<TaxonomyMappingResponse>(`/api/projects/${id}/taxonomy`);
+    return response.data;
+  },
+
+  /**
+   * Replace the project's taxonomy mapping and relabel its unverified images
+   */
+  uploadTaxonomy: async (id: number, file: File): Promise<TaxonomyUploadResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<TaxonomyUploadResponse>(`/api/projects/${id}/taxonomy`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

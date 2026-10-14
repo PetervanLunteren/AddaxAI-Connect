@@ -61,9 +61,9 @@ export function ClassificationThresholdsModal({
     enabled: open && projectId !== undefined,
   });
   const { data: globalCatalog } = useQuery({
-    queryKey: ['available-species'],
-    queryFn: () => speciesApi.getAvailable(),
-    enabled: open && needsGlobalCatalog,
+    queryKey: ['available-species', projectId],
+    queryFn: () => speciesApi.getAvailable(projectId!),
+    enabled: open && needsGlobalCatalog && projectId !== undefined,
   });
 
   const speciesList = React.useMemo(() => {

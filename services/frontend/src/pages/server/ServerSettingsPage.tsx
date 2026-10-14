@@ -2,13 +2,11 @@
  * Server Settings Page
  *
  * Unified page for server-wide settings: timezone, Telegram, and
- * SpeciesNet-specific settings (taxonomy mapping, shown conditionally).
- * Only accessible by server admins.
+ * infrastructure alerts. Only accessible by server admins.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useDropzone } from 'react-dropzone';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Check, Download, Save, FileSpreadsheet } from 'lucide-react';
+import { Loader2, AlertCircle, ExternalLink, Check, Download } from 'lucide-react';
 import { CopyButton } from '../../components/ui/CopyButton';
 import { Card, CardContent } from '../../components/ui/Card';
 import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
@@ -86,31 +84,12 @@ export const ServerSettingsPage: React.FC = () => {
   const [infraSaveStatus, setInfraSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [infraError, setInfraError] = useState<string | null>(null);
 
-  // --- Taxonomy state ---
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [showMapping, setShowMapping] = useState(false);
-  const [uploadModal, setUploadModal] = useState<{
-    open: boolean;
-    status: 'uploading' | 'done' | 'error';
-    count?: number;
-    reprocessedCount?: number;
-    error?: string;
-  }>({ open: false, status: 'uploading' });
-
   // Query server settings
   const { data: serverSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ['server-settings'],
     queryFn: adminApi.getServerSettings,
     retry: false,
   });
-
-  // Check setup status (for classification model type)
-  const { data: setupStatus } = useQuery({
-    queryKey: ['setup-status'],
-    queryFn: adminApi.getSetupStatus,
-  });
-
-  const isSpeciesNet = setupStatus?.model === 'speciesnet';
 
   // Sync state when server settings load
   useEffect(() => {
@@ -155,63 +134,6 @@ export const ServerSettingsPage: React.FC = () => {
       notify_security_failures: notifySecurityFailures,
     });
   };
-
-  // --- Taxonomy logic ---
-  const { data: taxonomyData } = useQuery({
-    queryKey: ['taxonomy-mapping'],
-    queryFn: adminApi.getTaxonomyMapping,
-    enabled: isSpeciesNet,
-  });
-
-  const uploadMutation = useMutation({
-    mutationFn: adminApi.uploadTaxonomyMapping,
-    onSuccess: (result) => {
-      setUploadModal({
-        open: true,
-        status: 'done',
-        count: result.count,
-        reprocessedCount: result.reprocessed_count,
-      });
-      queryClient.invalidateQueries({ queryKey: ['taxonomy-mapping'] });
-      queryClient.invalidateQueries({ queryKey: ['available-species'] });
-      queryClient.invalidateQueries({ queryKey: ['setup-status'] });
-      queryClient.invalidateQueries({ queryKey: ['statistics'] });
-      queryClient.invalidateQueries({ queryKey: ['species'] });
-      setTimeout(() => setUploadModal({ open: false, status: 'uploading' }), 3000);
-    },
-    onError: (error: any) => {
-      setUploadModal({
-        open: true,
-        status: 'error',
-        error: error.response?.data?.detail || error.message || 'Upload failed',
-      });
-    },
-  });
-
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      if (acceptedFiles.length > 0) {
-        setPendingFile(acceptedFiles[0]);
-      }
-    },
-    []
-  );
-
-  const handleUploadPending = () => {
-    if (!pendingFile) return;
-    setUploadModal({ open: true, status: 'uploading' });
-    uploadMutation.mutate(pendingFile, {
-      onSettled: () => setPendingFile(null),
-    });
-  };
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: { 'text/csv': ['.csv'] },
-    multiple: false,
-  });
-
-  const entries = taxonomyData?.entries || [];
 
   // Update timezone mutation
   const updateTimezoneMutation = useMutation({
@@ -504,127 +426,6 @@ export const ServerSettingsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* SpeciesNet settings (conditional) */}
-      {isSpeciesNet && (
-        <>
-          {/* Taxonomy mapping card */}
-          <Card className="mt-6">
-            <CardContent className="pt-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Taxonomy mapping</label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Saving a new file replaces the existing mapping and reprocesses unverified classifications.
-                    {entries.length > 0 && (
-                      <>{' '}<button onClick={() => setShowMapping(true)} className="text-primary hover:underline">View current mapping ({entries.length} labels)</button>.</>
-                    )}
-                  </p>
-                </div>
-                <div className="flex-1">
-                  <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                      isDragActive
-                        ? 'border-primary bg-primary/5'
-                        : pendingFile
-                          ? 'border-primary/50 bg-accent/30'
-                          : 'border-border hover:border-primary/50 hover:bg-accent/50'
-                    }`}
-                  >
-                    <input {...getInputProps()} />
-                    <div className="flex flex-col items-center space-y-2">
-                      <FileSpreadsheet className="h-6 w-6 text-muted-foreground" />
-                      <p className="text-sm font-medium">
-                        {isDragActive
-                          ? 'Drop CSV here...'
-                          : pendingFile
-                            ? (
-                              <span className="inline-flex items-center gap-1">
-                                {pendingFile.name}
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setPendingFile(null); }}
-                                  className="p-0.5 hover:bg-accent rounded"
-                                  title="Remove file"
-                                >
-                                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                                </button>
-                              </span>
-                            )
-                            : 'Drop CSV here, or click to select'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-
-              {/* Save button */}
-              {pendingFile && (
-                <>
-                  <div className="border-t my-6" />
-                  <div className="flex justify-end">
-                    <Button onClick={handleUploadPending}>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save and reprocess
-                    </Button>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      {/* Upload progress modal */}
-      {uploadModal.open && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-6">
-              {uploadModal.status === 'error' ? (
-                <>
-                  <div className="flex items-center gap-3 mb-4">
-                    <XCircle className="h-5 w-5 text-red-500 shrink-0" />
-                    <h3 className="text-lg font-semibold">Upload failed</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-6">{uploadModal.error}</p>
-                  <div className="flex justify-end">
-                    <Button onClick={() => setUploadModal({ open: false, status: 'uploading' })}>
-                      Close
-                    </Button>
-                  </div>
-                </>
-              ) : uploadModal.status === 'done' ? (
-                <>
-                  <div className="flex items-center gap-3 mb-4">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-                    <h3 className="text-lg font-semibold">Upload complete</h3>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Uploaded {uploadModal.count} taxonomy entries.
-                  </p>
-                  {(uploadModal.reprocessedCount ?? 0) > 0 && (
-                    <p className="text-sm text-muted-foreground mb-1">
-                      {uploadModal.reprocessedCount} classifications reprocessed.
-                    </p>
-                  )}
-                  <div className="flex justify-end mt-6">
-                    <Button onClick={() => setUploadModal({ open: false, status: 'uploading' })}>
-                      Close
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
-                  <h3 className="text-lg font-semibold">Uploading and reprocessing...</h3>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Configuration Modal */}
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
         <DialogContent className="max-w-2xl" onClose={() => setShowConfigModal(false)}>
@@ -829,37 +630,6 @@ export const ServerSettingsPage: React.FC = () => {
                   Close
                 </Button>
               </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Taxonomy Mapping Modal */}
-      <Dialog open={showMapping && entries.length > 0} onOpenChange={setShowMapping}>
-        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col" onClose={() => setShowMapping(false)}>
-          <DialogHeader>
-            <DialogTitle>Taxonomy mapping ({entries.length} labels)</DialogTitle>
-          </DialogHeader>
-            <div>
-              <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr>
-                    <th className="text-left px-4 py-2">Latin</th>
-                    <th className="text-left px-4 py-2">Common name</th>
-                  </tr>
-                </thead>
-              </table>
-            </div>
-            <div className="overflow-y-auto">
-              <table className="w-full text-sm">
-                <tbody>
-                  {entries.map((entry) => (
-                    <tr key={entry.id} className="border-t">
-                      <td className="px-4 py-2 font-mono text-xs">{entry.latin}</td>
-                      <td className="px-4 py-2">{entry.common}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
         </DialogContent>
       </Dialog>
 

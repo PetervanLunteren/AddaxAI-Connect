@@ -27,11 +27,13 @@ from sqlalchemy.orm import selectinload, aliased
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
     HumanObservation, CameraMaintenanceEvent,
-    SpeciesTaxonomy, ServerSettings,
+    SpeciesTaxonomy, ServerSettings, TaxonomyMapping,
 )
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_THUMBNAILS
 from shared.logger import get_logger
+from shared.config import get_settings
+from shared.taxonomy import scientific_names
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, get_allowed_site_ids
 from utils.site_scope import site_image_clause, cameras_current_site_clause
@@ -41,12 +43,37 @@ from utils.camera_recency import fetch_camera_recency
 
 router = APIRouter(prefix="/api/projects/{project_id}/export", tags=["export"])
 logger = get_logger("api.export")
+settings = get_settings()
 
 CAMTRAP_DP_VERSION = "1.0"
 CAMTRAP_DP_PROFILE = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/camtrap-dp-profile.json"
 DEPLOYMENTS_SCHEMA = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/deployments-table-schema.json"
 MEDIA_SCHEMA = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/media-table-schema.json"
 OBSERVATIONS_SCHEMA = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/observations-table-schema.json"
+
+
+async def load_taxonomy_lookup(db: AsyncSession, project_id: int) -> Dict[str, dict]:
+    """Scientific name and rank per label, for the exports.
+
+    DeepFaune labels come from the species_taxonomy table. On a SpeciesNet
+    server the labels are the project's own, so they come from its taxonomy
+    mapping only (one latin row per label, see shared.taxonomy), with no
+    rank; species_taxonomy holds DeepFaune names that would be wrong there.
+    """
+    if (settings.classification_model or "deepfaune") == "speciesnet":
+        result = await db.execute(
+            select(TaxonomyMapping.latin, TaxonomyMapping.common)
+            .where(TaxonomyMapping.project_id == project_id)
+        )
+        return {
+            common: {"scientific_name": latin, "taxon_rank": None}
+            for common, latin in scientific_names(result.all()).items()
+        }
+    result = await db.execute(select(SpeciesTaxonomy))
+    return {
+        t.common_name: {"scientific_name": t.scientific_name, "taxon_rank": t.taxon_rank}
+        for t in result.scalars().all()
+    }
 
 
 def _parse_timestamp(image: Image, tz: ZoneInfo) -> Optional[datetime]:
@@ -540,16 +567,7 @@ async def export_camtrap_dp(
     server_tz = await get_server_timezone(db)
     tz = ZoneInfo(server_tz)
 
-    # Load species taxonomy lookup
-    tax_result = await db.execute(select(SpeciesTaxonomy))
-    taxonomy_rows = tax_result.scalars().all()
-    taxonomy_lookup = {
-        t.common_name: {
-            "scientific_name": t.scientific_name,
-            "taxon_rank": t.taxon_rank,
-        }
-        for t in taxonomy_rows
-    }
+    taxonomy_lookup = await load_taxonomy_lookup(db, project_id)
 
     # Load deployment periods with camera info via raw SQL for PostGIS extraction
     # Report the site's coordinates and identity for deployments that have a
@@ -922,15 +940,7 @@ async def export_observations(
     server_tz = await get_server_timezone(db)
     tz = ZoneInfo(server_tz)
 
-    tax_result = await db.execute(select(SpeciesTaxonomy))
-    taxonomy_rows = tax_result.scalars().all()
-    taxonomy_lookup = {
-        t.common_name: {
-            "scientific_name": t.scientific_name,
-            "taxon_rank": t.taxon_rank,
-        }
-        for t in taxonomy_rows
-    }
+    taxonomy_lookup = await load_taxonomy_lookup(db, project_id)
 
     cam_result = await db.execute(
         select(Camera.id, Camera.device_id).where(Camera.project_id == project_id)
@@ -1721,16 +1731,7 @@ async def export_spatial(
             detail="Project not found",
         )
 
-    # Taxonomy lookup
-    tax_result = await db.execute(select(SpeciesTaxonomy))
-    taxonomy_rows = tax_result.scalars().all()
-    taxonomy_lookup = {
-        t.common_name: {
-            "scientific_name": t.scientific_name,
-            "taxon_rank": t.taxon_rank,
-        }
-        for t in taxonomy_rows
-    }
+    taxonomy_lookup = await load_taxonomy_lookup(db, project_id)
 
     # One bucket per site with the pooled numbers the Insights map shows,
     # from the shared helper, so the export and the map always agree.
