@@ -54,7 +54,6 @@ nav:
     - Deployment: deployment.md
     - Setup guide: setup-guide.md
     - SpeciesNet setup: speciesnet-setup.md
-    - AI taxonomist: ai-taxonomist.md
   - Using the app:
     - Sites and cameras: sites-and-deployments.md
     - Service: service.md

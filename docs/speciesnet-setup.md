@@ -28,7 +28,13 @@ The taxonomy mapping turns all of this into your own short list of labels. These
 
 ## Choosing your labels
 
-Write your list first, one label per line as "latin, common". In the next section you paste it into the mapper. The [AI taxonomist](ai-taxonomist.md) lets an AI assistant do this with you, from the animals recorded near your cameras.
+Write your list first, one label per line as "latin, common". In the next section you paste it into the mapper.
+
+An AI assistant can build this list with you, from the animals recorded near your cameras. Open an assistant that can browse the web, like Claude, ChatGPT or Gemini, and write:
+
+```
+Read https://raw.githubusercontent.com/PetervanLunteren/AddaxAI-Connect/main/skills/ai-taxonomist/SKILL.md and follow it.
+```
 
 ### Groups you care about
 

@@ -291,6 +291,9 @@ addaxai-connect/
 │   ├── update-database.sh             # Run Alembic migrations and backfills
 │   └── verify-redis-security.sh       # Redis security validation
 │
+├── skills/
+│   └── ai-taxonomist/SKILL.md         # Instructions an AI assistant follows to build a SpeciesNet label list
+│
 ├── tests/                             # Pytest test suite
 │   ├── conftest.py                    # Shared fixtures and env setup
 │   ├── api/
