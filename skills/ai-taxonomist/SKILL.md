@@ -67,6 +67,13 @@ An animal with no line in the file is "unknown to SpeciesNet". SpeciesNet can ne
 - Use tables for animals: latin name, common name, family, record count, flag.
 - Keep it short.
 
+## The rounds
+
+- Rounds 1 to 3 build the inventory: which animals can appear on the cameras at this place. No labels are decided yet.
+- Round 4 asks for the targets.
+- Rounds 5 to 8 turn the inventory into labels: the target groups species by species, every other group as one label.
+- Round 9 checks the list and hands it over.
+
 ## Round 1: the place
 
 Ask where the cameras are: a park, a region, or coordinates. Turn the answer into a centre point and a radius, 50 km by default. Also ask:
@@ -112,20 +119,18 @@ Show the pool as a table grouped by order and family, with the counts and the fl
 
 GBIF hardly records domestic animals, so ask. Propose dog, cat, cattle, sheep, goat, horse and pig, with their SpeciesNet names, and let the user remove what never appears on their cameras.
 
-## Round 4: small mammals
+## Round 4: targets
 
-Mice, voles, rats, shrews and moles walk past camera traps, but are rarely a target. Ask whether they want:
+This round decides how much detail each group of animals gets, so explain that to the user in a few sentences:
 
-- one row per order, for example `rodentia, rodent` and `eulipotyphla, shrew or mole`, or
-- nothing, so they land on the `mammalia` backstop.
+- A target is an animal the user wants to tell apart, for alerts or for counts. Its group gets one label per species, plus an "unknown" label for the unsure cases, for example wolf, domestic dog, red fox and unknown canid.
+- Every other group gets one plain label, for example "mustelid" for all martens, badgers and weasels.
 
-Propose the first.
+Then ask which animals they want to tell apart, and propose a set from the inventory, based on what you know of the place.
 
-## Round 5: targets
+Push back when the answer is everything: species labels for animals nobody looks at give a noisy dashboard and many uncertain labels. Push back when the answer is nothing: then no alert can single out a species. Most projects have one to five target groups.
 
-Ask which animals the project is about: the ones the user wants alerts or counts for. Propose a set from the pool, based on what you know of the place.
-
-## Round 6: target groups
+## Round 5: target groups
 
 For each target, take its group, usually the family. From the pool and the domestic animals, list every animal in that group. Propose:
 
@@ -142,13 +147,22 @@ nyctereutes procyonoides, raccoon dog
 canidae, unknown canid
 ```
 
-## Round 7: other groups
+## Round 6: other groups
 
-For every other group in the pool, propose one row with a plain name, for example `mustelidae, mustelid`. Never use "unknown" or "other" for these. The label covers every animal in the group.
+For every other group in the pool, propose one row with a plain name, for example `mustelidae, mustelid`. Never use "unknown" or "other" for these. The label covers every animal in the group. Skip the small mammals (rodents, shrews and moles); round 7 handles them.
+
+## Round 7: small mammals
+
+Mice, voles, rats, shrews and moles walk past camera traps, and are rarely a target. Unless one of them is a target, ask whether they want:
+
+- one row per order, for example `rodentia, rodent` and `eulipotyphla, shrew or mole`, or
+- nothing, so they land on the `mammalia` backstop.
+
+Propose the first.
 
 ## Round 8: birds and reptiles
 
-Ask once whether birds or reptiles matter for this project. Usually they don't. Then the backstops in round 9 cover them. If they do matter, repeat rounds 2, 6 and 7 for them, with `classKey=212` for birds and `classKey=358` for reptiles.
+Ask once whether birds or reptiles matter for this project. Usually they don't. Then the backstops in round 9 cover them. If they do matter, repeat rounds 2, 5 and 6 for them, with `classKey=212` for birds and `classKey=358` for reptiles.
 
 ## Round 9: check and hand over
 
