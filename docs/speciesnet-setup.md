@@ -2,25 +2,23 @@
 
 ![Screenshot 2026-03-25 at 13 26 30](https://github.com/user-attachments/assets/46a83891-5f3e-41a6-a6eb-b171bfb90e6a)
 
-This page covers the settings that only apply to SpeciesNet. The general server settings, like the timezone, are in the [deployment guide](deployment.md).
+This page covers what only applies to SpeciesNet. The general server settings, like the timezone, are in the [deployment guide](deployment.md).
 
-SpeciesNet needs two settings before it classifies anything: a country and a taxonomy mapping. Until both are set, new images wait in the queue.
+Every SpeciesNet project needs a country and a list of species labels. You give both when you create the project, and you can change them later in the project settings. Each project has its own, so one server can run projects in different countries.
 
-The taxonomy mapping takes three steps:
+The species labels take three steps:
 
 1. Write a list of the labels you want to see, using the rules below
 2. Turn that list into a CSV file with the SpeciesNet Taxonomy Mapper
-3. Upload the CSV in `Server settings`
+3. Add the CSV when you create the project
 
 ## Country
 
-Go to `Server settings` and select the country where your cameras are. SpeciesNet then avoids species that do not occur there. For example, it will not call an animal in the Netherlands a kangaroo.
+When you create a project, select the country where its cameras are. SpeciesNet then avoids species that do not occur there. For example, it will not call an animal in the Netherlands a kangaroo.
 
-![Screenshot 2026-03-25 at 13 28 50](https://github.com/user-attachments/assets/e890724e-c964-4750-b1fe-48c2f734046f)
+If you select the USA, an optional state field appears to narrow it further.
 
-If you select the USA, an optional state dropdown appears to narrow it further. Then click save.
-
-The country only applies to new images, not to images that are already processed.
+You can change the country later in the project settings. A change only applies to new images, not to images that are already processed.
 
 ## Why SpeciesNet sometimes names a group
 
@@ -73,7 +71,7 @@ reptilia, reptile
 amphibia, amphibian
 ```
 
-Leave out a class that is already in your list. An animal that matches no row at all is labelled "animal".
+Leave out a class that is already in your list. An animal that matches no row at all is labelled "unknown animal". That label also covers the rare detections where SpeciesNet gave no answer at all.
 
 You can re-upload at any time. Start simple and refine as you learn what your cameras see.
 
@@ -106,20 +104,22 @@ Check two things in every row:
 
 Click `Download CSV`. The file has four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect only uses `latin` and `common`.
 
-#### Step 5: upload into AddaxAI Connect
+#### Step 5: add the CSV to your project
 
-1. Open the hamburger menu (top right) and click `Server settings`
-2. Drag and drop your CSV file at the `Taxonomy mapping` field, or click to browse
-3. Click the `Save and reprocess` button that appears
-4. After processing, a `View current mapping` link appears in the caption, click it to check all went well
+When you create a project, drop the CSV at the `Species labels` field. The project is only created when the CSV is valid.
 
-![Screenshot 2026-03-25 at 13 48 33](https://github.com/user-attachments/assets/98972879-f630-4d3a-a69e-b2cf78fcdad3)
+To change the labels later:
 
-The upload replaces the existing mapping. Images that nobody has verified yet get new labels right away, without running the model again. Verified images keep their labels.
+1. Open the project and go to `Settings`
+2. Drop the new CSV at `Species labels`, or click to browse
+3. Click `Save and relabel`
+4. Click `View current labels` to check all went well
+
+The new file replaces the old labels. Images that nobody has verified yet get new labels right away, without running the model again. Verified images keep their labels. If alert rules, species reports or thresholds still use a label that is no longer in the list, the page names it, so you can update them.
 
 ## How matching works
 
-For every animal, the system checks your CSV from the most specific level to the least specific, and uses the first match. If nothing matches, the label is "animal".
+For every animal, the system checks your CSV from the most specific level to the least specific, and uses the first match. If nothing matches, the label is "unknown animal".
 
 Say your CSV contains these two rows:
 

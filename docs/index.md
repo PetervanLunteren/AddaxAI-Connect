@@ -16,7 +16,7 @@ An open-source platform that automatically processes camera trap images with mac
 1. [Check camera compatibility](camera-requirements.md): any FTPS-capable camera works, but each model needs a profile. See the list of supported cameras and how to add yours
 2. [Deploy your server](deployment.md) with Ansible (about an hour)
 3. [Set up your project](setup-guide.md): register, configure settings, add cameras, invite users
-4. If you chose SpeciesNet, follow the [SpeciesNet setup](speciesnet-setup.md) for taxonomy mapping
+4. If you chose SpeciesNet, see the [SpeciesNet setup](speciesnet-setup.md) for the species labels every project needs
 
 ## Using the app
 

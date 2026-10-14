@@ -202,6 +202,7 @@ addaxai-connect/
 │   │   │   ├── projects.py            # Project CRUD
 │   │   │   ├── project_documents.py   # Project document uploads
 │   │   │   ├── project_images.py      # Project image uploads
+│   │   │   ├── project_taxonomy.py    # A SpeciesNet project's label list (taxonomy mapping)
 │   │   │   ├── species.py             # Species data and taxonomy
 │   │   │   ├── statistics.py          # Dashboard statistics and pipeline status
 │   │   │   ├── devtools.py            # Dev-mode tools (data purge, etc.)
@@ -218,6 +219,7 @@ addaxai-connect/
 │   │       ├── preferred_counts.py    # Preferred per-image counts
 │   │       ├── image_processing.py    # Image helpers
 │   │       ├── sun_time.py            # Sunrise/sunset times
+│   │       ├── taxonomy_csv.py        # Parse and store a project's taxonomy mapping CSV
 │   │       ├── timeline.py            # Deployment timeline
 │   │       ├── timeline_activity.py   # Activity over the timeline
 │   │       └── dev_mode.py            # Dev-mode helpers
@@ -260,7 +262,7 @@ addaxai-connect/
 │       ├── classification_models.py   # Classifier display names, for the About page and the payloads
 │       ├── notify_guard.py            # Development server allow-lists for outbound notifications
 │       ├── device.py                  # The one rule for cpu vs cuda in the ML workers
-│       ├── taxonomy.py                # Species taxonomy utilities
+│       ├── taxonomy.py                # SpeciesNet label mapping (walk-up, fallback label, scientific names)
 │       ├── species.py                 # Species data helpers
 │       ├── geo.py                     # GPS and spatial helpers
 │       ├── deployments.py             # Site and deployment grouping logic
@@ -491,6 +493,39 @@ browser shifts its scan once (`shiftEntries` in
 check all use corrected time too. Offset arithmetic runs on the naive wall
 clock, never through the browser's timezone, or a summer time switch moves
 the result an hour. There is no correction after import.
+
+## SpeciesNet labels
+
+On a SpeciesNet server every project has its own label list, its taxonomy
+mapping: rows of `latin` (a SpeciesNet taxon) and `common` (the label users
+see) in `taxonomy_mapping`, keyed by project. User docs:
+`docs/speciesnet-setup.md`.
+
+- **Country.** `projects.country_code` and the optional US state
+  `admin1_region` are required when a project is created, for every model.
+  SpeciesNet geofences on them. A change applies to new images only, because
+  `raw_prediction` is stored after the geofence.
+- **One request.** A SpeciesNet project gets its CSV in the create request
+  (`ProjectCreate.taxonomy_csv`), stored in the same commit, so a project never
+  exists without its list. `routers/project_taxonomy.py` replaces it later:
+  it relabels the project's unverified classifications from `raw_prediction`
+  and returns `stale_labels`, the labels rules or thresholds still use that
+  the new list lacks. Names only, rules are private to their owner.
+- **Per detection.** The worker follows MegaDetector's `run_md_and_speciesnet`:
+  geofence, then the confidence rollup, both public speciesnet functions
+  (`classifier.py`), then the CSV walk-up (`shared/taxonomy.py`). Never
+  `ensemble.combine()`, that combines one label per whole image.
+- **Fallback.** One label, `UNKNOWN_ANIMAL` ("unknown animal"), for a
+  prediction that matches no row and for no SpeciesNet output. Not "animal",
+  which is MegaDetector's category. `/api/species/available` adds it to the
+  project's list so rules can target it.
+- **No config, no label.** The worker reads the project's mapping and country
+  right before classifying, after the early returns, and fails the image when
+  either is missing. There are no startup waits, so a fresh server is healthy
+  before any project exists.
+- **Scientific names.** For SpeciesNet labels they come from the project's
+  CSV, only when a label has exactly one row (`scientific_names`). Never from
+  `species_taxonomy`, which holds DeepFaune names.
 
 ## Outbound integrations
 

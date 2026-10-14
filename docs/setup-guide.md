@@ -16,7 +16,7 @@ When you first log in, you'll see some warnings about missing settings. That's e
 
 ![Screenshot 2026-03-23 at 14 41 04](https://github.com/user-attachments/assets/79d289f2-8c0c-4b6e-8b79-dc751462eb2d)
 
-Set the camera timezone to match your cameras. If you deployed with SpeciesNet, there are a few extra settings to configure. See [speciesnet-setup.md](speciesnet-setup.md) for more info on the extra steps.
+Set the camera timezone to match your cameras.
 
 ## Create a project
 
@@ -24,7 +24,9 @@ Once those are set, you can create your first project.
 
 1. Go to the home page and click `Add project`
 2. Enter a project name and optionally a description and image
-3. Click `Create project`
+3. Select the country where the cameras of this project are
+4. If you deployed with SpeciesNet, add the species labels CSV. See [SpeciesNet setup](speciesnet-setup.md) for how to make one
+5. Click `Create project`
 
 ![Screenshot 2026-03-25 at 15 52 21](https://github.com/user-attachments/assets/6edb85da-ef27-49b2-b599-2ee67b2c581a)
 
