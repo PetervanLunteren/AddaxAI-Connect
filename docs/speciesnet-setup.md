@@ -58,6 +58,8 @@ mustelidae, mustelid
 cervidae, deer
 ```
 
+Also list the neighbouring groups that occur in your area. The mapper widens a row as far as it can without touching another row in your list. If `cervidae, deer` is your only hoofed animal, it becomes all even-toed hoofed animals, and a wild boar shows up as "deer". Adding `suidae, wild boar` keeps deer as deer.
+
 If you care about birds, list the local bird species and add `aves, unknown bird`. If you don't, `aves, bird` is enough.
 
 ### Backstops
@@ -98,7 +100,7 @@ Click `Process input`. The tool maps every line to a SpeciesNet taxon. Review th
 Check two things in every row:
 
 - **The common name** is the label you will see. Edit it directly in the table if needed. In this example you would rename "cat family" to "unknown cat", because lion and leopard are listed separately.
-- **The latin name** is the level the label applies to. When a group has only one entry in your list, the tool can widen that entry to the whole genus or family. For a group you care about, that usually means a species is missing from your list.
+- **The latin name** is the level the label applies to. The tool widens every row to the highest level where no other row in your list sits. A species can become its genus, and a family can become its order. Check every widened row. If it now covers animals that need their own label, change the latin name back, or add those animals to your list.
 
 #### Step 4: download the CSV
 
