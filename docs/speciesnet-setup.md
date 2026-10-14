@@ -28,7 +28,7 @@ The taxonomy mapping turns all of this into your own short list of labels. These
 
 ## Choosing your labels
 
-Write your list first, one label per line as "latin, common". In the next section you paste it into the mapper.
+Write your list first, one label per line as "latin, common". In the next section you paste it into the mapper. The [SpeciesNet label assistant](speciesnet-label-assistant.md) lets an AI assistant do this with you, from the animals recorded near your cameras.
 
 ### Groups you care about
 
