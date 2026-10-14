@@ -112,7 +112,7 @@ export const ProjectsPage: React.FC = () => {
         {/* Setup incomplete banner (server admins only). Timezone is seeded
             automatically from the browser on first login, so it is not listed
             here and the banner no longer gates on it. */}
-        {isServerAdmin && setupStatus && (!setupStatus.country_code || !setupStatus.taxonomy_mapping) && (
+        {isServerAdmin && setupStatus && !setupStatus.taxonomy_mapping && (
           <Callout
             variant="warning"
             className="mb-6"
@@ -128,9 +128,7 @@ export const ProjectsPage: React.FC = () => {
               </Button>
             }
           >
-            Server setup incomplete.
-            {!setupStatus.country_code && ' Set the country code.'}
-            {!setupStatus.taxonomy_mapping && ' Upload a taxonomy mapping.'}
+            Server setup incomplete. Upload a taxonomy mapping.
           </Callout>
         )}
 

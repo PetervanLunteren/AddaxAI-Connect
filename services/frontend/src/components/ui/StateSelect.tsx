@@ -36,6 +36,12 @@ const customStyles: StylesConfig<StateOption, false> = {
     borderRadius: '0.375rem',
     zIndex: 50,
   }),
+  // The menu renders in document.body, so a Dialog that scrolls cannot clip
+  // it. Same layer as the other select menus (z-index ladder).
+  menuPortal: (provided) => ({
+    ...provided,
+    zIndex: 50,
+  }),
   option: (provided, state) => ({
     ...provided,
     backgroundColor: state.isSelected
@@ -95,6 +101,7 @@ export const StateSelect: React.FC<StateSelectProps> = ({
       isClearable
       isDisabled={disabled}
       filterOption={filterOption}
+      menuPortalTarget={document.body}
     />
   );
 };

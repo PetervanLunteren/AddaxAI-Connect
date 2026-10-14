@@ -105,13 +105,84 @@ class TestProjectName:
 
         from routers.projects import ProjectCreate, ProjectUpdate
 
-        for model in (ProjectCreate, ProjectUpdate):
-            with pytest.raises(ValidationError):
-                model(name="   ")
+        # The country is valid, so the name is what fails.
+        with pytest.raises(ValidationError):
+            ProjectCreate(name="   ", country_code="NLD")
+        with pytest.raises(ValidationError):
+            ProjectUpdate(name="   ")
 
     def test_name_with_spaces_inside_is_fine(self):
         from routers.projects import ProjectCreate, ProjectUpdate
 
-        assert ProjectCreate(name="Mont de Grange").name == "Mont de Grange"
+        assert ProjectCreate(name="Mont de Grange", country_code="NLD").name == "Mont de Grange"
         assert ProjectUpdate(name=" x").name == " x"
         assert ProjectUpdate().name is None
+
+
+class TestProjectCountry:
+    def test_country_is_required_on_create(self):
+        from pydantic import ValidationError
+
+        from routers.projects import ProjectCreate
+
+        with pytest.raises(ValidationError):
+            ProjectCreate(name="Park")
+
+    def test_country_is_normalised(self):
+        from routers.projects import ProjectCreate, ProjectUpdate
+
+        assert ProjectCreate(name="Park", country_code=" nld ").country_code == "NLD"
+        assert ProjectUpdate(country_code="ken").country_code == "KEN"
+        assert ProjectUpdate().country_code is None
+
+    @pytest.mark.parametrize("code", ["NL", "NLDX", "N1D", ""])
+    def test_bad_country_is_refused(self, code):
+        from pydantic import ValidationError
+
+        from routers.projects import ProjectCreate, ProjectUpdate
+
+        with pytest.raises(ValidationError):
+            ProjectCreate(name="Park", country_code=code)
+        with pytest.raises(ValidationError):
+            ProjectUpdate(country_code=code)
+
+    def test_state_only_with_usa(self):
+        from pydantic import ValidationError
+
+        from routers.projects import ProjectCreate
+
+        project = ProjectCreate(name="Park", country_code="usa", admin1_region="us-ca")
+        assert project.admin1_region == "US-CA"
+        with pytest.raises(ValidationError):
+            ProjectCreate(name="Park", country_code="NLD", admin1_region="US-CA")
+
+    def test_empty_state_on_create_means_none(self):
+        from routers.projects import ProjectCreate
+
+        assert ProjectCreate(name="Park", country_code="USA", admin1_region="").admin1_region is None
+
+    @pytest.mark.parametrize("region", ["CA", "US-C", "US-CAL", "CA-ON"])
+    def test_bad_state_is_refused(self, region):
+        from pydantic import ValidationError
+
+        from routers.projects import ProjectUpdate
+
+        with pytest.raises(ValidationError):
+            ProjectUpdate(admin1_region=region)
+
+    def test_empty_state_on_update_means_clear(self):
+        from routers.projects import ProjectUpdate
+
+        # Empty string is the "clear the state" signal, None is "not sent".
+        assert ProjectUpdate(admin1_region="").admin1_region == ""
+        assert ProjectUpdate().admin1_region is None
+
+    def test_state_check_against_the_stored_country(self):
+        from routers.projects import check_admin1_with_country
+
+        check_admin1_with_country("USA", "US-CA")
+        check_admin1_with_country("NLD", None)
+        with pytest.raises(ValueError):
+            check_admin1_with_country("NLD", "US-CA")
+        with pytest.raises(ValueError):
+            check_admin1_with_country(None, "US-CA")

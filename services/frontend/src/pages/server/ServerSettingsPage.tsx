@@ -2,7 +2,7 @@
  * Server Settings Page
  *
  * Unified page for server-wide settings: timezone, Telegram, and
- * SpeciesNet-specific settings (geofencing + taxonomy mapping, shown conditionally).
+ * SpeciesNet-specific settings (taxonomy mapping, shown conditionally).
  * Only accessible by server admins.
  */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -15,8 +15,6 @@ import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
 import { Switch } from '../../components/ui/Switch';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
-import { CountrySelect } from '../../components/ui/CountrySelect';
-import { StateSelect } from '../../components/ui/StateSelect';
 import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -81,12 +79,6 @@ export const ServerSettingsPage: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [testChatId, setTestChatId] = useState('');
 
-  // --- Geofencing state ---
-  const [countryCode, setCountryCode] = useState('');
-  const [admin1Region, setAdmin1Region] = useState('');
-  const [geoSaveStatus, setGeoSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
-  const [geoError, setGeoError] = useState<string | null>(null);
-
   // --- Infrastructure alerts state ---
   const [notifyBackupFailures, setNotifyBackupFailures] = useState(true);
   const [notifyColdTierFailures, setNotifyColdTierFailures] = useState(true);
@@ -125,12 +117,6 @@ export const ServerSettingsPage: React.FC = () => {
     if (serverSettings?.timezone) {
       setTimezone(serverSettings.timezone);
     }
-    if (serverSettings?.speciesnet_country_code) {
-      setCountryCode(serverSettings.speciesnet_country_code);
-    }
-    if (serverSettings?.speciesnet_admin1_region) {
-      setAdmin1Region(serverSettings.speciesnet_admin1_region);
-    }
     if (serverSettings) {
       setNotifyBackupFailures(serverSettings.notify_backup_failures);
       setNotifyColdTierFailures(serverSettings.notify_cold_tier_failures);
@@ -143,36 +129,6 @@ export const ServerSettingsPage: React.FC = () => {
     notifyBackupFailures !== (serverSettings?.notify_backup_failures ?? true)
     || notifyColdTierFailures !== (serverSettings?.notify_cold_tier_failures ?? true)
     || notifySecurityFailures !== (serverSettings?.notify_security_failures ?? true);
-
-  // --- Geofencing logic ---
-  const hasGeoChanges = countryCode !== (serverSettings?.speciesnet_country_code ?? '')
-    || admin1Region !== (serverSettings?.speciesnet_admin1_region ?? '');
-
-  const updateGeoMutation = useMutation({
-    mutationFn: (data: { speciesnet_country_code: string; speciesnet_admin1_region: string }) =>
-      adminApi.updateServerSettings(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['server-settings'] });
-      queryClient.invalidateQueries({ queryKey: ['setup-status'] });
-      setGeoSaveStatus('success');
-      setTimeout(() => setGeoSaveStatus('idle'), 2000);
-    },
-    onError: (error: any) => {
-      setGeoError(error.response?.data?.detail || error.message || 'Failed to save');
-      setGeoSaveStatus('error');
-      setTimeout(() => setGeoSaveStatus('idle'), 3000);
-    },
-  });
-
-  const handleSaveGeo = () => {
-    if (!countryCode) return;
-    setGeoSaveStatus('saving');
-    setGeoError(null);
-    updateGeoMutation.mutate({
-      speciesnet_country_code: countryCode,
-      speciesnet_admin1_region: admin1Region,
-    });
-  };
 
   // --- Infrastructure alerts logic ---
   const updateInfraMutation = useMutation({
@@ -551,104 +507,8 @@ export const ServerSettingsPage: React.FC = () => {
       {/* SpeciesNet settings (conditional) */}
       {isSpeciesNet && (
         <>
-          {/* Geofencing card */}
-          <Card className="mt-6 mb-6">
-            <CardContent className="pt-6">
-              {/* Country */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Country</label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Select the country where cameras are deployed. Filters out species that do not occur in this country. Only applies to new analyses, not retroactively.
-                  </p>
-                </div>
-                <div className="flex-1">
-                  {settingsLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  ) : (
-                    <CountrySelect
-                      value={countryCode}
-                      onChange={(code) => {
-                        setCountryCode(code);
-                        if (code !== 'USA') setAdmin1Region('');
-                      }}
-                      disabled={geoSaveStatus === 'saving'}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* State (conditional) */}
-              {countryCode === 'USA' && (
-                <>
-                  <div className="border-t my-6" />
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                    <div className="w-full sm:w-1/2 sm:shrink-0">
-                      <label className="text-sm font-medium block">State</label>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Optionally narrow geofencing to a specific US state.
-                      </p>
-                    </div>
-                    <div className="flex-1">
-                      <StateSelect
-                        value={admin1Region}
-                        onChange={setAdmin1Region}
-                        disabled={geoSaveStatus === 'saving'}
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Error */}
-              {geoError && (
-                <>
-                  <div className="border-t my-6" />
-                  <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    {geoError}
-                  </div>
-                </>
-              )}
-
-              {/* Save button */}
-              {hasGeoChanges && countryCode && (
-                <>
-                  <div className="border-t my-6" />
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleSaveGeo}
-                      disabled={geoSaveStatus === 'saving'}
-                    >
-                      {geoSaveStatus === 'saving' ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save
-                      </>
-                      )}
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {geoSaveStatus === 'success' && !hasGeoChanges && (
-                <>
-                  <div className="border-t my-6" />
-                  <div className="flex justify-end">
-                    <p className="text-sm text-[#0f6064]">Geofencing settings saved</p>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Taxonomy mapping card */}
-          <Card>
+          <Card className="mt-6">
             <CardContent className="pt-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-8">
                 <div className="w-full sm:w-1/2 sm:shrink-0">

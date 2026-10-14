@@ -34,6 +34,8 @@ class ProjectWithRole(BaseModel):
     delete_people: bool
     delete_vehicles: bool
     independence_interval_minutes: int
+    country_code: str | None = None
+    admin1_region: str | None = None
     image_url: str | None = None
     thumbnail_url: str | None = None
     created_at: str
@@ -89,6 +91,8 @@ async def get_my_projects(
                     delete_people=project.delete_people,
                     delete_vehicles=project.delete_vehicles,
                     independence_interval_minutes=project.independence_interval_minutes,
+                    country_code=project.country_code,
+                    admin1_region=project.admin1_region,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
                     created_at=project.created_at.isoformat(),
@@ -122,6 +126,8 @@ async def get_my_projects(
                     delete_people=project.delete_people,
                     delete_vehicles=project.delete_vehicles,
                     independence_interval_minutes=project.independence_interval_minutes,
+                    country_code=project.country_code,
+                    admin1_region=project.admin1_region,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
                     created_at=project.created_at.isoformat(),

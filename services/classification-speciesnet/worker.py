@@ -21,7 +21,7 @@ import torch
 from shared.device import select_device
 from classifier import run_classification
 from storage_operations import download_image_from_minio
-from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_taxonomy_mapping, get_geofencing_config
+from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_taxonomy_mapping, get_project_geofence
 from annotated_image import (
     generate_annotated_image,
     upload_annotated_image_to_minio,
@@ -170,7 +170,7 @@ def remove_private_image(image_uuid: str, detections, message: dict, is_bulk: bo
     return True
 
 
-def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str], ensemble=None, geofencing_config: dict | None = None) -> None:
+def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str], ensemble) -> None:
     """
     Process detection-complete message through classification pipeline.
 
@@ -219,7 +219,7 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
             return
 
         # Step 2: Fetch detection records and project config from database
-        image_id, image_width, image_height, detections, included_species = get_detections_for_image(image_uuid)
+        image_id, image_width, image_height, detections, project_id = get_detections_for_image(image_uuid)
 
         # Privacy removal comes first, before any download: a project that
         # deletes photos of people or vehicles never has this photo touched
@@ -329,6 +329,10 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
             logger.info("Image processing complete (no animals)", image_uuid=image_uuid)
             return
 
+        # The project's classification config is read only now, after every
+        # early return, so images without animals never depend on it.
+        geofencing_config = get_project_geofence(project_id)
+
         # Step 3: Download full image from MinIO
         # Note: We need to fetch storage_path from database since it's not in queue message
         from shared.database import get_db_session
@@ -343,7 +347,6 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
         temp_files.append(image_path)
 
         # Step 4: Run classification on animal detections
-        # SpeciesNet ignores included_species, the taxonomy mapping replaces it
         classifications = run_classification(classifier, image_path, detections, taxonomy_map, ensemble, geofencing_config)
 
         logger.info(
@@ -586,20 +589,13 @@ def main():
     classifier, ensemble = load_model(device)
     logger.info("Model loaded successfully")
 
-    # Wait for taxonomy mapping and geofencing config to be configured via UI
+    # Wait for the taxonomy mapping to be configured via UI
     taxonomy_map = get_taxonomy_mapping()
     while not taxonomy_map:
         logger.warning("Taxonomy mapping not configured, waiting 30s...")
         time.sleep(30)
         taxonomy_map = get_taxonomy_mapping()
     logger.info("Taxonomy mapping loaded", num_entries=len(taxonomy_map))
-
-    geo_config = get_geofencing_config()
-    while not geo_config:
-        logger.warning("Country code not configured, waiting 30s...")
-        time.sleep(30)
-        geo_config = get_geofencing_config()
-    logger.info("Geofencing config loaded", country=geo_config["country_code"])
 
     # Initialize queue consumer. Priority BRPOP keeps live ahead of bulk.
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
@@ -609,8 +605,7 @@ def main():
     # Process messages forever, refresh config on each message
     def handle_message(msg):
         current_map = get_taxonomy_mapping()
-        current_geo = get_geofencing_config()
-        process_detection_complete(msg, classifier, current_map, ensemble, current_geo)
+        process_detection_complete(msg, classifier, current_map, ensemble)
         # Only reached when classification succeeded (it raises on failure).
         if msg.get("origin") == "bulk":
             tier_bulk_raw_cold(msg.get("image_uuid"))

@@ -1445,8 +1445,6 @@ async def get_server_timezone(db: AsyncSession) -> str:
 class ServerSettingsResponse(BaseModel):
     """Response for server settings"""
     timezone: Optional[str] = None
-    speciesnet_country_code: Optional[str] = None
-    speciesnet_admin1_region: Optional[str] = None
     notify_backup_failures: bool = True
     notify_cold_tier_failures: bool = True
     notify_security_failures: bool = True
@@ -1455,8 +1453,6 @@ class ServerSettingsResponse(BaseModel):
 class ServerSettingsUpdateRequest(BaseModel):
     """Request to update server settings"""
     timezone: Optional[str] = None
-    speciesnet_country_code: Optional[str] = None
-    speciesnet_admin1_region: Optional[str] = None
     notify_backup_failures: Optional[bool] = None
     notify_cold_tier_failures: Optional[bool] = None
     notify_security_failures: Optional[bool] = None
@@ -1484,8 +1480,6 @@ async def get_server_settings(
 
     return ServerSettingsResponse(
         timezone=settings.timezone,
-        speciesnet_country_code=settings.speciesnet_country_code,
-        speciesnet_admin1_region=settings.speciesnet_admin1_region,
         notify_backup_failures=settings.notify_backup_failures,
         notify_cold_tier_failures=settings.notify_cold_tier_failures,
         notify_security_failures=settings.notify_security_failures,
@@ -1526,16 +1520,6 @@ async def update_server_settings(
                 detail=f"Invalid timezone: {data.timezone}",
             )
 
-    # Validate country code if provided (3 uppercase letters)
-    if data.speciesnet_country_code is not None:
-        code = data.speciesnet_country_code.strip().upper()
-        if code and (len(code) != 3 or not code.isalpha()):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Country code must be 3 letters (ISO 3166-1 alpha-3)",
-            )
-        data.speciesnet_country_code = code if code else None
-
     result = await db.execute(select(ServerSettings).limit(1))
     settings = result.scalar_one_or_none()
 
@@ -1545,10 +1529,6 @@ async def update_server_settings(
 
     if data.timezone is not None:
         settings.timezone = data.timezone
-    if data.speciesnet_country_code is not None:
-        settings.speciesnet_country_code = data.speciesnet_country_code
-    if data.speciesnet_admin1_region is not None:
-        settings.speciesnet_admin1_region = data.speciesnet_admin1_region.strip() or None
     if data.notify_backup_failures is not None:
         settings.notify_backup_failures = data.notify_backup_failures
     if data.notify_cold_tier_failures is not None:
@@ -1562,8 +1542,6 @@ async def update_server_settings(
 
     return ServerSettingsResponse(
         timezone=settings.timezone,
-        speciesnet_country_code=settings.speciesnet_country_code,
-        speciesnet_admin1_region=settings.speciesnet_admin1_region,
         notify_backup_failures=settings.notify_backup_failures,
         notify_cold_tier_failures=settings.notify_cold_tier_failures,
         notify_security_failures=settings.notify_security_failures,
@@ -1595,7 +1573,6 @@ class SetupStatusResponse(BaseModel):
     model: str
     timezone: bool
     taxonomy_mapping: bool
-    country_code: bool
     telegram: bool
     ready: bool
 
@@ -1612,7 +1589,8 @@ async def get_setup_status(
     Check if all server setup prerequisites are met for project creation.
 
     For DeepFaune: only timezone is required.
-    For SpeciesNet: timezone, taxonomy mapping, and country code are required.
+    For SpeciesNet: timezone and taxonomy mapping are required. The country
+    is set per project, in the create request.
     """
     model = settings.classification_model or "deepfaune"
 
@@ -1628,21 +1606,15 @@ async def get_setup_status(
     if model == "speciesnet":
         taxonomy_result = await db.execute(select(TaxonomyMapping.id).limit(1))
         has_taxonomy = taxonomy_result.scalar_one_or_none() is not None
-        has_country = (
-            server_settings is not None
-            and server_settings.speciesnet_country_code is not None
-        )
-        ready = has_timezone and has_taxonomy and has_country
+        ready = has_timezone and has_taxonomy
     else:
         has_taxonomy = True
-        has_country = True
         ready = has_timezone
 
     return SetupStatusResponse(
         model=model,
         timezone=has_timezone,
         taxonomy_mapping=has_taxonomy,
-        country_code=has_country,
         telegram=has_telegram,
         ready=ready,
     )

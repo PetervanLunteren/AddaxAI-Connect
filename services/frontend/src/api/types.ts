@@ -317,6 +317,10 @@ export interface Project {
   delete_people: boolean;
   delete_vehicles: boolean;
   independence_interval_minutes: number;
+  // Where the cameras are: ISO 3166-1 alpha-3, and an ISO 3166-2 US state.
+  // Null on projects made before the country was required.
+  country_code: string | null;
+  admin1_region: string | null;
   created_at: string;
   updated_at: string | null;
   image_url: string | null;
@@ -328,6 +332,8 @@ export interface ProjectCreate {
   description?: string;
   // null means all species are allowed, same as omitting it.
   included_species?: string[] | null;
+  country_code: string;
+  admin1_region?: string | null;
 }
 
 export interface ProjectUpdate {
@@ -340,6 +346,9 @@ export interface ProjectUpdate {
   delete_vehicles?: boolean;
   independence_interval_minutes?: number;
   classification_thresholds?: { default: number; overrides: Record<string, number> };
+  country_code?: string;
+  // An empty string clears the state
+  admin1_region?: string;
 }
 
 export interface ProjectDeleteResponse {
@@ -389,8 +398,6 @@ export interface ProjectWithRole extends Project {
 // Server-wide settings
 export interface ServerSettings {
   timezone: string | null;
-  speciesnet_country_code: string | null;
-  speciesnet_admin1_region: string | null;
   notify_backup_failures: boolean;
   notify_cold_tier_failures: boolean;
   notify_security_failures: boolean;

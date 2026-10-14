@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from shared.database import get_db_session
-from shared.models import Image, Detection, Classification as ClassificationModel, Camera, Project, TaxonomyMapping, ServerSettings
+from shared.models import Image, Detection, Classification as ClassificationModel, Camera, Project, TaxonomyMapping
 from shared.logger import get_logger
 from classifier import Classification, DetectionInfo
 
@@ -31,29 +31,31 @@ def get_taxonomy_mapping() -> dict[str, str]:
         raise
 
 
-def get_geofencing_config() -> dict[str, str]:
+def get_project_geofence(project_id: int | None) -> dict[str, str]:
     """
-    Fetch country code and admin1 region from server settings.
+    Country code and admin1 region of a project, for the SpeciesNet geofence.
+
+    Raises ValueError when the image has no project or the project has no
+    country, so the image fails visibly instead of being classified without
+    a geofence. Every project made since the country moved to the project
+    has one.
 
     Returns:
-        Dict with 'country_code' and 'admin1_region' keys.
-        Empty dict if not configured.
+        Dict with 'country_code' and 'admin1_region' ('' when unset).
     """
-    try:
-        with get_db_session() as db:
-            settings = db.query(ServerSettings).first()
-            if settings and settings.speciesnet_country_code:
-                return {
-                    "country_code": settings.speciesnet_country_code,
-                    "admin1_region": settings.speciesnet_admin1_region or "",
-                }
-            return {}
-    except Exception as e:
-        logger.error("Failed to fetch geofencing config", error=str(e), exc_info=True)
-        raise
+    if project_id is None:
+        raise ValueError("Image has no project, cannot geofence")
+    with get_db_session() as db:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project or not project.country_code:
+            raise ValueError(f"Project {project_id} has no country, set one in project settings")
+        return {
+            "country_code": project.country_code,
+            "admin1_region": project.admin1_region or "",
+        }
 
 
-def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], List[str] | None]:
+def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], int | None]:
     """
     Fetch detection records and project configuration for an image.
 
@@ -61,8 +63,8 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
         image_uuid: UUID of image
 
     Returns:
-        Tuple of (image_id, image_width, image_height, list of DetectionInfo objects, included_species)
-        included_species is None if all species are allowed, or a list of species names to include
+        Tuple of (image_id, image_width, image_height, list of DetectionInfo objects, project_id)
+        project_id is None when the image's camera has no project
 
     Raises:
         Exception: If query fails
@@ -77,13 +79,10 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
             if not image:
                 raise ValueError(f"Image not found: {image_uuid}")
 
-            # Get project's included species via camera
-            included_species = None  # None = all species allowed
+            # The project carries the classification config (country, and
+            # the taxonomy mapping)
             camera = db.query(Camera).filter(Camera.id == image.camera_id).first()
-            if camera and camera.project_id:
-                project = db.query(Project).filter(Project.id == camera.project_id).first()
-                if project and project.included_species:
-                    included_species = project.included_species
+            project_id = camera.project_id if camera else None
 
             # Get image dimensions from metadata
             image_metadata = image.image_metadata or {}
@@ -120,11 +119,10 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
                 "Detections fetched",
                 image_uuid=image_uuid,
                 num_detections=len(detection_infos),
-                included_species_count=len(included_species) if included_species else 0,
-                filter_mode="included" if included_species else "all"
+                project_id=project_id,
             )
 
-            return (image.id, image_width, image_height, detection_infos, included_species)
+            return (image.id, image_width, image_height, detection_infos, project_id)
 
     except Exception as e:
         logger.error(

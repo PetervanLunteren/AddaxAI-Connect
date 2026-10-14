@@ -1702,16 +1702,11 @@ def clean_demo_data(session: Session):
 
 def insert_server_settings(session: Session) -> None:
     """Set the server timezone (single-row table), so camera-clock timestamps
-    read correctly. SpeciesNet region is set too in case the demo runs that
-    classifier. Upserts the single row."""
+    read correctly. Upserts the single row."""
     session.execute(text("DELETE FROM server_settings"))
     session.execute(
-        text("""
-            INSERT INTO server_settings (
-                timezone, speciesnet_country_code, speciesnet_admin1_region
-            ) VALUES (:tz, :country, NULL)
-        """),
-        {"tz": SERVER_TIMEZONE, "country": "NLD"},
+        text("INSERT INTO server_settings (timezone) VALUES (:tz)"),
+        {"tz": SERVER_TIMEZONE},
     )
     session.flush()
 
@@ -1729,12 +1724,12 @@ def insert_project(session: Session) -> int:
     result = session.execute(
         text("""
             INSERT INTO projects (
-                name, description, location, included_species,
+                name, description, location, included_species, country_code,
                 detection_threshold, classification_thresholds,
                 blur_people_vehicles, independence_interval_minutes
             ) VALUES (
                 :name, :description, ST_GeogFromText(:boundary),
-                :species, :threshold, CAST(:cls_thresholds AS json),
+                :species, 'NLD', :threshold, CAST(:cls_thresholds AS json),
                 :blur, :independence
             ) RETURNING id
         """),

@@ -1,8 +1,9 @@
 /**
  * Create Project Modal
  *
- * Form to create a new project with name, description, and image upload.
- * Uses React Dropzone for image upload with preview.
+ * Form to create a new project with name, description, country, and image
+ * upload. The country is required. Uses React Dropzone for image upload with
+ * preview.
  */
 import React, { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +18,9 @@ import {
   DialogFooter,
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
+import { Callout } from '../ui/Callout';
+import { CountrySelect } from '../ui/CountrySelect';
+import { StateSelect } from '../ui/StateSelect';
 import { projectsApi } from '../../api/projects';
 
 interface CreateProjectModalProps {
@@ -28,6 +32,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [countryCode, setCountryCode] = useState('');
+  const [admin1Region, setAdmin1Region] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +45,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
         name,
         description: description || undefined,
         included_species: null, // All species allowed
+        country_code: countryCode,
+        admin1_region: admin1Region || null,
       });
 
       // Then upload image if provided
@@ -97,6 +105,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
   const handleClose = () => {
     setName('');
     setDescription('');
+    setCountryCode('');
+    setAdmin1Region('');
     setImageFile(null);
     setImagePreview(null);
     setError(null);
@@ -112,6 +122,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
     e.preventDefault();
     if (!name.trim()) {
       setError('Project name is required');
+      return;
+    }
+    if (!countryCode) {
+      setError('Country is required');
       return;
     }
     createMutation.mutate();
@@ -161,6 +175,31 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               />
             </div>
 
+            {/* Country, and the state for the USA */}
+            <div>
+              <label className="text-sm font-medium block mb-1">
+                Country <span className="text-destructive">*</span>
+              </label>
+              <CountrySelect
+                value={countryCode}
+                onChange={(code) => {
+                  setCountryCode(code);
+                  if (code !== 'USA') setAdmin1Region('');
+                }}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Where the cameras of this project are
+              </p>
+            </div>
+            {countryCode === 'USA' && (
+              <div>
+                <label className="text-sm font-medium block mb-1">
+                  State (optional)
+                </label>
+                <StateSelect value={admin1Region} onChange={setAdmin1Region} />
+              </div>
+            )}
+
             {/* Image Upload */}
             <div>
               <label className="text-sm font-medium block mb-1">
@@ -204,18 +243,14 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             </div>
 
             {/* Error Message */}
-            {error && (
-              <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md">
-                {error}
-              </div>
-            )}
+            {error && <Callout variant="error">{error}</Callout>}
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createMutation.isPending || !name.trim()}>
+            <Button type="submit" disabled={createMutation.isPending || !name.trim() || !countryCode}>
               {createMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

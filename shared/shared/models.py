@@ -422,6 +422,10 @@ class Project(Base):
     description = Column(Text, nullable=True)
     location = Column(Geography(geometry_type='POLYGON', srid=4326), nullable=True)
     included_species = Column(JSON, nullable=True)  # List of species names that ARE present in project area (null = all species)
+    # Where the cameras are. Required for new projects (API), NULL on
+    # projects made before it existed. SpeciesNet geofences on it.
+    country_code = Column(String(3), nullable=True)  # ISO 3166-1 alpha-3, e.g. "NLD"
+    admin1_region = Column(String(10), nullable=True)  # ISO 3166-2 US state, e.g. "US-CA"; USA only
     image_path = Column(String(512), nullable=True)  # MinIO path to original project image
     thumbnail_path = Column(String(512), nullable=True)  # MinIO path to thumbnail (256x256)
     detection_threshold = Column(Float, nullable=False, server_default='0.5')  # Minimum confidence for detections to be visible (0.0-1.0)
@@ -962,8 +966,6 @@ class ServerSettings(Base):
 
     id = Column(Integer, primary_key=True)
     timezone = Column(String(50), nullable=True)  # NULL = not configured yet
-    speciesnet_country_code = Column(String(10), nullable=True)   # ISO 3166-1 alpha-3
-    speciesnet_admin1_region = Column(String(20), nullable=True)  # ISO 3166-2 (US states)
     # Email server admins when the automated backup or cold-tier migration fails.
     # Both default TRUE. Gated at runtime by BACKUP_ENABLED / COLD_TIER_ENDPOINT
     # so a server that has the feature off never sends alerts about it.
