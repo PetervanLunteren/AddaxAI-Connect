@@ -19,7 +19,7 @@
 domain_name: "camera.example.com"
 
 # Which species classifier to run: deepfaune (38 European species) or
-# speciesnet (2,498 global species). Picks the docker compose profile too.
+# speciesnet (2,066 global species). Picks the docker compose profile too.
 classification_model: "deepfaune"
 
 # demo_mode true runs the interface with no ML workers, for a public demo

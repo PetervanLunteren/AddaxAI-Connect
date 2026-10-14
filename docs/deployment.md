@@ -81,7 +81,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     | Variable | Example | Description |
     |---------|---------|-------------|
-    | `classification_model` | `"speciesnet"` | `"deepfaune"` (38 European species) or `"speciesnet"` (2,498 global species) |
+    | `classification_model` | `"speciesnet"` | `"deepfaune"` (38 European species) or `"speciesnet"` (2,066 global species) |
 
     **GPU (optional)**
 

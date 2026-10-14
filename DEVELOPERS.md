@@ -99,7 +99,7 @@ addaxai-connect/
 │   │   ├── db_operations.py
 │   │   └── storage_operations.py
 │   │
-│   ├── classification-speciesnet/     # SpeciesNet species classifier (2,498 global species)
+│   ├── classification-speciesnet/     # SpeciesNet species classifier (2,066 global species)
 │   │   ├── worker.py                  # Entry point
 │   │   ├── classifier.py
 │   │   ├── annotated_image.py
@@ -375,7 +375,7 @@ Queue names (defined in `shared/shared/queue.py`):
 ## Docker Compose profiles
 
 - **`deepfaune`** is the full stack with DeepFaune classifier (38 European species)
-- **`speciesnet`** is the full stack with SpeciesNet classifier (2,498 global species)
+- **`speciesnet`** is the full stack with SpeciesNet classifier (2,066 global species)
 - **`demo`** runs only the API, database, and frontend (no ML workers)
 
 ## MinIO image
