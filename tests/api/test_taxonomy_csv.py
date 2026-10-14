@@ -51,6 +51,21 @@ class TestParseTaxonomyCsv:
         with pytest.raises(ValueError, match="Row 3: duplicate latin value 'aves'"):
             parse_taxonomy_csv("latin,common\naves,bird\nAves,other bird\n")
 
+    def test_the_users_own_label_wins_over_the_speciesnet_name(self):
+        # The mapper's download: common is SpeciesNet's name, original_common
+        # the label the user typed.
+        text = (
+            "latin,common,original_latin,original_common\n"
+            "canidae,canidae family,,unknown canid\n"
+            "canis lupus,grey wolf,,wolf\n"
+            "aves,bird,,\n"
+        )
+        assert parse_taxonomy_csv(text) == [
+            ("canidae", "unknown canid"),
+            ("canis lupus", "wolf"),
+            ("aves", "bird"),
+        ]
+
     def test_one_label_on_several_rows_is_fine(self):
         text = "latin,common\naccipitridae,bird of prey\nfalconidae,bird of prey\n"
         assert len(parse_taxonomy_csv(text)) == 2

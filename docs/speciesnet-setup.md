@@ -103,12 +103,12 @@ Click `Process input`. The tool maps every line to a SpeciesNet taxon. Review th
 
 Check two things in every row:
 
-- **The common name** is the label you will see. Edit it directly in the table if needed. In this example you would rename "cat family" to "unknown cat", because lion and leopard are listed separately.
+- **The label you typed** stays in the `original_common` column, and that is the label you will see. The `common` column shows SpeciesNet's own name, for reference. If a row has no label of yours, the `common` name is used, so check those rows. In this example you would rename "cat family" to "unknown cat", because lion and leopard are listed separately.
 - **The latin name** is the level the label applies to. The tool widens every row to the highest level where no other row in your list sits. A species can become its genus, and a family can become its order. Check every widened row. If it now covers animals that need their own label, change the latin name back, or add those animals to your list.
 
 #### Step 4: download the CSV
 
-Click `Download CSV`. The file has four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect only uses `latin` and `common`.
+Click `Download CSV`. The file has four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect uses `latin`, and as the label `original_common` when it is filled in, otherwise `common`.
 
 #### Step 5: add the CSV to your project
 

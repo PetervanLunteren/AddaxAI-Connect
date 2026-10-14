@@ -18,7 +18,10 @@ def parse_taxonomy_csv(text: str) -> list[tuple[str, str]]:
 
     The CSV needs 'latin' and 'common' columns (any case, extra columns are
     ignored, a leading BOM is fine). Latin is lowercased, the walk-up matches
-    lowercase; common is kept as written, it is the label users see.
+    lowercase. The label users see is 'original_common' when the row has one,
+    else 'common', kept as written: the SpeciesNet Taxonomy Mapper puts the
+    user's own label in original_common and SpeciesNet's name in common, the
+    same convention as MegaDetector's restrict_to_taxa_list.
 
     Raises:
         ValueError: with a message for the user, on the first problem found.
@@ -39,7 +42,7 @@ def parse_taxonomy_csv(text: str) -> list[tuple[str, str]]:
     for i, row in enumerate(reader, start=2):
         normalized = {k.lower().strip(): v for k, v in row.items() if k is not None}
         latin = (normalized.get("latin") or "").strip().lower()
-        common = (normalized.get("common") or "").strip()
+        common = (normalized.get("original_common") or "").strip() or (normalized.get("common") or "").strip()
 
         if not latin:
             raise ValueError(f"Row {i}: empty 'latin' value")
