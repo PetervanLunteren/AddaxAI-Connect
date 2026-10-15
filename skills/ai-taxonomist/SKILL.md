@@ -83,10 +83,20 @@ Every list you show the user uses this format:
 
 There are two kinds of checklist. Never show a species checklist of more than one group at a time.
 
-**Group checklist**, in rounds 2, 4, 6 and 7. One item per group: the group name, then its species with their record counts, most records first. Name the flags after the species they belong to. For example:
+**Group checklist**, in rounds 2, 4, 6 and 7. One numbered item per group, with its species below it, one line per species, most records first. A species line holds the common name, the record count and the flags, nothing more. Flags are the words from round 2, without explanation. Never put a species line on the same line as its group, and never put two species on one line. For example:
 
-1. ☑ canids: red fox 6,177, raccoon dog 227 (introduced), grey wolf 142, golden jackal 2 (rare, moving in)
-2. ☑ deer: roe deer 44,293, fallow deer 389, red deer 48, sika deer 4 (rare, introduced)
+1. ☑ canids
+   - red fox, 6,177
+   - raccoon dog, 227, introduced
+   - grey wolf, 142
+   - golden jackal, 2, rare, moving in
+2. ☑ deer
+   - roe deer, 44,293
+   - fallow deer, 389
+   - red deer, 48
+   - sika deer, 4, rare, introduced
+
+Anything that needs more words, like a recent sighting or a merged name, goes in one short line above the checklist, never inside it.
 
 **Species checklist**, in round 5, for one target group. One item per species: the common name, the latin name in brackets, the record count and the flags. For example, for canids:
 
