@@ -208,11 +208,17 @@ Ask once whether birds or reptiles matter for this project. Usually they don't. 
 
 ## Round 9: check the list and hand it over
 
-First add a backstop row for every class not in the list yet: `mammalia, mammal`, `aves, bird`, `reptilia, reptile`, `amphibia, amphibian`.
+First add the backstops:
+
+- a row for every class not in the list yet: `mammalia, mammal`, `aves, bird`, `reptilia, reptile`, `amphibia, amphibian`
+- `primates, human`, always. SpeciesNet sometimes calls a person that the detector took for an animal "human". Without this row it lands on "mammal". Do not name it "person": AddaxAI Connect already uses that name for the detector's own person category
+- an order row for the order of every target group, named "unknown" plus the order in everyday words, for example `carnivora, unknown carnivore` when canids or mustelids are a target. SpeciesNet often names only the order when it is unsure, and without this row those answers land on "mammal"
+
+Never add an order row for even-toed hoofed animals (deer, cattle, sheep, goats, pigs). SpeciesNet's model writes most of them under the order "cetartiodactyla", while the taxonomy file says "artiodactyla". A row at either name misses part of them. Keep these animals at family level.
 
 Then predict what the mapper will widen. For each row, take its class, order, family and genus from the taxonomy file. Count, for each taxon, how many rows share it. A row widens to the highest of class, order, family and genus where it is the only row with that taxon. This is how the mapper's code works.
 
-Example: in a list with `cervidae, deer`, `suidae, wild boar` and `canidae, unknown canid`, the deer row is the only one in its family, but it shares the order Artiodactyla with wild boar, so it stays at the family. Without the wild boar row it would widen to Artiodactyla, and wild boar and cattle would become "deer".
+Example: in a list with `cervidae, deer`, `suidae, wild boar` and `canidae, unknown canid`, the deer row is the only one in its family, but it shares the order Artiodactyla with wild boar, so it stays at the family. Without the wild boar row it would widen to Artiodactyla. That row would then miss most deer, because the model writes them under "cetartiodactyla". Every row of even-toed animals must stay at its family or lower: when one would widen to Artiodactyla, add a neighbouring family row from the same order that stops it.
 
 When a widening is not what the user wants, add the neighbouring group that stops it, or tell the user to change the latin name back in the mapper.
 
@@ -224,7 +230,8 @@ Then go through this self-check and fix what fails:
 - every target group of two or more animals has an "unknown" row, and no other group has one
 - every "unknown" row stays at its family. One that is alone in its order widens to the whole order, and then a badger or a cat becomes "unknown canid"
 - every widening found above is either intended or fixed
-- the backstops are in the list
+- no row widens to Artiodactyla
+- the backstops are in the list: the classes, `primates, human`, and an order row for every target group, except the even-toed animals
 
 Then give:
 
@@ -253,5 +260,6 @@ Check:
 - every `latin` is the level you predicted in round 9. Name each row that widened more or less than predicted, and what that means for the labels
 - no row matched a different animal than you meant, for example a wild goat instead of the domestic goat
 - no `latin` appears twice. AddaxAI Connect refuses such a file
+- no `latin` is `artiodactyla`
 
 Then say plainly whether the CSV is ready. If it is not, say for each row what to change in the mapper and why, and ask for the new CSV. If it is ready, tell the user to select the country and drop the CSV at `Species labels` when they create the project. Link to [SpeciesNet setup](https://connect.addaxai.com/speciesnet-setup/) for the details.
