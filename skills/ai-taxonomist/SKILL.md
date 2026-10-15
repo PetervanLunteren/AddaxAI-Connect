@@ -64,28 +64,35 @@ An animal with no line in the file is "unknown to SpeciesNet". SpeciesNet can ne
 
 - Use the user's language. Latin names stay latin.
 - Each round covers one topic: show what you found, propose an answer, ask one question.
-- Show animals and rows always as a checklist, in the format below, never as a table or a loose list.
+- Show groups, animals and rows always as a checklist, in the format below, never as a table or a loose list.
 - Keep it short.
+- Labels use the words a ranger uses, in the user's language: "hare or rabbit", not "lagomorph"; "unknown deer", not "unknown cervid". When a group has no everyday name, propose one and let the user choose.
+
+### Groups
+
+Work with groups an ecologist uses: canids, cats, mustelids, deer, wild boar and pigs, cattle, sheep and goats, horses, hares and rabbits, hedgehogs, squirrels, beavers, small mammals, and so on. Usually one group is one family; merge small families into the group an ecologist would expect.
 
 ### The checklist
 
-Every list of animals or rows you show the user uses this format:
+Every list you show the user uses this format:
 
-- Group the items under group names an ecologist uses: canids, cats, mustelids, deer, wild boar and pigs, cattle, sheep and goats, horses, hares and rabbits, hedgehogs, squirrels, beavers, small mammals, and so on. Usually one group is one family; merge small families into the group an ecologist would expect.
-- Number the items straight through the whole list, not per group, so the user can answer with numbers.
+- Number the items straight through the whole list, so the user can answer with numbers.
 - Start each item with ☑ when you propose it, ☐ when you don't.
-- After the box: the common name, the latin name in brackets, then the record count and the flags when you have them.
 - End with one line asking the user to switch items on or off by number, or to add animals.
+- The checklist and its question are the last thing in your message. Never put a list in a popup, a form or any other place where the user may only see a summary.
 
-For example:
+There are two kinds of checklist. Never show a species checklist of more than one group at a time.
 
-**Canids**
-1. ☑ grey wolf (Canis lupus), 141 records
-2. ☑ red fox (Vulpes vulpes), 6,708 records
+**Group checklist**, in rounds 2, 4, 6 and 7. One item per group: the group name, then its species with their record counts, most records first. Name the flags after the species they belong to. For example:
+
+1. ☑ canids: red fox 6,177, raccoon dog 227 (introduced), grey wolf 142, golden jackal 2 (rare, moving in)
+2. ☑ deer: roe deer 44,293, fallow deer 389, red deer 48, sika deer 4 (rare, introduced)
+
+**Species checklist**, in round 5, for one target group. One item per species: the common name, the latin name in brackets, the record count and the flags. For example, for canids:
+
+1. ☑ grey wolf (Canis lupus), 142 records
+2. ☑ red fox (Vulpes vulpes), 6,177 records
 3. ☐ golden jackal (Canis aureus), 2 records, rare, moving in
-
-**Mustelids**
-4. ☑ European badger (Meles meles), 4,100 records
 
 After each answer, show the updated checklist once, so the user sees what is now selected.
 
@@ -94,7 +101,8 @@ After each answer, show the updated checklist once, so the user sees what is now
 - Rounds 1 to 3 build the inventory: which animals can appear on the cameras at this place. No labels are decided yet.
 - Round 4 asks for the targets.
 - Rounds 5 to 8 turn the inventory into labels: the target groups species by species, every other group as one label.
-- Round 9 checks the list and hands it over.
+- Round 9 checks the list and hands it over to the mapper.
+- Round 10 checks the CSV the mapper made.
 
 ## Round 1: the place
 
@@ -135,7 +143,9 @@ Give every animal its flags:
 - **introduced or escaped**: not native to the region, for example a wallaby, muskrat or raccoon
 - **unknown to SpeciesNet**: no line in the taxonomy file
 
-Show the pool as a checklist. Tick what a camera trap here will likely see, untick the doubtful ones, like a single old record. Ask what to switch or add.
+Record counts show that an animal lives here, not how often a camera will see it. Trapping and pest control give some animals many records, like the muskrat and the mole. Animals that are easy to spot get many casual records. Use the counts to judge presence, nothing more.
+
+Show the pool as a group checklist. Tick a group when a camera trap here will likely see it. Below the list, name the single animals you left out and why, like a zoo escape or one old record. Ask whether the groups are right. The species of each group only matter for the targets, and round 5 goes through those one group at a time.
 
 ## Round 3: domestic animals
 
@@ -149,13 +159,13 @@ This round decides how much detail each group of animals gets. Ask it in these w
 - Every other group gets one plain label, for example "mustelid" for all martens, badgers and weasels.
 - A species label is wrong much more often than a group label. "Mustelid" is almost always right, "stone marten" or "pine marten" is often a guess. So only pick the animals where the species really matters, for alerts or for counts, and leave the rest as groups.
 
-Show the inventory as a checklist, with the animals you propose as targets ticked, based on what you know of the place.
+Show the inventory as a group checklist, with the groups you propose as targets ticked, based on what you know of the place.
 
-Push back when the answer is everything: species labels for animals nobody looks at give more mistakes and a noisy dashboard. Push back when the answer is nothing: then no alert can single out a species. Most projects have one to five target groups.
+Push back only when the answer is everything or nothing. Species labels for animals nobody looks at give more mistakes and a noisy dashboard. With no targets, no alert can single out a species. Any other answer is the user's choice: accept it, also when it holds more groups than you would pick.
 
 ## Round 5: target groups
 
-For each target, take its group, usually the family. From the pool and the domestic animals, list every animal in that group as a checklist, all ticked. Propose:
+Take the target groups one at a time, one message each. For each group, list every animal in it from the pool and the domestic animals as a species checklist. Tick what a camera trap here will likely see, untick the doubtful ones, like a single old record. Ask whether the group is right, and wait for the answer before the next group. Propose:
 
 - one row per species
 - one family row named "unknown" plus the group, for example `canidae, unknown canid`
@@ -170,9 +180,11 @@ nyctereutes procyonoides, raccoon dog
 canidae, unknown canid
 ```
 
+A target group with only one animal gets one row at its family, named after that animal, for example `suidae, wild boar`. It needs no "unknown" row, because every animal of that family here is that animal. The mapper would widen a lone species row at least to its family anyway. When round 3 added a domestic animal to the group, like the domestic pig (`sus scrofa scrofa`) next to the wild boar, the group has two animals and gets the full treatment.
+
 ## Round 6: other groups
 
-For every other group in the pool, propose one row with a plain name, for example `mustelidae, mustelid`. Show these rows as a checklist, one item per row, all ticked. Never use "unknown" or "other" for these. The label covers every animal in the group. Skip rodents, shrews, moles and hedgehogs; round 7 handles them.
+For every other group in the pool, propose one row with a plain name, for example `mustelidae, mustelid`. Show these rows as a group checklist, one item per row, all ticked. Never use "unknown" or "other" for these. The label covers every animal in the group. Skip rodents, shrews, moles and hedgehogs; round 7 handles them.
 
 ## Round 7: small mammals
 
@@ -194,7 +206,7 @@ Ask whether the user agrees, or prefers no small-mammal rows, so these animals l
 
 Ask once whether birds or reptiles matter for this project. Usually they don't. Then the backstops in round 9 cover them. If they do matter, repeat rounds 2, 5 and 6 for them, with `classKey=212` for birds and `classKey=358` for reptiles.
 
-## Round 9: check and hand over
+## Round 9: check the list and hand it over
 
 First add a backstop row for every class not in the list yet: `mammalia, mammal`, `aves, bird`, `reptilia, reptile`, `amphibia, amphibian`.
 
@@ -209,7 +221,7 @@ Then go through this self-check and fix what fails:
 - every latin name is spelled exactly as in the taxonomy file
 - no latin name appears twice
 - every target group includes the domestic animals of that group
-- every target group has an "unknown" row, and no other group has one
+- every target group of two or more animals has an "unknown" row, and no other group has one
 - every "unknown" row stays at its family. One that is alone in its order widens to the whole order, and then a badger or a cat becomes "unknown canid"
 - every widening found above is either intended or fixed
 - the backstops are in the list
@@ -219,4 +231,27 @@ Then give:
 1. the list in a code block: one row per line, `latin, common`, latin in lowercase, no header
 2. for each row, one line on why it is there: target, relative, neighbour, small mammals or backstop
 3. the widenings you predict, and what to check in the latin column of the mapper
-4. the next steps: open the [SpeciesNet Taxonomy Mapper](https://dmorris.net/speciesnet-taxonomy-mapper/), enter the place as the study area, paste the list, review the latin column, download the CSV, and add it when you create the project. Link to [SpeciesNet setup](https://connect.addaxai.com/speciesnet-setup/) for the details
+4. the steps in the mapper, numbered:
+   1. Open the [SpeciesNet Taxonomy Mapper](https://dmorris.net/speciesnet-taxonomy-mapper/).
+   2. Enter the place as the study area, for example "Exloo, Drenthe, Netherlands".
+   3. Paste the list.
+   4. Click `Process input`.
+   5. Click `Download CSV`.
+   6. Upload the CSV here, or paste its content, so you can check it.
+
+Ask whether the user wants to change a row first, or goes to the mapper now.
+
+## Round 10: check the CSV
+
+Wait for the CSV. Never write or edit the CSV yourself. Every fix goes through the mapper, and then the user uploads the new CSV.
+
+Check:
+
+- the columns are `latin`, `common`, `original_latin` and `original_common`
+- every row of your list is there, and no row was added
+- every `original_common` holds the user's label
+- every `latin` is the level you predicted in round 9. Name each row that widened more or less than predicted, and what that means for the labels
+- no row matched a different animal than you meant, for example a wild goat instead of the domestic goat
+- no `latin` appears twice. AddaxAI Connect refuses such a file
+
+Then say plainly whether the CSV is ready. If it is not, say for each row what to change in the mapper and why, and ask for the new CSV. If it is ready, tell the user to select the country and drop the CSV at `Species labels` when they create the project. Link to [SpeciesNet setup](https://connect.addaxai.com/speciesnet-setup/) for the details.
