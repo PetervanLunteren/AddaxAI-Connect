@@ -30,6 +30,15 @@ import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 import { useRuleOptions } from '../hooks/useRuleOptions';
 
+/** Closes the Telegram link modal once the chat is linked. A component,
+ *  because the modal body is a render prop and cannot hold an effect. */
+const CloseWhenLinked: React.FC<{ linked: boolean; onDone: () => void }> = ({ linked, onDone }) => {
+  useEffect(() => {
+    if (linked) onDone();
+  }, [linked, onDone]);
+  return null;
+};
+
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -126,7 +135,9 @@ export const NotificationsPage: React.FC = () => {
     queryKey: ['telegram-link-status', projectIdNum],
     queryFn: () => notificationsApi.checkTelegramLinkStatus(projectIdNum),
     enabled: !!projectIdNum && projectIdNum > 0 && isTelegramConfigured,
-    refetchInterval: false,
+    // Poll while the modal shows a link, so it closes by itself once the
+    // bot has stored the chat. Nobody has to come back and confirm.
+    refetchInterval: deepLink ? 3000 : false,
   });
 
   const isTelegramLinked = linkStatus?.linked ?? false;
@@ -153,8 +164,8 @@ export const NotificationsPage: React.FC = () => {
   });
 
   // ConnectionRow opens the link modal and tells us. On open we make the
-  // token; on a relink we unlink first, because the modal's "Check status"
-  // closes as soon as the account reads as linked, so on a still-linked
+  // token; on a relink we unlink first, because the modal closes as soon
+  // as the account reads as linked (CloseWhenLinked), so on a still-linked
   // account it would close before the user scans. The modal only closes
   // after the new /start arrives. On close the link is forgotten, a token
   // is single use.
@@ -316,6 +327,7 @@ export const NotificationsPage: React.FC = () => {
                     renderConnectModal={({ onDone }) => (
                       deepLink ? (
                         <div className="space-y-6">
+                          <CloseWhenLinked linked={isTelegramLinked} onDone={onDone} />
                           <div className="flex justify-center bg-white p-4 rounded-lg">
                             <QRCode value={deepLink} size={200} />
                           </div>
@@ -341,23 +353,14 @@ export const NotificationsPage: React.FC = () => {
                           <div className="bg-muted border border-border p-4 rounded-md">
                             <ol className="list-decimal list-outside ml-4 space-y-2 text-sm text-muted-foreground">
                               <li className="pl-2">Scan the QR code above with your phone, or click the button above to open Telegram</li>
-                              <li className="pl-2">Press Start in Telegram when it opens</li>
-                              <li className="pl-2">Come back here and click "Check status" to confirm</li>
+                              <li className="pl-2">Press Start in Telegram when it asks</li>
                             </ol>
                           </div>
 
-                          <div className="flex justify-center">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={async () => {
-                                const result = await refetchLinkStatus();
-                                if (result.data?.linked) onDone();
-                              }}
-                            >
-                              Check status
-                            </Button>
-                          </div>
+                          <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Waiting for Telegram. This window closes once the link is made.
+                          </p>
                         </div>
                       ) : unlinkMutation.isError || generateTokenMutation.isError ? (
                         <Callout variant="error">
@@ -374,7 +377,7 @@ export const NotificationsPage: React.FC = () => {
                     connectLabel="Link Telegram"
                     replaceLabel="Link again"
                     disconnectLabel="Unlink"
-                    modalTitle="Link your Telegram account"
+                    modalTitle={`Link Telegram to ${selectedProject?.name ?? 'this project'}`}
                   />
 
                   <SettingRowDivider />

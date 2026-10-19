@@ -3,7 +3,7 @@ Telegram Notifications Worker
 
 Handles two tasks:
 1. Consumes messages from QUEUE_NOTIFICATION_TELEGRAM and sends via Telegram Bot API
-2. Polls for /start commands from users and replies with their chat ID
+2. Polls for /start commands from users, links the chat to a project, and replies
 
 The worker runs two threads:
 - Main thread: processes notification messages from queue
@@ -18,7 +18,7 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM, HEARTBEAT_KEY_
 from shared.config import get_settings
 from shared.notify_guard import chat_id_allowed, is_development
 from shared.database import get_sync_session
-from shared.models import TelegramLinkingToken, ProjectNotificationPreference
+from shared.models import TelegramLinkingToken, ProjectNotificationPreference, Project
 from datetime import datetime, timezone
 
 from telegram_client import TelegramClient, TelegramNotConfiguredError
@@ -33,7 +33,7 @@ settings = get_settings()
 last_update_id = None
 
 
-def handle_link_token(token: str, chat_id: str) -> bool:
+def handle_link_token(token: str, chat_id: str) -> Optional[str]:
     """
     Process a linking token from /start command
 
@@ -42,7 +42,8 @@ def handle_link_token(token: str, chat_id: str) -> bool:
         chat_id: The Telegram chat ID
 
     Returns:
-        True if linking was successful, False otherwise
+        The name of the project the chat is now linked to, or None if the
+        token is invalid, used or expired
     """
     try:
         with get_sync_session() as session:
@@ -58,7 +59,7 @@ def handle_link_token(token: str, chat_id: str) -> bool:
                     "Invalid or expired linking token",
                     token_prefix=token[:8] + "***" if len(token) > 8 else token
                 )
-                return False
+                return None
 
             # Get or create notification preferences
             prefs = session.query(ProjectNotificationPreference).filter(
@@ -82,6 +83,8 @@ def handle_link_token(token: str, chat_id: str) -> bool:
             # Mark token as used
             link_record.used = True
 
+            project_name = session.get(Project, link_record.project_id).name
+
             session.commit()
 
             logger.info(
@@ -91,7 +94,7 @@ def handle_link_token(token: str, chat_id: str) -> bool:
                 chat_id=chat_id[:5] + "***" if len(chat_id) > 5 else chat_id
             )
 
-            return True
+            return project_name
 
     except Exception as e:
         logger.error(
@@ -99,7 +102,43 @@ def handle_link_token(token: str, chat_id: str) -> bool:
             error=str(e),
             exc_info=True
         )
-        return False
+        return None
+
+
+def start_reply(text: str, chat_id: str) -> str:
+    """
+    Handle a /start message and return the bot's reply.
+
+    The link is per project, and one chat may hold the links of several
+    projects, so the reply names the project. Otherwise three links in one
+    chat read as three replacements. Plain text, because send_reply sets no
+    parse_mode.
+    """
+    parts = text.split()
+    token = parts[1] if len(parts) > 1 else None
+
+    if not token:
+        domain = settings.domain_name or "your-domain.com"
+        return (
+            "👋 Welcome to AddaxAI Connect!\n\n"
+            f"Your chat ID is {chat_id}\n\n"
+            "To link this chat, use the link on the Notifications page of "
+            f"your project at https://{domain}"
+        )
+
+    project_name = handle_link_token(token, chat_id)
+    if project_name is None:
+        return (
+            "❌ This link is invalid, expired or already used.\n\n"
+            "Open the Notifications page of your project in AddaxAI Connect "
+            "and link again."
+        )
+    return (
+        f"✅ Linked to project {project_name}.\n\n"
+        "Alerts from this project now come to this chat. To get alerts from "
+        "another project here too, link it from that project's "
+        "Notifications page."
+    )
 
 
 def download_image_from_minio(minio_path: str) -> bytes:
@@ -286,43 +325,13 @@ def poll_for_start_commands():
 
                 # Handle /start command
                 if text.strip().lower().startswith('/start'):
-                    # Extract payload from /start <token>
-                    parts = text.split()
-                    token = parts[1] if len(parts) > 1 else None
-
-                    if token:
-                        # Token-based linking flow
-                        success = handle_link_token(token, chat_id)
-
-                        if success:
-                            reply_text = (
-                                "✅ *Successfully linked!*\n\n"
-                                "You'll now receive notifications from AddaxAI Connect.\n\n"
-                                "Go back to the notification settings page to see your status update."
-                            )
-                        else:
-                            reply_text = (
-                                "❌ *Invalid or expired linking token*\n\n"
-                                "The link you used is either invalid or has already been used.\n\n"
-                                "Please generate a new link from the AddaxAI Connect notification settings."
-                            )
-                    else:
-                        # No token - show welcome message with chat ID
-                        domain = settings.domain_name or "your-domain.com"
-                        reply_text = (
-                            f"👋 *Welcome to AddaxAI Connect!*\n\n"
-                            f"Your chat ID is: `{chat_id}`\n\n"
-                            f"To link your account, please use the setup link provided "
-                            f"in your project's notification settings at https://{domain}"
-                        )
-
-                    client.send_reply(chat_id, reply_text)
+                    client.send_reply(chat_id, start_reply(text, chat_id))
 
                     logger.info(
                         "Replied to /start command",
                         chat_id=chat_id[:5] + "***",
                         username=message.get('from', {}).get('username'),
-                        has_token=token is not None
+                        has_token=len(text.split()) > 1
                     )
 
         except Exception as e:

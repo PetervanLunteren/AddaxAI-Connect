@@ -23,11 +23,13 @@ Consumes messages from `notification-telegram` Redis queue and sends them via Te
 
 ### User linking
 
-1. Go to notification settings in the web UI and click "Link Telegram"
-2. A unique linking token is generated
+1. Go to the Notifications page of a project and click "Link Telegram"
+2. A single-use linking token for that user and project is generated
 3. Click the link to open the bot in Telegram
-4. Send `/start <token>` to link your account
-5. Bot confirms the link and your chat ID is stored
+4. Telegram sends `/start <token>` to the bot
+5. The bot stores the chat ID for that project and replies with the project name; the page sees the link and closes the modal
+
+The link is per project. One chat can hold the links of several projects, and every alert names its project.
 
 ## Environment Variables
 
