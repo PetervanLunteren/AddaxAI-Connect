@@ -1,0 +1,213 @@
+model_class,class,order,family,genus,species
+amphibians,amphibia,,,,
+hawks and eagles,aves,accipitriformes,accipitridae,,
+goshawks and sparrowhawks,aves,accipitriformes,accipitridae,accipiter,
+brown goshawk,aves,accipitriformes,accipitridae,accipiter,fasciatus
+wedge-tailed eagle,aves,accipitriformes,accipitridae,aquila,audax
+whistling kite,aves,accipitriformes,accipitridae,haliastur,sphenurus
+pacific black duck,aves,anseriformes,anatidae,anas,superciliosa
+cape barren goose,aves,anseriformes,anatidae,cereopsis,novaehollandiae
+australian wood duck,aves,anseriformes,anatidae,chenonetta,jubata
+black swan,aves,anseriformes,anatidae,cygnus,atratus
+australian owlet-nightjar,aves,apodiformes,aegothelidae,aegotheles,cristatus
+spotted nightjar,aves,caprimulgiformes,caprimulgidae,eurostopodus,argus
+tawny frogmouth,aves,caprimulgiformes,podargidae,podargus,strigoides
+emu,aves,casuariiformes,dromaiidae,dromaius,novaehollandiae
+hooded plover,aves,charadriiformes,charadriidae,thinornis,cucullatus
+masked lapwing,aves,charadriiformes,charadriidae,vanellus,miles
+silver gull,aves,charadriiformes,laridae,chroicocephalus,novaehollandiae
+pacific gull,aves,charadriiformes,laridae,larus,pacificus
+latham's snipe,aves,charadriiformes,scolopacidae,gallinago,hardwickii
+painted button-quail,aves,charadriiformes,turnicidae,turnix,varius
+shorebirds spp,aves,charadriiformes,,,
+peaceful dove,aves,columbiformes,columbidae,geopelia,placida
+wonga pigeon,aves,columbiformes,columbidae,leucosarcia,melanoleuca
+crested pigeon,aves,columbiformes,columbidae,ocyphaps,lophotes
+common bronzewing,aves,columbiformes,columbidae,phaps,chalcoptera
+brush bronzewing,aves,columbiformes,columbidae,phaps,elegans
+laughing kookaburra,aves,coraciiformes,alcedinidae,dacelo,novaeguineae
+fan-tailed cuckoo,aves,cuculiformes,cuculidae,cacomantis,flabelliformis
+shining bronze-cuckoo,aves,cuculiformes,cuculidae,chrysococcyx,lucidus
+brown falcon,aves,falconiformes,falconidae,falco,berigora
+malleefowl,aves,galliformes,megapodiidae,leipoa,ocellata
+brown quail,aves,galliformes,phasianidae,synoicus,ypsilophorus
+eurasian coot,aves,gruiformes,rallidae,fulica,atra
+black-tailed native-hen,aves,gruiformes,rallidae,gallinula,ventralis
+buff-banded rail,aves,gruiformes,rallidae,gallirallus,philippensis
+purple swamphen,aves,gruiformes,rallidae,porphyrio,melanotus
+yellow-rumped thornbill,aves,passeriformes,acanthizidae,acanthiza,chrysorrhoa
+striated thornbill,aves,passeriformes,acanthizidae,acanthiza,lineata
+yellow thornbill,aves,passeriformes,acanthizidae,acanthiza,nana
+brown thornbill,aves,passeriformes,acanthizidae,acanthiza,pusilla
+buff-rumped thornbill,aves,passeriformes,acanthizidae,acanthiza,reguloides
+chestnut-rumped thornbill,aves,passeriformes,acanthizidae,acanthiza,uropygialis
+southern whiteface,aves,passeriformes,acanthizidae,aphelocephala,leucopsis
+shy heathwren,aves,passeriformes,acanthizidae,calamanthus,cautus
+chestnut-rumped heathwren,aves,passeriformes,acanthizidae,calamanthus,pyrrhopygius
+brown gerygone,aves,passeriformes,acanthizidae,gerygone,mouki
+pilotbird,aves,passeriformes,acanthizidae,pycnoptilus,floccosus
+white-browed scrubwren,aves,passeriformes,acanthizidae,sericornis,frontalis
+weebill,aves,passeriformes,acanthizidae,smicrornis,brevirostris
+dusky woodswallow,aves,passeriformes,artamidae,artamus,cyanopterus
+masked woodswallow,aves,passeriformes,artamidae,artamus,personatus
+white-browed woodswallow,aves,passeriformes,artamidae,artamus,superciliosus
+red-browed treecreeper,aves,passeriformes,climacteridae,climacteris,erythrops
+brown treecreeper,aves,passeriformes,climacteridae,climacteris,picumnus
+white-throated treecreeper,aves,passeriformes,climacteridae,cormobates,leucophaea
+white-winged chough,aves,passeriformes,corcoracidae,corcorax,melanoramphos
+apostlebird,aves,passeriformes,corcoracidae,struthidea,cinerea
+ravens and crows,aves,passeriformes,corvidae,,
+australian raven,aves,passeriformes,corvidae,corvus,coronoides
+pied butcherbird,aves,passeriformes,cracticidae,cracticus,nigrogularis
+grey butcherbird,aves,passeriformes,cracticidae,cracticus,torquatus
+australian magpie,aves,passeriformes,artamidae,gymnorhina,tibicen
+pied currawong,aves,passeriformes,cracticidae,strepera,graculina
+grey currawong,aves,passeriformes,cracticidae,strepera,versicolor
+red-browed finch,aves,passeriformes,estrildidae,neochmia,temporalis
+european goldfinch,aves,passeriformes,fringillidae,carduelis,carduelis
+superb fairy-wren,aves,passeriformes,maluridae,malurus,cyaneus
+splendid fairy-wren,aves,passeriformes,maluridae,malurus,splendens
+spiny-cheeked honeyeater,aves,passeriformes,meliphagidae,acanthagenys,rufogularis
+eastern spinebill,aves,passeriformes,meliphagidae,acanthorhynchus,tenuirostris
+red wattlebird,aves,passeriformes,meliphagidae,anthochaera,carunculata
+little wattlebird,aves,passeriformes,meliphagidae,anthochaera,chrysoptera
+yellow-faced honeyeater,aves,passeriformes,meliphagidae,caligavis,chrysops
+singing honeyeater,aves,passeriformes,meliphagidae,gavicalis,virescens
+tawny-crowned honeyeater,aves,passeriformes,meliphagidae,gliciphila,melanops
+yellow-tufted honeyeater,aves,passeriformes,meliphagidae,lichenostomus,melanops
+noisy miner,aves,passeriformes,meliphagidae,manorina,melanocephala
+brown-headed honeyeater,aves,passeriformes,meliphagidae,melithreptus,brevirostris
+white-naped honeyeater,aves,passeriformes,meliphagidae,melithreptus,lunatus
+white-eared honeyeater,aves,passeriformes,meliphagidae,nesoptilotis,leucotis
+new holland honeyeater,aves,passeriformes,meliphagidae,phylidonyris,novaehollandiae
+crescent honeyeater,aves,passeriformes,meliphagidae,phylidonyris,pyrrhopterus
+white-plumed honeyeater,aves,passeriformes,meliphagidae,ptilotula,penicillata
+white-fronted honeyeater,aves,passeriformes,meliphagidae,purnella,albifrons
+superb lyrebird,aves,passeriformes,menuridae,menura,novaehollandiae
+magpie-lark,aves,passeriformes,monarchidae,grallina,cyanoleuca
+restless flycatcher,aves,passeriformes,monarchidae,myiagra,inquieta
+australian pipit,aves,passeriformes,motacillidae,anthus,australis
+grey shrike-thrush,aves,passeriformes,pachycephalidae,colluricincla,harmonica
+olive whistler,aves,passeriformes,pachycephalidae,pachycephala,olivacea
+golden whistler,aves,passeriformes,pachycephalidae,pachycephala,pectoralis
+spotted pardalote,aves,passeriformes,pardalotidae,pardalotus,punctatus
+southern scrub-robin,aves,passeriformes,petroicidae,drymodes,brunneopygia
+eastern yellow robin,aves,passeriformes,petroicidae,eopsaltria,australis
+hooded robin,aves,passeriformes,petroicidae,melanodryas,cucullata
+jacky winter,aves,passeriformes,petroicidae,microeca,fascinans
+scarlet robin,aves,passeriformes,petroicidae,petroica,boodang
+flame robin,aves,passeriformes,petroicidae,petroica,phoenicea
+pink robin,aves,passeriformes,petroicidae,petroica,rodinogaster
+rose robin,aves,passeriformes,petroicidae,petroica,rosea
+white-browed babbler,aves,passeriformes,pomatostomidae,pomatostomus,superciliosus
+chestnut quail-thrush,aves,passeriformes,psophodidae,cinclosoma,castanotum
+spotted quail-thrush,aves,passeriformes,psophodidae,cinclosoma,punctatum
+eastern whipbird,aves,passeriformes,psophodidae,psophodes,olivaceus
+satin bowerbird,aves,passeriformes,ptilonorhynchidae,ptilonorhynchus,violaceus
+grey fantail,aves,passeriformes,rhipiduridae,rhipidura,albiscapa
+willie wagtail,aves,passeriformes,rhipiduridae,rhipidura,leucophrys
+rufous fantail,aves,passeriformes,rhipiduridae,rhipidura,rufifrons
+common starling,aves,passeriformes,sturnidae,sturnus,vulgaris
+common blackbird,aves,passeriformes,turdidae,turdus,merula
+bassian thrush,aves,passeriformes,turdidae,zoothera,lunulata
+silvereye,aves,passeriformes,zosteropidae,zosterops,lateralis
+white-faced heron,aves,pelecaniformes,ardeidae,egretta,novaehollandiae
+australian white ibis,aves,pelecaniformes,threskiornithidae,threskiornis,molucca
+short-tailed shearwater,aves,procellariiformes,procellariidae,puffinus,tenuirostris
+yellow-tailed black-cockatoo,aves,psittaciformes,cacatuidae,zanda,funerea
+australian king parrot,aves,psittaciformes,psittacidae,alisterus,scapularis
+australian ringneck,aves,psittaciformes,psittacidae,barnardius,zonarius
+sulphur-crested cockatoo,aves,psittaciformes,psittacidae,cacatua,galerita
+little corella,aves,psittaciformes,psittacidae,cacatua,sanguinea
+long-billed corella,aves,psittaciformes,psittacidae,cacatua,tenuirostris
+galah,aves,psittaciformes,psittacidae,eolophus,roseicapilla
+blue-winged parrot,aves,psittaciformes,psittacidae,neophema,chrysostoma
+blue bonnet,aves,psittaciformes,psittacidae,northiella,haematogaster
+crimson rosella,aves,psittaciformes,psittacidae,platycercus,elegans
+eastern rosella,aves,psittaciformes,psittacidae,platycercus,eximius
+regent parrot,aves,psittaciformes,psittacidae,polytelis,anthopeplus
+red-rumped parrot,aves,psittaciformes,psittacidae,psephotus,haematonotus
+little penguin,aves,sphenisciformes,spheniscidae,eudyptula,minor
+southern boobook,aves,strigiformes,strigidae,ninox,boobook
+eastern barn owl,aves,strigiformes,tytonidae,tyto,javanica
+cattle feral,mammalia,artiodactyla,bovidae,bos,taurus
+goat feral,mammalia,artiodactyla,bovidae,capra,hircus
+sheep feral,mammalia,artiodactyla,bovidae,ovis,aries
+hog deer,mammalia,artiodactyla,cervidae,axis,porcinus
+red deer,mammalia,artiodactyla,cervidae,cervus,elaphus
+fallow deer,mammalia,artiodactyla,cervidae,dama,dama
+sambar deer,mammalia,artiodactyla,cervidae,rusa,unicolor
+pig feral,mammalia,artiodactyla,suidae,sus,scrofa
+dingo,mammalia,carnivora,canidae,canis,dingo
+red fox,mammalia,carnivora,canidae,vulpes,vulpes
+domestic cat feral,mammalia,carnivora,felidae,felis,catus
+bat,mammalia,chiroptera,,,
+agile antechinus,mammalia,dasyuromorphia,dasyuridae,antechinus,agilis
+yellow-footed antechinus,mammalia,dasyuromorphia,dasyuridae,antechinus,flavipes
+swamp antechinus,mammalia,dasyuromorphia,dasyuridae,antechinus,minimus
+mainland dusky antechinus,mammalia,dasyuromorphia,dasyuridae,antechinus,swainsonii
+spot-tailed quoll,mammalia,dasyuromorphia,dasyuridae,dasyurus,maculatus
+brush-tailed phascogale,mammalia,dasyuromorphia,dasyuridae,phascogale,tapoatafa
+gile's planigale,mammalia,dasyuromorphia,dasyuridae,planigale,gilesi
+white-footed dunnart,mammalia,dasyuromorphia,dasyuridae,sminthopsis,leucopus
+common dunnart,mammalia,dasyuromorphia,dasyuridae,sminthopsis,murina
+feather-tailed glider species,mammalia,diprotodontia,acrobatidae,acrobates,
+narrow-toed feathertail glider,mammalia,diprotodontia,acrobatidae,acrobates,frontalis
+eastern pygmy-possum,mammalia,diprotodontia,burramyidae,cercartetus,nanus
+western grey kangaroo,mammalia,diprotodontia,macropodidae,macropus,fuliginosus
+eastern grey kangaroo,mammalia,diprotodontia,macropodidae,macropus,giganteus
+red kangaroo,mammalia,diprotodontia,macropodidae,macropus,rufus
+black-tailed wallaby,mammalia,diprotodontia,macropodidae,wallabia,bicolor
+red-necked wallaby,mammalia,diprotodontia,macropodidae,notamacropus,rufogriseus
+brush-tailed rock-wallaby,mammalia,diprotodontia,macropodidae,petrogale,penicillata
+leadbeater's possum,mammalia,diprotodontia,petauridae,gymnobelideus,leadbeateri
+yellow-bellied glider,mammalia,diprotodontia,petauridae,petaurus,australis
+sugar glider,mammalia,diprotodontia,petauridae,petaurus,breviceps
+mountain brush-tailed possum,mammalia,diprotodontia,phalangeridae,trichosurus,cunninghami
+common brush-tailed possum,mammalia,diprotodontia,phalangeridae,trichosurus,vulpecula
+koala,mammalia,diprotodontia,phascolarctidae,phascolarctos,cinereus
+long-footed potoroo,mammalia,diprotodontia,potoroidae,potorous,longipes
+long-nosed potoroo,mammalia,diprotodontia,potoroidae,potorous,tridactylus
+southern greater glider,mammalia,diprotodontia,pseudocheiridae,petauroides,volans
+eastern ring-tailed possum,mammalia,diprotodontia,pseudocheiridae,pseudocheirus,peregrinus
+bare-nosed wombat,mammalia,diprotodontia,vombatidae,vombatus,ursinus
+lagomorph spp,mammalia,lagomorpha,leporidae,,
+european brown hare,mammalia,lagomorpha,leporidae,lepus,europaeus
+european rabbit,mammalia,lagomorpha,leporidae,oryctolagus,cuniculus
+platypus,mammalia,monotremata,ornithorhynchidae,ornithorhynchus,anatinus
+short-beaked echidna,mammalia,monotremata,tachyglossidae,tachyglossus,aculeatus
+southern brown bandicoot,mammalia,peramelemorphia,peramelidae,isoodon,obesulus
+eastern barred bandicoot,mammalia,peramelemorphia,peramelidae,perameles,gunnii
+southern long-nosed bandicoot,mammalia,peramelemorphia,peramelidae,perameles,nasuta
+donkey,mammalia,perissodactyla,equidae,equus,asinus
+horse feral,mammalia,perissodactyla,equidae,equus,caballus
+water rat,mammalia,rodentia,muridae,hydromys,chrysogaster
+broad-toothed rat,mammalia,rodentia,muridae,mastacomys,fuscus
+house mouse,mammalia,rodentia,muridae,mus,musculus
+mitchell's hopping-mouse,mammalia,rodentia,muridae,notomys,mitchellii
+silky mouse,mammalia,rodentia,muridae,pseudomys,apodemoides
+smoky mouse,mammalia,rodentia,muridae,pseudomys,fumeus
+bush rat,mammalia,rodentia,muridae,rattus,fuscipes
+swamp rat,mammalia,rodentia,muridae,rattus,lutreolus
+black rat,mammalia,rodentia,muridae,rattus,rattus
+tree dragon,reptilia,squamata,agamidae,amphibolurus,muricatus
+painted dragon,reptilia,squamata,agamidae,ctenophorus,pictus
+nobbi dragon,reptilia,squamata,agamidae,diporiphora,nobbi
+central bearded dragon,reptilia,squamata,agamidae,pogona,vitticeps
+highland copperhead,reptilia,squamata,elapidae,austrelaps,ramsayi
+tiger snake,reptilia,squamata,elapidae,notechis,scutatus
+red-bellied black snake,reptilia,squamata,elapidae,pseudechis,porphyriacus
+eastern brown snake,reptilia,squamata,elapidae,pseudonaja,textilis
+skink spp,reptilia,squamata,scincidae,,
+black rock skink,reptilia,squamata,scincidae,egernia,saxatilis
+yellow-bellied water skink,reptilia,squamata,scincidae,eulamprus,heatwolei
+delicate skink,reptilia,squamata,scincidae,lampropholis,delicata
+garden skink,reptilia,squamata,scincidae,lampropholis,guichenoti
+blotched blue-tongued lizard,reptilia,squamata,scincidae,tiliqua,nigrolutea
+stumpy-tailed lizard,reptilia,squamata,scincidae,tiliqua,rugosa
+common blue-tongued lizard,reptilia,squamata,scincidae,tiliqua,scincoides
+snake spp,reptilia,squamata,serpentes,,
+sand goanna,reptilia,squamata,varanidae,varanus,gouldii
+lace monitor,reptilia,squamata,varanidae,varanus,varius
+lizard spp,reptilia,squamata,,,
+false detection,,,,,

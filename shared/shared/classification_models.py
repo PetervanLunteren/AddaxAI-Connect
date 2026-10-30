@@ -70,10 +70,6 @@ MODEL_ZOO_URL = "https://docs.addaxai.com/docs/reference/model-zoo"
 SPECIESNET_ID = "SPECIESNET-v4-0-1-A-v1"
 DEEPFAUNE_ID = "EUR-DF-v1-4"
 
-# Not in the catalog yet: SBUSA-ADS-v1, VIC-ADS-v1 and ANT-ADS-v1. Their
-# taxonomy.csv on HuggingFace does not match the class names of their
-# inference.py, so the label check at load time refuses them. Add them
-# back, with their CSV vendored, once the files on HuggingFace agree.
 _MODELS = [
     ClassificationModel(
         SPECIESNET_ID, "SpeciesNet v4.0.1", "Global, 2,000+ classes, labels from your own list",
@@ -125,6 +121,13 @@ _MODELS = [
         "southwest_v3.pt",
     ),
     ClassificationModel(
+        "SBUSA-ADS-v1", "US Southwest borderlands", "Arizona and the Mexican border, 68 classes",
+        "Addax Data Science", "americas", "🇺🇸",
+        "https://www.apache.org/licenses/LICENSE-2.0",
+        FIXED, "b8f90403a8b42a7ff73dca13c893b1ee7c0c1976", 550,
+        "final-20260109.pt",
+    ),
+    ClassificationModel(
         "HWI-ADS-v1", "Hawaiʻi", "Hawaiian islands, 15 classes",
         "Addax Data Science", "americas", "🇺🇸",
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
@@ -172,6 +175,20 @@ _MODELS = [
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
         FIXED, "a1cf611bac585569fb6f6717cd1a0e955267be41", 250,
         "awc-135-v1.pth",
+    ),
+    ClassificationModel(
+        "VIC-ADS-v1", "Victoria", "Victoria in Australia, 212 classes",
+        "Addax Data Science for Parks Victoria", "oceania", "🇦🇺",
+        "https://huggingface.co/Addax-Data-Science/VIC-ADS-v1/blob/main/LICENSE.txt",
+        FIXED, "270fbb1a7dff4490ca38e481988ba8b48c53fe7f", 550,
+        "final-20251221.pt",
+    ),
+    ClassificationModel(
+        "ANT-ADS-v1", "Top End savanna", "Northern Australia, 140 classes",
+        "Addax Data Science", "oceania", "🇦🇺",
+        "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
+        FIXED, "9a10b6411deacc4ade751b56a104fd38dce7b27a", 550,
+        "final-20260417.pt",
     ),
     ClassificationModel(
         "QLD-WOB-v1", "Queensland Wet Tropics", "Wet Tropics rainforest, 15 classes",
