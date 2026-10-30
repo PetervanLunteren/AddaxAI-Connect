@@ -1,4 +1,3 @@
 # Shared runtime deps come from the shared package (shared/pyproject.toml),
-# including httpx for the Cluey client. Pillow downscales the attachment to
-# the thumbnail Cluey wants; same pin as the other services.
-Pillow==12.3.0
+# including httpx for the Cluey client and Pillow, which downscales the
+# attachment to the thumbnail Cluey wants. Nothing service-specific yet.

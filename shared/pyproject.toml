@@ -16,6 +16,12 @@ requires-python = ">=3.11"
 # psycopg2-binary and asyncpg are the sync and async SQLAlchemy drivers for
 # the URLs database.py builds. No module imports either by name, but every
 # service that opens a session needs them, so they are shared deps.
+#
+# Pillow is here because shared/privacy.py draws the placeholder and seven of
+# the nine images decode uploads with it. One pin keeps the decoder the same
+# everywhere, including detection and speciesnet, which used to take whatever
+# their ML packages resolved, and Dependabot reports one manifest instead of
+# seven.
 dependencies = [
     "sqlalchemy==2.0.23",
     "psycopg2-binary==2.9.9",
@@ -28,6 +34,7 @@ dependencies = [
     "python-json-logger==2.0.7",
     "jinja2==3.1.6",
     "httpx==0.25.2",
+    "Pillow==13.0.0",
 ]
 
 [tool.setuptools.packages.find]
