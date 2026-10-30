@@ -120,6 +120,7 @@ class RedisQueue:
         queues: list[str],
         callback: Callable[[dict], None],
         heartbeat_key: Optional[str] = None,
+        on_tick: Optional[Callable[[], None]] = None,
     ) -> None:
         """
         Consume from multiple queues in strict priority order.
@@ -144,12 +145,17 @@ class RedisQueue:
             queues: Queue names in priority order (highest first).
             callback: Function called with the message dict.
             heartbeat_key: Redis key to stamp each iteration, or None.
+            on_tick: Called each iteration next to the heartbeat, for state
+                the worker publishes alongside it (the classification
+                worker's loaded models). It must not raise.
         """
         logger.info("Worker listening on priority queues", queues=queues)
         while True:
             try:
                 if heartbeat_key:
                     self.stamp_heartbeat(heartbeat_key)
+                if on_tick:
+                    on_tick()
                 result = self.client.brpop(queues, timeout=HEARTBEAT_TICK_SECONDS)
             except (redis.ConnectionError, redis.TimeoutError) as e:
                 logger.warning(

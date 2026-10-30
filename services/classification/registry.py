@@ -99,27 +99,40 @@ class ModelRegistry:
         self.models_dir = models_dir
         self._loaders = loaders
         self._models: Dict[str, LoadedModel] = {}
+        self._failed: Dict[str, str] = {}  # model id -> why it did not load
 
     @property
     def loaded(self) -> list[str]:
         return sorted(self._models)
 
     def get(self, model_id: str) -> LoadedModel:
-        """The loaded model, loading it first when this is its first use."""
+        """The loaded model, loading it first when this is its first use.
+
+        A model that failed to load is not tried again until the worker
+        restarts: a failed load leaked about 280 MB per attempt on dev, and
+        every image of that project would repeat it until the worker ran out
+        of memory. Its images fail fast with the first error instead."""
+        if model_id in self._failed:
+            raise RuntimeError(self._failed[model_id])
         if model_id not in self._models:
             model = get_model(model_id)
             if self._loaders is None:
                 self._loaders = _default_loaders()
             logger.info("Loading model", model=model.id, device=self.device)
-            model_dir = ensure_downloaded(model, self.models_dir)
-            self._models[model_id] = self._loaders[model.kind](model, model_dir, self.device)
-            release_freed_memory()
+            try:
+                model_dir = ensure_downloaded(model, self.models_dir)
+                self._models[model_id] = self._loaders[model.kind](model, model_dir, self.device)
+            except Exception as e:
+                self._failed[model_id] = f"{model_id} did not load, fix it and restart the worker: {e}"
+                raise
+            finally:
+                release_freed_memory()
             logger.info("Model loaded", model=model.id, loaded=self.loaded)
         return self._models[model_id]
 
     def load_all(self, model_ids: Iterable[str]) -> None:
         """Load the given models, going on past one that fails: its images
-        fail visibly later, and a retry happens on their next image."""
+        fail visibly later, until the worker is restarted with it fixed."""
         for model_id in model_ids:
             try:
                 self.get(model_id)

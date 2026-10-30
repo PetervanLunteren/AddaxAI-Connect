@@ -584,7 +584,9 @@ def process_detection_complete(message: dict, registry: ModelRegistry) -> None:
 
 def report_models(queue: RedisQueue, registry: ModelRegistry) -> None:
     """Tell the API which models are loaded and how much memory is free, so
-    the create dialog knows which models a new project can still pick."""
+    the create dialog knows which models a new project can still pick. Runs
+    on every heartbeat tick, so the report outlives a Redis restart and picks
+    up a model loaded on first use within a minute."""
     try:
         queue.record_models(MODELS_KEY_CLASSIFICATION, available_memory_mb(), registry.loaded)
     except Exception as e:
@@ -604,23 +606,19 @@ def main():
     # Initialize queue consumer. Priority BRPOP keeps live ahead of bulk.
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
     queue.record_device(DEVICE_KEY_CLASSIFICATION, device)
-    report_models(queue, registry)
     priority_queues = [QUEUE_DETECTION_COMPLETE, QUEUE_DETECTION_COMPLETE_BULK]
 
     # Process messages forever. Each image reads its own project's config.
-    # The report after each message picks up a model loaded on first use.
     def handle_message(msg):
-        try:
-            process_detection_complete(msg, registry)
-        finally:
-            report_models(queue, registry)
+        process_detection_complete(msg, registry)
         # Only reached when classification succeeded (it raises on failure).
         if msg.get("origin") == "bulk":
             tier_bulk_raw_cold(msg.get("image_uuid"))
 
     logger.info("Listening for messages", queues=priority_queues)
     queue.consume_forever_priority(
-        priority_queues, handle_message, heartbeat_key=HEARTBEAT_KEY_CLASSIFICATION
+        priority_queues, handle_message, heartbeat_key=HEARTBEAT_KEY_CLASSIFICATION,
+        on_tick=lambda: report_models(queue, registry),
     )
 
 

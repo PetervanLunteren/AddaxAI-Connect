@@ -57,6 +57,28 @@ class TestGet:
             raise AssertionError("expected KeyError")
 
 
+class TestFailedLoad:
+    def test_is_not_retried_and_memory_is_trimmed(self, monkeypatch, tmp_path):
+        reg, calls = _registry(monkeypatch, tmp_path, fail={DEEPFAUNE_ID})
+        trims = []
+        monkeypatch.setattr(registry, "release_freed_memory", lambda: trims.append(1))
+        errors = []
+        for _ in range(2):
+            try:
+                reg.get(DEEPFAUNE_ID)
+            except RuntimeError as e:
+                errors.append(str(e))
+            else:
+                raise AssertionError("expected RuntimeError")
+        assert errors[0] == "boom", "the first image sees the real error"
+        assert "boom" in errors[1] and "restart the worker" in errors[1]
+        assert len(calls) == 1, "a failed model must not be loaded again"
+        assert trims == [1], "the memory the failed load touched is handed back once"
+        assert reg.loaded == []
+        # another model still loads
+        assert reg.get(SPECIESNET_ID) is not None
+
+
 class TestLoadAll:
     def test_goes_on_past_a_failing_model(self, monkeypatch, tmp_path):
         reg, calls = _registry(monkeypatch, tmp_path, fail={DEEPFAUNE_ID})

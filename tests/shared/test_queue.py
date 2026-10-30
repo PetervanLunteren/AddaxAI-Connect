@@ -151,6 +151,24 @@ def test_consume_forever_priority_stamps_heartbeat_each_iteration():
     assert fake.brpop_timeouts == [HEARTBEAT_TICK_SECONDS, HEARTBEAT_TICK_SECONDS]
 
 
+def test_consume_forever_priority_calls_on_tick_each_iteration():
+    """The classification worker publishes its loaded models on every tick,
+    so the report comes back after a Redis restart without waiting for an
+    image."""
+    queue = RedisQueue(QUEUE_IMAGE_INGESTED)
+    fake = FakeRedisClient([None, (QUEUE_IMAGE_INGESTED, json.dumps({"x": 1}))])
+    queue.client = fake
+    ticks = []
+
+    def callback(message):
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        queue.consume_forever_priority(PRIORITY, callback, on_tick=lambda: ticks.append(1))
+
+    assert ticks == [1, 1]
+
+
 def test_consume_forever_priority_without_heartbeat_never_stamps():
     """The bulk-upload worker passes no key and must keep working."""
     queue = RedisQueue(QUEUE_IMAGE_INGESTED)

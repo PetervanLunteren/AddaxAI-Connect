@@ -13,6 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.models import TaxonomyMapping
 
 
+MAX_LABEL_LENGTH = 255  # the width of taxonomy_mapping.latin and .common
+
+
 def parse_taxonomy_csv(text: str) -> list[tuple[str, str]]:
     """(latin, common) rows from the mapping CSV text.
 
@@ -50,6 +53,8 @@ def parse_taxonomy_csv(text: str) -> list[tuple[str, str]]:
             raise ValueError(f"Row {i}: empty 'common' value")
         if latin in seen_latin:
             raise ValueError(f"Row {i}: duplicate latin value '{latin}'")
+        if len(latin) > MAX_LABEL_LENGTH or len(common) > MAX_LABEL_LENGTH:
+            raise ValueError(f"Row {i}: a value is longer than {MAX_LABEL_LENGTH} characters")
 
         seen_latin.add(latin)
         rows.append((latin, common))

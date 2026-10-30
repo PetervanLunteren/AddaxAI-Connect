@@ -17,7 +17,7 @@ _api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "serv
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from utils.taxonomy_csv import parse_taxonomy_csv  # noqa: E402
+from utils.taxonomy_csv import MAX_LABEL_LENGTH, parse_taxonomy_csv  # noqa: E402
 from shared.classification_models import DEEPFAUNE_ID, SPECIESNET_ID  # noqa: E402
 
 
@@ -51,6 +51,10 @@ class TestParseTaxonomyCsv:
     def test_duplicate_latin(self):
         with pytest.raises(ValueError, match="Row 3: duplicate latin value 'aves'"):
             parse_taxonomy_csv("latin,common\naves,bird\nAves,other bird\n")
+
+    def test_a_value_longer_than_the_column_is_refused(self):
+        with pytest.raises(ValueError, match=f"Row 2: a value is longer than {MAX_LABEL_LENGTH}"):
+            parse_taxonomy_csv("latin,common\naves," + "x" * (MAX_LABEL_LENGTH + 1) + "\n")
 
     def test_the_users_own_label_wins_over_the_speciesnet_name(self):
         # The mapper's download: common is SpeciesNet's name, original_common
