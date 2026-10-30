@@ -181,6 +181,21 @@ docker compose down && docker compose up -d
 
 Restarting a worker is safe. It will pick up where it left off since messages stay in the Redis queue until a worker acknowledges them.
 
+### Making room for another species model
+
+Each project picks a species model, and the classification worker keeps
+every model it has used in memory until it restarts. When the create project
+dialog says the server cannot take another model, free memory like this:
+
+1. In the web app, delete the projects that use models nobody needs anymore.
+   The dialog names the models that are loaded.
+2. Restart the worker: `docker compose restart classification`. It comes back
+   with only the models that projects still use.
+
+If every loaded model is still in use, the choice is a smaller model or a
+server with more memory. The dialog shows what the model needs and what is
+free.
+
 ## Common issues
 
 **Images uploading but not showing up:** check the ingestion logs and the File management page. Most likely a missing camera profile or missing metadata.

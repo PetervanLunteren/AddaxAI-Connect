@@ -75,6 +75,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
   }, [models]);
   const selectedModel = models?.find((m) => m.id === modelId);
   const requireTaxonomy = selectedModel?.kind === 'speciesnet';
+  // Named in the memory warning, so the admin knows which projects hold memory.
+  const loadedNames = (models ?? []).filter((m) => m.loaded).map((m) => m.name);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -294,7 +296,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               </p>
               {selectedModel && !selectedModel.fits && (
                 <Callout variant="warning" className="mt-2">
-                  This model cannot be picked right now. {selectedModel.reason}.
+                  {selectedModel.reason}
+                  {loadedNames.length > 0 && ` Loaded now are ${loadedNames.join(', ')}.`}
                 </Callout>
               )}
             </div>

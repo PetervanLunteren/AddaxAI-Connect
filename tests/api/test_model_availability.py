@@ -47,7 +47,15 @@ class TestListModels:
         models = _by_id(ma.list_models())
         assert models[SPECIESNET_ID].fits and models[SPECIESNET_ID].reason is None
         assert not models[DEEPFAUNE_ID].fits
-        assert models[DEEPFAUNE_ID].reason == ma.NOT_ENOUGH_MEMORY
+        assert models[DEEPFAUNE_ID].reason == ma.not_enough_memory(CLASSIFICATION_MODELS[DEEPFAUNE_ID], 3000, [])
+
+    def test_the_memory_reason_carries_the_numbers_and_the_remedy(self):
+        reason = ma.not_enough_memory(CLASSIFICATION_MODELS[DEEPFAUNE_ID], 3000, ["a", "b"])
+        assert "2.9 GB of memory free" in reason
+        assert "2 models loaded" in reason
+        assert "needs 2.3 GB plus a 1 GB safety margin" in reason
+        assert "restart the worker" in reason
+        assert "1 model loaded" in ma.not_enough_memory(CLASSIFICATION_MODELS[DEEPFAUNE_ID], 3000, ["a"])
 
     def test_loaded_models_always_fit(self, monkeypatch):
         _stub(monkeypatch, available_mb=100, loaded=[DEEPFAUNE_ID])
@@ -75,4 +83,4 @@ class TestCheckModel:
 
     def test_reason_when_it_does_not(self, monkeypatch):
         _stub(monkeypatch, available_mb=100)
-        assert ma.check_model(CLASSIFICATION_MODELS[DEEPFAUNE_ID]) == ma.NOT_ENOUGH_MEMORY
+        assert ma.check_model(CLASSIFICATION_MODELS[DEEPFAUNE_ID]).startswith("This server cannot take another model")

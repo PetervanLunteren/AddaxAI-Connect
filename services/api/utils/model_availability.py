@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from shared.classification_models import (
     CLASSIFICATION_MODELS,
+    MEMORY_MARGIN_MB,
     ClassificationModel,
     fits_in_memory,
 )
@@ -30,7 +31,19 @@ from shared.queue import (
 )
 
 WORKER_DOWN = "The classification worker is not running, ask the server admin"
-NOT_ENOUGH_MEMORY = "Not enough memory on this server for another model, ask the server admin"
+
+
+def not_enough_memory(model: ClassificationModel, available_mb: int, loaded: list[str]) -> str:
+    """Why the model does not fit, with the numbers and what to do about it.
+    Shown in the create dialog and returned by the create endpoint."""
+    n = len(loaded)
+    return (
+        f"This server cannot take another model right now. It has {available_mb / 1024:.1f} GB of memory free "
+        f"and {n} model{'' if n == 1 else 's'} loaded, and this one needs {model.memory_mb / 1024:.1f} GB plus a "
+        f"{MEMORY_MARGIN_MB / 1024:.0f} GB safety margin. A model stays in memory until the classification worker "
+        "restarts, so remove the projects that use models you no longer need and have the server admin restart "
+        "the worker, or pick a model that fits."
+    )
 
 
 class ModelAvailability(BaseModel):
@@ -72,7 +85,7 @@ def _availability(model: ClassificationModel, available_mb: Optional[int], loade
     elif fits_in_memory(model, available_mb, loaded):
         fits, reason = True, None
     else:
-        fits, reason = False, NOT_ENOUGH_MEMORY
+        fits, reason = False, not_enough_memory(model, available_mb, loaded)
     return ModelAvailability(
         id=model.id, name=model.name, description=model.description,
         developer=model.developer, region=model.region, emoji=model.emoji,
