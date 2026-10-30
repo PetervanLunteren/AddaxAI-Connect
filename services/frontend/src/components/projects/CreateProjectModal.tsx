@@ -187,11 +187,11 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent onClose={handleClose}>
+      <DialogContent onClose={handleClose} className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Create project</DialogTitle>
           <DialogDescription>
-            Create a new wildlife monitoring project with a name, description, and optional image.
+            The cameras of one area, with the species model that names their animals.
           </DialogDescription>
         </DialogHeader>
 
@@ -200,7 +200,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {/* Project Name */}
             <div>
               <label htmlFor="name" className="text-sm font-medium block mb-1">
-                Project name <span className="text-destructive">*</span>
+                Project name
               </label>
               <input
                 id="name"
@@ -217,13 +217,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {/* Description */}
             <div>
               <label htmlFor="description" className="text-sm font-medium block mb-1">
-                Description
+                Description <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief description of the project (optional)"
+                placeholder="Brief description of the project"
                 rows={3}
                 className="w-full px-3 py-2 border rounded-md resize-none"
               />
@@ -232,7 +232,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {/* Country, and the state for the USA */}
             <div>
               <label className="text-sm font-medium block mb-1">
-                Country <span className="text-destructive">*</span>
+                Country
               </label>
               <CountrySelect
                 value={countryCode}
@@ -248,7 +248,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {countryCode === 'USA' && (
               <div>
                 <label className="text-sm font-medium block mb-1">
-                  State (optional)
+                  State <span className="font-normal text-muted-foreground">(optional)</span>
                 </label>
                 <StateSelect value={admin1Region} onChange={setAdmin1Region} />
               </div>
@@ -257,7 +257,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {/* Species model, locked after creation */}
             <div>
               <label htmlFor="model" className="text-sm font-medium block mb-1">
-                Species model <span className="text-destructive">*</span>
+                Species model
               </label>
               <select
                 id="model"
@@ -282,8 +282,18 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               </select>
               <p className="text-xs text-muted-foreground mt-1">
                 {selectedModel
-                  ? `${selectedModel.description}. By ${selectedModel.developer}. The model cannot be changed later.`
-                  : 'The AI model that names the animals. Pick the one made for your region. It cannot be changed later.'}
+                  ? `${selectedModel.description}. By ${selectedModel.developer}.`
+                  : 'Pick the model made for your region.'}{' '}
+                It cannot be changed later. More about each model in the{' '}
+                <a
+                  href="https://docs.addaxai.com/docs/reference/model-zoo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  model zoo
+                </a>
+                .
               </p>
               {unavailableReasons.map((reason) => (
                 <p key={reason} className="text-xs text-muted-foreground mt-1">
@@ -296,7 +306,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {requireTaxonomy && (
               <div>
                 <label className="text-sm font-medium block mb-1">
-                  Species labels <span className="text-destructive">*</span>
+                  Species labels
                 </label>
                 <TaxonomyDropzone file={taxonomyFile} onFileChange={setTaxonomyFile} />
                 <p className="text-xs text-muted-foreground mt-1">
@@ -317,7 +327,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {/* Image Upload */}
             <div>
               <label className="text-sm font-medium block mb-1">
-                Project image (optional)
+                Project image <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
 
               {imagePreview ? (

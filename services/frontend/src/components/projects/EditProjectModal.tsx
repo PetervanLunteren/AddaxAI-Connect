@@ -146,7 +146,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent onClose={handleClose}>
+      <DialogContent onClose={handleClose} className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit project</DialogTitle>
           <DialogDescription>
@@ -159,7 +159,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
             {/* Project Name */}
             <div>
               <label htmlFor="name" className="text-sm font-medium block mb-1">
-                Project name <span className="text-destructive">*</span>
+                Project name
               </label>
               <input
                 id="name"
@@ -176,13 +176,13 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
             {/* Description */}
             <div>
               <label htmlFor="description" className="text-sm font-medium block mb-1">
-                Description
+                Description <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief description of the project (optional)"
+                placeholder="Brief description of the project"
                 rows={3}
                 className="w-full px-3 py-2 border rounded-md resize-none"
               />
@@ -191,7 +191,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
             {/* Image Upload/Replace */}
             <div>
               <label className="text-sm font-medium block mb-1">
-                Project image
+                Project image <span className="font-normal text-muted-foreground">(optional)</span>
               </label>
 
               {showNewImage ? (
