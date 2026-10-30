@@ -10,7 +10,7 @@ The species_taxonomy table goes too. It held DeepFaune's scientific names,
 which now come from the model's vendored taxonomy.csv like every other
 fixed-class model's.
 
-Revision ID: 20261030_project_classification_model
+Revision ID: 20261030_project_model
 Revises: 20261014_project_taxonomy
 Create Date: 2026-10-30
 
@@ -19,7 +19,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = '20261030_project_classification_model'
+revision = '20261030_project_model'
 down_revision = '20261014_project_taxonomy'
 branch_labels = None
 depends_on = None
