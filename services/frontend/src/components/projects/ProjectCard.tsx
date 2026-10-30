@@ -110,7 +110,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
 
           {country && (
             <span
-              className="absolute top-2 left-2 rounded-md bg-white/90 px-1.5 py-0.5 text-lg leading-none"
+              className="absolute top-2 left-2 text-4xl leading-none drop-shadow-md"
               title={country.name}
               aria-label={country.name}
             >
