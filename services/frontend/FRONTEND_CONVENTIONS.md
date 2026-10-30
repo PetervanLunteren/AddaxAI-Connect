@@ -10,7 +10,6 @@ This document outlines the conventions, patterns, and design decisions for the A
 - **State Management**:
   - TanStack Query (React Query) for server state
   - Zustand for client state (when needed)
-- **Forms**: React Hook Form + Zod validation
 - **Styling**: Tailwind CSS v3
 - **UI Components**: shadcn/ui (Radix UI primitives)
 
@@ -134,38 +133,12 @@ Location: `src/components/ui/`
 - `ImpactBox`: The box in a destructive dialog that says what the action does, a heading with bullets ("This will delete", no colon), red for a delete and grey for an action that keeps data, with optional named rows. Every delete dialog uses it, never a hand-rolled red div. `ConfirmWordField` goes under it
 - `Card`: Content containers
 - `Dialog`: Modals/popups
-- `Form`: Form wrapper with context
 - `Input`: Text inputs
 - `Label`: Form labels
 - `Textarea`: Multi-line text (when needed)
 
 **Adding New Components:**
 Use the shadcn CLI pattern - copy from [ui.shadcn.com](https://ui.shadcn.com) and adapt.
-
-### Form Pattern
-
-Standard pattern for forms using React Hook Form + Zod:
-
-```tsx
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-
-const schema = z.object({
-  name: z.string().min(1, "Name is required"),
-  optional_field: z
-    .string()
-    .optional()
-    .transform((val) => (val === "" ? undefined : val)),
-});
-
-const form = useForm({
-  resolver: zodResolver(schema),
-  defaultValues: { name: "", optional_field: "" },
-});
-```
-
-**Important**: Transform empty strings to `undefined` for optional fields to match backend expectations.
 
 ### Dialog Pattern
 
