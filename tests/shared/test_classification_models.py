@@ -6,6 +6,7 @@ from shared.classification_models import (
     DEEPFAUNE_ID,
     FIXED,
     MEMORY_MARGIN_MB,
+    MODEL_ZOO_URL,
     SPECIESNET,
     SPECIESNET_ID,
     TAXONOMY_DIR,
@@ -45,6 +46,10 @@ class TestCatalog:
             if model.kind == FIXED:
                 assert (TAXONOMY_DIR / f"{model.id}.csv").exists(), model.id
                 assert class_labels(model.id), model.id
+
+    def test_info_url_is_the_zoo_entry_except_for_speciesnet(self):
+        assert get_model(DEEPFAUNE_ID).info_url == f"{MODEL_ZOO_URL}#{DEEPFAUNE_ID}"
+        assert get_model(SPECIESNET_ID).info_url.startswith("https://github.com/google/")
 
     def test_hf_repo(self):
         assert get_model(DEEPFAUNE_ID).hf_repo == "Addax-Data-Science/EUR-DF-v1-4"
@@ -89,7 +94,7 @@ class TestTaxonomy:
 
 class TestFitsInMemory:
     model = ClassificationModel(
-        "X", "X", "", "", "europe", "", "https://x", "https://x", FIXED, "0" * 40, 1000, "x.pt",
+        "X", "X", "", "", "europe", "", "https://x", FIXED, "0" * 40, 1000, "x.pt",
     )
 
     def test_loaded_always_fits(self):

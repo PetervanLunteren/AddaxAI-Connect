@@ -47,7 +47,6 @@ class ClassificationModel:
     region: str        # europe, africa, americas, asia, oceania or global
     emoji: str
     licence_url: str
-    info_url: str
     kind: str          # FIXED or SPECIESNET
     revision: str      # pinned commit of the HuggingFace repo
     memory_mb: int     # peak worker memory while loading, measured on a CPU server
@@ -57,7 +56,17 @@ class ClassificationModel:
     def hf_repo(self) -> str:
         return f"Addax-Data-Science/{self.id}"
 
+    @property
+    def info_url(self) -> str:
+        """The model's page in the AddaxAI model zoo. The zoo lists SpeciesNet
+        as v4.0.2 while Connect runs v4.0.1, so that one links to Google's
+        repo until the two agree."""
+        if self.kind == SPECIESNET:
+            return "https://github.com/google/cameratrapai"
+        return f"{MODEL_ZOO_URL}#{self.id}"
 
+
+MODEL_ZOO_URL = "https://docs.addaxai.com/docs/reference/model-zoo"
 SPECIESNET_ID = "SPECIESNET-v4-0-1-A-v1"
 DEEPFAUNE_ID = "EUR-DF-v1-4"
 
@@ -66,7 +75,6 @@ _MODELS = [
         SPECIESNET_ID, "SpeciesNet v4.0.1", "Global, 2,000+ classes, labels from your own list",
         "Google", "global", "🌏",
         "https://github.com/google/cameratrapai/blob/main/LICENSE",
-        "https://github.com/google/cameratrapai",
         SPECIESNET, "db268f48de597aa6d4d528e7e59620ab078ee65f", 400,
         "always_crop_99710272_22x8_v12_epoch_00148.pt",
     ),
@@ -74,7 +82,6 @@ _MODELS = [
         DEEPFAUNE_ID, "DeepFaune v1.4", "European wildlife, 38 classes",
         "The DeepFaune initiative", "europe", "🇪🇺",
         "https://creativecommons.org/licenses/by-sa/4.0/",
-        "https://www.deepfaune.cnrs.fr/en/",
         FIXED, "6ee6f4979d044b07b8244d9a50bd4175cfa4575a", 2400,
         "deepfaune-vit_large_patch14_dinov2.lvd142m.v4.pt",
     ),
@@ -82,7 +89,6 @@ _MODELS = [
         "EUR-DF-v1-5", "DeepFaune v1.5", "European wildlife, 40 classes, adds mongoose and arctic fox",
         "The DeepFaune initiative", "europe", "🇪🇺",
         "https://creativecommons.org/licenses/by-sa/4.0/",
-        "https://www.deepfaune.cnrs.fr/en/",
         FIXED, "b611e13c54858f6e54655644c03e14d797ce4bf1", 2400,
         "deepfaune-vit_large_patch16_dinov3.lvd1689m.pt",
     ),
@@ -90,7 +96,6 @@ _MODELS = [
         "SAH-DRY-ADS-v1", "Sub-Saharan Drylands", "East and Southern African savannas, 326 classes",
         "Addax Data Science", "africa", "🌵",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-        "https://addaxdatascience.com/",
         FIXED, "5463803150e233fce967f0f4a6561b04e7261e44", 450,
         "sub_saharan_drylands_v1.pt",
     ),
@@ -98,7 +103,6 @@ _MODELS = [
         "AFR-DFV-v2", "DeepForestVision v2", "African tropical forests, 61 classes",
         "Hugo Magaldi, One Forest Vision initiative", "africa", "🌳",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-        "https://www.oneforestvision.org",
         FIXED, "d9bb75c49f716ba3ba1fba9cf5661c7ef45ba9bd", 700,
         "DeepForestVisionV2.pth",
     ),
@@ -106,7 +110,6 @@ _MODELS = [
         "WUSA-SDZWA-v1", "Western USA", "Western United States, 51 classes",
         "San Diego Zoo Wildlife Alliance", "americas", "🇺🇸",
         "https://opensource.org/license/mit",
-        "https://github.com/conservationtechlab",
         FIXED, "6f28f67c679eaf3b8fbcb924f6a1ba4290bb2540", 450,
         "sdzwa_westernus_v1_efficientnet.pt",
     ),
@@ -114,7 +117,6 @@ _MODELS = [
         "SWUSA-SDZWA-v3", "Southwest USA", "Southwestern United States, 27 classes",
         "San Diego Zoo Wildlife Alliance", "americas", "🇺🇸",
         "https://opensource.org/license/mit",
-        "https://github.com/conservationtechlab",
         FIXED, "cdf3149ec6c73608e42fee2cb244e946d8db7d4b", 450,
         "southwest_v3.pt",
     ),
@@ -122,7 +124,6 @@ _MODELS = [
         "SBUSA-ADS-v1", "US Southwest borderlands", "Arizona and the Mexican border, 69 classes",
         "Addax Data Science", "americas", "🇺🇸",
         "https://www.apache.org/licenses/LICENSE-2.0",
-        "https://www.tonation-nsn.gov/natural-resources/wildlife-and-vegetation/",
         FIXED, "b610f80bf9a936848bfd8f8b311be953bc0fbecf", 550,
         "final-20260109.pt",
     ),
@@ -130,7 +131,6 @@ _MODELS = [
         "HWI-ADS-v1", "Hawaiʻi", "Hawaiian islands, 15 classes",
         "Addax Data Science", "americas", "🇺🇸",
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
-        "https://huggingface.co/Addax-Data-Science/HWI-ADS-v1",
         FIXED, "427157560b4c51e012fa6f51e3a43b032c091452", 550,
         "final-20260317.pt",
     ),
@@ -138,7 +138,6 @@ _MODELS = [
         "ARC-ADS-v1", "Subarctic and low Arctic", "Northern Canada, 39 classes",
         "Addax Data Science", "americas", "🇨🇦",
         "https://creativecommons.org/licenses/by-nc/4.0/",
-        "https://www.churchillfoxproject.org",
         FIXED, "76df3c038dce672c1836af2e1ddc48a3bd865570", 550,
         "final-20260909.pt",
     ),
@@ -146,7 +145,6 @@ _MODELS = [
         "PAN-SDZWA-v1", "Peruvian Andes", "Andean highlands, 53 classes",
         "San Diego Zoo Wildlife Alliance", "americas", "🇵🇪",
         "https://opensource.org/license/mit",
-        "https://github.com/conservationtechlab",
         FIXED, "5932f99a689ed55031b18b94e311aab0019ef9f0", 450,
         "andes_v1.pt",
     ),
@@ -154,7 +152,6 @@ _MODELS = [
         "IND-ADS-v1", "Central India", "Central Indian forests, 40 classes",
         "Addax Data Science", "asia", "🇮🇳",
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
-        "https://www.wildlifeconservationtrust.org",
         FIXED, "60cc9940f3b52de5a8f0bc5d722a60e786abf452", 550,
         "final-20260521.pt",
     ),
@@ -162,7 +159,6 @@ _MODELS = [
         "KIR-HEX-v1", "Kyrgyzstan", "Central Asian mountains, 11 classes",
         "Hex Data", "asia", "🇰🇬",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-        "https://www.osi-panthera.org/",
         FIXED, "5fb5da06583ac07dc23ee91a7882fee880f9f619", 1600,
         "best_model_Fri_Sep__1_18_50_55_2023.pt",
     ),
@@ -170,7 +166,6 @@ _MODELS = [
         "GIF-JAP-v0-2", "Gifu region", "Central Japan, 13 classes, a prototype biased to deer",
         "Gifu University", "asia", "🇯🇵",
         "https://github.com/gifu-wildlife/MDetToolsForJCameraTraps?tab=MIT-1-ov-file",
-        "https://github.com/gifu-wildlife/TrainingMdetClassifire",
         FIXED, "5da915dfe451e39730b6807403802a8169c45bd4", 400,
         "gifu-wildlife_cls_resnet50_v0.2.1.pth",
     ),
@@ -178,7 +173,6 @@ _MODELS = [
         "AWC135-AWC-v1", "Australia", "All of Australia, 135 classes",
         "Australian Wildlife Conservancy", "oceania", "🇦🇺",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-        "https://github.com/Australian-Wildlife-Conservancy-AWC/awc-wildlife-classifier",
         FIXED, "a1cf611bac585569fb6f6717cd1a0e955267be41", 250,
         "awc-135-v1.pth",
     ),
@@ -186,7 +180,6 @@ _MODELS = [
         "VIC-ADS-v1", "Victoria", "Victoria in Australia, 217 classes",
         "Addax Data Science for Parks Victoria", "oceania", "🇦🇺",
         "https://huggingface.co/Addax-Data-Science/VIC-ADS-v1/blob/main/LICENSE.txt",
-        "https://www.parks.vic.gov.au/get-into-nature/conservation-and-science/science-and-research",
         FIXED, "17a81670b921a7cd5c2d893fc991a01b89c560c0", 550,
         "final-20251221.pt",
     ),
@@ -194,7 +187,6 @@ _MODELS = [
         "ANT-ADS-v1", "Top End savanna", "Northern Australia, 141 classes",
         "Addax Data Science", "oceania", "🇦🇺",
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
-        "https://www.cdu.edu.au/riel",
         FIXED, "8f97b666424839e6db094dc480d0d1f6aae92bfc", 550,
         "final-20260417.pt",
     ),
@@ -202,7 +194,6 @@ _MODELS = [
         "QLD-WOB-v1", "Queensland Wet Tropics", "Wet Tropics rainforest, 15 classes",
         "Prakash Palanivelu Rajmohan and Renuka Sharma", "oceania", "🇦🇺",
         "https://creativecommons.org/licenses/by/4.0/",
-        "https://wildobs.org.au/",
         FIXED, "bef3d834f70b80b4762d4409fafa9f3876234ae8", 350,
         "wildobs_QLD_WetTropics.pt",
     ),
@@ -210,7 +201,6 @@ _MODELS = [
         "NZI-ADS-v2", "New Zealand invasives", "New Zealand invasive species, 24 classes",
         "Addax Data Science", "oceania", "🇳🇿",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-        "https://www.doc.govt.nz/",
         FIXED, "5bc26fb9354702b76bec668718ad36cf24c5a4b0", 550,
         "final-20260606.pt",
     ),

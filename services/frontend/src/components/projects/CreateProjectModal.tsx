@@ -7,14 +7,14 @@
  * it travels in the create request, so a project never exists without its
  * label list. The model is locked after creation.
  *
- * Every model in the catalog is listed, grouped by region. Models the
- * server cannot load right now (not enough memory, worker down) are greyed
- * out, with the reason under the list.
+ * Every model in the catalog is listed, grouped by region. A model the
+ * server cannot load right now (not enough memory, worker down) can still be
+ * picked, but a warning says why and the Create button stays off.
  */
 import React, { useState, useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
-import { Loader2, Upload, X } from 'lucide-react';
+import { ExternalLink, Loader2, Upload, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,7 @@ const REGION_LABELS: Record<string, string> = {
   oceania: 'Oceania',
 };
 const REGION_ORDER = Object.keys(REGION_LABELS);
+const MODEL_ZOO_URL = 'https://docs.addaxai.com/docs/reference/model-zoo';
 
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, onClose }) => {
   const queryClient = useQueryClient();
@@ -74,10 +75,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
   }, [models]);
   const selectedModel = models?.find((m) => m.id === modelId);
   const requireTaxonomy = selectedModel?.kind === 'speciesnet';
-  const unavailableReasons = useMemo(
-    () => [...new Set((models ?? []).filter((m) => !m.fits).map((m) => m.reason ?? ''))].filter(Boolean),
-    [models],
-  );
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -273,8 +270,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
                 {modelsByRegion.map(({ region, models: group }) => (
                   <optgroup key={region} label={REGION_LABELS[region]}>
                     {group.map((model) => (
-                      <option key={model.id} value={model.id} disabled={!model.fits}>
-                        {model.emoji} {model.name}{model.fits ? '' : ' (unavailable)'}
+                      <option key={model.id} value={model.id}>
+                        {model.emoji} {model.name}
                       </option>
                     ))}
                   </optgroup>
@@ -284,22 +281,22 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
                 {selectedModel
                   ? `${selectedModel.description}. By ${selectedModel.developer}.`
                   : 'Pick the model made for your region.'}{' '}
-                It cannot be changed later. More about each model in the{' '}
+                It cannot be changed later.{' '}
                 <a
-                  href="https://docs.addaxai.com/docs/reference/model-zoo"
+                  href={selectedModel?.info_url ?? MODEL_ZOO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
                 >
-                  model zoo
+                  {selectedModel ? 'Model details' : 'Model zoo'}
+                  <ExternalLink className="h-3 w-3" />
                 </a>
-                .
               </p>
-              {unavailableReasons.map((reason) => (
-                <p key={reason} className="text-xs text-muted-foreground mt-1">
-                  Unavailable models cannot be picked right now. {reason}.
-                </p>
-              ))}
+              {selectedModel && !selectedModel.fits && (
+                <Callout variant="warning" className="mt-2">
+                  This model cannot be picked right now. {selectedModel.reason}.
+                </Callout>
+              )}
             </div>
 
             {/* Species labels, SpeciesNet only */}
@@ -377,7 +374,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             <Button
               type="submit"
               disabled={
-                createMutation.isPending || !name.trim() || !countryCode || !modelId || (requireTaxonomy && !taxonomyFile)
+                createMutation.isPending || !name.trim() || !countryCode || !selectedModel?.fits || (requireTaxonomy && !taxonomyFile)
               }
             >
               {createMutation.isPending ? (
