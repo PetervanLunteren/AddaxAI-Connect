@@ -153,11 +153,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
 
         {/* Project Info */}
         <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <h3 className="font-semibold text-lg line-clamp-1 flex-1">{project.name}</h3>
-          </div>
-          <div className="mb-2">
-            <RoleBadge role={project.role} />
+            <div className="shrink-0">
+              <RoleBadge role={project.role} />
+            </div>
           </div>
           {project.description && (
             <p className="text-sm text-muted-foreground line-clamp-2">
