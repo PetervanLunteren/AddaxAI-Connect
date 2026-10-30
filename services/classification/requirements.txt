@@ -7,8 +7,11 @@
 # environment keeps giving the same answers. timm is for the DeepFaune and
 # AWC models; pandas and omegaconf are read by the SDZWA and Gifu models'
 # inference.py. speciesnet brings onnx2torch, which the SpeciesNet-based
-# models need too.
-speciesnet>=5.0.0,<6.0.0
+# models need too. It is pinned exactly: 5.0.6 changed what predict()
+# returns (a classifications_list per box instead of one classifications
+# dict), which speciesnet_model.py reads, and every detection came out as
+# "unknown animal" on dev. Bump it together with that module.
+speciesnet==5.0.5
 torch==2.14.1
 torchvision==0.29.1
 timm==1.0.28
