@@ -72,6 +72,22 @@ data, a sample of images, and the logs. Prints `PASS` or `FAIL`.
 
 Then open the site and log in.
 
+## SpeciesNet servers that updated to v0.17.0
+
+v0.17.0 moved the country and the species labels from the server to the
+project, but dropped them instead of copying them. A SpeciesNet server that
+updated to v0.17.0 lost both, and the next release then marks its projects as
+DeepFaune, since nothing says they were SpeciesNet. Later releases copy the
+data, so a server that skips v0.17.0 is fine.
+
+If that happened to you, set the model back per project, then upload the CSV
+and set the country again in project settings:
+
+```bash
+docker exec addaxai-postgres psql -U addaxai -d addaxai_connect \
+  -c "UPDATE projects SET classification_model = 'SPECIESNET-v4-0-1-A-v1' WHERE id = <project id>"
+```
+
 ## If it goes wrong
 
 Migrations do not roll back safely, so restore the database instead.

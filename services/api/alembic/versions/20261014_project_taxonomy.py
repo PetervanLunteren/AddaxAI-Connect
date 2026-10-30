@@ -1,8 +1,8 @@
 """Taxonomy mapping per project.
 
 Each SpeciesNet project gets its own label list, so taxonomy_mapping rows
-belong to a project and a latin name is unique within it. Existing rows are
-deleted: they were server-wide, and no production server runs SpeciesNet.
+belong to a project and a latin name is unique within it. The existing rows
+were server-wide, so every project gets its own copy of them before they go.
 The unique constraint leads with project_id, so it also serves the
 per-project lookups and no separate index is needed.
 
@@ -22,15 +22,22 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("DELETE FROM taxonomy_mapping")
     op.drop_index('ix_taxonomy_mapping_latin', table_name='taxonomy_mapping')
     op.add_column(
         'taxonomy_mapping',
         sa.Column(
             'project_id', sa.Integer(),
-            sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False,
+            sa.ForeignKey('projects.id', ondelete='CASCADE'), nullable=True,
         ),
     )
+    op.execute("""
+        INSERT INTO taxonomy_mapping (latin, common, created_at, project_id)
+        SELECT t.latin, t.common, t.created_at, p.id
+        FROM taxonomy_mapping t CROSS JOIN projects p
+        WHERE t.project_id IS NULL
+    """)
+    op.execute("DELETE FROM taxonomy_mapping WHERE project_id IS NULL")
+    op.alter_column('taxonomy_mapping', 'project_id', nullable=False)
     op.create_unique_constraint(
         'uq_taxonomy_mapping_project_latin', 'taxonomy_mapping', ['project_id', 'latin'],
     )
