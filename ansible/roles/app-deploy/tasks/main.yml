@@ -51,6 +51,7 @@
   loop:
     - classification/deepfaune-vit_large_patch14_dinov2.lvd142m.v4.pt
     - classification-speciesnet
+  tags: [env-refresh, sync-config]
 
 - name: Create postgres data directory with correct ownership
   file:
