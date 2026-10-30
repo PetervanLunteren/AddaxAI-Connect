@@ -17,6 +17,8 @@ This module imports no ML library, so the routing and the lazy load are
 unit-tested without torch. The loaders live in fixed_model.py and
 speciesnet_model.py and are imported on first use.
 """
+import ctypes
+import sys
 from pathlib import Path
 from typing import Callable, Dict, Iterable, Optional, Protocol
 
@@ -48,6 +50,20 @@ def available_memory_mb() -> int:
             if line.startswith("MemAvailable:"):
                 return int(line.split()[1]) // 1024
     raise RuntimeError("MemAvailable not found in /proc/meminfo")
+
+
+def release_freed_memory() -> None:
+    """Hand the memory a load freed back to the kernel.
+
+    Loading reads the whole checkpoint into memory and frees it once the
+    weights are in the model, but glibc keeps the freed arenas: measured on
+    dev, DeepFaune v1.5 sat at 3.0 GB after its load and 1.9 GB after this
+    trim, the TorchScript model at 2.2 GB and 1.2 GB. The free memory the
+    worker reports, and so which models a new project may pick, depends on
+    it. Linux only; macOS has no malloc_trim and no worker runs there.
+    """
+    if sys.platform.startswith("linux"):
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
 
 
 def download_snapshot(repo_id: str, revision: str, local_dir: str) -> None:
@@ -97,6 +113,7 @@ class ModelRegistry:
             logger.info("Loading model", model=model.id, device=self.device)
             model_dir = ensure_downloaded(model, self.models_dir)
             self._models[model_id] = self._loaders[model.kind](model, model_dir, self.device)
+            release_freed_memory()
             logger.info("Model loaded", model=model.id, loaded=self.loaded)
         return self._models[model_id]
 

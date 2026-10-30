@@ -35,7 +35,7 @@ class TestCatalog:
         for model in CLASSIFICATION_MODELS.values():
             assert model.kind in (FIXED, SPECIESNET), model.id
             assert len(model.revision) == 40, model.id
-            assert model.weights_mb > 0, model.id
+            assert model.memory_mb > 0, model.id
             assert model.weights_file and model.name and model.developer, model.id
             assert model.licence_url.startswith("https://"), model.id
             assert model.region in ("global", "europe", "africa", "americas", "asia", "oceania"), model.id
@@ -95,9 +95,9 @@ class TestFitsInMemory:
     def test_loaded_always_fits(self):
         assert fits_in_memory(self.model, 0, ["X"])
 
-    def test_needs_twice_the_weights_plus_the_margin(self):
-        assert fits_in_memory(self.model, 2000 + MEMORY_MARGIN_MB, [])
-        assert not fits_in_memory(self.model, 2000 + MEMORY_MARGIN_MB - 1, [])
+    def test_needs_its_load_peak_plus_the_margin(self):
+        assert fits_in_memory(self.model, 1000 + MEMORY_MARGIN_MB, [])
+        assert not fits_in_memory(self.model, 1000 + MEMORY_MARGIN_MB - 1, [])
 
     def test_other_loaded_models_do_not_help(self):
         assert not fits_in_memory(self.model, 100, ["Y"])

@@ -399,13 +399,17 @@ server's projects use at start, loads a new project's model on its first
 image, and never drops one. After every message it writes
 `models:classification` (free memory and the loaded ids) to Redis;
 `/api/classification-models` turns that into which models a new project can
-still pick: a loaded model always fits, a new one needs twice its weight
-files in free memory plus a 1 GB margin. The create dialog greys out the
+still pick: a loaded model always fits, a new one needs its measured load
+peak in free memory plus a 1 GB margin. After each load the worker hands
+the freed checkpoint memory back to the kernel (`malloc_trim`), which is
+about a gigabyte for the DeepFaune models. The create dialog greys out the
 rest, and the create endpoint runs the same check.
 
 To add a model: a catalog entry with the commit sha, the weights file name
-and the summed weight size, its `taxonomy.csv` from that commit, and a parity
-run against the desktop app on the same crops.
+and the load peak measured on a CPU server, its `taxonomy.csv` from that
+commit (its class names must equal the model's, the worker refuses the
+model otherwise), and a parity run against the desktop app on the same
+crops.
 
 ## MinIO image
 

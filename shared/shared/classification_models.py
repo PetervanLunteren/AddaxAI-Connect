@@ -50,7 +50,7 @@ class ClassificationModel:
     info_url: str
     kind: str          # FIXED or SPECIESNET
     revision: str      # pinned commit of the HuggingFace repo
-    weights_mb: int    # weight files on disk, the basis of the memory check
+    memory_mb: int     # peak worker memory while loading, measured on a CPU server
     weights_file: str  # the file inference.py loads; the backbone for SpeciesNet
 
     @property
@@ -67,7 +67,7 @@ _MODELS = [
         "Google", "global", "🌏",
         "https://github.com/google/cameratrapai/blob/main/LICENSE",
         "https://github.com/google/cameratrapai",
-        SPECIESNET, "db268f48de597aa6d4d528e7e59620ab078ee65f", 224,
+        SPECIESNET, "db268f48de597aa6d4d528e7e59620ab078ee65f", 400,
         "always_crop_99710272_22x8_v12_epoch_00148.pt",
     ),
     ClassificationModel(
@@ -75,7 +75,7 @@ _MODELS = [
         "The DeepFaune initiative", "europe", "🇪🇺",
         "https://creativecommons.org/licenses/by-sa/4.0/",
         "https://www.deepfaune.cnrs.fr/en/",
-        FIXED, "6ee6f4979d044b07b8244d9a50bd4175cfa4575a", 1218,
+        FIXED, "6ee6f4979d044b07b8244d9a50bd4175cfa4575a", 2400,
         "deepfaune-vit_large_patch14_dinov2.lvd142m.v4.pt",
     ),
     ClassificationModel(
@@ -83,7 +83,7 @@ _MODELS = [
         "The DeepFaune initiative", "europe", "🇪🇺",
         "https://creativecommons.org/licenses/by-sa/4.0/",
         "https://www.deepfaune.cnrs.fr/en/",
-        FIXED, "b611e13c54858f6e54655644c03e14d797ce4bf1", 1213,
+        FIXED, "b611e13c54858f6e54655644c03e14d797ce4bf1", 2400,
         "deepfaune-vit_large_patch16_dinov3.lvd1689m.pt",
     ),
     ClassificationModel(
@@ -91,7 +91,7 @@ _MODELS = [
         "Addax Data Science", "africa", "🌵",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
         "https://addaxdatascience.com/",
-        FIXED, "5463803150e233fce967f0f4a6561b04e7261e44", 215,
+        FIXED, "5463803150e233fce967f0f4a6561b04e7261e44", 450,
         "sub_saharan_drylands_v1.pt",
     ),
     ClassificationModel(
@@ -99,7 +99,7 @@ _MODELS = [
         "Hugo Magaldi, One Forest Vision initiative", "africa", "🌳",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
         "https://www.oneforestvision.org",
-        FIXED, "d9bb75c49f716ba3ba1fba9cf5661c7ef45ba9bd", 343,
+        FIXED, "d9bb75c49f716ba3ba1fba9cf5661c7ef45ba9bd", 700,
         "DeepForestVisionV2.pth",
     ),
     ClassificationModel(
@@ -107,7 +107,7 @@ _MODELS = [
         "San Diego Zoo Wildlife Alliance", "americas", "🇺🇸",
         "https://opensource.org/license/mit",
         "https://github.com/conservationtechlab",
-        FIXED, "6f28f67c679eaf3b8fbcb924f6a1ba4290bb2540", 213,
+        FIXED, "6f28f67c679eaf3b8fbcb924f6a1ba4290bb2540", 450,
         "sdzwa_westernus_v1_efficientnet.pt",
     ),
     ClassificationModel(
@@ -115,7 +115,7 @@ _MODELS = [
         "San Diego Zoo Wildlife Alliance", "americas", "🇺🇸",
         "https://opensource.org/license/mit",
         "https://github.com/conservationtechlab",
-        FIXED, "cdf3149ec6c73608e42fee2cb244e946d8db7d4b", 431,
+        FIXED, "cdf3149ec6c73608e42fee2cb244e946d8db7d4b", 450,
         "southwest_v3.pt",
     ),
     ClassificationModel(
@@ -123,7 +123,7 @@ _MODELS = [
         "Addax Data Science", "americas", "🇺🇸",
         "https://www.apache.org/licenses/LICENSE-2.0",
         "https://www.tonation-nsn.gov/natural-resources/wildlife-and-vegetation/",
-        FIXED, "b610f80bf9a936848bfd8f8b311be953bc0fbecf", 449,
+        FIXED, "b610f80bf9a936848bfd8f8b311be953bc0fbecf", 550,
         "final-20260109.pt",
     ),
     ClassificationModel(
@@ -131,7 +131,7 @@ _MODELS = [
         "Addax Data Science", "americas", "🇺🇸",
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
         "https://huggingface.co/Addax-Data-Science/HWI-ADS-v1",
-        FIXED, "427157560b4c51e012fa6f51e3a43b032c091452", 448,
+        FIXED, "427157560b4c51e012fa6f51e3a43b032c091452", 550,
         "final-20260317.pt",
     ),
     ClassificationModel(
@@ -139,7 +139,7 @@ _MODELS = [
         "Addax Data Science", "americas", "🇨🇦",
         "https://creativecommons.org/licenses/by-nc/4.0/",
         "https://www.churchillfoxproject.org",
-        FIXED, "76df3c038dce672c1836af2e1ddc48a3bd865570", 449,
+        FIXED, "76df3c038dce672c1836af2e1ddc48a3bd865570", 550,
         "final-20260909.pt",
     ),
     ClassificationModel(
@@ -147,7 +147,7 @@ _MODELS = [
         "San Diego Zoo Wildlife Alliance", "americas", "🇵🇪",
         "https://opensource.org/license/mit",
         "https://github.com/conservationtechlab",
-        FIXED, "5932f99a689ed55031b18b94e311aab0019ef9f0", 431,
+        FIXED, "5932f99a689ed55031b18b94e311aab0019ef9f0", 450,
         "andes_v1.pt",
     ),
     ClassificationModel(
@@ -155,7 +155,7 @@ _MODELS = [
         "Addax Data Science", "asia", "🇮🇳",
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
         "https://www.wildlifeconservationtrust.org",
-        FIXED, "60cc9940f3b52de5a8f0bc5d722a60e786abf452", 449,
+        FIXED, "60cc9940f3b52de5a8f0bc5d722a60e786abf452", 550,
         "final-20260521.pt",
     ),
     ClassificationModel(
@@ -163,7 +163,7 @@ _MODELS = [
         "Hex Data", "asia", "🇰🇬",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
         "https://www.osi-panthera.org/",
-        FIXED, "5fb5da06583ac07dc23ee91a7882fee880f9f619", 472,
+        FIXED, "5fb5da06583ac07dc23ee91a7882fee880f9f619", 1600,
         "best_model_Fri_Sep__1_18_50_55_2023.pt",
     ),
     ClassificationModel(
@@ -171,7 +171,7 @@ _MODELS = [
         "Gifu University", "asia", "🇯🇵",
         "https://github.com/gifu-wildlife/MDetToolsForJCameraTraps?tab=MIT-1-ov-file",
         "https://github.com/gifu-wildlife/TrainingMdetClassifire",
-        FIXED, "5da915dfe451e39730b6807403802a8169c45bd4", 385,
+        FIXED, "5da915dfe451e39730b6807403802a8169c45bd4", 400,
         "gifu-wildlife_cls_resnet50_v0.2.1.pth",
     ),
     ClassificationModel(
@@ -179,7 +179,7 @@ _MODELS = [
         "Australian Wildlife Conservancy", "oceania", "🇦🇺",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
         "https://github.com/Australian-Wildlife-Conservancy-AWC/awc-wildlife-classifier",
-        FIXED, "a1cf611bac585569fb6f6717cd1a0e955267be41", 115,
+        FIXED, "a1cf611bac585569fb6f6717cd1a0e955267be41", 250,
         "awc-135-v1.pth",
     ),
     ClassificationModel(
@@ -187,7 +187,7 @@ _MODELS = [
         "Addax Data Science for Parks Victoria", "oceania", "🇦🇺",
         "https://huggingface.co/Addax-Data-Science/VIC-ADS-v1/blob/main/LICENSE.txt",
         "https://www.parks.vic.gov.au/get-into-nature/conservation-and-science/science-and-research",
-        FIXED, "17a81670b921a7cd5c2d893fc991a01b89c560c0", 450,
+        FIXED, "17a81670b921a7cd5c2d893fc991a01b89c560c0", 550,
         "final-20251221.pt",
     ),
     ClassificationModel(
@@ -195,7 +195,7 @@ _MODELS = [
         "Addax Data Science", "oceania", "🇦🇺",
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
         "https://www.cdu.edu.au/riel",
-        FIXED, "8f97b666424839e6db094dc480d0d1f6aae92bfc", 450,
+        FIXED, "8f97b666424839e6db094dc480d0d1f6aae92bfc", 550,
         "final-20260417.pt",
     ),
     ClassificationModel(
@@ -203,7 +203,7 @@ _MODELS = [
         "Prakash Palanivelu Rajmohan and Renuka Sharma", "oceania", "🇦🇺",
         "https://creativecommons.org/licenses/by/4.0/",
         "https://wildobs.org.au/",
-        FIXED, "bef3d834f70b80b4762d4409fafa9f3876234ae8", 212,
+        FIXED, "bef3d834f70b80b4762d4409fafa9f3876234ae8", 350,
         "wildobs_QLD_WetTropics.pt",
     ),
     ClassificationModel(
@@ -211,7 +211,7 @@ _MODELS = [
         "Addax Data Science", "oceania", "🇳🇿",
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
         "https://www.doc.govt.nz/",
-        FIXED, "5bc26fb9354702b76bec668718ad36cf24c5a4b0", 449,
+        FIXED, "5bc26fb9354702b76bec668718ad36cf24c5a4b0", 550,
         "final-20260606.pt",
     ),
 ]
@@ -277,11 +277,12 @@ def fits_in_memory(model: ClassificationModel, available_mb: int, loaded: Iterab
     """Whether the classification worker can load this model without
     running the server out of memory.
 
-    A loaded model always fits. A new one needs twice its weights in free
-    memory, which covers the peak while loading (DeepFaune's 1.2 GB file
-    peaked at 3.2 GB total worker memory, 2.1 GB once settled), plus a
-    margin for the rest of the server.
+    A loaded model always fits. A new one needs its measured load peak in
+    free memory, plus a margin for the rest of the server. The peak is what
+    the load costs on top of a running worker, measured per model on a CPU
+    server and rounded up; it is roughly twice the weight files for most
+    models, and three times for the TorchScript one (KIR-HEX-v1).
     """
     if model.id in loaded:
         return True
-    return 2 * model.weights_mb <= available_mb - MEMORY_MARGIN_MB
+    return model.memory_mb <= available_mb - MEMORY_MARGIN_MB

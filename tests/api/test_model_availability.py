@@ -42,7 +42,7 @@ class TestListModels:
         assert set(_by_id(ma.list_models())) == set(CLASSIFICATION_MODELS)
 
     def test_fits_follows_free_memory(self, monkeypatch):
-        # DeepFaune is 1218 MB: needs 2 * 1218 + 1024 free. SpeciesNet is 224 MB.
+        # DeepFaune peaks at 2400 MB while loading: needs 2400 + 1024 free. SpeciesNet 400.
         _stub(monkeypatch, available_mb=3000)
         models = _by_id(ma.list_models())
         assert models[SPECIESNET_ID].fits and models[SPECIESNET_ID].reason is None
