@@ -11,6 +11,7 @@ if ('serviceWorker' in navigator) {
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill';
 import { QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 // react-day-picker's default stylesheet must load before our index.css
@@ -19,6 +20,13 @@ import 'react-day-picker/style.css';
 import './styles/index.css';
 import { queryClient } from './lib/query-client';
 import { logUnhandledError, logUnhandledRejection } from './utils/logger';
+
+// Windows has no flag glyphs, so flag emojis show as letter pairs there. On
+// those platforms the polyfill registers a flags-only Twemoji font, served
+// from our own public folder so it also works offline. The font name is the
+// first entry of the body font stack in styles/index.css; without that the
+// polyfill registers the font but nothing uses it. Same setup as AddaxAI.
+polyfillCountryFlagEmojis('Twemoji Country Flags', '/TwemojiCountryFlags.woff2');
 
 // Set up global error handlers
 window.addEventListener('error', (event) => {

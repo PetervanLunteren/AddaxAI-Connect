@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MoreVertical, Edit, Trash2, FolderOpen, Shield, Eye, Users } from 'lucide-react';
+import { countryFlagAndName } from '../../geodata/countries';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import {
@@ -84,6 +85,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
     e.stopPropagation(); // Prevent card click when clicking menu
   };
 
+  // Projects made before the country was asked for have none, then no flag.
+  const country = countryFlagAndName(project.country_code);
+
   return (
     <>
       <Card
@@ -102,6 +106,16 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-400 to-blue-500">
               <FolderOpen className="h-16 w-16 text-white opacity-50" />
             </div>
+          )}
+
+          {country && (
+            <span
+              className="absolute top-2 left-2 rounded-md bg-white/90 px-1.5 py-0.5 text-lg leading-none"
+              title={country.name}
+              aria-label={country.name}
+            >
+              {country.flag}
+            </span>
           )}
 
           {/* Three-dot menu (project admins and server admins) */}

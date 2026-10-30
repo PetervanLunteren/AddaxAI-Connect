@@ -259,6 +259,14 @@ export const COUNTRIES: SelectOption[] = [
   { label: "🇿🇼 Zimbabwe", value: "ZWE" },
 ];
 
+/** The flag and the name of a country by its ISO alpha-3 code, or null. */
+export function countryFlagAndName(code: string | null | undefined): { flag: string; name: string } | null {
+  const label = COUNTRIES.find((c) => c.value === code)?.label;
+  if (!label) return null;
+  const space = label.indexOf(' ');
+  return { flag: label.slice(0, space), name: label.slice(space + 1) };
+}
+
 export const US_STATES: SelectOption[] = [
   { label: "🐘 Alabama", value: "US-AL" },
   { label: "🐻 Alaska", value: "US-AK" },
