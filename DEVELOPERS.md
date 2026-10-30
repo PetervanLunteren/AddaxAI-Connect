@@ -90,20 +90,13 @@ addaxai-connect/
 │   │   ├── db_operations.py
 │   │   └── storage_operations.py
 │   │
-│   ├── classification-deepfaune/      # DeepFaune species classifier (38 European species)
+│   ├── classification/                # Species classifier, one worker for every model in the catalog
 │   │   ├── worker.py                  # Entry point
-│   │   ├── classifier.py              # Classification logic
+│   │   ├── registry.py                # The loaded models: download at the pinned commit, load on first use
+│   │   ├── fixed_model.py             # Fixed-class models through their own inference.py (the desktop contract)
+│   │   ├── speciesnet_model.py        # SpeciesNet through the speciesnet package, geofence and rollup
+│   │   ├── records.py                 # DetectionInfo, Classification, ProjectConfig
 │   │   ├── annotated_image.py         # Generates annotated images with boxes, labels, privacy blur
-│   │   ├── model_loader.py
-│   │   ├── config.py
-│   │   ├── db_operations.py
-│   │   └── storage_operations.py
-│   │
-│   ├── classification-speciesnet/     # SpeciesNet species classifier (2,066 global species)
-│   │   ├── worker.py                  # Entry point
-│   │   ├── classifier.py
-│   │   ├── annotated_image.py
-│   │   ├── model_loader.py
 │   │   ├── config.py
 │   │   ├── db_operations.py
 │   │   └── storage_operations.py
@@ -259,11 +252,11 @@ addaxai-connect/
 │       ├── sensingclues.py            # Cluey observation payloads and client for the Sensing Clues channel
 │       ├── project_channels.py        # The project channels (earthranger, sensingclues) and their labels
 │       ├── timestamps.py              # ISO 8601 with offset, for the outbound integrations
-│       ├── classification_models.py   # Classifier display names, for the About page and the payloads
+│       ├── classification_models.py   # The model catalog: pinned HF commits, labels, scientific names, memory rule
+│       ├── model_taxonomy/            # Each fixed-class model's taxonomy.csv, from its pinned commit
 │       ├── notify_guard.py            # Development server allow-lists for outbound notifications
 │       ├── device.py                  # The one rule for cpu vs cuda in the ML workers
 │       ├── taxonomy.py                # SpeciesNet label mapping (walk-up, fallback label, scientific names)
-│       ├── species.py                 # Species data helpers
 │       ├── geo.py                     # GPS and spatial helpers
 │       ├── deployments.py             # Site and deployment grouping logic
 │       ├── independence_filter.py     # Independent-detection (capture event) filtering
@@ -272,7 +265,7 @@ addaxai-connect/
 │
 ├── models/                            # ML model weights (gitignored, downloaded at runtime)
 │   ├── detection/                     # MegaDetector (auto-downloaded from GitHub)
-│   └── classification/                # DeepFaune or SpeciesNet (auto-downloaded)
+│   └── classification/<model id>/     # One folder per model a project uses (downloaded on first use)
 │
 ├── scripts/
 │   ├── create_admin_invitation.py     # Create admin user invitation tokens
@@ -331,7 +324,7 @@ addaxai-connect/
 │   └── architecture.md
 │
 ├── email_previews/                    # HTML previews of all email templates
-├── docker-compose.yml                 # All services (profiles: deepfaune, speciesnet, demo)
+├── docker-compose.yml                 # All services (profiles: full, demo)
 ├── docker-compose.gpu.yml             # Override: GPU for the ML workers, applied via COMPOSE_FILE in .env
 ├── mkdocs.yml                         # Docs site config
 ├── pyproject.toml                     # Pytest config
@@ -379,9 +372,40 @@ Queue names (defined in `shared/shared/queue.py`):
 
 ## Docker Compose profiles
 
-- **`deepfaune`** is the full stack with DeepFaune classifier (38 European species)
-- **`speciesnet`** is the full stack with SpeciesNet classifier (2,066 global species)
+- **`full`** is the whole stack. `deepfaune` and `speciesnet` are aliases
+  from before projects picked their own model; servers deployed then still
+  have one of them in `.env` until Ansible rewrites it.
 - **`demo`** runs only the API, database, and frontend (no ML workers)
+
+## Classification models
+
+Each project picks its species model when it is created
+(`projects.classification_model`) and keeps it. The catalog is
+`shared/classification_models.py`: every model's HuggingFace repo at a
+pinned commit, its kind, and the memory rule. Two kinds:
+
+- **Fixed-class models** (DeepFaune and the other zoo models) run through
+  the model's own `inference.py`, the same contract AddaxAI desktop runs
+  (`services/classification/fixed_model.py`). Labels are the class names
+  in lowercase with underscores. Each model's `taxonomy.csv` is vendored in
+  `shared/model_taxonomy/` from the same commit; it gives the API its label
+  list and the exports and integrations their scientific names. The
+  project's `included_species` renormalises the probabilities.
+- **SpeciesNet** runs through Google's `speciesnet` package with the
+  project's label CSV and the geofence (next section).
+
+The worker (`services/classification/registry.py`) loads the models the
+server's projects use at start, loads a new project's model on its first
+image, and never drops one. After every message it writes
+`models:classification` (free memory and the loaded ids) to Redis;
+`/api/classification-models` turns that into which models a new project can
+still pick: a loaded model always fits, a new one needs twice its weight
+files in free memory plus a 1 GB margin. The create dialog greys out the
+rest, and the create endpoint runs the same check.
+
+To add a model: a catalog entry with the commit sha, the weights file name
+and the summed weight size, its `taxonomy.csv` from that commit, and a parity
+run against the desktop app on the same crops.
 
 ## MinIO image
 
@@ -499,8 +523,7 @@ the result an hour. There is no correction after import.
 
 ## SpeciesNet labels
 
-On a SpeciesNet server every project has its own label list, its taxonomy
-mapping: rows of `latin` (a SpeciesNet taxon) and `common` (the label users
+A SpeciesNet project has its own label list, its taxonomy mapping: rows of `latin` (a SpeciesNet taxon) and `common` (the label users
 see) in `taxonomy_mapping`, keyed by project. User docs:
 `docs/speciesnet-setup.md`.
 
@@ -516,7 +539,7 @@ see) in `taxonomy_mapping`, keyed by project. User docs:
   the new list lacks. Names only, rules are private to their owner.
 - **Per detection.** The worker follows MegaDetector's `run_md_and_speciesnet`:
   geofence, then the confidence rollup, both public speciesnet functions
-  (`classifier.py`), then the CSV walk-up (`shared/taxonomy.py`). Never
+  (`speciesnet_model.py`), then the CSV walk-up (`shared/taxonomy.py`). Never
   `ensemble.combine()`, that combines one label per whole image.
 - **Fallback.** One label, `UNKNOWN_ANIMAL` ("unknown animal"), for a
   prediction that matches no row and for no SpeciesNet output. Not "animal",

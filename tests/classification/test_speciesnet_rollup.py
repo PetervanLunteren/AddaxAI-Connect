@@ -1,6 +1,6 @@
 """Per-detection geofence and rollup in the SpeciesNet classifier.
 
-classifier.py imports speciesnet and the worker config, so these tests cut
+speciesnet_model.py imports speciesnet and the database, so these tests cut
 the functions out of the source with ast and run them against stand-ins for
 the two speciesnet functions. What they pin is the order of the calls, the
 reference pipeline in run_md_and_speciesnet: geofence first, rollup only
@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import Any, List, Optional
 
 _CLASSIFIER = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), "..", "..", "services", "classification-speciesnet", "classifier.py",
+    os.path.dirname(__file__), "..", "..", "services", "classification", "speciesnet_model.py",
 ))
 FUNCTIONS = ("speciesnet_admin1", "geofence_and_roll_up")
 CONSTANTS = ("ROLLUP_TARGET_CONFIDENCE", "ROLLUP_LEVELS")

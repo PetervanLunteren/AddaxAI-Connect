@@ -1,7 +1,8 @@
 /**
  * About page
  *
- * Server-level page showing system information and version
+ * Server-level page showing system information, version and the AI models,
+ * with the credits their licences ask for.
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +10,9 @@ import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ExternalLink, Tag } from 'lucide-react';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 import { versionApi } from '../api/version';
+import { classificationModelsApi } from '../api/classificationModels';
+
+const linkClass = 'text-primary hover:underline inline-flex items-center gap-0.5';
 
 export const AboutPage: React.FC = () => {
   // Fetch version from API
@@ -18,10 +22,10 @@ export const AboutPage: React.FC = () => {
     staleTime: Infinity,
   });
 
-  // Fetch classification model info
-  const { data: classificationModel } = useQuery({
-    queryKey: ['classification-model'],
-    queryFn: versionApi.getClassificationModel,
+  // Every model a project can pick, for the credits
+  const { data: models } = useQuery({
+    queryKey: ['classification-models'],
+    queryFn: classificationModelsApi.list,
     staleTime: Infinity,
   });
 
@@ -62,26 +66,29 @@ export const AboutPage: React.FC = () => {
                 href="https://github.com/agentmorris/MegaDetector"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
+                className={linkClass}
               >
                 MegaDetector v1000.0.0
                 <ExternalLink className="h-3 w-3" />
               </a>
-              , a general-purpose object detection model trained on camera trap imagery, to locate animals, people, and vehicles. Detected animals are then passed to{' '}
-              {classificationModel ? (
-                <a
-                  href={classificationModel.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-0.5"
-                >
-                  {classificationModel.name}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              ) : '...'
-              }
-              , {classificationModel?.description || 'a species classification model'}, to determine the specific wildlife species present in each image.
+              , a general-purpose object detection model trained on camera trap imagery, to locate animals, people, and vehicles. Detected animals are then passed to the species model each project picked at creation. The models a project can pick, with their makers and licences
             </p>
+            <ul className="text-sm text-muted-foreground mt-2 space-y-1">
+              {(models ?? []).map((model) => (
+                <li key={model.id}>
+                  {model.emoji}{' '}
+                  <a href={model.info_url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                    {model.name}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                  {' '}by {model.developer},{' '}
+                  <a href={model.licence_url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                    licence
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div>
@@ -92,7 +99,7 @@ export const AboutPage: React.FC = () => {
                 href="https://addaxdatascience.com/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
+                className={linkClass}
               >
                 Addax Data Science
                 <ExternalLink className="h-3 w-3" />
@@ -102,7 +109,7 @@ export const AboutPage: React.FC = () => {
                 href="https://www.smartparks.org/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
+                className={linkClass}
               >
                 Smart Parks
                 <ExternalLink className="h-3 w-3" />

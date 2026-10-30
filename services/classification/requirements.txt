@@ -1,0 +1,20 @@
+# Shared runtime deps come from the shared package (shared/pyproject.toml).
+# Only service-specific deps go here.
+#
+# One environment for every model in shared/classification_models.py. torch
+# and torchvision are pinned to what speciesnet resolved when the two
+# classification workers were merged, so a model checked against this
+# environment keeps giving the same answers. timm is for the DeepFaune and
+# AWC models; pandas and omegaconf are read by the SDZWA and Gifu models'
+# inference.py. speciesnet brings onnx2torch, which the SpeciesNet-based
+# models need too.
+speciesnet>=5.0.0,<6.0.0
+torch==2.14.1
+torchvision==0.29.1
+timm==1.0.28
+pandas>=2.0,<4.0
+omegaconf>=2.3,<3.0
+huggingface-hub>=0.20.0
+minio==7.2.0
+requests==2.34.2
+numpy<3.0.0

@@ -77,12 +77,6 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     |---------|---------|-------------|
     | `git_version` | `v0.9.0` | Optional, and it goes in `ansible/group_vars/all/main.yml`. Leave it out to deploy the newest [release](https://github.com/PetervanLunteren/AddaxAI-Connect/releases), the normal choice. Set a tag to pin a version, or `main` on a [dev server](dev-server-setup.md). |
 
-    **Classification model**
-
-    | Variable | Example | Description |
-    |---------|---------|-------------|
-    | `classification_model` | `"speciesnet"` | `"deepfaune"` (38 European species) or `"speciesnet"` (2,066 global species) |
-
     **GPU (optional)**
 
     | Variable | Example | Description |

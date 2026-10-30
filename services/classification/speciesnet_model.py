@@ -1,7 +1,10 @@
 """
-Classification inference logic
+SpeciesNet, through Google's speciesnet package.
 
-Runs SpeciesNet inference on animal detections and processes results.
+Runs SpeciesNet inference on animal detections and processes results. The
+model folder comes from the registry (the catalog's pinned HuggingFace
+commit); info.json is patched so the package does not download its own
+MegaDetector, which Connect's detection worker already runs.
 
 Per detection this follows the reference pipeline for detection-level
 SpeciesNet, `_process_classification_batch` in MegaDetector's
@@ -12,63 +15,30 @@ is deliberately not used: it picks one label for a whole image and mixes in
 detector-confidence rules for people, vehicles and blanks, which do not
 belong on a single detection.
 """
+import json
+from pathlib import Path
 from PIL import Image
 from typing import Any, List, Optional
 
-from speciesnet import BBox
+from speciesnet import BBox, SpeciesNetClassifier, SpeciesNetEnsemble
 from speciesnet.geofence_utils import (
     geofence_animal_classification,
     roll_up_labels_to_first_matching_level,
 )
 
+from shared.classification_models import ClassificationModel
 from shared.logger import get_logger
 from shared.taxonomy import UNKNOWN_ANIMAL, apply_taxonomy_walkup
-from config import get_settings
+from db_operations import get_project_species_config
+from records import Classification, DetectionInfo, ProjectConfig
 
-logger = get_logger("classification-speciesnet.classifier")
-settings = get_settings()
+logger = get_logger("classification.speciesnet_model")
 
 # Same values as run_md_and_speciesnet (DEFAULT_ROLLUP_TARGET_CONFIDENCE and
 # the levels it passes), so a detection gets the label the reference
 # pipeline would give it.
 ROLLUP_TARGET_CONFIDENCE = 0.65
 ROLLUP_LEVELS = ["species", "genus", "family", "order", "class", "kingdom"]
-
-
-class DetectionInfo:
-    """Detection information for classification"""
-    def __init__(
-        self,
-        detection_id: int,
-        category: str,
-        confidence: float,
-        bbox_normalized: list[float],
-        image_width: int,
-        image_height: int
-    ):
-        self.detection_id = detection_id
-        self.category = category
-        self.confidence = confidence
-        self.bbox_normalized = bbox_normalized
-        self.image_width = image_width
-        self.image_height = image_height
-
-
-class Classification:
-    """Classification result"""
-    def __init__(
-        self,
-        detection_id: int,
-        species: str,
-        confidence: float,
-        raw_prediction: str | None = None,
-        raw_confidence: float | None = None
-    ):
-        self.detection_id = detection_id
-        self.species = species
-        self.confidence = confidence
-        self.raw_prediction = raw_prediction
-        self.raw_confidence = raw_confidence
 
 
 def speciesnet_admin1(region: Optional[str]) -> Optional[str]:
@@ -272,3 +242,49 @@ def run_classification(
             exc_info=True
         )
         raise
+
+
+def patch_info_json(model_dir: Path) -> None:
+    """Point info.json's detector at a local dummy file.
+
+    SpeciesNet's ModelInfo downloads MegaDetector (about 150 MB) when the
+    detector field is a URL. Only the classifier is used here.
+    """
+    info_path = model_dir / "info.json"
+    with open(info_path) as f:
+        info = json.load(f)
+    detector = info.get("detector")
+    if isinstance(detector, str) and detector.startswith("http"):
+        dummy_path = model_dir / "dummy_detector.pt"
+        dummy_path.touch()
+        info["detector"] = str(dummy_path)
+        with open(info_path, "w") as f:
+            json.dump(info, f, indent=2)
+        logger.info("Patched info.json to prevent MegaDetector download", original_detector=detector)
+
+
+class SpeciesNetModel:
+    def __init__(self, model: ClassificationModel, classifier: Any, ensemble: Any):
+        self.model = model
+        self.classifier = classifier
+        self.ensemble = ensemble
+
+    def classify(
+        self, image_path: str, detections: List[DetectionInfo], project: ProjectConfig
+    ) -> List[Classification]:
+        """Top-1 per animal detection, through the project's geofence and
+        label CSV. The project config is read per image, so a CSV upload
+        takes effect on the next image."""
+        taxonomy_map, geofencing_config = get_project_species_config(project.project_id)
+        return run_classification(
+            self.classifier, image_path, detections, taxonomy_map, self.ensemble, geofencing_config
+        )
+
+
+def load(model: ClassificationModel, model_dir: Path, device: str) -> SpeciesNetModel:
+    """The classifier on the device, and the ensemble for its taxonomy and
+    geofence tables (`combine()` is never called)."""
+    patch_info_json(model_dir)
+    classifier = SpeciesNetClassifier(model_name=str(model_dir), device=device)
+    ensemble = SpeciesNetEnsemble(model_name=str(model_dir), geofence=True)
+    return SpeciesNetModel(model, classifier, ensemble)

@@ -1567,7 +1567,6 @@ async def is_timezone_configured(
 
 class SetupStatusResponse(BaseModel):
     """Server setup status for project creation prerequisites"""
-    model: str
     timezone: bool
     telegram: bool
     ready: bool
@@ -1584,13 +1583,10 @@ async def get_setup_status(
     """
     Check if all server setup prerequisites are met for project creation.
 
-    Only the timezone is a server-level prerequisite. The country and, on
-    SpeciesNet, the taxonomy mapping come with each project's create
-    request. The model is reported so the create dialog knows whether to
-    ask for the mapping.
+    Only the timezone is a server-level prerequisite. The country, the
+    model and, for SpeciesNet, the taxonomy mapping come with each
+    project's create request.
     """
-    model = settings.classification_model or "deepfaune"
-
     result = await db.execute(select(ServerSettings).limit(1))
     server_settings = result.scalar_one_or_none()
 
@@ -1603,7 +1599,6 @@ async def get_setup_status(
     ready = has_timezone
 
     return SetupStatusResponse(
-        model=model,
         timezone=has_timezone,
         telegram=has_telegram,
         ready=ready,

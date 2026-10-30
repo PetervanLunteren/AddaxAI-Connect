@@ -32,7 +32,7 @@ export const ProjectsPage: React.FC = () => {
     isServerAdmin || (projects ?? []).some((p) => p.role === 'project-admin');
 
   // Server setup status, for everyone who may create a project: it gates
-  // the button on the timezone and tells the dialog which model runs.
+  // the button on the timezone.
   const { data: setupStatus } = useQuery({
     queryKey: ['setup-status'],
     queryFn: adminApi.getSetupStatus,
@@ -164,7 +164,6 @@ export const ProjectsPage: React.FC = () => {
           <CreateProjectModal
             open={showCreateModal}
             onClose={() => setShowCreateModal(false)}
-            requireTaxonomy={setupStatus?.model === 'speciesnet'}
           />
         )}
       </main>

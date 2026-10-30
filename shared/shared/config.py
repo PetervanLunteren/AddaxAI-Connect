@@ -39,8 +39,6 @@ class Settings(BaseSettings):
 
     # ML Models
     detection_model_path: Optional[str] = None     # workers only
-    classification_model_path: Optional[str] = None  # workers only
-    classification_model: Optional[str] = None     # "deepfaune" or "speciesnet"
 
     # FTPS (ingestion only)
     ftps_upload_dir: Optional[str] = None

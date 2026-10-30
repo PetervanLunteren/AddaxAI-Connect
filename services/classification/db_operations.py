@@ -1,5 +1,5 @@
 """
-Database operations for SpeciesNet classification worker
+Database operations for the classification worker
 
 Handles inserting classifications and updating image status.
 """
@@ -9,25 +9,31 @@ from typing import List
 from shared.database import get_db_session
 from shared.models import Image, Detection, Classification as ClassificationModel, Camera, Project, TaxonomyMapping
 from shared.logger import get_logger
-from classifier import Classification, DetectionInfo
+from records import Classification, DetectionInfo, ProjectConfig
 
-logger = get_logger("classification-speciesnet.db_operations")
+logger = get_logger("classification.db_operations")
 
 
-def get_project_species_config(project_id: int | None) -> tuple[dict[str, str], dict[str, str]]:
+def models_in_use() -> list[str]:
+    """The models the server's projects use, loaded at worker start."""
+    with get_db_session() as db:
+        rows = db.query(Project.classification_model).distinct().all()
+    return sorted(row[0] for row in rows)
+
+
+def get_project_species_config(project_id: int) -> tuple[dict[str, str], dict[str, str]]:
     """
-    The project's classification config: its taxonomy mapping and its geofence.
+    A SpeciesNet project's classification config: its taxonomy mapping and
+    its geofence.
 
-    Raises ValueError when the image has no project, or the project has no
-    taxonomy mapping or no country, so the image fails visibly instead of
-    being classified without its label list or geofence. A SpeciesNet project
-    gets both when it is created.
+    Raises ValueError when the project has no taxonomy mapping or no
+    country, so the image fails visibly instead of being classified without
+    its label list or geofence. A SpeciesNet project gets both when it is
+    created.
 
     Returns:
         ({lowercase latin: common}, {'country_code', 'admin1_region' ('' when unset)})
     """
-    if project_id is None:
-        raise ValueError("Image has no project, cannot classify")
     with get_db_session() as db:
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project or not project.country_code:
@@ -43,7 +49,7 @@ def get_project_species_config(project_id: int | None) -> tuple[dict[str, str], 
         return taxonomy_map, geofence
 
 
-def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], int | None]:
+def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], ProjectConfig | None]:
     """
     Fetch detection records and project configuration for an image.
 
@@ -51,8 +57,8 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
         image_uuid: UUID of image
 
     Returns:
-        Tuple of (image_id, image_width, image_height, list of DetectionInfo objects, project_id)
-        project_id is None when the image's camera has no project
+        Tuple of (image_id, image_width, image_height, list of DetectionInfo objects, project)
+        project is None when the image's camera has no project
 
     Raises:
         Exception: If query fails
@@ -67,10 +73,18 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
             if not image:
                 raise ValueError(f"Image not found: {image_uuid}")
 
-            # The project carries the classification config (country, and
-            # the taxonomy mapping)
+            # The project says which model classifies and which species
+            # occur there
             camera = db.query(Camera).filter(Camera.id == image.camera_id).first()
-            project_id = camera.project_id if camera else None
+            project_row = (
+                db.query(Project).filter(Project.id == camera.project_id).first()
+                if camera and camera.project_id is not None else None
+            )
+            project = ProjectConfig(
+                project_id=project_row.id,
+                classification_model=project_row.classification_model,
+                included_species=project_row.included_species,
+            ) if project_row else None
 
             # Get image dimensions from metadata
             image_metadata = image.image_metadata or {}
@@ -107,10 +121,11 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
                 "Detections fetched",
                 image_uuid=image_uuid,
                 num_detections=len(detection_infos),
-                project_id=project_id,
+                project_id=project.project_id if project else None,
+                model=project.classification_model if project else None,
             )
 
-            return (image.id, image_width, image_height, detection_infos, project_id)
+            return (image.id, image_width, image_height, detection_infos, project)
 
     except Exception as e:
         logger.error(
@@ -126,7 +141,7 @@ def insert_classifications(classifications: List[Classification]) -> List[int]:
     """
     Insert classification records into database.
 
-    Populates raw_prediction and raw_confidence when available (SpeciesNet).
+    Populates raw_prediction and raw_confidence when set (SpeciesNet).
 
     Args:
         classifications: List of Classification objects
@@ -157,10 +172,9 @@ def insert_classifications(classifications: List[Classification]) -> List[int]:
                     confidence=classification.confidence
                 )
 
-                # Set raw fields when available (SpeciesNet provides these)
-                if hasattr(classification, 'raw_prediction') and classification.raw_prediction is not None:
+                if classification.raw_prediction is not None:
                     classification_record.raw_prediction = classification.raw_prediction
-                if hasattr(classification, 'raw_confidence') and classification.raw_confidence is not None:
+                if classification.raw_confidence is not None:
                     classification_record.raw_confidence = classification.raw_confidence
 
                 db.add(classification_record)

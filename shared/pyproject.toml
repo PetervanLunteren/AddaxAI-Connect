@@ -42,4 +42,4 @@ where = ["."]
 include = ["shared*"]
 
 [tool.setuptools.package-data]
-shared = ["templates/*.html"]
+shared = ["templates/*.html", "model_taxonomy/*.csv"]

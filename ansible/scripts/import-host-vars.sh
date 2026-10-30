@@ -58,7 +58,6 @@ REDIS_PASSWORD=redis_password
 MINIO_ROOT_USER=minio_user
 MINIO_ROOT_PASSWORD=minio_password
 JWT_SECRET=jwt_secret
-CLASSIFICATION_MODEL=classification_model
 USE_GPU=use_gpu
 FTPS_UPLOAD_DIR=ftps_upload_dir
 FTPS_USERNAME=ftps_username

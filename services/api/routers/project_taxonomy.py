@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.config import get_settings
+from shared.classification_models import SPECIESNET, get_model
 from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.models import (
@@ -32,7 +32,6 @@ from auth.users import current_verified_user
 from utils.taxonomy_csv import parse_taxonomy_csv, replace_project_taxonomy
 
 router = APIRouter(prefix="/api/projects", tags=["project-taxonomy"])
-settings = get_settings()
 logger = get_logger("api.project_taxonomy")
 
 REPROCESS_BATCH_SIZE = 500
@@ -119,15 +118,14 @@ async def upload_project_taxonomy(
     longer produces.
     """
     await _require_admin(db, current_user, project_id)
-    if (settings.classification_model or "deepfaune") != "speciesnet":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A taxonomy mapping CSV is only used on SpeciesNet servers",
-        )
-
     project = (await db.execute(select(Project).where(Project.id == project_id))).scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    if get_model(project.classification_model).kind != SPECIESNET:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A taxonomy mapping CSV is only used by SpeciesNet projects",
+        )
 
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a .csv file")

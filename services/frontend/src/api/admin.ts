@@ -261,7 +261,7 @@ export const adminApi = {
   /**
    * Check server setup status for project creation prerequisites
    */
-  getSetupStatus: async (): Promise<{ model: string; timezone: boolean; telegram: boolean; ready: boolean }> => {
+  getSetupStatus: async (): Promise<{ timezone: boolean; telegram: boolean; ready: boolean }> => {
     const response = await apiClient.get('/api/admin/setup-status');
     return response.data;
   },

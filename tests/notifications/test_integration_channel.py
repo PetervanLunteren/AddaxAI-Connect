@@ -124,9 +124,9 @@ class TestBuildPayloads:
             captured_at=CAPTURED_AT, tz=AMS, lat=1.0, lon=2.0, site_name="Gate",
             image_url="https://x", count=1, confidence=0.9, scientific_name=None,
         )
-        assert ic.build_detection_payload("sensingclues", facts, "speciesnet")["classifier"] == "SpeciesNet v4.0.1"
-        assert ic.build_detection_payload("sensingclues", facts, None)["classifier"] == "DeepFaune v1.4"
-        assert ic.build_detection_payload("earthranger", facts, None)["event_type"] == "addaxai_connect_detection"
+        assert ic.build_detection_payload("sensingclues", facts, "SPECIESNET-v4-0-1-A-v1")["classifier"] == "SpeciesNet v4.0.1"
+        assert ic.build_detection_payload("sensingclues", facts, "EUR-DF-v1-4")["classifier"] == "DeepFaune v1.4"
+        assert ic.build_detection_payload("earthranger", facts, "EUR-DF-v1-4")["event_type"] == "addaxai_connect_detection"
 
 
 # ---- detection alerts ----
@@ -145,6 +145,7 @@ def _user():
 
 def _project():
     return SimpleNamespace(id=1, name="Test project", blur_people=True, blur_vehicles=True,
+                           classification_model="EUR-DF-v1-4",
                            blur_categories=lambda: ["person", "vehicle"])
 
 
@@ -171,7 +172,6 @@ def _stub_detection(monkeypatch):
     monkeypatch.setattr(ic, "scientific_name", lambda db, project_id, s, model: "Canis lupus")
     monkeypatch.setattr(da, "get_server_timezone", lambda db: AMS)
     monkeypatch.setattr(da.settings, "domain_name", "connect.example.org")
-    monkeypatch.setattr(da.settings, "classification_model", "deepfaune")
     return sent
 
 

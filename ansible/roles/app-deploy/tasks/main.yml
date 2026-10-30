@@ -41,6 +41,17 @@
     - data/redis
     - data/minio
 
+# Weights of the two classification workers that ran before models were
+# picked per project. The merged worker keeps each model in its own folder
+# under models/classification, see services/classification/registry.py.
+- name: Remove the weights of the old classification workers
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/models/{{ item }}"
+    state: absent
+  loop:
+    - classification/deepfaune-vit_large_patch14_dinov2.lvd142m.v4.pt
+    - classification-speciesnet
+
 - name: Create postgres data directory with correct ownership
   file:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}/data/postgres"
@@ -116,7 +127,7 @@
       when: "{{ not (demo_mode | default(false)) }}"
     - service: detection
       when: "{{ not (demo_mode | default(false)) }}"
-    - service: "{{ 'classification-speciesnet' if classification_model == 'speciesnet' else 'classification-deepfaune' }}"
+    - service: classification
       when: "{{ not (demo_mode | default(false)) }}"
     - service: notifications
       when: "{{ not (demo_mode | default(false)) }}"
@@ -131,8 +142,10 @@
   async: 1800  # 30 minutes per service (first build downloads base images + deps)
   poll: 10
 
+# --remove-orphans stops containers of services the compose file no longer
+# has, like the two classification workers that ran before the merged one.
 - name: Start Docker Compose services
-  command: docker compose up -d --build --force-recreate
+  command: docker compose up -d --build --force-recreate --remove-orphans
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"

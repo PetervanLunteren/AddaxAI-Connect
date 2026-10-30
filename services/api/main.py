@@ -10,13 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from shared import __version__
-from shared.classification_models import model_info
 from shared.config import get_settings
 from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.storage import StorageObjectNotFound
 from auth.routes import get_auth_router
-from routers import admin, logs, cameras, site_groups, camera_reference_images, service, images, image_admin, statistics, projects, devtools, ingestion_monitoring, project_images, project_taxonomy, project_documents, notifications, reminders, camera_alert_rules, detection_alert_rules, scheduled_reports, theft_watch_rules, users, export, species, bulk_upload, sites, deployments, feed, live_feed, integrations
+from routers import admin, classification_models, logs, cameras, site_groups, camera_reference_images, service, images, image_admin, statistics, projects, devtools, ingestion_monitoring, project_images, project_taxonomy, project_documents, notifications, reminders, camera_alert_rules, detection_alert_rules, scheduled_reports, theft_watch_rules, users, export, species, bulk_upload, sites, deployments, feed, live_feed, integrations
 from routers import health as health_router
 from middleware.logging import RequestLoggingMiddleware
 
@@ -131,12 +130,6 @@ def version():
     }
 
 
-@app.get("/api/classification-model")
-def classification_model():
-    """Get classification model display info for the About page"""
-    return model_info(settings.classification_model)
-
-
 @app.get("/health")
 def health():
     return {"status": "healthy"}
@@ -198,6 +191,7 @@ app.include_router(devtools.router)
 app.include_router(ingestion_monitoring.router)
 app.include_router(export.router)
 app.include_router(species.router)
+app.include_router(classification_models.router)
 app.include_router(bulk_upload.router)
 app.include_router(sites.router)
 app.include_router(deployments.router)

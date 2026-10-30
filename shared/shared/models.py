@@ -426,6 +426,10 @@ class Project(Base):
     # projects made before it existed. SpeciesNet geofences on it.
     country_code = Column(String(3), nullable=True)  # ISO 3166-1 alpha-3, e.g. "NLD"
     admin1_region = Column(String(10), nullable=True)  # ISO 3166-2 US state, e.g. "US-CA"; USA only
+    # The classification model, a key of shared.classification_models.
+    # Picked at creation and never changed, so it also says which model
+    # made every label in the project.
+    classification_model = Column(String(50), nullable=False)
     image_path = Column(String(512), nullable=True)  # MinIO path to original project image
     thumbnail_path = Column(String(512), nullable=True)  # MinIO path to thumbnail (256x256)
     detection_threshold = Column(Float, nullable=False, server_default='0.5')  # Minimum confidence for detections to be visible (0.0-1.0)
@@ -1026,24 +1030,6 @@ class ProjectDocument(Base):
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     uploaded_by = relationship("User", foreign_keys=[uploaded_by_user_id])
-
-
-class SpeciesTaxonomy(Base):
-    """
-    Maps common species names (from classification models) to scientific names.
-
-    Global lookup table used for CamTrap DP export and other biodiversity standards.
-    Pre-populated for DeepFaune v1.4. Future models (e.g., SpeciesNet) add their own entries.
-    """
-    __tablename__ = "species_taxonomy"
-
-    id = Column(Integer, primary_key=True, index=True)
-    common_name = Column(String(255), unique=True, nullable=False, index=True)
-    scientific_name = Column(String(255), nullable=True)  # null = unmapped (e.g., "micromammal")
-    taxon_rank = Column(String(50), nullable=False, server_default='species')  # species, genus, family, order, class
-    model_source = Column(String(100), nullable=False, server_default='deepfaune')
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
 class UserInvitation(Base):

@@ -19,8 +19,8 @@ logger = get_logger("classification.annotated_image")
 
 BBOX_STROKE_WIDTH = 2
 BBOX_CORNER_RADIUS = 4
-DIM_OPACITY = 89          # 0.35 * 255 ≈ 89
-PILL_BG_OPACITY = 128     # 0.5 * 255 ≈ 128
+DIM_OPACITY = 89          # 0.35 * 255 ~ 89
+PILL_BG_OPACITY = 128     # 0.5 * 255 ~ 128
 PILL_PAD_X = 6
 PILL_PAD_Y = 4
 DOT_R = 4

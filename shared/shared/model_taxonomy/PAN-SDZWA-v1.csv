@@ -1,0 +1,54 @@
+model_class,class,order,family,genus,species
+empty,,,,,
+small mammal,mammalia,,,,
+reptile,reptilia,,,,
+bolivian squirrel,mammalia,rodentia,sciuridae,sciurus,ignitus
+pacarana,mammalia,rodentia,dinomyidae,dinomys,branickii
+brown agouti,mammalia,rodentia,dasyproctidae,dasyprocta,variegata
+black agouti,mammalia,rodentia,dasyproctidae,dasyprocta,fuliginosa
+mountain paca,mammalia,rodentia,cuniculidae,cuniculus,taczanowskii
+lowland paca,mammalia,rodentia,cuniculidae,cuniculus,paca
+human,mammalia,primates,hominidae,homo,sapiens
+tamandua,mammalia,pilosa,myrmecophagidae,tamandua,
+giant anteater,mammalia,pilosa,myrmecophagidae,myrmecophaga,tridactyla
+lowland tapir,mammalia,perissodactyla,tapiridae,tapirus,terrestris
+mountain tapir,mammalia,perissodactyla,tapiridae,tapirus,pinchaque
+forest rabbit,mammalia,lagomorpha,leporidae,sylvilagus,brasiliensis
+andean white-eared opossum,mammalia,didelphimorphia,didelphidae,didelphis,pernigra
+common opossum,mammalia,didelphimorphia,didelphidae,didelphis,marsupialis
+other opossum,mammalia,didelphimorphia,didelphidae,,
+giant armadillo,mammalia,cingulata,dasypodidae,priodontes,maximus
+long-nosed armadillo,mammalia,cingulata,dasypodidae,dasypus,novemcinctus
+southern naked-tailed armadillo,mammalia,cingulata,dasypodidae,cabassous,unicinctus
+andean bear,mammalia,carnivora,ursidae,tremarctos,ornatus
+highland coati,mammalia,carnivora,procyonidae,nasuella,olivacea
+south american coati,mammalia,carnivora,procyonidae,nasua,nasua
+long-tailed weasel,mammalia,carnivora,mustelidae,mustela,frenata
+grison,mammalia,carnivora,mustelidae,galictis,
+tayra,mammalia,carnivora,mustelidae,eira,barbara
+molinas hog-nosed skunk,mammalia,carnivora,mephitidae,conepatus,chinga
+puma,mammalia,carnivora,felidae,puma,concolor
+jaguarundi,mammalia,carnivora,felidae,herpailurus,yagouaroundi
+jaguar,mammalia,carnivora,felidae,panthera,onca
+margay,mammalia,carnivora,felidae,leopardus,wiedii
+oncilla,mammalia,carnivora,felidae,leopardus,tigrinus
+ocelot,mammalia,carnivora,felidae,leopardus,pardalis
+bush dog,mammalia,carnivora,canidae,speothos,venaticus
+andean fox,mammalia,carnivora,canidae,lycalopex,culpaeus
+domestic dog,mammalia,carnivora,canidae,canis,lupus familiaris
+short-eared dog,mammalia,carnivora,canidae,atelocynus,microtis
+white-lipped peccary,mammalia,artiodactyla,tayassuidae,tayassu,pecari
+collared peccary,mammalia,artiodactyla,tayassuidae,pecari,tajacu
+northern pudu,mammalia,artiodactyla,cervidae,pudu,mephistophiles
+white-tailed deer,mammalia,artiodactyla,cervidae,odocoileus,virginianus
+little red brocket deer,mammalia,artiodactyla,cervidae,mazama,rufina
+dwarf brocket deer,mammalia,artiodactyla,cervidae,mazama,chunyi
+red brocket deer,mammalia,artiodactyla,cervidae,mazama,americana
+cow,mammalia,artiodactyla,bovidae,bos,taurus
+tinamou,aves,tinamiformes,tinamidae,,
+pale-winged trumpeter,aves,gruiformes,psophiidae,psophia,leucoptera
+andean guan,aves,galliformes,cracidae,penelope,montagnii
+spixs guan,aves,galliformes,cracidae,penelope,jacquacu
+razor-billed curassow,aves,galliformes,cracidae,mitu,tuberosum
+sickle-winged guan,aves,galliformes,cracidae,chamaepetes,goudotii
+unknown bird,aves,,,,

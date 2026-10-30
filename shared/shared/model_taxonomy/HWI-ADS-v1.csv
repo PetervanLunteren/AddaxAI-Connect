@@ -1,0 +1,16 @@
+model_class,class,order,family,genus,species
+bird,aves,,,,
+rodent,mammalia,rodentia,,,
+mongoose,mammalia,carnivora,herpestidae,herpestes,javanicus
+cat,mammalia,carnivora,felidae,felis,catus
+donkey,mammalia,perissodactyla,equidae,equus,asinus
+axis deer,mammalia,artiodactyla,cervidae,axis,axis
+mule deer,mammalia,artiodactyla,cervidae,odocoileus,hemionus
+cow,mammalia,artiodactyla,bovidae,bos,taurus
+goat,mammalia,artiodactyla,bovidae,capra,hircus
+horse,mammalia,perissodactyla,equidae,equus,ferus
+rock wallaby,mammalia,diprotodontia,macropodidae,notamacropus,
+dog,mammalia,carnivora,canidae,canis,lupus
+wild pig,mammalia,artiodactyla,suidae,sus,scrofa
+false detection,,,,,
+sheep,mammalia,artiodactyla,bovidae,ovis,aries

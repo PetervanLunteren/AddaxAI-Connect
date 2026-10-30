@@ -28,6 +28,7 @@ import { siteGroupsApi } from '../../api/siteGroups';
 import { sitesApi } from '../../api/sites';
 import { normalizeLabel } from '../../utils/labels';
 import { speciesApi } from '../../api/species';
+import { classificationModelsApi } from '../../api/classificationModels';
 import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, SiteGroup } from '../../api/types';
 
 const INDEPENDENCE_INTERVAL_OPTIONS = [
@@ -204,9 +205,15 @@ export const ProjectSettingsPage: React.FC = () => {
     queryFn: () => speciesApi.getAvailable(currentProject!.id),
     enabled: !!currentProject,
   });
-  const isSpeciesNet = availableSpeciesData?.model === 'speciesnet';
+  const isSpeciesNet = availableSpeciesData?.kind === 'speciesnet';
+  const { data: models } = useQuery({
+    queryKey: ['classification-models'],
+    queryFn: classificationModelsApi.list,
+    staleTime: Infinity,
+  });
+  const projectModel = models?.find((m) => m.id === availableSpeciesData?.model);
 
-  // Seed the species multiselect once per project. On DeepFaune an empty or
+  // Seed the species multiselect once per project. On a fixed-class model an empty or
   // null stored value means "all species", which we show as every option
   // selected rather than an empty box. A ref guards this so a background
   // refetch of the species list never wipes the admin's in-progress edits.
@@ -251,7 +258,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const hasThresholdChanges = threshold !== currentProject.detection_threshold;
 
   // "All species" is stored as an empty list (the classifier treats empty as
-  // "no filter"). On DeepFaune, every option selected is the same thing, so
+  // "no filter"). On a fixed-class model, every option selected is the same thing, so
   // both collapse to one canonical value and selecting all reads as no change.
   // SpeciesNet ignores the list, so keep a plain comparison there.
   const allSpeciesValues = availableSpeciesData?.species ?? [];
@@ -610,7 +617,21 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Species Filtering (DeepFaune only, SpeciesNet uses the Species labels card below) */}
+          {/* The model, picked at creation and locked */}
+          <div className="border-t my-6" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
+              <label className="text-sm font-medium block">Species model</label>
+              <p className="text-sm text-muted-foreground mt-1">
+                The AI model that names the animals in this project. It was picked when the project was created and cannot be changed. For another model, create a new project.
+              </p>
+            </div>
+            <div className="w-full sm:w-1/2 text-sm">
+              {projectModel ? `${projectModel.emoji} ${projectModel.name}` : availableSpeciesData?.model ?? '...'}
+            </div>
+          </div>
+
+          {/* Species Filtering (fixed-class models only, SpeciesNet uses the Species labels card below) */}
           {!isSpeciesNet && (
             <>
               <div className="border-t my-6" />

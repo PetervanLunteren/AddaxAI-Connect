@@ -1,7 +1,7 @@
-"""Privacy removal in the classification workers, pinned on both twins.
+"""Privacy removal in the classification worker.
 
-The worker modules import torch and the model loaders, so these tests read
-the source files and cut out the functions with ast instead of importing.
+The worker module imports torch and the model loaders, so these tests read
+the source file and cut out the functions with ast instead of importing.
 """
 import ast
 import os
@@ -10,10 +10,8 @@ import pytest
 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 WORKERS = {
-    "deepfaune": os.path.join(_ROOT, "services", "classification-deepfaune", "worker.py"),
-    "speciesnet": os.path.join(_ROOT, "services", "classification-speciesnet", "worker.py"),
+    "classification": os.path.join(_ROOT, "services", "classification", "worker.py"),
 }
-NEW_FUNCTIONS = ("event_location_and_timestamp", "publish_person_vehicle_events", "remove_private_image")
 
 
 def _source(name: str) -> str:
@@ -76,7 +74,3 @@ class TestOnePublishPath:
         assert src.count("publish_person_vehicle_events(") == 4
         assert "publish_person_vehicle_events(" in _function(src, "remove_private_image")
 
-
-def test_the_twins_share_the_same_privacy_code():
-    for func_name in NEW_FUNCTIONS:
-        assert _function(_source("deepfaune"), func_name) == _function(_source("speciesnet"), func_name)

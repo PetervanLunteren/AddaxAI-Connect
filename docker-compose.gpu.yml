@@ -1,4 +1,4 @@
-# GPU override. Gives the three ML workers the host's NVIDIA GPUs and tells
+# GPU override. Gives the two ML workers the host's NVIDIA GPUs and tells
 # them to use it.
 #
 # Not applied on its own. Ansible writes
@@ -22,11 +22,7 @@ services:
     gpus: all
     environment:
       USE_GPU: "true"
-  classification-deepfaune:
-    gpus: all
-    environment:
-      USE_GPU: "true"
-  classification-speciesnet:
+  classification:
     gpus: all
     environment:
       USE_GPU: "true"

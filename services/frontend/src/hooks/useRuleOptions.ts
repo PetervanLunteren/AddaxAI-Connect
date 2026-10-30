@@ -30,16 +30,16 @@ export function useRuleOptions(projectId: number, project: ProjectLike | null | 
       .map((site) => ({ label: site.name, value: site.id }));
   }, [projectSites]);
 
-  // Model-dependent label list. For DeepFaune the project's included
-  // species narrow it when set; for SpeciesNet the project's taxonomy
-  // mapping is the list, fallback label included. Person and vehicle are
+  // Model-dependent label list. For a fixed-class model the project's
+  // included species narrow it when set; for SpeciesNet the project's
+  // taxonomy mapping is the list, fallback label included. Person and vehicle are
   // detection-level labels and always there.
   const { data: availableSpeciesData } = useQuery({
     queryKey: ['available-species', projectId],
     queryFn: () => speciesApi.getAvailable(projectId),
     enabled: projectId > 0,
   });
-  const isSpeciesNet = availableSpeciesData?.model === 'speciesnet';
+  const isSpeciesNet = availableSpeciesData?.kind === 'speciesnet';
   const availableSpecies = useMemo(() => {
     const modelSpecies = availableSpeciesData?.species ?? [];
     const baseSpecies = (!isSpeciesNet && project?.included_species) || modelSpecies;

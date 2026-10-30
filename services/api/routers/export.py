@@ -27,12 +27,12 @@ from sqlalchemy.orm import selectinload, aliased
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
     HumanObservation, CameraMaintenanceEvent,
-    SpeciesTaxonomy, ServerSettings, TaxonomyMapping,
+    ServerSettings, TaxonomyMapping,
 )
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_THUMBNAILS
 from shared.logger import get_logger
-from shared.config import get_settings
+from shared.classification_models import SPECIESNET, get_model, taxonomy
 from shared.taxonomy import scientific_names
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, get_allowed_site_ids
@@ -43,8 +43,6 @@ from utils.camera_recency import fetch_camera_recency
 
 router = APIRouter(prefix="/api/projects/{project_id}/export", tags=["export"])
 logger = get_logger("api.export")
-settings = get_settings()
-
 CAMTRAP_DP_VERSION = "1.0"
 CAMTRAP_DP_PROFILE = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/camtrap-dp-profile.json"
 DEPLOYMENTS_SCHEMA = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/deployments-table-schema.json"
@@ -52,28 +50,24 @@ MEDIA_SCHEMA = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_V
 OBSERVATIONS_SCHEMA = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/observations-table-schema.json"
 
 
-async def load_taxonomy_lookup(db: AsyncSession, project_id: int) -> Dict[str, dict]:
+async def load_taxonomy_lookup(db: AsyncSession, project: Project) -> Dict[str, dict]:
     """Scientific name and rank per label, for the exports.
 
-    DeepFaune labels come from the species_taxonomy table. On a SpeciesNet
-    server the labels are the project's own, so they come from its taxonomy
-    mapping only (one latin row per label, see shared.taxonomy), with no
-    rank; species_taxonomy holds DeepFaune names that would be wrong there.
+    A fixed-class model's labels come from its taxonomy.csv in the catalog.
+    A SpeciesNet project's labels are its own, so they come from its
+    taxonomy mapping only (one latin row per label, see shared.taxonomy),
+    with no rank.
     """
-    if (settings.classification_model or "deepfaune") == "speciesnet":
+    if get_model(project.classification_model).kind == SPECIESNET:
         result = await db.execute(
             select(TaxonomyMapping.latin, TaxonomyMapping.common)
-            .where(TaxonomyMapping.project_id == project_id)
+            .where(TaxonomyMapping.project_id == project.id)
         )
         return {
             common: {"scientific_name": latin, "taxon_rank": None}
             for common, latin in scientific_names(result.all()).items()
         }
-    result = await db.execute(select(SpeciesTaxonomy))
-    return {
-        t.common_name: {"scientific_name": t.scientific_name, "taxon_rank": t.taxon_rank}
-        for t in result.scalars().all()
-    }
+    return taxonomy(project.classification_model)
 
 
 def _parse_timestamp(image: Image, tz: ZoneInfo) -> Optional[datetime]:
@@ -235,6 +229,7 @@ def _build_media_csv(
 def _build_observations_csv(
     media_entries: list,
     taxonomy_lookup: Dict[str, dict],
+    classifier: str,
     detection_threshold: float,
     classification_thresholds: Optional[Dict[str, Any]],
     tz: ZoneInfo,
@@ -340,7 +335,7 @@ def _build_observations_csv(
                         species_name = classification.species
                         observed_species.add(species_name)
                         class_confidence = str(round(classification.confidence, 6))
-                        classified_by = "MegaDetector v1000 + DeepFaune v1.4"
+                        classified_by = f"MegaDetector v1000 + {classifier}"
 
                     tax = taxonomy_lookup.get(species_name)
                     if tax and tax["scientific_name"]:
@@ -567,7 +562,7 @@ async def export_camtrap_dp(
     server_tz = await get_server_timezone(db)
     tz = ZoneInfo(server_tz)
 
-    taxonomy_lookup = await load_taxonomy_lookup(db, project_id)
+    taxonomy_lookup = await load_taxonomy_lookup(db, project)
 
     # Load deployment periods with camera info via raw SQL for PostGIS extraction
     # Report the site's coordinates and identity for deployments that have a
@@ -686,7 +681,7 @@ async def export_camtrap_dp(
         images, deployments_by_camera, camera_identifiers, tz, include_media,
     )
     observations_csv, observed_species = _build_observations_csv(
-        media_entries, taxonomy_lookup, project.detection_threshold,
+        media_entries, taxonomy_lookup, get_model(project.classification_model).name, project.detection_threshold,
         project.classification_thresholds, tz,
         event_assignments=event_assignments,
     )
@@ -763,6 +758,7 @@ def _build_observation_rows(
     camera_names: Dict[int, str],
     sites_by_deployment: Dict[int, tuple],
     taxonomy_lookup: Dict[str, dict],
+    classifier: str,
     detection_threshold: float,
     classification_thresholds: Optional[Dict[str, Any]],
     tz: ZoneInfo,
@@ -831,7 +827,7 @@ def _build_observation_rows(
                     if cls.confidence >= cls_threshold:
                         species = cls.species
                         confidence = cls.confidence
-                        classified_by = "MegaDetector v1000 + DeepFaune v1.4"
+                        classified_by = f"MegaDetector v1000 + {classifier}"
                     else:
                         # Sub-threshold classification: degrade to a raw
                         # animal detection without a species label.
@@ -940,7 +936,7 @@ async def export_observations(
     server_tz = await get_server_timezone(db)
     tz = ZoneInfo(server_tz)
 
-    taxonomy_lookup = await load_taxonomy_lookup(db, project_id)
+    taxonomy_lookup = await load_taxonomy_lookup(db, project)
 
     cam_result = await db.execute(
         select(Camera.id, Camera.device_id).where(Camera.project_id == project_id)
@@ -990,6 +986,7 @@ async def export_observations(
 
     headers, rows = _build_observation_rows(
         images, camera_names, sites_by_deployment, taxonomy_lookup,
+        get_model(project.classification_model).name,
         project.detection_threshold, project.classification_thresholds, tz,
     )
 
@@ -1731,7 +1728,7 @@ async def export_spatial(
             detail="Project not found",
         )
 
-    taxonomy_lookup = await load_taxonomy_lookup(db, project_id)
+    taxonomy_lookup = await load_taxonomy_lookup(db, project)
 
     # One bucket per site with the pooled numbers the Insights map shows,
     # from the shared helper, so the export and the map always agree.

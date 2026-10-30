@@ -1,7 +1,10 @@
 """
-SpeciesNet Classification Worker
+Classification Worker
 
-Consumes detections from the detection queue, runs species classification, and stores results.
+Consumes detections from the detection queue, runs the species model of the
+image's project on its animal detections, and stores the results. The
+models are held by registry.ModelRegistry; which one an image gets is the
+project's choice at creation.
 """
 import os
 
@@ -14,14 +17,14 @@ from shared.queue import (
     QUEUE_NOTIFICATION_EVENTS,
     HEARTBEAT_KEY_CLASSIFICATION,
     DEVICE_KEY_CLASSIFICATION,
+    MODELS_KEY_CLASSIFICATION,
 )
 from config import get_settings
-from model_loader import load_model
 import torch
 from shared.device import select_device
-from classifier import run_classification
+from registry import ModelRegistry, available_memory_mb
 from storage_operations import download_image_from_minio
-from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_project_species_config
+from db_operations import get_detections_for_image, insert_classifications, update_image_status, models_in_use
 from annotated_image import (
     generate_annotated_image,
     upload_annotated_image_to_minio,
@@ -33,7 +36,7 @@ from annotated_image import (
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-logger = get_logger("classification-speciesnet")
+logger = get_logger("classification")
 settings = get_settings()
 
 
@@ -170,13 +173,13 @@ def remove_private_image(image_uuid: str, detections, message: dict, is_bulk: bo
     return True
 
 
-def process_detection_complete(message: dict, classifier, ensemble) -> None:
+def process_detection_complete(message: dict, registry: ModelRegistry) -> None:
     """
     Process detection-complete message through classification pipeline.
 
     Args:
         message: Queue message with detection metadata
-        classifier: Loaded SpeciesNet classifier
+        registry: The loaded models, one per project model in use
 
     Raises:
         Exception: If processing fails (crashes worker)
@@ -219,7 +222,7 @@ def process_detection_complete(message: dict, classifier, ensemble) -> None:
             return
 
         # Step 2: Fetch detection records and project config from database
-        image_id, image_width, image_height, detections, project_id = get_detections_for_image(image_uuid)
+        image_id, image_width, image_height, detections, project = get_detections_for_image(image_uuid)
 
         # Privacy removal comes first, before any download: a project that
         # deletes photos of people or vehicles never has this photo touched
@@ -329,9 +332,12 @@ def process_detection_complete(message: dict, classifier, ensemble) -> None:
             logger.info("Image processing complete (no animals)", image_uuid=image_uuid)
             return
 
-        # The project's classification config is read only now, after every
-        # early return, so images without animals never depend on it.
-        taxonomy_map, geofencing_config = get_project_species_config(project_id)
+        # The project's model is needed only now, after every early return,
+        # so images without animals never depend on it. The first image of a
+        # model a new project picked loads it here.
+        if project is None:
+            raise ValueError("Image has no project, cannot classify")
+        model = registry.get(project.classification_model)
 
         # Step 3: Download full image from MinIO
         # Note: We need to fetch storage_path from database since it's not in queue message
@@ -347,7 +353,7 @@ def process_detection_complete(message: dict, classifier, ensemble) -> None:
         temp_files.append(image_path)
 
         # Step 4: Run classification on animal detections
-        classifications = run_classification(classifier, image_path, detections, taxonomy_map, ensemble, geofencing_config)
+        classifications = model.classify(image_path, detections, project)
 
         logger.info(
             "Classifications generated",
@@ -576,25 +582,38 @@ def process_detection_complete(message: dict, classifier, ensemble) -> None:
                 pass
 
 
-def main():
-    """Main entry point for SpeciesNet classification worker"""
-    logger.info("SpeciesNet classification worker starting", log_level=settings.log_level)
+def report_models(queue: RedisQueue, registry: ModelRegistry) -> None:
+    """Tell the API which models are loaded and how much memory is free, so
+    the create dialog knows which models a new project can still pick."""
+    try:
+        queue.record_models(MODELS_KEY_CLASSIFICATION, available_memory_mb(), registry.loaded)
+    except Exception as e:
+        logger.warning("Failed to report loaded models", error=str(e))
 
-    # Decide the device before the model download, so a GPU server that
+
+def main():
+    """Main entry point for the classification worker"""
+    logger.info("Classification worker starting", log_level=settings.log_level)
+
+    # Decide the device before any model download, so a GPU server that
     # cannot see its card fails in a second instead of after the download.
     device = select_device(settings.use_gpu, torch.cuda.is_available())
-    logger.info("Loading SpeciesNet model", device=device)
-    classifier, ensemble = load_model(device)
-    logger.info("Model loaded successfully")
+    registry = ModelRegistry(device, settings.models_dir)
+    registry.load_all(models_in_use())
 
     # Initialize queue consumer. Priority BRPOP keeps live ahead of bulk.
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
     queue.record_device(DEVICE_KEY_CLASSIFICATION, device)
+    report_models(queue, registry)
     priority_queues = [QUEUE_DETECTION_COMPLETE, QUEUE_DETECTION_COMPLETE_BULK]
 
     # Process messages forever. Each image reads its own project's config.
+    # The report after each message picks up a model loaded on first use.
     def handle_message(msg):
-        process_detection_complete(msg, classifier, ensemble)
+        try:
+            process_detection_complete(msg, registry)
+        finally:
+            report_models(queue, registry)
         # Only reached when classification succeeded (it raises on failure).
         if msg.get("origin") == "bulk":
             tier_bulk_raw_cold(msg.get("image_uuid"))

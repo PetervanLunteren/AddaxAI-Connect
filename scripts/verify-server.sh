@@ -199,7 +199,7 @@ import json, os, sys
 PROVIDED_BY = {
     'ingestion': ['ingestion'],
     'detection': ['detection'],
-    'classification': ['classification-deepfaune', 'classification-speciesnet'],
+    'classification': ['classification'],
     'notifications': ['notifications'],
     'notifications-email': ['notifications-email'],
     'notifications-telegram': ['notifications-telegram'],
@@ -273,7 +273,7 @@ fi
 # Costs a torch import per worker, a few seconds, no GPU memory.
 if grep -qxE 'USE_GPU=true' .env 2>/dev/null; then
   gpu_bad=""
-  for svc in detection classification-deepfaune classification-speciesnet; do
+  for svc in detection classification; do
     grep -qx "$svc" <<< "$EXPECTED" || continue
     if ! docker compose exec -T "$svc" python -c \
         'import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)' >/dev/null 2>&1; then

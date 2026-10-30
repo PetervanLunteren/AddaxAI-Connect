@@ -4,7 +4,7 @@
 
 This page covers what only applies to SpeciesNet. The general server settings, like the timezone, are in the [deployment guide](deployment.md).
 
-Every SpeciesNet project needs a country and a list of species labels. You give both when you create the project, and you can change them later in the project settings. Each project has its own, so one server can run projects in different countries.
+A project uses SpeciesNet when you pick it as the species model while creating the project. Every SpeciesNet project needs a country and a list of species labels. You give both when you create the project, and you can change them later in the project settings. Each project has its own, so one server can run projects in different countries, and next to projects that use another model.
 
 The species labels take three steps:
 

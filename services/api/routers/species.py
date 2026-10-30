@@ -1,7 +1,7 @@
 """
 Species endpoints for available classification labels.
 
-Returns a project's label list for the active classification model so the
+Returns a project's label list for its classification model so the
 frontend can populate notification and filter dropdowns dynamically.
 """
 from typing import List
@@ -11,20 +11,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from shared.models import User, TaxonomyMapping
+from shared.classification_models import SPECIESNET, class_labels, get_model
+from shared.models import User, Project, TaxonomyMapping
 from shared.database import get_async_session
-from shared.config import get_settings
-from shared.species import DEEPFAUNE_SPECIES
 from shared.taxonomy import UNKNOWN_ANIMAL
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, narrow_to_project
 
 router = APIRouter(prefix="/api/species", tags=["species"])
-settings = get_settings()
 
 
 class AvailableSpeciesResponse(BaseModel):
     model: str
+    kind: str
     species: List[str]
 
 
@@ -36,17 +35,20 @@ async def get_available_species(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Get the label list of a project for the active classification model.
+    Get the label list of a project for its classification model.
 
-    For deepfaune: returns the 38 hardcoded species.
-    For speciesnet: returns the distinct common names of the project's
-    taxonomy mapping, plus the fallback label every prediction that matches
-    no row gets, so rules and filters can target it too.
+    A fixed-class model's labels come from the catalog. A SpeciesNet
+    project's labels are the distinct common names of its taxonomy mapping,
+    plus the fallback label every prediction that matches no row gets, so
+    rules and filters can target it too.
     """
     narrow_to_project(accessible_project_ids, project_id)
-    model = settings.classification_model or "deepfaune"
+    model_id = (
+        await db.execute(select(Project.classification_model).where(Project.id == project_id))
+    ).scalar_one()
+    model = get_model(model_id)
 
-    if model == "speciesnet":
+    if model.kind == SPECIESNET:
         result = await db.execute(
             select(TaxonomyMapping.common)
             .where(TaxonomyMapping.project_id == project_id)
@@ -54,6 +56,6 @@ async def get_available_species(
         )
         species = sorted({row[0] for row in result.all()} | {UNKNOWN_ANIMAL})
     else:
-        species = list(DEEPFAUNE_SPECIES)
+        species = class_labels(model.id)
 
-    return AvailableSpeciesResponse(model=model, species=species)
+    return AvailableSpeciesResponse(model=model.id, kind=model.kind, species=species)

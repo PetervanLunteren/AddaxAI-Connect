@@ -1,0 +1,62 @@
+model_class,class,order,family,genus,species
+aardvark,mammalia,tubulidentata,orycteropodidae,orycteropus,afer
+african buffalo,mammalia,artiodactyla,bovidae,syncerus,caffer
+african elephant,mammalia,proboscidea,elephantidae,loxodonta,cyclotis
+african golden cat,mammalia,carnivora,felidae,caracal,aurata
+agile mangabey,mammalia,primates,cercopithecidae,cercocebus,agilis
+baboon,mammalia,primates,cercopithecidae,papio,
+bird of prey,aves,accipitriformes,,,
+black guineafowl,aves,galliformes,numididae,agelastes,niger
+black-and-white colobus,mammalia,primates,cercopithecidae,colobus,guereza
+black-legged mongoose,mammalia,carnivora,herpestidae,bdeogale,nigripes
+blue duiker,mammalia,artiodactyla,bovidae,philantomba,monticola
+blue monkey,mammalia,primates,cercopithecidae,cercopithecus,mitis
+bushbuck,mammalia,artiodactyla,bovidae,tragelaphus,scriptus
+bushpig,mammalia,artiodactyla,suidae,potamochoerus,larvatus
+casqued hornbill,aves,bucerotiformes,bucerotidae,bycanistes,subcylindricus
+cattle,mammalia,artiodactyla,bovidae,bos,taurus
+chimpanzee,mammalia,primates,hominidae,pan,troglodytes
+civet,mammalia,carnivora,viverridae,civettictis,civetta
+crane,aves,gruiformes,gruidae,balearica,pavonina
+dog,mammalia,carnivora,canidae,canis,lupus familiaris
+dove,aves,columbiformes,columbidae,,
+duck,aves,anseriformes,anatidae,,
+francolin,aves,galliformes,phasianidae,pternistis,
+galago,mammalia,primates,galagidae,,
+genet,mammalia,carnivora,viverridae,genetta,
+goat,mammalia,artiodactyla,bovidae,capra,hircus
+gorilla,mammalia,primates,hominidae,gorilla,gorilla
+grey-cheeked mangabey,mammalia,primates,cercopithecidae,lophocebus,albigena
+guineafowl,aves,galliformes,numididae,,
+hippopotamus,mammalia,artiodactyla,hippopotamidae,hippopotamus,amphibius
+honey badger,mammalia,carnivora,mustelidae,mellivora,capensis
+hornbill,aves,bucerotiformes,bucerotidae,,
+hyrax,mammalia,hyracoidea,procaviidae,dendrohyrax,
+leopard,mammalia,carnivora,felidae,panthera,pardus
+lhoests monkey,mammalia,primates,cercopithecidae,allochrocebus,lhoesti
+mandrill,mammalia,primates,cercopithecidae,mandrillus,sphinx
+mongoose,mammalia,carnivora,herpestidae,,
+moustached monkey,mammalia,primates,cercopithecidae,cercopithecus,cephus
+nkulengu rail,aves,gruiformes,rallidae,himantornis,haematopus
+otter,mammalia,carnivora,mustelidae,aonyx,congicus
+pangolin,mammalia,pholidota,manidae,,
+passeriform,aves,passeriformes,,,
+pelecaniform,aves,pelecaniformes,,,
+porcupine,mammalia,rodentia,hystricidae,atherurus,africanus
+potto,mammalia,primates,lorisidae,perodicticus,potto
+red colobus,mammalia,primates,cercopithecidae,piliocolobus,
+red duiker,mammalia,artiodactyla,bovidae,cephalophus,
+red-capped mangabey,mammalia,primates,cercopithecidae,cercocebus,torquatus
+red-tailed monkey,mammalia,primates,cercopithecidae,cercopithecus,ascanius
+rockfowl,aves,passeriformes,picathartidae,picathartes,oreas
+rodent,mammalia,rodentia,,,
+serval,mammalia,carnivora,felidae,leptailurus,serval
+side-striped jackal,mammalia,carnivora,canidae,canis,adustus
+sitatunga,mammalia,artiodactyla,bovidae,tragelaphus,spekii
+spot-nosed monkey,mammalia,primates,cercopithecidae,cercopithecus,nictitans
+spotted hyena,mammalia,carnivora,hyaenidae,crocuta,crocuta
+squirrel,mammalia,rodentia,sciuridae,,
+turaco,aves,musophagiformes,musophagidae,,
+warthog,mammalia,artiodactyla,suidae,phacochoerus,africanus
+water chevrotain,mammalia,artiodactyla,tragulidae,hyemoschus,aquaticus
+yellow-backed duiker,mammalia,artiodactyla,bovidae,cephalophus,silvicultor

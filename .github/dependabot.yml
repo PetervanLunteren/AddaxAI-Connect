@@ -47,8 +47,7 @@ updates:
       - /services/api
       - /services/ingestion
       - /services/detection
-      - /services/classification-deepfaune
-      - /services/classification-speciesnet
+      - /services/classification
       - /services/bulk-upload
       - /services/notifications
       - /services/notifications-email

@@ -1,0 +1,327 @@
+model_class,class,order,family,genus,species
+leopard tortoise,reptilia,testudines,testudinidae,stigmochelys,pardalis
+tortoises,reptilia,testudines,testudinidae,,
+skink,reptilia,squamata,scincidae,plestiodon,
+lizard,reptilia,squamata,,,
+reptile,reptilia,squamata,,,
+aardvark,mammalia,tubulidentata,orycteropodidae,orycteropus,afer
+asian house shrew,mammalia,soricomorpha,soricidae,suncus,murinus
+shrews,mammalia,soricomorpha,soricidae,,
+greater cane rat,mammalia,rodentia,thryonomyidae,thryonomys,swinderianus
+lesser cane rat,mammalia,rodentia,thryonomyidae,thryonomys,gregorianus
+unstriped ground squirrel,mammalia,rodentia,sciuridae,xerus,rutilus
+striped ground squirrel,mammalia,rodentia,sciuridae,euxerus,erythropus
+forest giant squirrel,mammalia,rodentia,sciuridae,protoxerus,stangeri
+swynnertons bush squirrel,mammalia,rodentia,sciuridae,paraxerus,vexillarius
+ochre bush squirrel,mammalia,rodentia,sciuridae,paraxerus,ochraceus
+black-and-red bush squirrel,mammalia,rodentia,sciuridae,paraxerus,lucifer
+smiths bush squirrel,mammalia,rodentia,sciuridae,paraxerus,cepapi
+boehms bush squirrel,mammalia,rodentia,sciuridae,paraxerus,boehmi
+ruwenzori sun squirrel,mammalia,rodentia,sciuridae,heliosciurus,ruwenzorii
+red-legged sun squirrel,mammalia,rodentia,sciuridae,heliosciurus,rufobrachium
+fire-footed rope squirrel,mammalia,rodentia,sciuridae,funisciurus,pyrropus
+carruthers mountain squirrel,mammalia,rodentia,sciuridae,funisciurus,carruthersi
+squirrels,mammalia,rodentia,sciuridae,,
+springhare,mammalia,rodentia,pedetidae,pedetes,capensis
+white-bellied nesomys,mammalia,rodentia,nesomyidae,nesomys,audeberti
+nesomys rodents,mammalia,rodentia,nesomyidae,nesomys,
+malagasy giant rat,mammalia,rodentia,nesomyidae,hypogeomys,antimena
+petters tuft-tailed rat,mammalia,rodentia,nesomyidae,eliurus,petteri
+white-tipped tufted-tailed rat,mammalia,rodentia,nesomyidae,eliurus,penicillatus
+eliurus rat,mammalia,rodentia,nesomyidae,eliurus,
+african giant pouched rat,mammalia,rodentia,nesomyidae,cricetomys,gambianus
+charming thicket rat,mammalia,rodentia,muridae,thamnomys,venustus
+black rat,mammalia,rodentia,muridae,rattus,rattus
+rodent,mammalia,rodentia,muridae,rattus,
+tullbergs praomys,mammalia,rodentia,muridae,praomys,tullbergi
+common rufous-nosed rat,mammalia,rodentia,muridae,oenomys,hypoxanthus
+tiny pygmy mouse,mammalia,rodentia,muridae,mus,minutoides
+big-eared swamp rat,mammalia,rodentia,muridae,malacomys,longipes
+stella wood mouse,mammalia,rodentia,muridae,hylomyscus,stella
+one-striped forest mouse,mammalia,rodentia,muridae,hybomys,univittatus
+congo forest mouse,mammalia,rodentia,muridae,deomys,ferrugineus
+african water rat,mammalia,rodentia,muridae,colomys,goslingi
+crested porcupine,mammalia,rodentia,hystricidae,hystrix,cristata
+cape porcupine,mammalia,rodentia,hystricidae,hystrix,africaeaustralis
+african brush-tailed porcupine,mammalia,rodentia,hystricidae,atherurus,africanus
+derbys anomalure,mammalia,rodentia,anomaluridae,anomalurus,derbianus
+african bush elephant,mammalia,proboscidea,elephantidae,loxodonta,africana
+ring-tailed lemurs,mammalia,primates,lemuridae,lemur,
+white-fronted brown lemur,mammalia,primates,lemuridae,eulemur,albifrons
+silky sifaka,mammalia,primates,indriidae,propithecus,candidus
+chimpanzee,mammalia,primates,hominidae,pan,troglodytes
+small-eared greater galago,mammalia,primates,galagidae,otolemur,garnettii
+northern lesser galago,mammalia,primates,galagidae,galago,senegalensis
+bushbaby,mammalia,primates,galagidae,,
+aye-aye,mammalia,primates,daubentoniidae,daubentonia,madagascariensis
+grey mouse lemur,mammalia,primates,cheirogaleidae,microcebus,murinus
+udzungwa red colobus,mammalia,primates,cercopithecidae,piliocolobus,gordonorum
+yellow baboon,mammalia,primates,cercopithecidae,papio,cynocephalus
+olive baboon,mammalia,primates,cercopithecidae,papio,anubis
+baboon,mammalia,primates,cercopithecidae,papio,
+patas monkey,mammalia,primates,cercopithecidae,erythrocebus,patas
+angola colobus,mammalia,primates,cercopithecidae,colobus,angolensis
+vervet monkey,mammalia,primates,cercopithecidae,chlorocebus,pygerythrus
+sykes monkey,mammalia,primates,cercopithecidae,cercopithecus,mitis albogularis
+blue monkey,mammalia,primates,cercopithecidae,cercopithecus,mitis
+white-throated guenon,mammalia,primates,cercopithecidae,cercopithecus,erythrogaster
+sanje mangabey,mammalia,primates,cercopithecidae,cercocebus,sanjei
+hoest,mammalia,primates,cercopithecidae,allochrocebus,lhoesti
+pangolin,mammalia,pholidota,manidae,,
+black rhinoceros,mammalia,perissodactyla,rhinocerotidae,diceros,bicornis
+white rhinoceros,mammalia,perissodactyla,rhinocerotidae,ceratotherium,simum
+rhinoceros,mammalia,perissodactyla,rhinocerotidae,,
+hartmanns mountain zebra,mammalia,perissodactyla,equidae,equus,zebra hartmannae
+mountain zebra,mammalia,perissodactyla,equidae,equus,zebra
+burchells zebra,mammalia,perissodactyla,equidae,equus,quagga burchellii
+plains zebra,mammalia,perissodactyla,equidae,equus,quagga
+grevys zebra,mammalia,perissodactyla,equidae,equus,grevyi
+wild horse,mammalia,perissodactyla,equidae,equus,ferus
+horse,mammalia,perissodactyla,equidae,equus,caballus
+donkey,mammalia,perissodactyla,equidae,equus,asinus
+african wild ass,mammalia,perissodactyla,equidae,equus,africanus
+grey-faced sengi,mammalia,macroscelidea,macroscelididae,rhynchocyon,udzungwensis
+black-and-rufous sengi,mammalia,macroscelidea,macroscelididae,rhynchocyon,petersi
+checkered sengi,mammalia,macroscelidea,macroscelididae,rhynchocyon,cirnei
+four-toed sengi,mammalia,macroscelidea,macroscelididae,petrodromus,tetradactylus
+red rock rabbit,mammalia,lagomorpha,leporidae,pronolagus,randensis
+scrub hare,mammalia,lagomorpha,leporidae,lepus,saxatilis
+cape hare,mammalia,lagomorpha,leporidae,lepus,capensis
+hare,mammalia,lagomorpha,leporidae,lepus,
+riverine rabbit,mammalia,lagomorpha,leporidae,bunolagus,monticularis
+rock hyrax,mammalia,hyracoidea,procaviidae,procavia,capensis
+yellow-spotted rock hyrax,mammalia,hyracoidea,procaviidae,heterohyrax,brucei
+southern tree hyrax,mammalia,hyracoidea,procaviidae,dendrohyrax,arboreus
+four-toed hedgehog,mammalia,erinaceomorpha,erinaceidae,atelerix,albiventris
+bat,mammalia,chiroptera,,,
+small indian civet,mammalia,carnivora,viverridae,viverricula,indica
+cape genet,mammalia,carnivora,viverridae,genetta,tigrina
+servaline genet,mammalia,carnivora,viverridae,genetta,servalina
+rusty-spotted genet,mammalia,carnivora,viverridae,genetta,maculata
+northern small-spotted genet,mammalia,carnivora,viverridae,genetta,genetta
+genet,mammalia,carnivora,viverridae,genetta,
+african civet,mammalia,carnivora,viverridae,civettictis,civetta
+civets,mammalia,carnivora,viverridae,,
+african palm-civet,mammalia,carnivora,nandiniidae,nandinia,binotata
+striped weasel,mammalia,carnivora,mustelidae,poecilogale,albinucha
+honey badger,mammalia,carnivora,mustelidae,mellivora,capensis
+zorilla,mammalia,carnivora,mustelidae,ictonyx,striatus
+cape clawless otter,mammalia,carnivora,mustelidae,aonyx,capensis capensis
+aardwolf,mammalia,carnivora,hyaenidae,proteles,cristata
+brown hyena,mammalia,carnivora,hyaenidae,parahyaena,brunnea
+striped hyena,mammalia,carnivora,hyaenidae,hyaena,hyaena
+spotted hyena,mammalia,carnivora,hyaenidae,crocuta,crocuta
+meerkat,mammalia,carnivora,herpestidae,suricata,suricatta
+banded mongoose,mammalia,carnivora,herpestidae,mungos,mungo
+white-tailed mongoose,mammalia,carnivora,herpestidae,ichneumia,albicauda
+large grey mongoose,mammalia,carnivora,herpestidae,herpestes,ichneumon
+common dwarf mongoose,mammalia,carnivora,herpestidae,helogale,parvula
+slender mongoose,mammalia,carnivora,herpestidae,herpestes,sanguineus
+small cape grey mongoose,mammalia,carnivora,herpestidae,herpestes,pulverulentus
+yellow mongoose,mammalia,carnivora,herpestidae,cynictis,penicillata
+jacksons mongoose,mammalia,carnivora,herpestidae,bdeogale,jacksoni
+bushy-tailed mongoose,mammalia,carnivora,herpestidae,bdeogale,crassicauda
+marsh mongoose,mammalia,carnivora,herpestidae,atilax,paludinosus
+mongoose,mammalia,carnivora,herpestidae,,
+leopard,mammalia,carnivora,felidae,panthera,pardus
+lion,mammalia,carnivora,felidae,panthera,leo
+serval,mammalia,carnivora,felidae,leptailurus,serval
+european wildcat,mammalia,carnivora,felidae,felis,silvestris
+black-footed cat,mammalia,carnivora,felidae,felis,nigripes
+african wild cat,mammalia,carnivora,felidae,felis,lybica
+domestic cat,mammalia,carnivora,felidae,felis,catus
+caracal,mammalia,carnivora,felidae,caracal,caracal
+cheetah,mammalia,carnivora,felidae,acinonyx,jubatus
+felids,mammalia,carnivora,felidae,,
+brown-tailed vontsira,mammalia,carnivora,eupleridae,salanoia,concolor
+broad-striped vontsira,mammalia,carnivora,eupleridae,galidictis,fasciata
+ring-tailed vontsira,mammalia,carnivora,eupleridae,galidia,elegans
+fanaloka,mammalia,carnivora,eupleridae,fossa,fossana
+falanouc,mammalia,carnivora,eupleridae,eupleres,goudotii
+fossa,mammalia,carnivora,eupleridae,cryptoprocta,ferox
+cape fox,mammalia,carnivora,canidae,vulpes,chama
+bat-eared fox,mammalia,carnivora,canidae,otocyon,megalotis
+african wild dog,mammalia,carnivora,canidae,lycaon,pictus
+black-backed jackal,mammalia,carnivora,canidae,canis,mesomelas
+gray wolf,mammalia,carnivora,canidae,canis,lupus
+domestic dog,mammalia,carnivora,canidae,canis,familiaris
+side-striped jackal,mammalia,carnivora,canidae,canis,adustus
+carnivores,mammalia,carnivora,,,
+bushpig,mammalia,artiodactyla,suidae,potamochoerus,larvatus
+common warthog,mammalia,artiodactyla,suidae,phacochoerus,africanus
+hippopotamus,mammalia,artiodactyla,hippopotamidae,hippopotamus,amphibius
+giraffe,mammalia,artiodactyla,giraffidae,giraffa,camelopardalis
+fallow deer,mammalia,artiodactyla,cervidae,dama,dama
+dromedary camel,mammalia,artiodactyla,camelidae,camelus,dromedarius
+greater kudu,mammalia,artiodactyla,bovidae,tragelaphus,strepsiceros
+bushbuck,mammalia,artiodactyla,bovidae,tragelaphus,scriptus
+lesser kudu,mammalia,artiodactyla,bovidae,tragelaphus,imberbis
+nyala,mammalia,artiodactyla,bovidae,tragelaphus,angasii
+kudu,mammalia,artiodactyla,bovidae,tragelaphus,
+eland,mammalia,artiodactyla,bovidae,tragelaphus,oryx
+african buffalo,mammalia,artiodactyla,bovidae,syncerus,caffer
+bush duiker,mammalia,artiodactyla,bovidae,sylvicapra,grimmia
+mountain reedbuck,mammalia,artiodactyla,bovidae,redunca,fulvorufula
+reedbuck,mammalia,artiodactyla,bovidae,redunca,
+sharpes grysbok,mammalia,artiodactyla,bovidae,raphicerus,sharpei
+grysbok,mammalia,artiodactyla,bovidae,raphicerus,melanotis
+steenbok,mammalia,artiodactyla,bovidae,raphicerus,campestris
+blue duiker,mammalia,artiodactyla,bovidae,philantomba,monticola
+grey rhebok,mammalia,artiodactyla,bovidae,pelea,capreolus
+domestic sheep,mammalia,artiodactyla,bovidae,ovis,aries
+oribi,mammalia,artiodactyla,bovidae,ourebia,ourebi
+gemsbok,mammalia,artiodactyla,bovidae,oryx,gazella
+east african oryx,mammalia,artiodactyla,bovidae,oryx,beisa
+klipspringer,mammalia,artiodactyla,bovidae,oreotragus,oreotragus
+suni,mammalia,artiodactyla,bovidae,nesotragus,moschatus
+grants gazelle,mammalia,artiodactyla,bovidae,nanger,granti
+gunthers dikdik,mammalia,artiodactyla,bovidae,madoqua,guentheri
+dikdik,mammalia,artiodactyla,bovidae,madoqua,
+gerenuk,mammalia,artiodactyla,bovidae,litocranius,walleri
+waterbuck,mammalia,artiodactyla,bovidae,kobus,ellipsiprymnus
+sable antelope,mammalia,artiodactyla,bovidae,hippotragus,niger
+roan,mammalia,artiodactyla,bovidae,hippotragus,equinus
+thomsons gazelle,mammalia,artiodactyla,bovidae,eudorcas,thomsonii
+red-fronted gazelle,mammalia,artiodactyla,bovidae,eudorcas,rufifrons
+blesbok,mammalia,artiodactyla,bovidae,damaliscus,pygargus phillipsi
+bontebok,mammalia,artiodactyla,bovidae,damaliscus,pygargus
+topi,mammalia,artiodactyla,bovidae,damaliscus,lunatus jimela
+tsessebe,mammalia,artiodactyla,bovidae,damaliscus,lunatus
+blue wildebeest,mammalia,artiodactyla,bovidae,connochaetes,taurinus taurinus
+common wildebeest,mammalia,artiodactyla,bovidae,connochaetes,taurinus
+black wildebeest,mammalia,artiodactyla,bovidae,connochaetes,gnou
+abbotts duiker,mammalia,artiodactyla,bovidae,cephalophus,spadix
+light-backed duiker,mammalia,artiodactyla,bovidae,cephalophus,silvicultor
+black-fronted duiker,mammalia,artiodactyla,bovidae,cephalophus,nigrifrons
+red natal duiker,mammalia,artiodactyla,bovidae,cephalophus,natalensis
+harveys duiker,mammalia,artiodactyla,bovidae,cephalophus,harveyi
+duiker,mammalia,artiodactyla,bovidae,cephalophus,
+domestic goat,mammalia,artiodactyla,bovidae,capra,hircus hircus
+wild goat,mammalia,artiodactyla,bovidae,capra,aegagrus
+cow,mammalia,artiodactyla,bovidae,bos,taurus
+cattle,mammalia,artiodactyla,bovidae,bos,
+springbok,mammalia,artiodactyla,bovidae,antidorcas,marsupialis
+red hartebeest,mammalia,artiodactyla,bovidae,alcelaphus,buselaphus caama
+hartebeest,mammalia,artiodactyla,bovidae,alcelaphus,buselaphus
+impala,mammalia,artiodactyla,bovidae,aepyceros,melampus
+tailless tenrec,mammalia,afrosoricida,tenrecidae,tenrec,ecaudatus
+greater hedgehog tenrec,mammalia,afrosoricida,tenrecidae,setifer,setosus
+tenrecs,mammalia,afrosoricida,tenrecidae,microgale,
+lowland streaked tenrec,mammalia,afrosoricida,tenrecidae,hemicentetes,semispinosus
+common ostrich,aves,struthioniformes,struthionidae,struthio,camelus
+ostrich,aves,struthioniformes,struthionidae,,
+madagascar owl,aves,strigiformes,strigidae,asio,madagascariensis
+owl,aves,strigiformes,,,
+olive woodpecker,aves,piciformes,picidae,chloropicus,griseocephalus
+madagascan ibis,aves,pelecaniformes,threskiornithidae,lophotibis,cristata
+hadeda ibis,aves,pelecaniformes,threskiornithidae,bostrychia,hagedash
+cattle egret,aves,pelecaniformes,ardeidae,bubulcus,ibis
+black-headed heron,aves,pelecaniformes,ardeidae,ardea,melanocephala
+crossleys vanga,aves,passeriformes,vangidae,mystacornis,crossleyi
+helmet vanga,aves,passeriformes,vangidae,euryceros,prevostii
+asian thrushes,aves,passeriformes,turdidae,zoothera,
+african bare-eyed thrush,aves,passeriformes,turdidae,turdus,tephronotus
+olive thrush,aves,passeriformes,turdidae,turdus,olivaceus
+red-tailed ant-thrush,aves,passeriformes,turdidae,neocossyphus,rufus
+orange ground-thrush,aves,passeriformes,turdidae,geokichla,gurneyi
+superb starling,aves,passeriformes,sturnidae,lamprotornis,superbus
+hildebrandts starling,aves,passeriformes,sturnidae,lamprotornis,hildebrandti
+greater blue-eared starling,aves,passeriformes,sturnidae,lamprotornis,chalybaeus
+slender-billed greenbul,aves,passeriformes,pycnonotidae,stelgidillas,gracilirostris
+little greenbul,aves,passeriformes,pycnonotidae,eurillas,virens
+yellow-whiskered greenbul,aves,passeriformes,pycnonotidae,eurillas,latirostris
+baglafecht weaver,aves,passeriformes,ploceidae,ploceus,baglafecht
+strange weaver,aves,passeriformes,ploceidae,ploceus,alienus
+blue-throated brown sunbird,aves,passeriformes,nectariniidae,cyanomitra,cyanolaema
+iringa akalat,aves,passeriformes,muscicapidae,sheppardia,lowei
+reunion stonechat,aves,passeriformes,muscicapidae,saxicola,tectes
+white-starred robin,aves,passeriformes,muscicapidae,pogonocichla,stellata
+wheatears,aves,passeriformes,muscicapidae,oenanthe,
+southern black-flycatcher,aves,passeriformes,muscicapidae,melaenornis,pammelaina
+yellow-eyed black-flycatcher,aves,passeriformes,muscicapidae,melaenornis,ardesiacus
+white-eyed slaty flycatcher,aves,passeriformes,muscicapidae,melaenornis,fischeri
+archers robin-chat,aves,passeriformes,muscicapidae,cossypha,archeri
+madagascar magpie-robin,aves,passeriformes,muscicapidae,copsychus,albospecularis
+red-throated alethe,aves,passeriformes,muscicapidae,chamaetylas,poliophrys
+scrub robins,aves,passeriformes,muscicapidae,cercotrichas,
+old world flycatchers,aves,passeriformes,muscicapidae,,
+madagascar wagtail,aves,passeriformes,motacillidae,motacilla,flaviventris
+western yellow wagtail,aves,passeriformes,motacillidae,motacilla,flava
+madagascar paradise-flycatcher,aves,passeriformes,monarchidae,terpsiphone,mutata
+slate-colored boubou,aves,passeriformes,malaconotidae,laniarius,funebris
+moustached grass-warbler,aves,passeriformes,macrosphenidae,melocichla,mentalis
+southern fiscal,aves,passeriformes,laniidae,lanius,collaris
+northern white-crowned shrike,aves,passeriformes,laniidae,eurocephalus,ruppelli
+gray-headed oliveback,aves,passeriformes,estrildidae,delacourella,capistrata
+cape crow,aves,passeriformes,corvidae,corvus,capensis
+pied crow,aves,passeriformes,corvidae,corvus,albus
+madagascar cisticola,aves,passeriformes,cisticolidae,cisticola,cherina
+neumanns warbler,aves,passeriformes,cettiidae,urosphena,neumanni
+oxpeckers,aves,passeriformes,buphagidae,buphagus,
+white-throated oxylabes,aves,passeriformes,bernieridae,oxylabes,madagascariensis
+larks,aves,passeriformes,alaudidae,mirafra,
+african reed warbler,aves,passeriformes,acrocephalidae,acrocephalus,baeticatus
+ludwigs bustard,aves,otidiformes,otididae,neotis,ludwigii
+denhams bustard,aves,otidiformes,otididae,neotis,denhami denhami
+red-crested bustard,aves,otidiformes,otididae,eupodotis,ruficrista
+buff-crested bustard,aves,otidiformes,otididae,eupodotis,gindiana
+black-bellied bustard,aves,otidiformes,otididae,lissotis,melanogaster
+hartlaubs bustard,aves,otidiformes,otididae,lissotis,hartlaubii
+ruppells bustard,aves,otidiformes,otididae,heterotetrax,rueppelii
+white-bellied bustard,aves,otidiformes,otididae,eupodotis,senegalensis
+kori bustard,aves,otidiformes,otididae,ardeotis,kori
+white-quilled bustard,aves,otidiformes,otididae,eupodotis,afraoides
+livingstones turaco,aves,musophagiformes,musophagidae,tauraco,livingstonii
+rwenzori turaco,aves,musophagiformes,musophagidae,ruwenzorornis,johnstoni
+rosss turaco,aves,musophagiformes,musophagidae,musophaga,rossae
+white-bellied go-away-bird,aves,musophagiformes,musophagidae,corythaixoides,leucogaster
+madagascar wood rail,aves,gruiformes,sarothruridae,mentocrex,kioloides
+grey crowned crane,aves,gruiformes,gruidae,balearica,regulorum
+blue crane,aves,gruiformes,gruidae,anthropoides,paradiseus
+udzungwa partridge,aves,galliformes,phasianidae,xenoperdix,udzungwensis
+forest partridges,aves,galliformes,phasianidae,xenoperdix,
+grey-winged francolin,aves,galliformes,phasianidae,scleroptila,afra
+handsome francolin,aves,galliformes,phasianidae,pternistis,nobilis
+yellow-necked francolin,aves,galliformes,phasianidae,pternistis,leucoscepus
+hildebrandts francolin,aves,galliformes,phasianidae,pternistis,hildebrandti
+crested francolin,aves,galliformes,phasianidae,ortygornis,sephaena
+francolins,aves,galliformes,phasianidae,francolinus,
+harlequin quail,aves,galliformes,phasianidae,coturnix,delegorguei
+helmeted guineafowl,aves,galliformes,numididae,numida,meleagris
+crested guineafowl,aves,galliformes,numididae,guttera,pucherani
+vulturine guineafowl,aves,galliformes,numididae,acryllium,vulturinum
+guinea fowl,aves,galliformes,numididae,,
+red-breasted coua,aves,cuculiformes,cuculidae,coua,serriana
+red-capped coua,aves,cuculiformes,cuculidae,coua,ruficeps
+blue coua,aves,cuculiformes,cuculidae,coua,caerulea
+couas,aves,cuculiformes,cuculidae,coua,
+scaly ground-roller,aves,coraciiformes,brachypteraciidae,brachypteracias,squamiger
+pitta-like ground-roller,aves,coraciiformes,brachypteraciidae,atelornis,pittoides
+tambourine dove,aves,columbiformes,columbidae,turtur,tympanistria
+emerald-spotted wood dove,aves,columbiformes,columbidae,turtur,chalcospilos
+dusky turtle dove,aves,columbiformes,columbidae,streptopelia,lugens
+ring-necked dove,aves,columbiformes,columbidae,streptopelia,capicola
+laughing dove,aves,columbiformes,columbidae,streptopelia,senegalensis
+madagascar turtle-dove,aves,columbiformes,columbidae,streptopelia,picturata
+lemon dove,aves,columbiformes,columbidae,columba,larvata
+rameron pigeon,aves,columbiformes,columbidae,columba,arquatrix
+dove,aves,columbiformes,columbidae,,
+sandgrouse,aves,ciconiiformes,pteroclidae,,
+crowned lapwing,aves,charadriiformes,charadriidae,vanellus,coronatus
+spotted thick-knee,aves,charadriiformes,burhinidae,burhinus,capensis
+eastern yellow-billed hornbill,aves,bucerotiformes,bucerotidae,tockus,flavirostris
+von der deckens hornbill,aves,bucerotiformes,bucerotidae,tockus,deckeni
+silvery-cheeked hornbill,aves,bucerotiformes,bucerotidae,bycanistes,brevis
+egyptian goose,aves,anseriformes,anatidae,alopochen,aegyptiaca
+secretarybird,aves,accipitriformes,sagittariidae,sagittarius,serpentarius
+lappet-faced vulture,aves,accipitriformes,accipitridae,torgos,tracheliotos
+crowned eagle,aves,accipitriformes,accipitridae,stephanoaetus,coronatus
+eastern chanting-goshawk,aves,accipitriformes,accipitridae,melierax,poliopterus
+white-backed vulture,aves,accipitriformes,accipitridae,gyps,africanus
+madagascar serpent-eagle,aves,accipitriformes,accipitridae,eutriorchis,astur
+tawny eagle,aves,accipitriformes,accipitridae,aquila,rapax
+black goshawk,aves,accipitriformes,accipitridae,accipiter,melanoleucus
+madagascar sparrowhawk,aves,accipitriformes,accipitridae,accipiter,madagascariensis
+acciptirids,aves,accipitriformes,accipitridae,,
+bird,aves,,,,
+arthropods,,,,,

@@ -1,0 +1,16 @@
+model_class,class,order,family,genus,species
+alectura_lathami,aves,galliformes,megapodiidae,alectura,lathami
+bos_taurus,mammalia,artiodactyla,bovidae,bos,taurus
+canis_familiaris,mammalia,carnivora,canidae,canis,familiaris
+casuarius_casuarius,aves,casuariiformes,casuariidae,casuarius,casuarius
+felis_catus,mammalia,carnivora,felidae,felis,catus
+heteromyias_cinereifrons,aves,passeriformes,petroicidae,heteromyias,cinereifrons
+homo_sapiens,mammalia,primates,hominidae,homo,sapiens
+hypsiprymnodon_moschatus,mammalia,diprotodontia,hypsiprymnodontidae,hypsiprymnodon,moschatus
+megapodius_reinwardt,aves,galliformes,megapodiidae,megapodius,reinwardt
+orthonyx_spaldingii,aves,passeriformes,orthonychidae,orthonyx,spaldingii
+perameles_nasuta,mammalia,peramelemorphia,peramelidae,perameles,nasuta
+sus_scrofa,mammalia,artiodactyla,suidae,sus,scrofa
+thylogale_stigmatica,mammalia,diprotodontia,macropodidae,thylogale,stigmatica
+uromys_caudimaculatus,mammalia,rodentia,muridae,uromys,caudimaculatus
+wallabia_bicolor,mammalia,diprotodontia,macropodidae,wallabia,bicolor

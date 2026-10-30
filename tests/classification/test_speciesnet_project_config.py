@@ -1,18 +1,19 @@
-"""Where the SpeciesNet worker reads its project config.
+"""Where the worker reads the image's model and project config.
 
-The config (country, and the taxonomy mapping) belongs to the image's
-project and is read per image. It must come after every early return in
+The model belongs to the image's project and loads on first use, and a
+SpeciesNet project's config (country, and the taxonomy mapping) is read per
+image. Both must come after every early return in
 process_detection_complete: an image without detections, a photo removed for
-privacy, or an image with only people and vehicles never depends on it, so
-a missing config can never fail those images or drop their alerts. The
-worker module imports torch, so this reads the source, like
-test_privacy_removal.
+privacy, or an image with only people and vehicles never depends on them, so
+a missing config or a failing model load can never fail those images or drop
+their alerts. The worker module imports torch, so this reads the source,
+like test_privacy_removal.
 """
 import ast
 import os
 
 _WORKER = os.path.abspath(os.path.join(
-    os.path.dirname(__file__), "..", "..", "services", "classification-speciesnet", "worker.py",
+    os.path.dirname(__file__), "..", "..", "services", "classification", "worker.py",
 ))
 
 
@@ -25,17 +26,25 @@ def _function_source(name: str) -> str:
     raise AssertionError(f"{name} not found")
 
 
-def test_config_is_read_after_the_early_returns_and_before_the_download():
+def test_model_is_taken_after_the_early_returns_and_before_the_download():
     body = _function_source("process_detection_complete")
-    config = body.index("get_project_species_config(project_id)")
-    assert body.index("animal_detections = ") < config
-    assert body.index('logger.info("Image processing complete (no animals)"') < config
-    assert config < body.index("download_image_from_minio(storage_path)")
-    assert config < body.index("run_classification(")
+    model = body.index("registry.get(project.classification_model)")
+    assert body.index("animal_detections = ") < model
+    assert body.index('logger.info("Image processing complete (no animals)"') < model
+    assert model < body.index("download_image_from_minio(storage_path)")
+    assert model < body.index("model.classify(")
 
 
-def test_no_server_wide_config_wait_at_startup():
+def test_speciesnet_reads_its_project_config_per_image():
+    path = os.path.join(os.path.dirname(_WORKER), "speciesnet_model.py")
+    with open(path, encoding="utf-8") as handle:
+        source = handle.read()
+    classify = source.index("def classify(")
+    assert "get_project_species_config(project.project_id)" in source[classify:]
+
+
+def test_startup_loads_the_models_in_use_and_nothing_else_waits():
     main = _function_source("main")
-    assert "get_geofencing_config" not in main
-    assert "get_taxonomy_mapping" not in main
+    assert "registry.load_all(models_in_use())" in main
     assert "time.sleep" not in main
+    assert "get_project_species_config" not in main

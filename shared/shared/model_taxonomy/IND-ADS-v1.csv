@@ -1,0 +1,41 @@
+model_class,class,order,family,genus,species
+livestock,mammalia,artiodactyla,bovidae,,
+dog,mammalia,carnivora,canidae,canis,lupus familiaris
+wolf,mammalia,carnivora,canidae,canis,lupus
+birds,aves,,,,
+bats,mammalia,chiroptera,,,
+porcupine,mammalia,rodentia,hystricidae,hystrix,
+sloth bear,mammalia,carnivora,ursidae,melursus,ursinus
+ratel,mammalia,carnivora,mustelidae,mellivora,capensis
+ruddy mongoose,mammalia,carnivora,herpestidae,herpestes,smithii
+indian grey mongoose,mammalia,carnivora,herpestidae,herpestes,edwardsi
+dhole,mammalia,carnivora,canidae,cuon,alpinus
+small indian civet,mammalia,carnivora,viverridae,viverricula,indica
+palm civet,mammalia,carnivora,viverridae,paradoxurus,
+rusty spotted cat,mammalia,carnivora,felidae,prionailurus,rubiginosus
+feral cat,mammalia,carnivora,felidae,felis,catus
+jungle cat,mammalia,carnivora,felidae,felis,chaus
+langur,mammalia,primates,cercopithecidae,semnopithecus,
+rhesus macaque,mammalia,primates,cercopithecidae,macaca,mulatta
+bonnet macaque,mammalia,primates,cercopithecidae,macaca,radiata
+hare,mammalia,lagomorpha,leporidae,lepus,
+pangolin,mammalia,pholidota,manidae,manis,
+chital,mammalia,artiodactyla,cervidae,axis,axis
+muntjac,mammalia,artiodactyla,cervidae,muntiacus,
+gaur,mammalia,artiodactyla,bovidae,bos,gaurus
+blackbuck,mammalia,artiodactyla,bovidae,antilope,cervicapra
+nilgai,mammalia,artiodactyla,bovidae,boselaphus,tragocamelus
+four horned antelope,mammalia,artiodactyla,bovidae,tetracerus,quadricornis
+monitor lizards,reptilia,squamata,varanidae,varanus,
+jackal,mammalia,carnivora,canidae,canis,aureus
+fox,mammalia,carnivora,canidae,vulpes,
+tiger,mammalia,carnivora,felidae,panthera,tigris
+leopard,mammalia,carnivora,felidae,panthera,pardus
+elephant,mammalia,proboscidea,elephantidae,elephas,maximus
+chinkara,mammalia,artiodactyla,bovidae,gazella,bennettii
+sambar,mammalia,artiodactyla,cervidae,rusa,unicolor
+hyena,mammalia,carnivora,hyaenidae,hyaena,
+wild pig,mammalia,artiodactyla,suidae,sus,scrofa
+otter,mammalia,carnivora,mustelidae,lutra,
+peafowl,aves,galliformes,phasianidae,pavo,cristatus
+false detection,,,,,

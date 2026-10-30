@@ -644,10 +644,10 @@ def _notify_rule(
                 image_url=ic.image_link(domain, project.id, event['image_uuid']),
                 count=count,
                 confidence=confidence,
-                scientific_name=ic.scientific_name(db, project.id, species, settings.classification_model),
+                scientific_name=ic.scientific_name(db, project.id, species, project.classification_model),
             )
             try:
-                payload = ic.build_detection_payload(channel, facts, settings.classification_model)
+                payload = ic.build_detection_payload(channel, facts, project.classification_model)
             except ValueError as exc:
                 logger.warning(
                     "Skipping project channel", kind=channel, rule_id=rule.id, reason=str(exc),

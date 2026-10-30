@@ -1,8 +1,8 @@
 """
 One rule for which device an ML worker runs on.
 
-The three workers that hold a model (detection, classification-deepfaune,
-classification-speciesnet) each pick a device once at startup. The rule is
+The two workers that hold a model (detection, classification) each pick a
+device once at startup. The rule is
 the same for all of them and lives here so it cannot drift:
 
 - USE_GPU false (the default): cpu, always. A server that never set the

@@ -18,6 +18,7 @@ if _api not in sys.path:
     sys.path.insert(0, _api)
 
 from utils.taxonomy_csv import parse_taxonomy_csv  # noqa: E402
+from shared.classification_models import DEEPFAUNE_ID, SPECIESNET_ID  # noqa: E402
 
 
 class TestParseTaxonomyCsv:
@@ -78,6 +79,9 @@ class _Result:
     def scalar_one_or_none(self):
         return self._value
 
+    def scalar_one(self):
+        return self._value
+
     def all(self):
         return self._rows
 
@@ -92,40 +96,60 @@ class _Db:
 
 
 class TestCreateProjectCsvRule:
-    """The CSV is required on SpeciesNet and refused elsewhere, before any write."""
+    """The CSV is required for SpeciesNet and refused for any other model, before any write."""
 
     @pytest.fixture
     def create(self, monkeypatch):
         from routers import projects
 
         def run(model, **fields):
-            monkeypatch.setattr(projects.settings, "classification_model", model)
+            # The model fits unless the test says otherwise
+            monkeypatch.setattr(projects, "check_model", lambda m: None)
             db = _Db(_Result(SimpleNamespace(timezone="Europe/Amsterdam")))
-            data = projects.ProjectCreate(name="Park", country_code="NLD", **fields)
+            data = projects.ProjectCreate(name="Park", country_code="NLD", classification_model=model, **fields)
             return projects.create_project(data, db=db, current_user=SimpleNamespace(is_superuser=True))
 
         return run
 
     @pytest.mark.asyncio
+    async def test_unknown_model_is_refused(self, create):
+        with pytest.raises(HTTPException) as exc:
+            await create("nope")
+        assert exc.value.status_code == 400
+        assert "Unknown classification model" in exc.value.detail
+
+    @pytest.mark.asyncio
+    async def test_a_model_that_does_not_fit_is_refused(self, monkeypatch):
+        from routers import projects
+
+        monkeypatch.setattr(projects, "check_model", lambda m: "Not enough memory")
+        db = _Db(_Result(SimpleNamespace(timezone="Europe/Amsterdam")))
+        data = projects.ProjectCreate(name="Park", country_code="NLD", classification_model=DEEPFAUNE_ID)
+        with pytest.raises(HTTPException) as exc:
+            await projects.create_project(data, db=db, current_user=SimpleNamespace(is_superuser=True))
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "Not enough memory"
+
+    @pytest.mark.asyncio
     async def test_speciesnet_needs_a_csv(self, create):
         with pytest.raises(HTTPException) as exc:
-            await create("speciesnet")
+            await create(SPECIESNET_ID)
         assert exc.value.status_code == 400
         assert "required" in exc.value.detail
 
     @pytest.mark.asyncio
     async def test_speciesnet_refuses_a_bad_csv(self, create):
         with pytest.raises(HTTPException) as exc:
-            await create("speciesnet", taxonomy_csv="latin,name\naves,bird\n")
+            await create(SPECIESNET_ID, taxonomy_csv="latin,name\naves,bird\n")
         assert exc.value.status_code == 400
         assert "'latin' and 'common'" in exc.value.detail
 
     @pytest.mark.asyncio
-    async def test_deepfaune_refuses_a_csv(self, create):
+    async def test_a_fixed_model_refuses_a_csv(self, create):
         with pytest.raises(HTTPException) as exc:
-            await create("deepfaune", taxonomy_csv="latin,common\naves,bird\n")
+            await create(DEEPFAUNE_ID, taxonomy_csv="latin,common\naves,bird\n")
         assert exc.value.status_code == 400
-        assert "only used on SpeciesNet" in exc.value.detail
+        assert "only used by SpeciesNet" in exc.value.detail
 
     def test_csv_is_written_in_the_same_commit(self):
         from routers import projects
@@ -137,16 +161,28 @@ class TestCreateProjectCsvRule:
 
 class TestAvailableSpecies:
     @pytest.mark.asyncio
-    async def test_speciesnet_lists_the_project_labels_plus_the_fallback(self, monkeypatch):
+    async def test_speciesnet_lists_the_project_labels_plus_the_fallback(self):
         from routers import species
 
-        monkeypatch.setattr(species.settings, "classification_model", "speciesnet")
-        db = _Db(_Result(rows=[("wolf",), ("bird",)]))
+        # One stand-in answers both queries: the project's model, then the rows
+        db = _Db(_Result(SPECIESNET_ID, rows=[("wolf",), ("bird",)]))
         response = await species.get_available_species(
             project_id=3, accessible_project_ids=[3], db=db, current_user=None,
         )
-        assert response.model == "speciesnet"
+        assert response.model == SPECIESNET_ID
+        assert response.kind == "speciesnet"
         assert response.species == ["bird", "unknown animal", "wolf"]
+
+    @pytest.mark.asyncio
+    async def test_a_fixed_model_lists_its_catalog_labels(self):
+        from routers import species
+
+        db = _Db(_Result(DEEPFAUNE_ID))
+        response = await species.get_available_species(
+            project_id=3, accessible_project_ids=[3], db=db, current_user=None,
+        )
+        assert response.kind == "fixed"
+        assert "red_deer" in response.species and len(response.species) == 38
 
     @pytest.mark.asyncio
     async def test_other_projects_are_refused(self, monkeypatch):

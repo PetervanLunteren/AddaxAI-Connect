@@ -1,7 +1,0 @@
-# Shared runtime deps come from the shared package (shared/pyproject.toml).
-# Only service-specific deps go here.
-speciesnet>=5.0.0,<6.0.0
-minio==7.2.0
-requests==2.34.2
-numpy<3.0.0
-huggingface-hub>=0.20.0

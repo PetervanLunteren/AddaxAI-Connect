@@ -1,14 +1,18 @@
 /**
  * Create Project Modal
  *
- * Form to create a new project with name, description, country, and image
- * upload. The country is required, and on SpeciesNet servers so is the
- * taxonomy mapping CSV: it travels in the create request, so a project never
- * exists without its label list. Uses React Dropzone for image upload with
- * preview.
+ * Form to create a new project with name, description, country, the
+ * classification model and an optional image. The country and the model
+ * are required, and for a SpeciesNet model so is the taxonomy mapping CSV:
+ * it travels in the create request, so a project never exists without its
+ * label list. The model is locked after creation.
+ *
+ * Every model in the catalog is listed, grouped by region. Models the
+ * server cannot load right now (not enough memory, worker down) are greyed
+ * out, with the reason under the list.
  */
-import React, { useState, useCallback } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useCallback, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import { Loader2, Upload, X } from 'lucide-react';
 import {
@@ -25,24 +29,55 @@ import { CountrySelect } from '../ui/CountrySelect';
 import { StateSelect } from '../ui/StateSelect';
 import { TaxonomyDropzone } from './TaxonomyDropzone';
 import { projectsApi } from '../../api/projects';
+import { classificationModelsApi, ClassificationModelInfo } from '../../api/classificationModels';
 
 interface CreateProjectModalProps {
   open: boolean;
   onClose: () => void;
-  /** SpeciesNet server: the project needs a taxonomy mapping CSV */
-  requireTaxonomy: boolean;
 }
 
-export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, onClose, requireTaxonomy }) => {
+const REGION_LABELS: Record<string, string> = {
+  global: 'Global',
+  europe: 'Europe',
+  africa: 'Africa',
+  americas: 'Americas',
+  asia: 'Asia',
+  oceania: 'Oceania',
+};
+const REGION_ORDER = Object.keys(REGION_LABELS);
+
+export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, onClose }) => {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [countryCode, setCountryCode] = useState('');
   const [admin1Region, setAdmin1Region] = useState('');
+  const [modelId, setModelId] = useState('');
   const [taxonomyFile, setTaxonomyFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetched while the dialog is open, so the memory check is fresh.
+  const { data: models } = useQuery({
+    queryKey: ['classification-models'],
+    queryFn: classificationModelsApi.list,
+    enabled: open,
+    staleTime: 0,
+  });
+  const modelsByRegion = useMemo(() => {
+    const groups: Record<string, ClassificationModelInfo[]> = {};
+    for (const model of models ?? []) {
+      (groups[model.region] ??= []).push(model);
+    }
+    return REGION_ORDER.filter((r) => groups[r]).map((r) => ({ region: r, models: groups[r] }));
+  }, [models]);
+  const selectedModel = models?.find((m) => m.id === modelId);
+  const requireTaxonomy = selectedModel?.kind === 'speciesnet';
+  const unavailableReasons = useMemo(
+    () => [...new Set((models ?? []).filter((m) => !m.fits).map((m) => m.reason ?? ''))].filter(Boolean),
+    [models],
+  );
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -53,6 +88,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
         included_species: null, // All species allowed
         country_code: countryCode,
         admin1_region: admin1Region || null,
+        classification_model: modelId,
         taxonomy_csv: requireTaxonomy && taxonomyFile ? await taxonomyFile.text() : undefined,
       });
 
@@ -114,6 +150,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
     setDescription('');
     setCountryCode('');
     setAdmin1Region('');
+    setModelId('');
     setTaxonomyFile(null);
     setImageFile(null);
     setImagePreview(null);
@@ -134,6 +171,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
     }
     if (!countryCode) {
       setError('Country is required');
+      return;
+    }
+    if (!modelId) {
+      setError('A species model is required');
       return;
     }
     if (requireTaxonomy && !taxonomyFile) {
@@ -213,6 +254,44 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               </div>
             )}
 
+            {/* Species model, locked after creation */}
+            <div>
+              <label htmlFor="model" className="text-sm font-medium block mb-1">
+                Species model <span className="text-destructive">*</span>
+              </label>
+              <select
+                id="model"
+                value={modelId}
+                onChange={(e) => {
+                  setModelId(e.target.value);
+                  setTaxonomyFile(null);
+                }}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+                required
+              >
+                <option value="">{models ? 'Pick a model' : 'Loading models...'}</option>
+                {modelsByRegion.map(({ region, models: group }) => (
+                  <optgroup key={region} label={REGION_LABELS[region]}>
+                    {group.map((model) => (
+                      <option key={model.id} value={model.id} disabled={!model.fits}>
+                        {model.emoji} {model.name}{model.fits ? '' : ' (unavailable)'}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedModel
+                  ? `${selectedModel.description}. By ${selectedModel.developer}. The model cannot be changed later.`
+                  : 'The AI model that names the animals. Pick the one made for your region. It cannot be changed later.'}
+              </p>
+              {unavailableReasons.map((reason) => (
+                <p key={reason} className="text-xs text-muted-foreground mt-1">
+                  Unavailable models cannot be picked right now. {reason}.
+                </p>
+              ))}
+            </div>
+
             {/* Species labels, SpeciesNet only */}
             {requireTaxonomy && (
               <div>
@@ -285,7 +364,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createMutation.isPending || !name.trim() || !countryCode || (requireTaxonomy && !taxonomyFile)}>
+            <Button
+              type="submit"
+              disabled={
+                createMutation.isPending || !name.trim() || !countryCode || !modelId || (requireTaxonomy && !taxonomyFile)
+              }
+            >
               {createMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

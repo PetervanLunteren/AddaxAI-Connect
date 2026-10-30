@@ -1,0 +1,136 @@
+model_class,class,order,family,genus,species
+lace goanna,reptilia,squamata,varanidae,varanus,varius
+black-headed and tree goanna sp,reptilia,squamata,varanidae,varanus,tristis
+heath monitor,reptilia,squamata,varanidae,varanus,rosenbergi
+mertens' water goanna,reptilia,squamata,varanidae,varanus,mertensi
+yellow-spotted and sand goanna sp,reptilia,squamata,varanidae,varanus,gouldii
+black-palmed goanna,reptilia,squamata,varanidae,varanus,glebopalma
+kimberley rock goanna,reptilia,squamata,varanidae,varanus,glauerti
+bluetongue sp,reptilia,squamata,scincidae,tiliqua,
+skink sp,reptilia,squamata,scincidae,,
+dragon sp,reptilia,squamata,agamidae,,
+kimberley rock-rat,mammalia,rodentia,muridae,zyzomys,woodwardi
+central rock-rat,mammalia,rodentia,muridae,zyzomys,pedunculatus
+common rock-rat,mammalia,rodentia,muridae,zyzomys,argurus
+giant white-tailed rat,mammalia,rodentia,muridae,uromys,caudimaculatus
+long-haired rat,mammalia,rodentia,muridae,rattus,villosissimus
+pale field-rat,mammalia,rodentia,muridae,rattus,tunneyi
+canefield rat,mammalia,rodentia,muridae,rattus,sordidus
+black rat,mammalia,rodentia,muridae,rattus,rattus
+bush rat,mammalia,rodentia,muridae,rattus,fuscipes
+delicate mouse,mammalia,rodentia,muridae,pseudomys,delicatulus
+hopping mouse,mammalia,rodentia,muridae,notomys,
+house mouse,mammalia,rodentia,muridae,mus,musculus
+golden-backed tree-rat,mammalia,rodentia,muridae,mesembriomys,macrurus
+black-footed tree-rat,mammalia,rodentia,muridae,mesembriomys,gouldii
+grassland melomys,mammalia,rodentia,muridae,melomys,burtoni
+greater stick-nest rat,mammalia,rodentia,muridae,leporillus,conditor
+water rat,mammalia,rodentia,muridae,hydromys,chrysogaster
+horse and donkey sp,mammalia,perissodactyla,equidae,,
+greater bilby,mammalia,peramelemorphia,thylacomyidae,macrotis,lagotis
+shark bay bandicoot,mammalia,peramelemorphia,peramelidae,perameles,bougainville
+short-nosed bandicoot sp,mammalia,peramelemorphia,peramelidae,isoodon,
+short-beaked echidna,mammalia,monotremata,tachyglossidae,tachyglossus,aculeatus
+hare and rabbit sp,mammalia,lagomorpha,leporidae,,
+wombat sp,mammalia,diprotodontia,vombatidae,,
+glider sp,mammalia,diprotodontia,pseudocheiridae,,
+long-nosed potoroo,mammalia,diprotodontia,potoroidae,potorous,tridactylus
+northern bettong,mammalia,diprotodontia,potoroidae,bettongia,tropica
+brush-tailed bettong,mammalia,diprotodontia,potoroidae,bettongia,penicillata
+burrowing bettong,mammalia,diprotodontia,potoroidae,bettongia,lesueur
+rufus bettong,mammalia,diprotodontia,potoroidae,aepyprymnus,rufescens
+koala,mammalia,diprotodontia,phascolarctidae,phascolarctos,cinereus
+scaly-tailed possum,mammalia,diprotodontia,phalangeridae,wyulda,squamicaudata
+brushtail possum sp,mammalia,diprotodontia,phalangeridae,trichosurus,
+swamp wallaby,mammalia,diprotodontia,macropodidae,wallabia,bicolor
+red-legged pademelon,mammalia,diprotodontia,macropodidae,thylogale,stigmatica
+eastern short-eared rock-wallaby,mammalia,diprotodontia,macropodidae,petrogale,wilkinsi
+mount claro rock-wallaby,mammalia,diprotodontia,macropodidae,petrogale,sharmani
+mareeba rock-wallaby,mammalia,diprotodontia,macropodidae,petrogale,mareeba
+nabarlek,mammalia,diprotodontia,macropodidae,petrogale,concinna
+monjon,mammalia,diprotodontia,macropodidae,petrogale,burbidgei
+black-footed rock wallaby,mammalia,diprotodontia,macropodidae,petrogale,
+northern nail-tailed wallaby,mammalia,diprotodontia,macropodidae,onychogalea,unguifera
+bridled nailtail wallaby,mammalia,diprotodontia,macropodidae,onychogalea,fraenata
+red-necked wallaby,mammalia,diprotodontia,macropodidae,notamacropus,rufogriseus
+whip-tailed wallaby,mammalia,diprotodontia,macropodidae,notamacropus,parryi
+red kangaroo,mammalia,diprotodontia,macropodidae,osphranter,rufus
+common wallaroo,mammalia,diprotodontia,macropodidae,osphranter,robustus
+antilopine wallaroo,mammalia,diprotodontia,macropodidae,osphranter,antilopinus
+tammar wallaby,mammalia,diprotodontia,macropodidae,notamacropus,eugenii
+black-striped wallaby,mammalia,diprotodontia,macropodidae,notamacropus,dorsalis
+agile wallaby,mammalia,diprotodontia,macropodidae,notamacropus,agilis
+rufous hare-wallaby,mammalia,diprotodontia,macropodidae,lagorchestes,hirsutus
+spectacled hare-wallaby,mammalia,diprotodontia,macropodidae,lagorchestes,conspicillatus
+musky rat-kangaroo,mammalia,diprotodontia,hypsiprymnodontidae,hypsiprymnodon,moschatus
+pygmy possum sp,mammalia,diprotodontia,burramyidae,,
+numbat,mammalia,dasyuromorphia,myrmecobiidae,myrmecobius,fasciatus
+dunnart sp,mammalia,dasyuromorphia,dasyuridae,sminthopsis,
+pseudantechinus sp,mammalia,dasyuromorphia,dasyuridae,pseudantechinus,
+brush-tailed phascogale,mammalia,dasyuromorphia,dasyuridae,phascogale,tapoatafa
+red-tailed phascogale,mammalia,dasyuromorphia,dasyuridae,phascogale,calura
+quoll sp,mammalia,dasyuromorphia,dasyuridae,dasyurus,
+swamp antechinus,mammalia,dasyuromorphia,dasyuridae,antechinus,minimus
+yellow-footed antechinus,mammalia,dasyuromorphia,dasyuridae,antechinus,flavipes
+domestic cat,mammalia,carnivora,felidae,felis,catus
+red fox,mammalia,carnivora,canidae,vulpes,vulpes
+dingo,mammalia,carnivora,canidae,canis,dingo
+pig,mammalia,artiodactyla,suidae,sus,scrofa
+deer sp,mammalia,artiodactyla,cervidae,,
+goat,mammalia,artiodactyla,bovidae,capra,hircus
+swamp buffalo,mammalia,artiodactyla,bovidae,bubalus,arnee
+cattle,mammalia,artiodactyla,bovidae,bos,taurus
+freshwater crocodile,reptilia,crocodylia,crocodylidae,crocodylus,johnstoni
+nocturnal predatory bird sp,aves,strigiformes,,,
+parrot sp,aves,psittaciformes,,,
+willie wagtail,aves,passeriformes,rhipiduridae,rhipidura,leucophrys
+great bowerbird,aves,passeriformes,ptilonorhynchidae,chlamydera,nuchalis
+chestnut quail-thrush,aves,passeriformes,psophodidae,cinclosoma,castanotum
+babbler sp,aves,passeriformes,pomatostomidae,,
+grey shrike-thrush,aves,passeriformes,pachycephalidae,colluricincla,harmonica
+crested bellbird,aves,passeriformes,oreoicidae,oreoica,gutturalis
+magpie-lark,aves,passeriformes,monarchidae,grallina,cyanoleuca
+miner bird sp,aves,passeriformes,meliphagidae,manorina,
+spiny-cheeked honeyeater,aves,passeriformes,meliphagidae,acanthagenys,rufogularis
+honeyeater sp,aves,passeriformes,meliphagidae,,
+wren sp,aves,passeriformes,maluridae,,
+finch sp,aves,passeriformes,estrildidae,,
+currawong sp,aves,passeriformes,cracticidae,strepera,
+australian magpie,aves,passeriformes,cracticidae,gymnorhina,tibicen
+butcherbird sp,aves,passeriformes,cracticidae,cracticus,
+corvid sp,aves,passeriformes,corvidae,,
+white-winged chough,aves,passeriformes,corcoracidae,corcorax,melanoramphos
+rufous treecreeper,aves,passeriformes,climacteridae,climacteris,rufus
+australian bustard,aves,otidiformes,otididae,ardeotis,australis
+buff-banded rail,aves,gruiformes,rallidae,hypotaenidia,philippensis
+quail sp,aves,galliformes,phasianidae,coturnix,
+malleefowl,aves,galliformes,megapodiidae,leipoa,ocellata
+australian brush-turkey,aves,galliformes,megapodiidae,alectura,lathami
+pheasant coucal,aves,cuculiformes,cuculidae,centropus,phasianinus
+kookaburra sp,aves,coraciiformes,alcedinidae,dacelo,
+common bronzewing,aves,columbiformes,columbidae,phaps,chalcoptera
+white-quilled rock-pigeon,aves,columbiformes,columbidae,petrophassa,albipennis
+crested pigeon,aves,columbiformes,columbidae,ocyphaps,lophotes
+western partridge pigeon,aves,columbiformes,columbidae,geophaps,smithii
+spinifex pigeon,aves,columbiformes,columbidae,geophaps,plumifera
+peaceful dove,aves,columbiformes,columbidae,geopelia,placida
+bar-shouldered dove,aves,columbiformes,columbidae,geopelia,humeralis
+diamond dove,aves,columbiformes,columbidae,geopelia,cuneata
+brown-capped emerald-dove,aves,columbiformes,columbidae,chalcophaps,indica
+bush stone-curlew,aves,charadriiformes,burhinidae,burhinus,grallarius
+emu,aves,casuariiformes,dromaiidae,dromaius,novaehollandiae
+duck sp,aves,anseriformes,anatidae,,
+diurnal raptor sp,aves,accipitriformes,,,
+small bird sp,aves,,,,
+wetland bird sp,aves,,,,
+cane toad,amphibia,anura,bufonidae,rhinella,marina
+frog sp,amphibia,anura,,,
+banded hare-wallaby,mammalia,diprotodontia,macropodidae,lagostrophus,fasciatus
+brush-tailed dasyurid sp,mammalia,dasyuromorphia,dasyuridae,dasycercus,blythi
+central short-tailed mouse,mammalia,rodentia,muridae,leggadina,forresti
+grey kangaroo sp,mammalia,diprotodontia,macropodidae,macropus,
+long-nosed bandicoot sp,mammalia,peramelemorphia,peramelidae,perameles,
+ring-tailed possum sp,mammalia,diprotodontia,pseudocheiridae,pseudocheirus,
+ridge-tailed goanna,reptilia,squamata,varanidae,varanus,acanthurus
+western short-eared rock-wallaby,mammalia,diprotodontia,macropodidae,petrogale,brachyotis
+kimberley ta-ta lizard,reptilia,squamata,agamidae,lophognathus,gilberti

@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir setuptools wheel
 # sit above this, so any change under shared/ threw away the cached dependency
 # layer and reinstalled everything from the network. Shared changes on nearly
 # every release; requirements.txt almost never does.
-COPY services/classification-deepfaune/requirements.txt .
+COPY services/classification/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy and install the shared library
@@ -28,6 +28,6 @@ RUN pip install --no-cache-dir -e /shared
 RUN pip check
 
 # Copy service code
-COPY services/classification-deepfaune .
+COPY services/classification .
 
 CMD ["python", "worker.py"]

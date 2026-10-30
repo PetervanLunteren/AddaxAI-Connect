@@ -321,6 +321,9 @@ export interface Project {
   // Null on projects made before the country was required.
   country_code: string | null;
   admin1_region: string | null;
+  // The classification model, picked at creation and never changed. A key
+  // of the classification models catalog (classificationModelsApi).
+  classification_model: string;
   created_at: string;
   updated_at: string | null;
   image_url: string | null;
@@ -334,7 +337,8 @@ export interface ProjectCreate {
   included_species?: string[] | null;
   country_code: string;
   admin1_region?: string | null;
-  // The taxonomy mapping CSV text, required on SpeciesNet servers only
+  classification_model: string;
+  // The taxonomy mapping CSV text, required for a SpeciesNet project only
   taxonomy_csv?: string;
 }
 

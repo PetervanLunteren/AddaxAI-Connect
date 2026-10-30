@@ -66,10 +66,9 @@ class TestConsumersUseTheHelper:
         assert "blur_categories()" in src
         assert "blur_people_vehicles" not in src
 
-    def test_both_workers_use_the_helper(self):
-        # The worker services are not importable packages (dashes in the
-        # directory names), so check their source text directly
-        for service in ("classification-deepfaune", "classification-speciesnet"):
+    def test_the_worker_uses_the_helper(self):
+        # The worker imports torch, so check its source text directly
+        for service in ("classification",):
             path = os.path.join(_repo, "services", service, "worker.py")
             src = open(path).read()
             assert "blur_categories()" in src, service

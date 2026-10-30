@@ -198,6 +198,17 @@ class RedisQueue:
         """
         self.client.set(device_key, device)
 
+    def record_models(self, models_key: str, available_mb: int, loaded: list[str]) -> None:
+        """
+        Record the classification worker's loaded models and the server's
+        free memory, as JSON {"available_mb", "loaded"}.
+
+        The API reads it to decide which models a new project can pick (see
+        shared.classification_models.fits_in_memory). No TTL, like the
+        heartbeat; the reader trusts it only while the heartbeat is fresh.
+        """
+        self.client.set(models_key, json.dumps({"available_mb": available_mb, "loaded": loaded}))
+
     def queue_depth(self) -> int:
         """Get current queue depth"""
         return self.client.llen(self.queue_name)
@@ -258,14 +269,14 @@ HEARTBEAT_KEY_NOTIFICATIONS_EARTHRANGER = "heartbeat:notifications-earthranger"
 HEARTBEAT_KEY_NOTIFICATIONS_SENSINGCLUES = "heartbeat:notifications-sensingclues"
 HEARTBEAT_KEY_INGESTION = "heartbeat:ingestion"
 HEARTBEAT_KEY_DETECTION = "heartbeat:detection"
-# One key for both classifiers. A server runs deepfaune or speciesnet,
-# never both, and the health page has a single "classification" row.
 HEARTBEAT_KEY_CLASSIFICATION = "heartbeat:classification"
 # Device the ML workers loaded their model on, "cpu" or "cuda". Written by
 # RedisQueue.record_device after the load, read by the API health endpoint.
-# One key for both classifiers, for the same reason as the heartbeat.
 DEVICE_KEY_DETECTION = "device:detection"
 DEVICE_KEY_CLASSIFICATION = "device:classification"
+# The classification worker's loaded models and the server's free memory.
+# Written by RedisQueue.record_models, read by the API for the create dialog.
+MODELS_KEY_CLASSIFICATION = "models:classification"
 # How often an idle consume loop wakes to stamp, and how old a stamp may
 # get before the worker counts as dead. The margin between the two keeps
 # one slow message from raising a false alarm.

@@ -18,10 +18,10 @@ from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy import select, text
 
-from shared.classification_models import model_info
+from shared.classification_models import SPECIESNET, get_model, taxonomy
 from shared.earthranger import build_camera_event, build_detection_event
 from shared.logger import get_logger
-from shared.models import ProjectIntegration, SpeciesTaxonomy, TaxonomyMapping
+from shared.models import ProjectIntegration, TaxonomyMapping
 from shared.project_channels import EARTHRANGER, SENSINGCLUES, project_channel_of  # noqa: F401  (re-exported)
 from shared.queue import (
     RedisQueue,
@@ -104,16 +104,15 @@ def camera_site(db, camera_id: int) -> Tuple[Optional[str], Optional[float], Opt
     return row.site_name, row.lat, row.lon
 
 
-def scientific_name(db, project_id: int, species: str, classification_model: Optional[str]) -> Optional[str]:
+def scientific_name(db, project_id: int, species: str, classification_model: str) -> Optional[str]:
     """The scientific name for a label, or None.
 
-    DeepFaune labels come from the species_taxonomy table. SpeciesNet labels
-    are the project's own, so only its taxonomy mapping speaks for them: the
-    latin of the label's row when the label has exactly one (see
-    shared.taxonomy.scientific_names), never a DeepFaune entry of the same
-    name.
+    A fixed-class model's labels come from its taxonomy.csv in the catalog.
+    SpeciesNet labels are the project's own, so only its taxonomy mapping
+    speaks for them: the latin of the label's row when the label has exactly
+    one (see shared.taxonomy.scientific_names).
     """
-    if (classification_model or "deepfaune") == "speciesnet":
+    if get_model(classification_model).kind == SPECIESNET:
         rows = db.execute(
             select(TaxonomyMapping.latin, TaxonomyMapping.common).where(
                 TaxonomyMapping.project_id == project_id,
@@ -121,11 +120,7 @@ def scientific_name(db, project_id: int, species: str, classification_model: Opt
             )
         ).all()
         return scientific_names(rows).get(species)
-    return db.execute(
-        select(SpeciesTaxonomy.scientific_name).where(
-            SpeciesTaxonomy.common_name == species
-        )
-    ).scalar_one_or_none()
+    return taxonomy(classification_model).get(species, {}).get("scientific_name")
 
 
 def image_link(domain: str, project_id: int, image_uuid: str) -> str:
@@ -134,7 +129,7 @@ def image_link(domain: str, project_id: int, image_uuid: str) -> str:
 
 
 def build_detection_payload(
-    kind: str, facts: Dict[str, Any], classification_model: Optional[str]
+    kind: str, facts: Dict[str, Any], classification_model: str
 ) -> Dict[str, Any]:
     """The kind's detection payload from one set of facts, the keyword
     arguments both vendor builders share. Raises ValueError without a
@@ -144,7 +139,7 @@ def build_detection_payload(
     if kind == SENSINGCLUES:
         return build_detection_observation(
             observation_id=new_observation_id(),
-            classifier=model_info(classification_model)["name"],
+            classifier=get_model(classification_model).name,
             **facts,
         )
     raise KeyError(kind)

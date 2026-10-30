@@ -1,0 +1,14 @@
+model_class,class,order,family,genus,species
+squirrel,mammalia,rodentia,sciuridae,sciurus,lis
+monkey,mammalia,primates,cercopithecidae,macaca,fuscata
+hare,mammalia,lagomorpha,leporidae,lepus,brachyurus
+masked,mammalia,carnivora,viverridae,paguma,larvata
+bear,mammalia,carnivora,ursidae,ursus,thibetanus
+mustelidae,mammalia,carnivora,mustelidae,,
+cat,mammalia,carnivora,felidae,felis,catus
+fox,mammalia,carnivora,canidae,vulpes,vulpes
+raccoondog,mammalia,carnivora,canidae,nyctereutes,procyonoides
+boar,mammalia,artiodactyla,suidae,sus,scrofa
+deer,mammalia,artiodactyla,cervidae,cervus,nippon
+serow,mammalia,artiodactyla,bovidae,capricornis,crispus
+bird,aves,,,,

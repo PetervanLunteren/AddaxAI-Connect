@@ -1,0 +1,12 @@
+model_class,class,order,family,genus,species
+caprinae,mammalia,artiodactyla,bovidae,,
+vide,,,,,
+marmota,mammalia,rodentia,sciuridae,marmota,
+muridae,mammalia,rodentia,muridae,,
+ochotonidae,mammalia,lagomorpha,ochotonidae,,
+leporidae,mammalia,lagomorpha,leporidae,,
+ursidae,mammalia,carnivora,ursidae,,
+mustelidae,mammalia,carnivora,mustelidae,,
+panthera_uncia,mammalia,carnivora,felidae,panthera,uncia
+canidae,mammalia,carnivora,canidae,,
+aves,aves,,,,

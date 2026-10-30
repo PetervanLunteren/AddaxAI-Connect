@@ -9,9 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from shared.classification_models import CLASSIFICATION_MODELS, SPECIESNET
 from shared.models import User, Project, Camera, ProjectMembership, UserInvitation, ServerSettings, Site
 from shared.database import get_async_session
-from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_PROJECT_DOCUMENTS
 from shared.logger import get_logger
 from auth.users import current_verified_user
@@ -23,6 +23,7 @@ from auth.permissions import (
     can_admin_project,
 )
 from auth.project_access import get_accessible_project_ids, check_site_scope_or_400
+from utils.model_availability import check_model
 from utils.taxonomy_csv import parse_taxonomy_csv, replace_project_taxonomy
 from routers.cameras import (
     CameraDeletePreviewItem,
@@ -36,7 +37,6 @@ from mailer.sender import get_email_sender
 
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
-settings = get_settings()
 logger = get_logger("api.projects")
 
 
@@ -104,9 +104,12 @@ class ProjectCreate(BaseModel):
     included_species: Optional[List[str]] = None
     country_code: str
     admin1_region: Optional[str] = None
-    # The SpeciesNet taxonomy mapping CSV, as text. Required on SpeciesNet
-    # servers and refused elsewhere (checked in create_project, where the
-    # model is known), so a project never exists without its label list.
+    # The classification model, a key of shared.classification_models.
+    # Locked after creation: it is not in ProjectUpdate.
+    classification_model: str
+    # The SpeciesNet taxonomy mapping CSV, as text. Required for a
+    # SpeciesNet project and refused for any other model (checked in
+    # create_project), so a project never exists without its label list.
     taxonomy_csv: Optional[str] = Field(default=None, max_length=1_000_000)
 
     _country = field_validator("country_code")(normalize_country_code)
@@ -165,6 +168,7 @@ class ProjectResponse(BaseModel):
     independence_interval_minutes: int
     country_code: Optional[str] = None
     admin1_region: Optional[str] = None
+    classification_model: str
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     created_at: str
@@ -261,6 +265,7 @@ async def list_projects(
             independence_interval_minutes=project.independence_interval_minutes,
             country_code=project.country_code,
             admin1_region=project.admin1_region,
+        classification_model=project.classification_model,
             image_url=image_url,
             thumbnail_url=thumbnail_url,
             created_at=project.created_at.isoformat(),
@@ -324,6 +329,7 @@ async def get_project(
         independence_interval_minutes=project.independence_interval_minutes,
         country_code=project.country_code,
         admin1_region=project.admin1_region,
+        classification_model=project.classification_model,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),
@@ -348,9 +354,10 @@ async def create_project(
     one project; a non-server-admin creator becomes project admin of the
     new project. Deleting a project stays server admin only.
 
-    Requires the server timezone to be configured. The country, and on
-    SpeciesNet servers the taxonomy mapping CSV, come with the request and
-    are stored in the same commit as the project.
+    Requires the server timezone to be configured. The country, the model
+    and, for SpeciesNet, the taxonomy mapping CSV come with the request and
+    are stored in the same commit as the project. The model must be in the
+    catalog and fit the server's memory (utils.model_availability).
     """
     result = await db.execute(select(ServerSettings).limit(1))
     server_settings = result.scalar_one_or_none()
@@ -360,8 +367,15 @@ async def create_project(
             detail="Server setup incomplete. Configure timezone in server settings before creating a project.",
         )
 
+    model = CLASSIFICATION_MODELS.get(project_data.classification_model)
+    if model is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown classification model")
+    reason = check_model(model)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason)
+
     taxonomy_rows = None
-    if (settings.classification_model or "deepfaune") == "speciesnet":
+    if model.kind == SPECIESNET:
         if not project_data.taxonomy_csv:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -374,7 +388,7 @@ async def create_project(
     elif project_data.taxonomy_csv is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A taxonomy mapping CSV is only used on SpeciesNet servers",
+            detail="A taxonomy mapping CSV is only used by SpeciesNet projects",
         )
 
     project = Project(
@@ -383,6 +397,7 @@ async def create_project(
         included_species=project_data.included_species,
         country_code=project_data.country_code,
         admin1_region=project_data.admin1_region,
+        classification_model=model.id,
     )
 
     db.add(project)
@@ -421,6 +436,7 @@ async def create_project(
         independence_interval_minutes=project.independence_interval_minutes,
         country_code=project.country_code,
         admin1_region=project.admin1_region,
+        classification_model=project.classification_model,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),
@@ -551,6 +567,7 @@ async def update_project(
         independence_interval_minutes=project.independence_interval_minutes,
         country_code=project.country_code,
         admin1_region=project.admin1_region,
+        classification_model=project.classification_model,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),

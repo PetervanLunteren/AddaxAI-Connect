@@ -1,7 +1,7 @@
 /**
  * Dashboard hint that nudges a project admin to narrow the species list.
  *
- * On a DeepFaune server, classification runs against every species the model
+ * On a fixed-class model, classification runs against every species the model
  * knows. Limiting a project to the species that occur in its area re-normalizes
  * the predictions and usually improves accuracy. SpeciesNet ignores the project
  * species list (taxonomy mapping and country code handle filtering), so the
@@ -55,7 +55,7 @@ export function SpeciesFilterHintBanner() {
   if (!canAdminCurrentProject || !selectedProject || dismissed) return null;
 
   // SpeciesNet ignores included_species, so narrowing it does nothing there.
-  if (!availableSpeciesData || availableSpeciesData.model === 'speciesnet') return null;
+  if (!availableSpeciesData || availableSpeciesData.kind === 'speciesnet') return null;
 
   // Already narrowed means the hint is no longer actionable.
   const included = selectedProject.included_species;
