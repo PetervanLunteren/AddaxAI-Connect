@@ -33,7 +33,7 @@ export type ColumnId =
 // purpose", so bumping the key resets everyone once and the new default
 // shows. v2: 'rejected' added, August 2026.
 export const cameraColumnPrefs = makeColumnPrefs<ColumnId>('cameras-visible-columns-v2', [
-  { id: 'device_id', label: 'Camera ID', defaultVisible: true, sortable: true, alwaysVisible: true },
+  { id: 'device_id', label: 'Camera ID', defaultVisible: true, sortable: true },
   { id: 'tags', label: 'Tags', defaultVisible: false, sortable: true },
   { id: 'status', label: 'Status', defaultVisible: true, sortable: true },
   { id: 'site', label: 'Site', defaultVisible: true, sortable: true },
