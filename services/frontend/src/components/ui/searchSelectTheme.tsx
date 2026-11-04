@@ -53,13 +53,18 @@ export function searchSelectStyles<T>(): StylesConfig<T, false, GroupBase<T>> {
   };
 }
 
-function DropdownIndicator<T>(props: DropdownIndicatorProps<T, false, GroupBase<T>>) {
-  return (
-    <components.DropdownIndicator {...props}>
-      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-    </components.DropdownIndicator>
-  );
-}
+// The chevron of ui/Select, at its default and its compact size.
+const indicator = (iconClass: string) =>
+  function DropdownIndicator<T>(props: DropdownIndicatorProps<T, false, GroupBase<T>>) {
+    return (
+      <components.DropdownIndicator {...props}>
+        <ChevronDown className={`${iconClass} text-muted-foreground`} />
+      </components.DropdownIndicator>
+    );
+  };
 
 /** The chevron of ui/Select and no separator line before it. */
-export const searchSelectComponents = { DropdownIndicator, IndicatorSeparator: null };
+export const searchSelectComponents = { DropdownIndicator: indicator('h-4 w-4'), IndicatorSeparator: null };
+
+/** The same for the compact 28 px selects, like Select size="sm". */
+export const compactSearchSelectComponents = { DropdownIndicator: indicator('h-3 w-3'), IndicatorSeparator: null };

@@ -6,6 +6,7 @@
 import React from 'react';
 import CreatableSelect from 'react-select/creatable';
 import type { StylesConfig, SingleValue } from 'react-select';
+import { compactSearchSelectComponents } from './searchSelectTheme';
 
 export interface Option {
   label: string;
@@ -119,6 +120,7 @@ export const CreatableSpeciesSelect: React.FC<CreatableSelectProps> = ({
       placeholder={placeholder}
       isLoading={isLoading}
       styles={customStyles}
+      components={compactSearchSelectComponents}
       className={className}
       classNamePrefix="react-select"
       isClearable={isClearable}
