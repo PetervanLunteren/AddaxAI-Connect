@@ -25,6 +25,7 @@ import { StatusPill, PillTone } from './ui/StatusPill';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
+import { Select } from './ui/Select';
 
 export interface ConnectionOption {
   value: string;
@@ -257,18 +258,17 @@ export const ConnectionRow: React.FC<ConnectionRowProps> = ({
               <div key={field.name}>
                 <label className="block text-sm font-medium mb-2">{field.label}</label>
                 {field.options ? (
-                  <select
+                  <Select
                     value={values[field.name] ?? ''}
                     onChange={(e) => setValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
                     disabled={field.disabled || field.options.length === 0}
                     autoFocus={index === 0}
-                    className="w-full px-3 py-2 border rounded-md text-sm bg-background disabled:opacity-50"
                   >
                     <option value="">{field.placeholder ?? 'Choose one'}</option>
                     {field.options.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 ) : (
                   <input
                     type={field.secret ? 'password' : 'text'}

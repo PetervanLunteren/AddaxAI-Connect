@@ -30,6 +30,7 @@ import { normalizeLabel } from '../../utils/labels';
 import { speciesApi } from '../../api/species';
 import { classificationModelsApi } from '../../api/classificationModels';
 import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, SiteGroup } from '../../api/types';
+import { Select } from '../../components/ui/Select';
 
 const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 0, label: 'Disabled' },
@@ -733,20 +734,18 @@ export const ProjectSettingsPage: React.FC = () => {
                 Consecutive detections of the same species at the same camera within this window are merged into one independent event. The count for each event is based on MaxN, the peak number of individuals visible in a single image within that event. This prevents double-counting across frames. Affects all statistics retroactively.
               </p>
             </div>
-            <div className="flex-1 relative">
-              <select
+            <div className="flex-1">
+              <Select
                 value={independenceInterval}
                 onChange={(e) => setIndependenceInterval(parseInt(e.target.value, 10))}
                 disabled={isSaving}
-                className="w-full h-10 rounded-md border border-input bg-background px-3 pr-8 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {INDEPENDENCE_INTERVAL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
                 ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </Select>
             </div>
           </div>
 

@@ -23,6 +23,7 @@ import {
   type DetectionRule,
   type DetectionRulePayload,
 } from '../api/detectionAlertRules';
+import { Select } from './ui/Select';
 
 interface DetectionAlertRulesSheetProps {
   open: boolean;
@@ -448,27 +449,27 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
               <div>
                 <label className="text-xs text-muted-foreground">Time of day</label>
                 <div className="flex gap-2 items-center mt-1">
-                  <select
+                  <Select
+                    wrapperClassName="flex-1"
                     value={hourFrom}
                     onChange={(e) => setHourFrom(e.target.value)}
-                    className="flex-1 px-3 py-2 border rounded-md text-sm bg-background"
                   >
                     <option value="">Any time</option>
                     {HOURS.map((h) => (
                       <option key={h} value={h}>{formatHour(h)}</option>
                     ))}
-                  </select>
+                  </Select>
                   <span className="text-sm text-muted-foreground">to</span>
-                  <select
+                  <Select
+                    wrapperClassName="flex-1"
                     value={hourTo}
                     onChange={(e) => setHourTo(e.target.value)}
-                    className="flex-1 px-3 py-2 border rounded-md text-sm bg-background"
                   >
                     <option value="">Any time</option>
                     {HOURS.map((h) => (
                       <option key={h} value={h}>{formatHour(h)}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Camera clock time. The window wraps past midnight, so 21h to

@@ -15,13 +15,14 @@
  * Mirrors AddaxAI WebUI's filter-bar pattern.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Filter, SlidersHorizontal, X } from 'lucide-react';
+import { Filter, SlidersHorizontal, X } from 'lucide-react';
 
 import { Button } from './Button';
 import { DateRangePicker } from './DateRangePicker';
 import { MultiSelect, type Option } from './MultiSelect';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 import { Slider } from './Slider';
+import { Select } from './Select';
 
 export type { Option };
 
@@ -478,21 +479,14 @@ const NativeSelect: React.FC<{
   placeholder: string | null;
   options: Array<{ value: string; label: string }>;
 }> = ({ value, onChange, placeholder, options }) => (
-  <div className="relative">
-    <select
-      className="w-full h-10 px-3 pr-8 border border-input rounded-md bg-background text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
+  <Select value={value} onValueChange={onChange}>
       {placeholder !== null && <option value="">{placeholder}</option>}
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}
         </option>
       ))}
-    </select>
-    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-  </div>
+  </Select>
 );
 
 const MorePopover: React.FC<{

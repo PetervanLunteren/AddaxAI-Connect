@@ -12,6 +12,7 @@ import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
 import { integrationsApi, SensingCluesGroup } from '../api/integrations';
 import { errorDetail } from '../utils/integrationStatus';
+import { Select } from './ui/Select';
 
 interface Props {
   projectId: number;
@@ -135,17 +136,16 @@ export const SensingCluesConnectModal: React.FC<Props> = ({
       ) : (
         <div>
           <label className="block text-sm font-medium mb-2">Group</label>
-          <select
+          <Select
             value={groupId}
             onChange={(e) => setGroupId(e.target.value)}
             autoFocus
-            className={`${inputClass} bg-background`}
           >
             <option value="">Choose a group</option>
             {groups.map((g) => (
               <option key={g.id} value={String(g.id)}>{g.name}</option>
             ))}
-          </select>
+          </Select>
           <p className="text-xs text-muted-foreground mt-1">
             Everyone in this group sees the observations.
           </p>

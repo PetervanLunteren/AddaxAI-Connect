@@ -11,7 +11,8 @@
  * zone lives in a single flat, alphabetically sorted group.
  */
 import React, { useMemo } from 'react';
-import Select, { SingleValue, StylesConfig, GroupBase, FilterOptionOption } from 'react-select';
+import Select, { SingleValue, GroupBase, FilterOptionOption } from 'react-select';
+import { searchSelectComponents, searchSelectStyles } from './searchSelectTheme';
 import { TIMEZONE_COUNTRY, IANA_ALIAS } from '../../geodata/timezone-countries';
 
 interface TimezoneOption {
@@ -132,58 +133,7 @@ function buildTimezoneOptions(): TimezoneGroup[] {
   return [buildFixedOffsetGroup(), { label: 'Locations', options }];
 }
 
-const customStyles: StylesConfig<TimezoneOption, false, GroupBase<TimezoneOption>> = {
-  control: (provided, state) => ({
-    ...provided,
-    backgroundColor: 'hsl(var(--background))',
-    borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
-    borderRadius: '0.375rem',
-    minHeight: '2.5rem',
-    boxShadow: state.isFocused ? '0 0 0 2px hsl(var(--ring))' : 'none',
-    '&:hover': {
-      borderColor: 'hsl(var(--input))',
-    },
-  }),
-  menu: (provided) => ({
-    ...provided,
-    backgroundColor: 'hsl(var(--background))',
-    border: '1px solid hsl(var(--border))',
-    borderRadius: '0.375rem',
-    zIndex: 50,
-  }),
-  option: (provided, state) => ({
-    ...provided,
-    backgroundColor: state.isSelected
-      ? 'hsl(var(--primary))'
-      : state.isFocused
-      ? 'hsl(var(--accent))'
-      : 'transparent',
-    color: state.isSelected ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
-    cursor: 'pointer',
-    '&:active': {
-      backgroundColor: 'hsl(var(--primary))',
-    },
-  }),
-  groupHeading: (provided) => ({
-    ...provided,
-    color: 'hsl(var(--muted-foreground))',
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-  }),
-  input: (provided) => ({
-    ...provided,
-    color: 'hsl(var(--foreground))',
-  }),
-  placeholder: (provided) => ({
-    ...provided,
-    color: 'hsl(var(--muted-foreground))',
-  }),
-  singleValue: (provided) => ({
-    ...provided,
-    color: 'hsl(var(--foreground))',
-  }),
-};
+const customStyles = searchSelectStyles<TimezoneOption>();
 
 export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
   value,
@@ -233,6 +183,7 @@ export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
       onChange={handleChange}
       placeholder="Search timezone..."
       styles={customStyles}
+      components={searchSelectComponents}
       className={className}
       classNamePrefix="react-select"
       isSearchable

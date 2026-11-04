@@ -28,6 +28,7 @@ import type { Camera, MaintenanceActionType } from '../../api/types';
 import type { CompleteFields, ServiceTask, TaskFields } from '../../api/service';
 import { useAuth } from '../../hooks/useAuth';
 import { ACTION_LABELS, ACTION_TYPES, NOTE_MAX_LENGTH, localToday } from '../../lib/service-actions';
+import { Select } from '../ui/Select';
 
 const inputClass = 'w-full px-3 py-2 border rounded-md text-sm bg-background';
 
@@ -90,16 +91,15 @@ const MemberSelect: React.FC<{
   members: { user_id: number; email: string }[];
   emptyLabel: string;
 }> = ({ value, onChange, members, emptyLabel }) => (
-  <select
+  <Select
     value={value}
     onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
-    className={inputClass}
   >
     <option value="">{emptyLabel}</option>
     {members.map((m) => (
       <option key={m.user_id} value={m.user_id}>{m.email}</option>
     ))}
-  </select>
+  </Select>
 );
 
 /** Pick cameras by site name, from a list or on the map. */

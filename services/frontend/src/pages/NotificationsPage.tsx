@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { Loader2, Save, MessageCircle, ChevronDown } from 'lucide-react';
+import { Loader2, Save, MessageCircle } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { SettingRow, SettingRowDivider } from '../components/ui/SettingRow';
 import { Button } from '../components/ui/Button';
@@ -29,6 +29,7 @@ import QRCode from 'react-qr-code';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 import { useRuleOptions } from '../hooks/useRuleOptions';
+import { Select } from '../components/ui/Select';
 
 /** Closes the Telegram link modal once the chat is linked. A component,
  *  because the modal body is a render prop and cannot hold an effect. */
@@ -412,19 +413,15 @@ export const NotificationsPage: React.FC = () => {
                 title="Project updates"
                 description="Receive a scheduled email with a summary of your project, including the number of new images, species detected, and camera activity since the last report."
               >
-                <div className="relative">
-                  <select
-                    value={reportFrequency}
-                    onChange={(e) => setReportFrequency(e.target.value as 'disabled' | 'daily' | 'weekly' | 'monthly')}
-                    className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    <option value="disabled">Disabled</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly (every Monday)</option>
-                    <option value="monthly">Monthly (on the 1st)</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                </div>
+                <Select
+                  value={reportFrequency}
+                  onChange={(e) => setReportFrequency(e.target.value as 'disabled' | 'daily' | 'weekly' | 'monthly')}
+                >
+                  <option value="disabled">Disabled</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly (every Monday)</option>
+                  <option value="monthly">Monthly (on the 1st)</option>
+                </Select>
               </SettingRow>
 
               <SettingRowDivider />
@@ -488,17 +485,13 @@ export const NotificationsPage: React.FC = () => {
                     title="Project inactivity alert"
                     description="Receive an email if this project receives zero images in 48 hours. This usually means something is wrong with the server or network."
                   >
-                    <div className="relative">
-                      <select
-                        value={projectInactivityEnabled ? 'enabled' : 'disabled'}
-                        onChange={(e) => setProjectInactivityEnabled(e.target.value === 'enabled')}
-                        className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <option value="disabled">Disabled</option>
-                        <option value="enabled">Enabled</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    </div>
+                    <Select
+                      value={projectInactivityEnabled ? 'enabled' : 'disabled'}
+                      onChange={(e) => setProjectInactivityEnabled(e.target.value === 'enabled')}
+                    >
+                      <option value="disabled">Disabled</option>
+                      <option value="enabled">Enabled</option>
+                    </Select>
                   </SettingRow>
                 </>
               )}
@@ -511,17 +504,13 @@ export const NotificationsPage: React.FC = () => {
                     title="SIM expiry alert"
                     description="Receive an email on the 1st of every month listing cameras in this project whose SIM card expires within the next two months or has already expired. The email keeps coming every month until the date is updated."
                   >
-                    <div className="relative">
-                      <select
-                        value={simExpiryEnabled ? 'enabled' : 'disabled'}
-                        onChange={(e) => setSimExpiryEnabled(e.target.value === 'enabled')}
-                        className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <option value="disabled">Disabled</option>
-                        <option value="enabled">Enabled</option>
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    </div>
+                    <Select
+                      value={simExpiryEnabled ? 'enabled' : 'disabled'}
+                      onChange={(e) => setSimExpiryEnabled(e.target.value === 'enabled')}
+                    >
+                      <option value="disabled">Disabled</option>
+                      <option value="enabled">Enabled</option>
+                    </Select>
                   </SettingRow>
                 </>
               )}
@@ -583,21 +572,17 @@ export const NotificationsPage: React.FC = () => {
                 title="Excessive image alerts"
                 description="Receive an email alert when a camera exceeds a daily image threshold. This usually indicates a problem like waving grass or direct sunlight triggering the sensor repeatedly."
               >
-                <div className="relative">
-                  <select
-                    value={excessiveImagesThreshold}
-                    onChange={(e) => setExcessiveImagesThreshold(Number(e.target.value))}
-                    className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    <option value={0}>Disabled</option>
-                    <option value={25}>25 images per day</option>
-                    <option value={50}>50 images per day</option>
-                    <option value={100}>100 images per day</option>
-                    <option value={200}>200 images per day</option>
-                    <option value={500}>500 images per day</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                </div>
+                <Select
+                  value={excessiveImagesThreshold}
+                  onChange={(e) => setExcessiveImagesThreshold(Number(e.target.value))}
+                >
+                  <option value={0}>Disabled</option>
+                  <option value={25}>25 images per day</option>
+                  <option value={50}>50 images per day</option>
+                  <option value={100}>100 images per day</option>
+                  <option value={200}>200 images per day</option>
+                  <option value={500}>500 images per day</option>
+                </Select>
               </SettingRow>
 
               <SettingRowDivider />

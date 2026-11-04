@@ -22,6 +22,7 @@ import {
   type SpeciesReportRule,
   type SpeciesReportPayload,
 } from '../api/scheduledReports';
+import { Select } from './ui/Select';
 
 interface SpeciesReportsSheetProps {
   open: boolean;
@@ -290,15 +291,15 @@ const SpeciesReportEditDialog: React.FC<SpeciesReportEditDialogProps> = ({
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Rhythm</label>
-            <select
+            <Select
+              wrapperClassName="mt-1"
               value={frequency}
               onChange={(e) => setFrequency(e.target.value as ReportFrequency)}
-              className="w-full px-3 py-2 border rounded-md text-sm bg-background mt-1"
             >
               {FREQUENCY_CHOICES.map((choice) => (
                 <option key={choice.value} value={choice.value}>{choice.label}</option>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-muted-foreground mt-1">{frequencyHint}</p>
           </div>
         </div>

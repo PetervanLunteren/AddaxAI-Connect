@@ -23,6 +23,7 @@ import {
   type TheftWatchRulePayload,
   type TheftWatchSensitivity,
 } from '../api/theftWatch';
+import { Select } from './ui/Select';
 
 interface TheftWatchSheetProps {
   open: boolean;
@@ -308,15 +309,14 @@ const TheftWatchEditDialog: React.FC<TheftWatchEditDialogProps> = ({
         <div className="py-4 space-y-3">
           <div>
             <label className="text-xs text-muted-foreground">Sensitivity</label>
-            <select
+            <Select
               value={sensitivity}
               onChange={(e) => setSensitivity(e.target.value as TheftWatchSensitivity)}
-              className="w-full px-3 py-2 border rounded-md text-sm bg-background"
             >
               <option value="low">Low (fewer alerts, only strong outliers)</option>
               <option value="medium">Medium (balanced)</option>
               <option value="high">High (more alerts, earlier warnings)</option>
-            </select>
+            </Select>
             <p className="text-xs text-muted-foreground mt-1">
               Higher sensitivity reacts sooner but raises more false alarms.
             </p>

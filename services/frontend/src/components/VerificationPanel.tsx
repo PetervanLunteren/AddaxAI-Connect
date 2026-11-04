@@ -17,6 +17,7 @@ import { speciesApi } from '../api/species';
 import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
 import type { ImageDetail, HumanObservationInput, SaveVerificationRequest } from '../api/types';
+import { Select } from './ui/Select';
 
 interface VerificationPanelProps {
   imageUuid: string;
@@ -60,17 +61,9 @@ function CompactSelect({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative min-w-0 shrink">
-      <select
-        value={value}
-        onChange={onChange}
-        title={title}
-        className="h-7 w-full pl-1.5 pr-6 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
-      >
-        {children}
-      </select>
-      <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
-    </div>
+    <Select size="sm" wrapperClassName="min-w-0 shrink" value={value} onChange={onChange} title={title}>
+      {children}
+    </Select>
   );
 }
 

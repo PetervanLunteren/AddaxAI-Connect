@@ -50,6 +50,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
 import { formatDate, formatDateTime, formatDateTimeSeconds } from '../utils/datetime';
 import { TagInput } from './TagInput';
+import { Select } from './ui/Select';
 
 // Pipeline stage in words the reader can act on. The raw values come from
 // the workers ("classified", "detected") and mean nothing outside the code.
@@ -1335,8 +1336,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 {SLOT_KEYS.map((slotKey) => (
                   <div key={slotKey} className="flex items-center justify-between gap-3">
                     <span className="text-muted-foreground uppercase">{slotKey}</span>
-                    <select
-                      className="border border-input rounded bg-background text-xs px-1 py-0.5 max-w-[160px]"
+                    <Select
+                      size="sm"
+                      wrapperClassName="max-w-[160px]"
                       value={speciesSlots[slotKey]}
                       onChange={(ev) => updateSlot(slotKey, ev.target.value)}
                     >
@@ -1348,7 +1350,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                             {String(o.label)}
                           </option>
                         ))}
-                    </select>
+                    </Select>
                   </div>
                 ))}
               </div>

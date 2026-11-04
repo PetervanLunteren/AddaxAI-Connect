@@ -25,6 +25,7 @@ import {
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 import { Callout } from '../ui/Callout';
+import { Select } from '../ui/Select';
 import { CountrySelect } from '../ui/CountrySelect';
 import { StateSelect } from '../ui/StateSelect';
 import { TaxonomyDropzone } from './TaxonomyDropzone';
@@ -258,14 +259,13 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               <label htmlFor="model" className="text-sm font-medium block mb-1">
                 Species model
               </label>
-              <select
+              <Select
                 id="model"
                 value={modelId}
-                onChange={(e) => {
-                  setModelId(e.target.value);
+                onValueChange={(id) => {
+                  setModelId(id);
                   setTaxonomyFile(null);
                 }}
-                className="w-full px-3 py-2 border rounded-md bg-background"
                 required
               >
                 <option value="">{models ? 'Pick a model' : 'Loading models...'}</option>
@@ -278,7 +278,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
                     ))}
                   </optgroup>
                 ))}
-              </select>
+              </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {selectedModel
                   ? `${selectedModel.description}. By ${selectedModel.developer}.`

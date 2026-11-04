@@ -23,6 +23,7 @@ import {
   type AlertRulePayload,
   type AlertRuleType,
 } from '../api/cameraAlertRules';
+import { Select } from './ui/Select';
 
 interface CameraAlertRulesSheetProps {
   open: boolean;
@@ -338,7 +339,8 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
           <div>
             <label className="text-xs text-muted-foreground">Condition</label>
             <div className="flex gap-2 items-center">
-              <select
+              <Select
+                wrapperClassName="flex-1"
                 value={ruleType}
                 onChange={(e) => {
                   const next = e.target.value as AlertRuleType;
@@ -346,13 +348,12 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
                   // Sensible default when switching rule types
                   setThreshold(String(THRESHOLD_UNIT[next].default));
                 }}
-                className="flex-1 px-3 py-2 border rounded-md text-sm bg-background"
               >
                 <option value="battery_low">Battery below</option>
                 <option value="sd_full">SD card above</option>
                 <option value="camera_silent">Silent for more than</option>
                 <option value="rejections">Rejected files per day, at least</option>
-              </select>
+              </Select>
               <input
                 type="number"
                 value={threshold}
