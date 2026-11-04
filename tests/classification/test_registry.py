@@ -79,6 +79,29 @@ class TestFailedLoad:
         assert reg.get(SPECIESNET_ID) is not None
 
 
+class TestFailedDownload:
+    def test_is_retried_on_the_next_image(self, monkeypatch, tmp_path):
+        reg, calls = _registry(monkeypatch, tmp_path)
+        attempts = []
+
+        def flaky_download(model, models_dir):
+            attempts.append(model.id)
+            if len(attempts) == 1:
+                raise ConnectionError("huggingface.co unreachable")
+            return tmp_path / model.id
+
+        monkeypatch.setattr(registry, "ensure_downloaded", flaky_download)
+        try:
+            reg.get(DEEPFAUNE_ID)
+        except ConnectionError:
+            pass
+        else:
+            raise AssertionError("expected ConnectionError")
+        assert reg.get(DEEPFAUNE_ID) is not None
+        assert attempts == [DEEPFAUNE_ID, DEEPFAUNE_ID]
+        assert reg.loaded == [DEEPFAUNE_ID]
+
+
 class TestLoadAll:
     def test_goes_on_past_a_failing_model(self, monkeypatch, tmp_path):
         reg, calls = _registry(monkeypatch, tmp_path, fail={DEEPFAUNE_ID})

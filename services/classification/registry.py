@@ -111,7 +111,10 @@ class ModelRegistry:
         A model that failed to load is not tried again until the worker
         restarts: a failed load leaked about 280 MB per attempt on dev, and
         every image of that project would repeat it until the worker ran out
-        of memory. Its images fail fast with the first error instead."""
+        of memory. Its images fail fast with the first error instead.
+
+        A failed download is not remembered: it holds no model in memory, and
+        is often a passing network problem, so the next image tries again."""
         if model_id in self._failed:
             raise RuntimeError(self._failed[model_id])
         if model_id not in self._models:
@@ -119,8 +122,8 @@ class ModelRegistry:
             if self._loaders is None:
                 self._loaders = _default_loaders()
             logger.info("Loading model", model=model.id, device=self.device)
+            model_dir = ensure_downloaded(model, self.models_dir)
             try:
-                model_dir = ensure_downloaded(model, self.models_dir)
                 self._models[model_id] = self._loaders[model.kind](model, model_dir, self.device)
             except Exception as e:
                 self._failed[model_id] = f"{model_id} did not load, fix it and restart the worker: {e}"

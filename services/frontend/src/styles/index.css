@@ -51,6 +51,12 @@
 }
 
 @layer base {
+  /* Native checkboxes and radio buttons in the brand teal, not the browser blue */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: hsl(var(--primary));
+  }
+
   * {
     @apply border-border;
   }

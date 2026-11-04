@@ -361,7 +361,7 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
                 max={unit.max}
                 step={1}
                 onChange={(e) => setThreshold(e.target.value)}
-                className="w-20 px-3 py-2 border rounded-md text-sm"
+                className="h-10 w-20 px-3 border rounded-md text-sm"
               />
               <span className="text-sm text-muted-foreground w-10">
                 {unit.label(thresholdNumber)}

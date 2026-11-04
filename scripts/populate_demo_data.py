@@ -32,6 +32,7 @@ from fastapi_users.password import PasswordHelper
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+from shared.classification_models import DEEPFAUNE_ID
 from shared.config import get_settings
 from shared.geo import calculate_gps_distance
 from shared.storage import (
@@ -1725,18 +1726,20 @@ def insert_project(session: Session) -> int:
         text("""
             INSERT INTO projects (
                 name, description, location, included_species, country_code,
-                detection_threshold, classification_thresholds,
-                blur_people_vehicles, independence_interval_minutes
+                classification_model, detection_threshold, classification_thresholds,
+                blur_people, blur_vehicles, independence_interval_minutes
             ) VALUES (
                 :name, :description, ST_GeogFromText(:boundary),
-                :species, 'NLD', :threshold, CAST(:cls_thresholds AS json),
-                :blur, :independence
+                :species, 'NLD', :model, :threshold, CAST(:cls_thresholds AS json),
+                :blur, :blur, :independence
             ) RETURNING id
         """),
         {
             "name": PROJECT_NAME,
             "description": PROJECT_DESCRIPTION,
             "species": json.dumps(ALL_SPECIES),
+            # The demo labels are DeepFaune's, so the project uses DeepFaune
+            "model": DEEPFAUNE_ID,
             "boundary": boundary_wkt,
             "threshold": 0.5,
             "cls_thresholds": json.dumps(classification_thresholds),
