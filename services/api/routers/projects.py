@@ -102,7 +102,9 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255, pattern=r"\S")
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
-    country_code: str
+    # Optional, except for SpeciesNet, whose geofence needs it (checked in
+    # create_project, next to the CSV rule).
+    country_code: Optional[str] = None
     admin1_region: Optional[str] = None
     # The classification model, a key of shared.classification_models.
     # Locked after creation: it is not in ProjectUpdate.
@@ -376,6 +378,11 @@ async def create_project(
 
     taxonomy_rows = None
     if model.kind == SPECIESNET:
+        if not project_data.country_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A SpeciesNet project needs a country",
+            )
         if not project_data.taxonomy_csv:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

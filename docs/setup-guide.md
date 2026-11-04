@@ -24,8 +24,8 @@ Once those are set, you can create your first project.
 
 1. Go to the home page and click `Add project`
 2. Enter a project name and optionally a description and image
-3. Select the country where the cameras of this project are
-4. Pick the species model, the AI model that names the animals. The list is grouped by region, so pick the one made for yours. The model cannot be changed later, so for another model you create a new project. A model that is greyed out does not fit in the server's memory next to the models already in use; ask the server admin
+3. Pick the species model, the AI model that names the animals. The list is grouped by region, so pick the one made for yours. The model cannot be changed later, so for another model you create a new project. If the server cannot take the model next to the ones already in use, a warning says why and what the server admin can do
+4. Select the country where the cameras of this project are. It is optional and shows as a flag on the project card, except for SpeciesNet, which needs it to skip species that do not live there
 5. If you picked SpeciesNet, add the species labels CSV. See [SpeciesNet setup](speciesnet-setup.md) for how to make one
 6. Click `Create project`
 

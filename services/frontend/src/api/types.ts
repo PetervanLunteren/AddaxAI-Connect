@@ -335,7 +335,8 @@ export interface ProjectCreate {
   description?: string;
   // null means all species are allowed, same as omitting it.
   included_species?: string[] | null;
-  country_code: string;
+  /** Required for SpeciesNet, optional for every other model */
+  country_code?: string | null;
   admin1_region?: string | null;
   classification_model: string;
   // The taxonomy mapping CSV text, required for a SpeciesNet project only

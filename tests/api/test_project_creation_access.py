@@ -120,13 +120,11 @@ class TestProjectName:
 
 
 class TestProjectCountry:
-    def test_country_is_required_on_create(self):
-        from pydantic import ValidationError
-
+    def test_country_is_optional_on_create(self):
         from routers.projects import ProjectCreate
 
-        with pytest.raises(ValidationError):
-            ProjectCreate(classification_model="EUR-DF-v1-4", name="Park")
+        # Only SpeciesNet needs one, which create_project checks.
+        assert ProjectCreate(classification_model="EUR-DF-v1-4", name="Park").country_code is None
 
     def test_country_is_normalised(self):
         from routers.projects import ProjectCreate, ProjectUpdate

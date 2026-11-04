@@ -1,11 +1,12 @@
 /**
  * Create Project Modal
  *
- * Form to create a new project with name, description, country, the
- * classification model and an optional image. The country and the model
- * are required, and for a SpeciesNet model so is the taxonomy mapping CSV:
- * it travels in the create request, so a project never exists without its
- * label list. The model is locked after creation.
+ * Form to create a new project with name, description, the classification
+ * model, country and an optional image. The model is required. A SpeciesNet
+ * model also needs the country, for its geofence, and the taxonomy mapping
+ * CSV, which travels in the create request so a project never exists
+ * without its label list. The model comes first because the country field
+ * depends on it. The model is locked after creation.
  *
  * Every model in the catalog is listed, grouped by region. A model the
  * server cannot load right now (not enough memory, worker down) can still be
@@ -86,7 +87,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
         name,
         description: description || undefined,
         included_species: null, // All species allowed
-        country_code: countryCode,
+        country_code: countryCode || null,
         admin1_region: admin1Region || null,
         classification_model: modelId,
         taxonomy_csv: requireTaxonomy && taxonomyFile ? await taxonomyFile.text() : undefined,
@@ -169,8 +170,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
       setError('Project name is required');
       return;
     }
-    if (!countryCode) {
-      setError('Country is required');
+    if (requireTaxonomy && !countryCode) {
+      setError('A SpeciesNet project needs a country');
       return;
     }
     if (!modelId) {
@@ -229,31 +230,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               />
             </div>
 
-            {/* Country, and the state for the USA */}
-            <div>
-              <label className="text-sm font-medium block mb-1">
-                Country
-              </label>
-              <CountrySelect
-                value={countryCode}
-                onChange={(code) => {
-                  setCountryCode(code);
-                  if (code !== 'USA') setAdmin1Region('');
-                }}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Where the cameras of this project are
-              </p>
-            </div>
-            {countryCode === 'USA' && (
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  State <span className="font-normal text-muted-foreground">(optional)</span>
-                </label>
-                <StateSelect value={admin1Region} onChange={setAdmin1Region} />
-              </div>
-            )}
-
             {/* Species model, locked after creation */}
             <div>
               <label htmlFor="model" className="text-sm font-medium block mb-1">
@@ -301,6 +277,34 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
                 </Callout>
               )}
             </div>
+
+            {/* Country, and the state for the USA */}
+            <div>
+              <label className="text-sm font-medium block mb-1">
+                Country
+                {!requireTaxonomy && <span className="font-normal text-muted-foreground"> (optional)</span>}
+              </label>
+              <CountrySelect
+                value={countryCode}
+                onChange={(code) => {
+                  setCountryCode(code);
+                  if (code !== 'USA') setAdmin1Region('');
+                }}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {requireTaxonomy
+                  ? 'Where the cameras of this project are. SpeciesNet skips species that do not live there.'
+                  : 'Where the cameras of this project are. Shown as a flag on the project card.'}
+              </p>
+            </div>
+            {countryCode === 'USA' && (
+              <div>
+                <label className="text-sm font-medium block mb-1">
+                  State <span className="font-normal text-muted-foreground">(optional)</span>
+                </label>
+                <StateSelect value={admin1Region} onChange={setAdmin1Region} />
+              </div>
+            )}
 
             {/* Species labels, SpeciesNet only */}
             {requireTaxonomy && (
@@ -377,7 +381,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             <Button
               type="submit"
               disabled={
-                createMutation.isPending || !name.trim() || !countryCode || !selectedModel?.fits || (requireTaxonomy && !taxonomyFile)
+                createMutation.isPending || !name.trim() || (requireTaxonomy && !countryCode) || !selectedModel?.fits || (requireTaxonomy && !taxonomyFile)
               }
             >
               {createMutation.isPending ? (

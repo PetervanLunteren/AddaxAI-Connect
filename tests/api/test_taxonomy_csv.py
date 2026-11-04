@@ -110,7 +110,8 @@ class TestCreateProjectCsvRule:
             # The model fits unless the test says otherwise
             monkeypatch.setattr(projects, "check_model", lambda m: None)
             db = _Db(_Result(SimpleNamespace(timezone="Europe/Amsterdam")))
-            data = projects.ProjectCreate(name="Park", country_code="NLD", classification_model=model, **fields)
+            fields.setdefault("country_code", "NLD")
+            data = projects.ProjectCreate(name="Park", classification_model=model, **fields)
             return projects.create_project(data, db=db, current_user=SimpleNamespace(is_superuser=True))
 
         return run
@@ -133,6 +134,13 @@ class TestCreateProjectCsvRule:
             await projects.create_project(data, db=db, current_user=SimpleNamespace(is_superuser=True))
         assert exc.value.status_code == 400
         assert exc.value.detail == "Not enough memory"
+
+    @pytest.mark.asyncio
+    async def test_speciesnet_needs_a_country(self, create):
+        with pytest.raises(HTTPException) as exc:
+            await create(SPECIESNET_ID, country_code=None, taxonomy_csv="latin,common\naves,bird\n")
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "A SpeciesNet project needs a country"
 
     @pytest.mark.asyncio
     async def test_speciesnet_needs_a_csv(self, create):
