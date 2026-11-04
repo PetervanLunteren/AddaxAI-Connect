@@ -7,10 +7,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2 } from 'lucide-react';
+import { Loader2, Save, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2, ExternalLink } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Callout } from '../../components/ui/Callout';
-import { Button } from '../../components/ui/Button';
+import { Button, buttonVariants } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
@@ -65,7 +65,7 @@ const PrivacySegmented: React.FC<{
   disabled?: boolean;
   ariaLabel: string;
 }> = ({ value, onChange, disabled, ariaLabel }) => (
-  <div role="radiogroup" aria-label={ariaLabel} className="inline-flex overflow-hidden rounded-md border divide-x">
+  <div role="radiogroup" aria-label={ariaLabel} className="flex w-full overflow-hidden rounded-md border divide-x">
     {PRIVACY_OPTIONS.map((option) => (
       <button
         key={option.value}
@@ -74,7 +74,7 @@ const PrivacySegmented: React.FC<{
         aria-checked={value === option.value}
         disabled={disabled}
         onClick={() => onChange(option.value)}
-        className={`px-3 py-1 text-sm transition-colors ${
+        className={`flex-1 px-3 py-1 text-sm transition-colors ${
           value === option.value ? 'bg-[#0f6064] text-white' : 'bg-white hover:bg-muted'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
@@ -521,6 +521,35 @@ export const ProjectSettingsPage: React.FC = () => {
 
       <Card>
         <CardContent className="pt-6">
+          {/* The model, picked at creation and locked */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
+              <label className="text-sm font-medium block">Species model</label>
+              <p className="text-sm text-muted-foreground mt-1">
+                The AI model that names the animals in this project. It was picked when the project was created and cannot be changed. For another model, create a new project.
+              </p>
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              {/* Read-only, so it looks like the other fields but muted */}
+              <div className="flex h-10 flex-1 items-center rounded-md border border-input bg-muted/50 px-3 text-sm">
+                {projectModel ? `${projectModel.emoji} ${projectModel.name}` : availableSpeciesData?.model ?? '...'}
+              </div>
+              {projectModel && (
+                <a
+                  href={projectModel.info_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonVariants({ variant: 'outline', className: 'gap-1.5' })}
+                >
+                  Model details
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t my-6" />
+
           {/* Detection Confidence Threshold */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
             <div className="w-full sm:w-1/2 sm:shrink-0">
@@ -618,20 +647,6 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* The model, picked at creation and locked */}
-          <div className="border-t my-6" />
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-            <div className="w-full sm:w-1/2 sm:shrink-0">
-              <label className="text-sm font-medium block">Species model</label>
-              <p className="text-sm text-muted-foreground mt-1">
-                The AI model that names the animals in this project. It was picked when the project was created and cannot be changed. For another model, create a new project.
-              </p>
-            </div>
-            <div className="w-full sm:w-1/2 text-sm">
-              {projectModel ? `${projectModel.emoji} ${projectModel.name}` : availableSpeciesData?.model ?? '...'}
-            </div>
-          </div>
-
           {/* Species Filtering (fixed-class models only, SpeciesNet uses the Species labels card below) */}
           {!isSpeciesNet && (
             <>
@@ -699,7 +714,7 @@ export const ProjectSettingsPage: React.FC = () => {
               </p>
             </div>
             {/* Same label-above-control shape as the filter bars */}
-            <div className="flex-1 flex flex-wrap gap-x-6 gap-y-3">
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               <div className="space-y-1.5">
                 <label className="block text-xs font-medium text-muted-foreground">People</label>
                 <PrivacySegmented

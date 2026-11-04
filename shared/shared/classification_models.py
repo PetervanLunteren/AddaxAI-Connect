@@ -51,6 +51,14 @@ class ClassificationModel:
     revision: str      # pinned commit of the HuggingFace repo
     memory_mb: int     # peak worker memory while loading, measured on a CPU server
     weights_file: str  # the file inference.py loads; the backbone for SpeciesNet
+    # Who the model and its data belong to, word for word from AddaxAI's
+    # models.json. None when the developer owns it.
+    owner: Optional[str] = None
+
+    @property
+    def credited_owner(self) -> str:
+        """The owner to credit: the named owner, else the developer."""
+        return self.owner or self.developer
 
     @property
     def hf_repo(self) -> str:
@@ -126,6 +134,7 @@ _MODELS = [
         "https://www.apache.org/licenses/LICENSE-2.0",
         FIXED, "b8f90403a8b42a7ff73dca13c893b1ee7c0c1976", 550,
         "final-20260109.pt",
+        owner="Tohono O'odham Nation Wildlife and Vegetation Management Program and University of Arizona School of Natural Resources and the Environment",
     ),
     ClassificationModel(
         "HWI-ADS-v1", "Hawaiʻi", "Hawaiian islands, 15 classes",
@@ -133,6 +142,7 @@ _MODELS = [
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
         FIXED, "427157560b4c51e012fa6f51e3a43b032c091452", 550,
         "final-20260317.pt",
+        owner="USDA Forest Service – Pacific Southwest Research Station, Institute of Pacific Islands Forestry (IPIF) & The Nature Conservancy (TNC)",
     ),
     ClassificationModel(
         "ARC-ADS-v1", "Subarctic and low Arctic", "Northern Canada, 39 classes",
@@ -140,6 +150,7 @@ _MODELS = [
         "https://creativecommons.org/licenses/by-nc/4.0/",
         FIXED, "76df3c038dce672c1836af2e1ddc48a3bd865570", 550,
         "final-20260909.pt",
+        owner="Churchill Fox Project",
     ),
     ClassificationModel(
         "PAN-SDZWA-v1", "Peruvian Andes", "Andean highlands, 53 classes",
@@ -154,6 +165,7 @@ _MODELS = [
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
         FIXED, "60cc9940f3b52de5a8f0bc5d722a60e786abf452", 550,
         "final-20260521.pt",
+        owner="Wildlife Conservation Trust (WCT) - India",
     ),
     ClassificationModel(
         "KIR-HEX-v1", "Kyrgyzstan", "Central Asian mountains, 11 classes",
@@ -161,6 +173,7 @@ _MODELS = [
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
         FIXED, "5fb5da06583ac07dc23ee91a7882fee880f9f619", 1600,
         "best_model_Fri_Sep__1_18_50_55_2023.pt",
+        owner="OSI-Panthera",
     ),
     ClassificationModel(
         "GIF-JAP-v0-2", "Gifu region", "Central Japan, 13 classes, a prototype biased to deer",
@@ -168,6 +181,7 @@ _MODELS = [
         "https://github.com/gifu-wildlife/MDetToolsForJCameraTraps?tab=MIT-1-ov-file",
         FIXED, "5da915dfe451e39730b6807403802a8169c45bd4", 400,
         "gifu-wildlife_cls_resnet50_v0.2.1.pth",
+        owner="Masaki Ando",
     ),
     ClassificationModel(
         "AWC135-AWC-v1", "Australia", "All of Australia, 135 classes",
@@ -182,6 +196,7 @@ _MODELS = [
         "https://huggingface.co/Addax-Data-Science/VIC-ADS-v1/blob/main/LICENSE.txt",
         FIXED, "270fbb1a7dff4490ca38e481988ba8b48c53fe7f", 550,
         "final-20251221.pt",
+        owner="Parks Victoria",
     ),
     ClassificationModel(
         "ANT-ADS-v1", "Top End savanna", "Northern Australia, 140 classes",
@@ -189,6 +204,7 @@ _MODELS = [
         "https://creativecommons.org/licenses/by-nc/4.0/deed.en",
         FIXED, "9a10b6411deacc4ade751b56a104fd38dce7b27a", 550,
         "final-20260417.pt",
+        owner="Charles Darwin University, Territory Natural Resource Management, Warddeken Land Management",
     ),
     ClassificationModel(
         "QLD-WOB-v1", "Queensland Wet Tropics", "Wet Tropics rainforest, 15 classes",
@@ -196,6 +212,7 @@ _MODELS = [
         "https://creativecommons.org/licenses/by/4.0/",
         FIXED, "bef3d834f70b80b4762d4409fafa9f3876234ae8", 350,
         "wildobs_QLD_WetTropics.pt",
+        owner="WildObs Australia",
     ),
     ClassificationModel(
         "NZI-ADS-v2", "New Zealand invasives", "New Zealand invasive species, 24 classes",
@@ -203,6 +220,7 @@ _MODELS = [
         "https://creativecommons.org/licenses/by-nc-sa/4.0/",
         FIXED, "5bc26fb9354702b76bec668718ad36cf24c5a4b0", 550,
         "final-20260606.pt",
+        owner="New Zealand Department of Conservation",
     ),
 ]
 

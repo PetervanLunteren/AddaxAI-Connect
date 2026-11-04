@@ -47,6 +47,10 @@ const REGION_LABELS: Record<string, string> = {
   oceania: 'Oceania',
 };
 const REGION_ORDER = Object.keys(REGION_LABELS);
+
+// The owner first, so a client's model is credited to the client.
+const madeBy = (m: ClassificationModelInfo) =>
+  m.owner === m.developer ? `By ${m.owner}` : `By ${m.owner}, developed by ${m.developer}`;
 const MODEL_ZOO_URL = 'https://docs.addaxai.com/docs/reference/model-zoo';
 
 export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, onClose }) => {
@@ -257,7 +261,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {selectedModel
-                  ? `${selectedModel.description}. By ${selectedModel.developer}.`
+                  ? `${selectedModel.description}. ${madeBy(selectedModel)}.`
                   : 'Pick the model made for your region.'}{' '}
                 It cannot be changed later.{' '}
                 <a
@@ -294,7 +298,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
               <p className="text-xs text-muted-foreground mt-1">
                 {requireTaxonomy
                   ? 'Where the cameras of this project are. SpeciesNet skips species that do not live there.'
-                  : 'Where the cameras of this project are. Shown as a flag on the project card.'}
+                  : 'Where the cameras of this project are'}
               </p>
             </div>
             {countryCode === 'USA' && (

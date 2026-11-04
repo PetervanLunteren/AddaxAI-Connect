@@ -51,6 +51,8 @@ class ModelAvailability(BaseModel):
     name: str
     description: str
     developer: str
+    # Who to credit: the named owner, else the developer
+    owner: str
     region: str
     emoji: str
     licence_url: str
@@ -88,7 +90,7 @@ def _availability(model: ClassificationModel, available_mb: Optional[int], loade
         fits, reason = False, not_enough_memory(model, available_mb, loaded)
     return ModelAvailability(
         id=model.id, name=model.name, description=model.description,
-        developer=model.developer, region=model.region, emoji=model.emoji,
+        developer=model.developer, owner=model.credited_owner, region=model.region, emoji=model.emoji,
         licence_url=model.licence_url, info_url=model.info_url, kind=model.kind,
         loaded=model.id in loaded, fits=fits, reason=reason,
     )

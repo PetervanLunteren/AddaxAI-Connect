@@ -51,6 +51,13 @@ class TestCatalog:
         assert get_model(DEEPFAUNE_ID).info_url == f"{MODEL_ZOO_URL}#{DEEPFAUNE_ID}"
         assert get_model(SPECIESNET_ID).info_url.startswith("https://github.com/google/")
 
+    def test_the_credited_owner_falls_back_to_the_developer(self):
+        assert get_model(DEEPFAUNE_ID).credited_owner == "The DeepFaune initiative"
+        assert get_model("KIR-HEX-v1").credited_owner == "OSI-Panthera"
+        assert get_model("KIR-HEX-v1").developer == "Hex Data"
+        for model in CLASSIFICATION_MODELS.values():
+            assert model.owner is None or model.owner.strip(), model.id
+
     def test_hf_repo(self):
         assert get_model(DEEPFAUNE_ID).hf_repo == "Addax-Data-Science/EUR-DF-v1-4"
 

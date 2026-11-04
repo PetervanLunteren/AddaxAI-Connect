@@ -11,6 +11,7 @@ import { ExternalLink, Tag } from 'lucide-react';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 import { versionApi } from '../api/version';
 import { classificationModelsApi } from '../api/classificationModels';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 
 const linkClass = 'text-primary hover:underline inline-flex items-center gap-0.5';
 
@@ -71,24 +72,39 @@ export const AboutPage: React.FC = () => {
                 MegaDetector v1000.0.0
                 <ExternalLink className="h-3 w-3" />
               </a>
-              , a general-purpose object detection model trained on camera trap imagery, to locate animals, people, and vehicles. Detected animals are then passed to the species model each project picked at creation. The models a project can pick, with their makers and licences
+              , a general-purpose object detection model trained on camera trap imagery, to locate animals, people, and vehicles. Detected animals are then passed to the species model each project picked at creation. These are the models a project can pick, with who they belong to and who built them.
             </p>
-            <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-              {(models ?? []).map((model) => (
-                <li key={model.id}>
-                  {model.emoji}{' '}
-                  <a href={model.info_url} target="_blank" rel="noopener noreferrer" className={linkClass}>
-                    {model.name}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                  {' '}by {model.developer},{' '}
-                  <a href={model.licence_url} target="_blank" rel="noopener noreferrer" className={linkClass}>
-                    licence
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </li>
-              ))}
-            </ul>
+            <Table className="mt-2 text-muted-foreground">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Model</TableHead>
+                  <TableHead>Owner</TableHead>
+                  <TableHead>Developer</TableHead>
+                  <TableHead>Licence</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(models ?? []).map((model) => (
+                  <TableRow key={model.id}>
+                    <TableCell className="whitespace-nowrap">
+                      {model.emoji}{' '}
+                      <a href={model.info_url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                        {model.name}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </TableCell>
+                    <TableCell>{model.owner}</TableCell>
+                    <TableCell>{model.developer}</TableCell>
+                    <TableCell>
+                      <a href={model.licence_url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                        Licence
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
 
           <div>

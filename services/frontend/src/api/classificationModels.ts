@@ -9,6 +9,8 @@ export interface ClassificationModelInfo {
   name: string;
   description: string;
   developer: string;
+  /** Who the model belongs to; the developer when nobody else owns it */
+  owner: string;
   region: string;
   emoji: string;
   licence_url: string;
