@@ -60,6 +60,72 @@ export const AboutPage: React.FC = () => {
           </div>
 
           <div>
+            <h3 className="font-semibold mb-2">Collaboration</h3>
+            <p className="text-sm text-muted-foreground">
+              Software by{' '}
+              <a
+                href="https://addaxdatascience.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={linkClass}
+              >
+                Addax Data Science
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              , camera hardware by{' '}
+              <a
+                href="https://www.smartparks.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={linkClass}
+              >
+                Smart Parks
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              . The two offer AddaxAI Connect together as a hosted service.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-semibold mb-2">Links</h3>
+            <div className="space-y-2">
+              <p className="text-sm">
+                <a
+                  href="https://connect.addaxai.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  AddaxAI Connect documentation
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+              <p className="text-sm">
+                <a
+                  href="https://github.com/PetervanLunteren/AddaxAI-Connect"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  AddaxAI Connect GitHub repository
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+              <p className="text-sm">
+                <a
+                  href="https://github.com/PetervanLunteren/AddaxAI"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  AddaxAI GitHub repository
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+            </div>
+          </div>
+
+          <div>
             <h3 className="font-semibold mb-2">AI Models</h3>
             <p className="text-sm text-muted-foreground">
               AddaxAI Connect employs{' '}
@@ -105,71 +171,6 @@ export const AboutPage: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
-          </div>
-
-          <div>
-            <h3 className="font-semibold mb-2">Collaboration</h3>
-            <p className="text-sm text-muted-foreground">
-              A joint project by{' '}
-              <a
-                href="https://addaxdatascience.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={linkClass}
-              >
-                Addax Data Science
-                <ExternalLink className="h-3 w-3" />
-              </a>
-              {' '}and{' '}
-              <a
-                href="https://www.smartparks.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className={linkClass}
-              >
-                Smart Parks
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </p>
-          </div>
-
-          <div>
-            <h3 className="font-semibold mb-2">Links</h3>
-            <div className="space-y-2">
-              <p className="text-sm">
-                <a
-                  href="https://connect.addaxai.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  AddaxAI Connect documentation
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </p>
-              <p className="text-sm">
-                <a
-                  href="https://github.com/PetervanLunteren/AddaxAI-Connect"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  AddaxAI Connect GitHub repository
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </p>
-              <p className="text-sm">
-                <a
-                  href="https://github.com/PetervanLunteren/AddaxAI"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  AddaxAI GitHub repository
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </p>
-            </div>
           </div>
         </CardContent>
       </Card>

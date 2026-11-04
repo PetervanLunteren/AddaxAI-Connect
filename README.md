@@ -51,7 +51,7 @@ Your camera uploads an image via FTPS. From there, AddaxAI Connect handles the p
 
 1. **Ingestion** validates the file, reads GPS and timestamp from the metadata, stores it
 2. **Detection** with [MegaDetector v1000 Redwood](https://github.com/agentmorris/MegaDetector) finds animals, people, and vehicles
-3. **Classification** identifies the species using [DeepFaune](https://www.deepfaune.cnrs.fr/) or [SpeciesNet](https://github.com/google/speciesnet). Need another model? [Open an issue!](https://github.com/PetervanLunteren/AddaxAI-Connect/issues)
+3. **Classification** identifies the species with the model each project picks: [SpeciesNet](https://github.com/google/cameratrapai), [DeepFaune](https://www.deepfaune.cnrs.fr/) or one of the regional models from the [AddaxAI model zoo](https://docs.addaxai.com/docs/reference/model-zoo). Need another model? [Open an issue!](https://github.com/PetervanLunteren/AddaxAI-Connect/issues)
 4. **Notifications** via email and Telegram: instant alerts, daily/weekly/monthly reports, battery warnings, etc
 5. **Web interface** lets you browse results, view them on a map, check stats, and export data
 

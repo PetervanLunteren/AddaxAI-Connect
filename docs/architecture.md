@@ -33,7 +33,7 @@ Detection service
     → saves bounding boxes and confidence scores
     → publishes to "detection-complete" queue
          ↓
-Classification service (DeepFaune or SpeciesNet)
+Classification service (the species model of the image's project)
     → crops detected regions
     → classifies species
     → generates annotated images with boxes and labels
@@ -74,7 +74,7 @@ Ingestion also groups images into cameras, sites, and deployments from their GPS
 ### Workers
 - **Ingestion** watches the FTPS upload directory for new files
 - **Detection** runs MegaDetector object detection
-- **Classification** identifies species (DeepFaune or SpeciesNet, selected via Docker Compose profile)
+- **Classification** identifies species with the model each project picked at creation. One worker serves every model and loads each one on its first image
 - **Notifications** evaluates rules and runs scheduled jobs
 - **Notifications-email** delivers emails via SMTP
 - **Notifications-telegram** delivers messages via Telegram Bot API
@@ -85,8 +85,7 @@ Ingestion also groups images into cameras, sites, and deployments from their GPS
 
 The `docker-compose.yml` uses profiles to support different configurations:
 
-- **`deepfaune`** is the full stack with DeepFaune classifier (38 European species)
-- **`speciesnet`** is the full stack with SpeciesNet classifier (2,066 global species)
+- **`full`** is the whole stack. `deepfaune` and `speciesnet` are aliases from before projects picked their own model; servers deployed then still have one of them in `.env` until Ansible rewrites it.
 - **`demo`** runs only the API, database, and frontend (no ML workers, for demos and development)
 
 On a server with an NVIDIA GPU, `docker-compose.gpu.yml` is layered on top through `COMPOSE_FILE` in `.env` (written by Ansible when `use_gpu` is true). It gives the detection and classification workers the GPU; everything else is unchanged.

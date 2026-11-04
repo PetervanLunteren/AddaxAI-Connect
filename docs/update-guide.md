@@ -40,14 +40,16 @@ Do this **before** the rebuild. New code sometimes reads a new setting.
 cd /opt/addaxai-connect
 git fetch origin --tags
 git checkout vX.Y.Z
-docker compose up -d --build --force-recreate
+docker compose up -d --build --force-recreate --remove-orphans
 ```
 
 Take the version from the [releases page](https://github.com/PetervanLunteren/AddaxAI-Connect/releases),
 or the newest tag with `git tag --sort=-v:refname | head -1` after the fetch.
 Servers run tagged releases, never the head of `main`. A tag is what was
 tested against production data. The code is baked into the images, so the
-rebuild is not optional.
+rebuild is not optional. `--remove-orphans` stops containers of services a
+release removed, like the old separate DeepFaune and SpeciesNet workers,
+which would otherwise keep running next to the new ones.
 
 ## 4. Migrate
 
@@ -95,7 +97,7 @@ Migrations do not roll back safely, so restore the database instead.
 ```bash
 cd /opt/addaxai-connect
 git checkout <previous-tag>
-docker compose up -d --build --force-recreate
+docker compose up -d --build --force-recreate --remove-orphans
 bash scripts/restore.sh <this-server-domain> --force
 ```
 
