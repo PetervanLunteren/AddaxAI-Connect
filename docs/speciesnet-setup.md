@@ -62,7 +62,7 @@ mustelidae, mustelid
 cervidae, deer
 ```
 
-Also list the neighbouring groups that occur in your area. The mapper widens a row as far as it can without touching another row in your list. If `cervidae, deer` is your only hoofed animal, it becomes all even-toed hoofed animals, and a wild boar shows up as "deer". Adding `suidae, wild boar` keeps deer as deer.
+Also list the neighbouring groups that occur in your area. The mapper widens a row as far as it can without touching another row in your list, and a widened row can catch the wrong animals or miss the right ones. If `cervidae, deer` is your only hoofed animal, adding `suidae, wild boar` keeps deer as deer.
 
 If you care about birds, list the local bird species and add `aves, unknown bird`. If you don't, `aves, bird` is enough.
 
