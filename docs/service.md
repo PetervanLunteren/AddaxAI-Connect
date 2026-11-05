@@ -15,7 +15,7 @@ Click Plan service. Pick the cameras and the actions. A due date, a person and a
 
 You can also select rows on the Cameras or Sites page and click Plan service there. A selected site counts with the cameras that stand there now.
 
-![The Plan service dialog](https://github.com/user-attachments/assets/a36b3232-a719-473f-b025-206fe40ed416){ .screenshot }
+![The Plan service dialog](https://github.com/user-attachments/assets/a36b3232-a719-473f-b025-206fe40ed416){ .screenshot-narrow }{ .screenshot }
 
 *One task for each camera you pick.*
 

@@ -31,6 +31,14 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
+/* A tall screenshot, like a dialog, would fill the screen at full width.
+   Cap its width and centre it. */
+.screenshot-narrow {
+  display: block;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
 /* Row of screenshots at one shared height. Give each image a percentage
    width proportional to its aspect ratio (widths summing to ~100%), then
    the heights come out equal and the row scales with the page instead of
