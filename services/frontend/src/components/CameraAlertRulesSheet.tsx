@@ -338,9 +338,9 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
         <div className="py-4 space-y-3">
           <div>
             <label className="text-xs text-muted-foreground">Condition</label>
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
               <Select
-                wrapperClassName="flex-1"
+                wrapperClassName="flex-1 min-w-48"
                 value={ruleType}
                 onChange={(e) => {
                   const next = e.target.value as AlertRuleType;
@@ -363,7 +363,7 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
                 onChange={(e) => setThreshold(e.target.value)}
                 className="h-10 w-20 px-3 border rounded-md text-sm"
               />
-              <span className="text-sm text-muted-foreground w-10">
+              <span className="text-sm text-muted-foreground min-w-10 whitespace-nowrap">
                 {unit.label(thresholdNumber)}
               </span>
             </div>
