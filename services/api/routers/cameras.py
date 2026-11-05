@@ -23,9 +23,9 @@ from auth.project_access import (
 )
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
-from shared.camera_status import camera_status as _camera_status
+from shared.camera_status import camera_status as _camera_status, is_rejecting
 from utils.camera_recency import fetch_camera_recency
-from utils.camera_rejections import fetch_recent_rejection_counts, REJECTED_RECENT_DAYS
+from utils.camera_rejections import RecentRejections, fetch_recent_rejections, REJECTED_RECENT_DAYS
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags, tag_length_error
 
@@ -64,6 +64,11 @@ class CameraResponse(BaseModel):
     # the Live feed), and the UI hides the column, filter and tab rather than
     # showing a zero that is not true.
     rejected_count_recent: Optional[int] = None
+    # True while the latest rejected file is newer than the latest live image,
+    # see shared.camera_status.is_rejecting. Drives the attention chip and the
+    # filter, so a camera that rejected a photo before its GPS fix and then
+    # recovered stops warning at once. None exactly when the count is None.
+    rejecting: Optional[bool] = None
 
     class Config:
         from_attributes = True
@@ -181,19 +186,32 @@ def camera_to_response(
     last_image_arrival: Optional[datetime] = None,
     current_site: Optional[dict] = None,
     last_maintenance_date: Optional[date] = None,
-    rejected_count_recent: Optional[int] = None,
+    rejections_visible: bool = False,
+    recent_rejections: Optional[RecentRejections] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape.
 
     `last_captured_at` / `last_reported_at` are camera-clock readings and
     feed the two displayed timestamps. The `*_arrival` pair are server
     receive times and feed the status, see `shared.camera_status`.
-    `rejected_count_recent` stays None for site-restricted viewers.
+    `rejections_visible` is False for site-restricted viewers, who see no
+    rejections anywhere: the count and the rejecting flag then stay None.
+    `recent_rejections` is the camera's entry from `fetch_recent_rejections`,
+    None when it has none in the window.
     """
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
     display_name = _camera_label(camera)
+
+    rejected_count_recent: Optional[int] = None
+    rejecting: Optional[bool] = None
+    if rejections_visible:
+        rejected_count_recent = recent_rejections.count if recent_rejections else 0
+        rejecting = is_rejecting(
+            recent_rejections.last_rejected_at if recent_rejections else None,
+            last_image_arrival,
+        )
 
     return CameraResponse(
         current_site=current_site,
@@ -217,6 +235,7 @@ def camera_to_response(
         sim_expiry_date=camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else None,
         last_maintenance_date=last_maintenance_date.isoformat() if last_maintenance_date else None,
         rejected_count_recent=rejected_count_recent,
+        rejecting=rejecting,
     )
 
 
@@ -234,9 +253,9 @@ async def camera_detail_response(
     endpoints can leave it out, admins are never restricted.
     """
     recency = await fetch_camera_recency(db, [camera.id])
-    rejected_count_recent = None
+    recent_rejections = None
     if site_scope is None:
-        rejected_count_recent = (await fetch_recent_rejection_counts(db, [camera.id])).get(camera.id, 0)
+        recent_rejections = (await fetch_recent_rejections(db, [camera.id])).get(camera.id)
 
     last_maintenance_date = (await db.execute(
         select(func.max(CameraMaintenanceEvent.event_date))
@@ -270,7 +289,8 @@ async def camera_detail_response(
         last_image_arrival=recency.last_image_arrival.get(camera.id),
         current_site=current_site,
         last_maintenance_date=last_maintenance_date,
-        rejected_count_recent=rejected_count_recent,
+        rejections_visible=site_scope is None,
+        recent_rejections=recent_rejections,
     )
 
 
@@ -321,9 +341,9 @@ async def list_cameras(
     recency = await fetch_camera_recency(db, camera_ids)
     # Restricted viewers see no rejections at all (a rejection has no site),
     # so their count stays None and the UI hides it.
-    recent_rejections: dict[int, int] = {}
+    recent_rejections: dict[int, RecentRejections] = {}
     if site_scope is None:
-        recent_rejections = await fetch_recent_rejection_counts(db, camera_ids)
+        recent_rejections = await fetch_recent_rejections(db, camera_ids)
     last_maintenance_map: dict[int, date] = {}
     if camera_ids:
         maintenance_rows = await db.execute(
@@ -366,7 +386,8 @@ async def list_cameras(
             last_image_arrival=recency.last_image_arrival.get(camera.id),
             current_site=current_site_map.get(camera.id),
             last_maintenance_date=last_maintenance_map.get(camera.id),
-            rejected_count_recent=None if site_scope is not None else recent_rejections.get(camera.id, 0),
+            rejections_visible=site_scope is None,
+            recent_rejections=recent_rejections.get(camera.id),
         )
         for camera in cameras
     ]

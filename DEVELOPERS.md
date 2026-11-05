@@ -728,14 +728,24 @@ the table; nothing scans the filesystem at read time.
   site, fail closed. The API sends `rejected_count_recent: null` for them
   and the UI hides the column, the filter and the tab, so the number is
   never a false zero.
-- One count per camera from one query (`fetch_recent_rejection_counts`):
-  the last `REJECTED_RECENT_DAYS` (7). It drives the Cameras column, the
-  attention chip, the filter and the slide-out Overview row, which all just
-  say "rejected files" without the window. The Rejected tab lists every row
-  still kept and splits them on the same cutoff (`recent` flag): recent
-  open, older collapsed. Users see "recent" and "older", never 7 days. On
-  drenthe 30 of 30 cameras had a rejection in 30 days, 24 of them exactly
-  one old setup shot; only 2 had rejected anything that week.
+- One query per camera list (`fetch_recent_rejections`) over the last
+  `REJECTED_RECENT_DAYS` (7) gives a count and the latest rejection time.
+  The count drives the Rejected files column (off by default) and the
+  slide-out Overview row. The Rejected tab lists every row still kept and
+  splits them on the same cutoff (`recent` flag): recent open, older
+  collapsed. Users see "recent" and "older", never 7 days. On drenthe 30 of
+  30 cameras had a rejection in 30 days, 24 of them exactly one old setup
+  shot; only 2 had rejected anything that week.
+- The warning is a state, not a count. A camera is *rejecting* while its
+  latest rejection in that window is newer than its latest live image
+  (`is_rejecting` in `shared/shared/camera_status.py`, server receive
+  times, bulk uploads never clear it). It drives the attention chip ("N
+  cameras rejecting files"), the Cameras filter, and the daily rejection
+  rule, which fires only for cameras with N or more in the last day that
+  are still rejecting at run time. The reason is the drenthe battery round
+  of 29 Oct 2026: 19 cameras rejected a photo or two before their GPS fix
+  and all recovered the same day, but a count kept the chip on for a week.
+  Camera 29 there, 106 rejections and never a good photo, stays flagged.
 - Rejected files have no stored thumbnail. List views ask the live-feed
   image endpoint for `?thumb=true`, which downscales on the fly
   (`REJECTION_THUMB_WIDTH`); a camera with 50 rejections is a few hundred

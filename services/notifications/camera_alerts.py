@@ -27,10 +27,14 @@ Battery and SD rules can only fire for cameras that send health reports.
 
 Rejections: a rejected file is one ingestion refused (no GPS fix, no
 date) and attributed to the camera by its device id. The rule counts the
-rows of the last 24 hours before the run, so a camera that rejected
-yesterday and is fine today reads zero and re-arms. Only rejections that
-resolved to a registered camera count; files without a device id cannot
-be attributed to anyone.
+rows of the last 24 hours before the run, and fires only for a camera that
+is still rejecting at run time: its latest rejection is newer than its
+latest live image (`shared.camera_status.is_rejecting`, the same flag as
+the attention chip). After a battery change a camera rejects a photo or
+two before its GPS fix and then recovers; it must not alarm the next
+morning. A camera that rejected yesterday and is fine today re-arms. Only
+rejections that resolved to a registered camera count; files without a
+device id cannot be attributed to anyone.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -39,6 +43,7 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy import and_, func, select
 
 from shared.logger import get_logger
+from shared.camera_status import is_rejecting
 from shared.database import get_sync_session
 from shared.models import (
     Camera,
@@ -76,6 +81,8 @@ class CamState:
     sd_utilization_percent: Optional[float]
     last_seen: Optional[datetime]  # aware UTC server receive time, newer of report arrival and live image ingestion
     rejections_last_day: int = 0  # rejected files attributed to the camera in the 24 h before the run
+    last_rejected_at: Optional[datetime] = None  # aware UTC, latest of those rejections
+    last_live_image_at: Optional[datetime] = None  # aware UTC, latest live image ingestion
 
 
 def battery_offending(battery: Optional[int], threshold: int) -> bool:
@@ -93,9 +100,12 @@ def silent_offending(
     return last_seen is not None and (now - last_seen) > timedelta(days=days)
 
 
-def rejections_offending(count: int, threshold: int) -> bool:
-    # "At least", so a threshold of 1 catches the first rejected file
-    return count >= threshold
+def rejections_offending(state: CamState, threshold: int) -> bool:
+    # "At least", so a threshold of 1 catches the first rejected file. A
+    # camera that recovered before the run does not count, see the docstring.
+    return state.rejections_last_day >= threshold and is_rejecting(
+        state.last_rejected_at, state.last_live_image_at
+    )
 
 
 def split_incidents(
@@ -127,7 +137,7 @@ def rule_label(rule_type: str, threshold: int) -> str:
     if rule_type == "camera_silent":
         return f"silent for more than {threshold} day{'s' if threshold != 1 else ''}"
     if rule_type == "rejections":
-        return f"with {threshold} or more rejected file{'s' if threshold != 1 else ''} in the last day"
+        return f"still rejecting, with {threshold} or more rejected file{'s' if threshold != 1 else ''} in the last day"
     raise ValueError(f"Unknown rule type {rule_type}")
 
 
@@ -175,7 +185,7 @@ def offending_cameras(
             result.append(camera_id)
         elif rule.rule_type == "camera_silent" and silent_offending(state.last_seen, rule.threshold, now):
             result.append(camera_id)
-        elif rule.rule_type == "rejections" and rejections_offending(state.rejections_last_day, rule.threshold):
+        elif rule.rule_type == "rejections" and rejections_offending(state, rule.threshold):
             result.append(camera_id)
     return sorted(result)
 
@@ -381,17 +391,23 @@ def _load_camera_states(db, project_id: int, now: datetime) -> Dict[int, CamStat
         .group_by(Image.camera_id)
     ).all():
         state = cameras[row.camera_id]
+        state.last_live_image_at = row.last_ingested_at
         if state.last_seen is None or row.last_ingested_at > state.last_seen:
             state.last_seen = row.last_ingested_at
 
     # Rejected files of the last 24 hours, by server receive time
     for row in db.execute(
-        select(Rejection.camera_id, func.count(Rejection.id).label("count"))
+        select(
+            Rejection.camera_id,
+            func.count(Rejection.id).label("count"),
+            func.max(Rejection.rejected_at).label("last_rejected_at"),
+        )
         .join(Camera, Rejection.camera_id == Camera.id)
         .where(Camera.project_id == project_id, Rejection.rejected_at > now - timedelta(days=1))
         .group_by(Rejection.camera_id)
     ).all():
         cameras[row.camera_id].rejections_last_day = row.count
+        cameras[row.camera_id].last_rejected_at = row.last_rejected_at
 
     return cameras
 

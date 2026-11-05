@@ -524,8 +524,8 @@ export const CamerasPage: React.FC = () => {
       label: 'Rejected files',
       primary: false,
       options: [
-        { value: 'recent', label: 'With rejected files' },
-        { value: 'none', label: 'None' },
+        { value: 'rejecting', label: 'Rejecting files' },
+        { value: 'not_rejecting', label: 'Not rejecting' },
       ],
     },
   ];
@@ -662,11 +662,10 @@ export const CamerasPage: React.FC = () => {
       result = result.filter((c) => String(c.current_site?.id) === filters.site);
     }
     if (filters.rejected) {
-      // Null means the viewer sees no rejections at all; neither bucket fits.
+      // Same flag as the attention chip, so the chip count and the filtered
+      // table agree. Null means the viewer sees no rejections; neither fits.
       result = result.filter((c) =>
-        filters.rejected === 'recent'
-          ? (c.rejected_count_recent ?? 0) > 0
-          : c.rejected_count_recent === 0
+        filters.rejected === 'rejecting' ? c.rejecting === true : c.rejecting === false
       );
     }
 

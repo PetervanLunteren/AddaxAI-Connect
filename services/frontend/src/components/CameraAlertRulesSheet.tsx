@@ -45,7 +45,7 @@ const RULE_TYPE_LABELS: Record<AlertRuleType, string> = {
   battery_low: 'Battery below',
   sd_full: 'SD card above',
   camera_silent: 'Silent for more than',
-  rejections: 'Rejected files per day, at least',
+  rejections: 'Rejecting files, at least',
 };
 
 // Threshold unit and bounds per rule family. Must match validate_rule_fields
@@ -54,7 +54,7 @@ const THRESHOLD_UNIT: Record<AlertRuleType, { min: number; max: number; default:
   battery_low: { min: 1, max: 99, default: 20, label: () => '%' },
   sd_full: { min: 1, max: 99, default: 90, label: () => '%' },
   camera_silent: { min: 1, max: 365, default: 7, label: (n) => (n === 1 ? 'day' : 'days') },
-  rejections: { min: 1, max: 999, default: 1, label: (n) => (n === 1 ? 'file' : 'files') },
+  rejections: { min: 1, max: 999, default: 1, label: (n) => (n === 1 ? 'file in the last day' : 'files in the last day') },
 };
 
 const ruleSentence = (rule: AlertRule): string => {
@@ -352,7 +352,7 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
                 <option value="battery_low">Battery below</option>
                 <option value="sd_full">SD card above</option>
                 <option value="camera_silent">Silent for more than</option>
-                <option value="rejections">Rejected files per day, at least</option>
+                <option value="rejections">Rejecting files, at least</option>
               </Select>
               <input
                 type="number"

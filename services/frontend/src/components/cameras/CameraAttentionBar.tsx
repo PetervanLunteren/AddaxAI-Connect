@@ -70,12 +70,12 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       c.sd_utilization_percentage != null &&
       c.sd_utilization_percentage > SD_NEARLY_FULL_PERCENT,
   ).length;
-  // Files the server refused but could tie to the camera (no GPS fix, no
-  // date). The recent count, not the 30-day total: nearly every camera has
-  // one old setup shot before its first GPS fix, and counting that would
-  // flag the whole project. The window (7 days) is the backend's business,
-  // users just see "rejected files". Null means the viewer sees none.
-  const withRejected = cameras.filter((c) => (c.rejected_count_recent ?? 0) > 0).length;
+  // Cameras whose latest file was refused (no GPS fix, no date), with no
+  // good live image since. Not a count of rejected files: after a battery
+  // change every camera rejects a photo or two before its GPS fix, and a
+  // count would flag the whole project for days. This clears with the first
+  // good photo. Null means the viewer sees no rejections.
+  const rejecting = cameras.filter((c) => c.rejecting === true).length;
 
   const candidates: AttentionItem[] = [
     {
@@ -94,9 +94,9 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       patch: { sd_usage: 'high' },
     },
     {
-      count: withRejected,
-      label: `${withRejected} ${plural(withRejected, 'camera', 'cameras')} with rejected files`,
-      patch: { rejected: 'recent' },
+      count: rejecting,
+      label: `${rejecting} ${plural(rejecting, 'camera', 'cameras')} rejecting files`,
+      patch: { rejected: 'rejecting' },
     },
     {
       count: overdueServiceTasks,

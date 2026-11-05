@@ -25,6 +25,14 @@ A retired camera (`Camera.retired_at` set) is `retired` whatever its last
 contact. It left its project on purpose, with its data kept, so it must
 never read as `inactive`, which is the alarm word, nor as `active` when it
 was retired an hour after its last photo.
+
+The rejected files warning follows the same clocks. A camera is
+*rejecting* while its latest rejected file is newer than its latest
+accepted live image. A camera without a GPS fix after a battery change
+rejects a photo or two and then recovers on its own; counting rejections
+would keep warning about it for days, while this clears with the first
+good photo. A bulk upload never clears it, a carried-in SD card says
+nothing about the camera's GPS today.
 """
 from __future__ import annotations
 
@@ -60,3 +68,22 @@ def camera_status(
         return 'never_reported'
     cutoff = datetime.now(timezone.utc) - timedelta(days=CAMERA_SILENCE_DAYS)
     return 'active' if max(stamps) >= cutoff else 'inactive'
+
+
+def is_rejecting(
+    last_rejected_at: Optional[datetime],
+    last_live_image_at: Optional[datetime],
+) -> bool:
+    """True while the latest rejected file is newer than the latest live image.
+
+    Both arguments are aware UTC server receive times (`Rejection.rejected_at`,
+    `Image.ingested_at` of live images), or None when that never happened. The
+    time window is the caller's: it decides which rejections it looked at.
+    A naive datetime raises, it means a camera-clock column was wired in.
+    """
+    for stamp in (last_rejected_at, last_live_image_at):
+        if stamp is not None and stamp.tzinfo is None:
+            raise ValueError("is_rejecting needs aware UTC server receive times")
+    if last_rejected_at is None:
+        return False
+    return last_live_image_at is None or last_rejected_at > last_live_image_at

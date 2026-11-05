@@ -73,7 +73,7 @@ A connected project starts with one detection rule already in place. It posts ev
 The same page has three rule lists.
 
 - Detection rules: which labels (leave the labels empty for all species, which is what the default rule does), at which sites, at what time of day, minimum group size, cooldown, and an "absent for days" filter for rare visitors. The cooldown starts at the project's independence interval.
-- Camera rules: battery below, SD card above, silent for more than, rejected files per day. Once per incident.
+- Camera rules: battery below, SD card above, silent for more than, rejecting files. Once per incident.
 - Theft watch rules: a person unusually close to a camera, or a camera silent longer than its own rhythm.
 
 These rules belong to the project, not to you. Any project admin can change them, and they send to the whole group. Your personal email and Telegram rules on the Notifications page are separate.

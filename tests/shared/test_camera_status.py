@@ -6,7 +6,9 @@ so a camera model that sends no daily report (INSTAR) stayed on
 """
 from datetime import datetime, timedelta, timezone
 
-from shared.camera_status import CAMERA_SILENCE_DAYS, camera_status
+import pytest
+
+from shared.camera_status import CAMERA_SILENCE_DAYS, camera_status, is_rejecting
 
 
 def _ago(**kwargs) -> datetime:
@@ -87,3 +89,32 @@ class TestRetiredWins:
 
     def test_none_means_in_service(self):
         assert camera_status(_ago(hours=1), None, retired_at=None) == 'active'
+
+
+class TestIsRejecting:
+    """The rejected files warning. The Drenthe battery round of 29 Oct 2026:
+    19 cameras rejected a photo or two before their GPS fix, then recovered
+    the same day. Only a camera that keeps rejecting must stay flagged."""
+
+    def test_recovered_after_battery_change_is_not_rejecting(self):
+        assert is_rejecting(_ago(hours=3), _ago(hours=2)) is False
+
+    def test_never_an_accepted_image_is_rejecting(self):
+        assert is_rejecting(_ago(hours=3), None) is True
+
+    def test_rejecting_again_after_recovery(self):
+        assert is_rejecting(_ago(minutes=5), _ago(hours=2)) is True
+
+    def test_no_rejection_is_not_rejecting(self):
+        assert is_rejecting(None, _ago(hours=2)) is False
+        assert is_rejecting(None, None) is False
+
+    def test_same_instant_counts_as_recovered(self):
+        stamp = _ago(hours=1)
+        assert is_rejecting(stamp, stamp) is False
+
+    def test_naive_datetime_raises(self):
+        with pytest.raises(ValueError):
+            is_rejecting(datetime(2026, 10, 29, 9, 0), None)
+        with pytest.raises(ValueError):
+            is_rejecting(_ago(hours=1), datetime(2026, 10, 29, 9, 0))

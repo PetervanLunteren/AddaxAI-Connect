@@ -32,6 +32,10 @@ export interface Camera {
   // window). Null for site-restricted viewers, who see no rejections
   // anywhere; the column, filter and tab hide then.
   rejected_count_recent: number | null;
+  // True while the latest rejected file is newer than the latest live image,
+  // so a camera that recovered after a battery change stops warning. Drives
+  // the attention chip and the filter. Null exactly when the count is null.
+  rejecting: boolean | null;
 }
 
 // Service actions. The vocabulary mirrors VALID_ACTION_TYPES in

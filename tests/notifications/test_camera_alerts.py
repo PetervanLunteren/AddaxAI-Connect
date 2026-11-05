@@ -1,5 +1,5 @@
 """Tests for the camera condition alert rules evaluation."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from camera_alerts import (
     CamState,
@@ -56,16 +56,38 @@ class TestSilentOffending:
         assert silent_offending(None, 10, NOW) is False
 
 
+UTC_NOW = NOW.replace(tzinfo=timezone.utc)  # is_rejecting refuses naive datetimes
+
+
+def _rejected(count: int, last_rejected_hours_ago, last_live_image_hours_ago) -> CamState:
+    def ago(hours):
+        return None if hours is None else UTC_NOW - timedelta(hours=hours)
+    return CamState(
+        device_id="a", battery_percent=None, sd_utilization_percent=None, last_seen=None,
+        rejections_last_day=count,
+        last_rejected_at=ago(last_rejected_hours_ago),
+        last_live_image_at=ago(last_live_image_hours_ago),
+    )
+
+
 class TestRejectionsOffending:
-    def test_at_threshold_fires(self):
+    def test_at_threshold_and_still_rejecting_fires(self):
         # "At least", a threshold of 1 must catch a single rejected file
-        assert rejections_offending(1, 1) is True
+        assert rejections_offending(_rejected(1, 2, None), 1) is True
+
+    def test_live_image_older_than_the_rejection_still_fires(self):
+        assert rejections_offending(_rejected(3, 1, 5), 1) is True
+
+    def test_recovered_before_the_run_does_not_fire(self):
+        # The morning after a battery round: one photo before the GPS fix,
+        # good photos since. This used to email about the whole project.
+        assert rejections_offending(_rejected(1, 20, 19), 1) is False
 
     def test_below_threshold_does_not_fire(self):
-        assert rejections_offending(2, 3) is False
+        assert rejections_offending(_rejected(2, 1, None), 3) is False
 
     def test_zero_never_fires(self):
-        assert rejections_offending(0, 1) is False
+        assert rejections_offending(_rejected(0, None, 5), 1) is False
 
 
 class TestSplitIncidents:
@@ -102,8 +124,8 @@ class TestLabels:
         assert rule_label("sd_full", 90) == "with the SD card above 90% full"
         assert rule_label("camera_silent", 10) == "silent for more than 10 days"
         assert rule_label("camera_silent", 1) == "silent for more than 1 day"
-        assert rule_label("rejections", 1) == "with 1 or more rejected file in the last day"
-        assert rule_label("rejections", 5) == "with 5 or more rejected files in the last day"
+        assert rule_label("rejections", 1) == "still rejecting, with 1 or more rejected file in the last day"
+        assert rule_label("rejections", 5) == "still rejecting, with 5 or more rejected files in the last day"
 
     def test_value_labels(self):
         battery = CamState(device_id="a", battery_percent=14,

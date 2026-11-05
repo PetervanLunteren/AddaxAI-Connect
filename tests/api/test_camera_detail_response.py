@@ -23,6 +23,7 @@ if _api not in sys.path:
 
 from shared.models import Camera  # noqa: E402
 from routers.cameras import camera_to_response  # noqa: E402
+from utils.camera_rejections import RecentRejections  # noqa: E402
 
 TZ = ZoneInfo("Europe/Brussels")
 
@@ -66,6 +67,47 @@ class TestDerivedArgumentsDriveTheResponse:
         assert out.status == "never_reported"
         assert out.last_report_timestamp is None
         assert out.current_site is None
+
+
+class TestRejectingFlag:
+    """The chip and the filter read `rejecting`, the column reads the count."""
+
+    def _out(self, rejections_visible=True, recent=None, last_image_arrival=None):
+        return camera_to_response(
+            _camera(), tz=TZ, last_image_arrival=last_image_arrival,
+            rejections_visible=rejections_visible, recent_rejections=recent,
+        )
+
+    def test_recovered_camera_keeps_its_count_but_is_not_rejecting(self):
+        now = datetime.now(timezone.utc)
+        out = self._out(
+            recent=RecentRejections(count=2, last_rejected_at=now - timedelta(hours=3)),
+            last_image_arrival=now - timedelta(hours=1),
+        )
+        assert out.rejected_count_recent == 2
+        assert out.rejecting is False
+
+    def test_rejection_after_the_last_live_image_is_rejecting(self):
+        now = datetime.now(timezone.utc)
+        out = self._out(
+            recent=RecentRejections(count=1, last_rejected_at=now - timedelta(minutes=5)),
+            last_image_arrival=now - timedelta(hours=1),
+        )
+        assert out.rejecting is True
+
+    def test_no_recent_rejections_reads_zero_and_not_rejecting(self):
+        out = self._out(recent=None)
+        assert out.rejected_count_recent == 0
+        assert out.rejecting is False
+
+    def test_restricted_viewer_gets_neither(self):
+        now = datetime.now(timezone.utc)
+        out = self._out(
+            rejections_visible=False,
+            recent=RecentRejections(count=4, last_rejected_at=now),
+        )
+        assert out.rejected_count_recent is None
+        assert out.rejecting is None
 
 
 class TestNoEndpointBuildsTheResponseItself:
