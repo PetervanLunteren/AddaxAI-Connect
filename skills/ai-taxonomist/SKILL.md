@@ -161,6 +161,8 @@ Show the pool as a group checklist. Tick a group when a camera trap here will li
 
 GBIF hardly records domestic animals, so ask. Show dog, cat, cattle, sheep, goat, horse and pig as a checklist, all ticked, with their SpeciesNet names, and let the user untick what never appears on their cameras.
 
+Label them with "domestic" in front, like "domestic dog" and "domestic pig". In one test the mapper read `sus domesticus, pig` the wrong way round in every run, and `sus domesticus, domestic pig` worked.
+
 ## Round 4: targets
 
 This round decides how much detail each group of animals gets. Ask it in these words, in the user's language: "Which animals do you want named down to the species?" Then explain in a few sentences:
@@ -271,5 +273,7 @@ Check:
 - no row matched a different animal than you meant, for example a wild goat instead of the domestic goat
 - no `latin` appears twice. AddaxAI Connect refuses such a file
 - no `latin` is `artiodactyla`
+
+The mapper is a language model (Gemini), so a run can differ from the last one. When a row has `original_latin` and `original_common` swapped, ask the user to give that line a fuller label, for example "domestic pig" instead of "pig", and run the mapper again. After every new run, check the whole CSV again, not only the row that changed.
 
 Then say plainly whether the CSV is ready. If it is not, say for each row what to change in the mapper and why, and ask for the new CSV. If it is ready, tell the user to select the country and drop the CSV at `Species labels` when they create the project. Link to [SpeciesNet setup](https://connect.addaxai.com/speciesnet-setup/) for the details.
