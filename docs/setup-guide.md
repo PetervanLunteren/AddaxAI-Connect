@@ -12,11 +12,9 @@ If you are running multiple AddaxAI servers, the link may open a cached version 
 
 ## Configure server settings
 
-When you first log in, you'll see some warnings about missing settings. That's expected. Click on any setting name in the warning to go straight to the right page.
+When you first log in, a warning asks for the camera timezone. Click it and set the timezone your cameras use.
 
-![Screenshot 2026-03-23 at 14 41 04](https://github.com/user-attachments/assets/79d289f2-8c0c-4b6e-8b79-dc751462eb2d)
-
-Set the camera timezone to match your cameras.
+![Server settings](https://github.com/user-attachments/assets/bad47f3b-c651-40ec-a2e1-04c65325f7da)
 
 ## Create a project
 
@@ -29,11 +27,11 @@ Once those are set, you can create your first project.
 5. If you picked SpeciesNet, add the species labels CSV. See [SpeciesNet setup](speciesnet-setup.md) for how to make one
 6. Click `Create project`
 
-![Screenshot 2026-03-25 at 15 52 21](https://github.com/user-attachments/assets/6edb85da-ef27-49b2-b599-2ee67b2c581a)
+![Create project dialog](https://github.com/user-attachments/assets/10d7c266-28a3-481e-800e-3d492f078c43)
 
 A project groups your cameras, images, and users together. You can create multiple projects for different study areas or camera networks. When opening the project, you can see the options and a data-hungry dashboard.
 
-![Screenshot 2026-03-25 at 15 52 36](https://github.com/user-attachments/assets/def050e8-17f0-493a-8ecd-2e15fd9341de)
+![Project dashboard](https://github.com/user-attachments/assets/003657a1-1b89-4aa1-9059-b6aadc49a634)
 
 
 ## Add and connect cameras
@@ -41,17 +39,18 @@ A project groups your cameras, images, and users together. You can create multip
 Before adding cameras, check the [camera requirements](camera-requirements.md) to make sure your camera type is supported.
 
 1. Open your project and go to the `Cameras` tab
-2. Click `Add camera`
+2. Click `Add camera`, then `Add a single camera`
 3. Fill in the fields:
    - **Camera ID** (required): must exactly match the camera ID embedded in the images and reports, otherwise they won't be linked. See [camera requirements](camera-requirements.md) for details on how this ID is extracted.
    - **Remarks** (optional): notes about the camera placement, angle, or anything else you want to remember.
+   - **SIM expiry date** (optional): used by the monthly SIM expiry alert.
    - **Custom fields** (optional): click `Add field` to add any extra metadata you want to track, like "Heading: South" or "Tree: Oak".
 
 A camera is just hardware, so it has no name. The place a camera stands is a site, and sites carry the names you work with day to day. A site is created automatically from the camera GPS, and you can rename it on the `Sites` tab. See [sites and cameras](sites-and-deployments.md).
 
-You can also import multiple cameras at once by clicking `Import CSV`.
+To add several cameras at once, pick `Import from CSV` instead.
 
-![Screenshot 2026-03-25 at 16 46 52](https://github.com/user-attachments/assets/218a2ac4-8e68-4862-9797-306ef162deeb)
+![Add camera dialog](https://github.com/user-attachments/assets/ebc6c78e-4fd7-4506-9889-4580387e81d5)
 
 Then configure your cameras to upload via FTPS. See [camera requirements](camera-requirements.md#ftps-settings) for the connection settings and troubleshooting tips.
 
@@ -100,7 +99,7 @@ To add a server admin (full access to all projects and system settings), go to `
 
 Users can configure their notification preferences in the project settings.
 
-![Notification settings](https://github.com/user-attachments/assets/2803cbd4-7326-4b15-b44b-aee7034259c7)
+![Notification settings](https://github.com/user-attachments/assets/b25b5dd1-ce01-4402-a668-d61b0de5f127)
 
 ### Email reports
 
@@ -122,7 +121,7 @@ Go to the `Notifications` page in any project, click the Telegram link button, a
 
 ![Screenshot 2026-03-25 at 17 00 57](https://github.com/user-attachments/assets/923531a8-c819-42d1-baa3-31b9d392449e)
 
-Once linked, users pick which species they want instant Telegram alerts for in their project notification settings. They can also limit the alerts to certain sites, so you only hear about the places you care about.
+Once linked, add a rule under `Manage detection rules` and tick `Telegram`. A rule can be limited to certain sites.
 
 The link is per project, so link once in every project you want alerts from. Several projects can use the same Telegram chat; every alert names its project, and the bot says which project each link is for.
 

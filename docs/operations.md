@@ -6,7 +6,7 @@ Once your server is running, here is how to check that everything is healthy and
 
 The web interface has a built-in health page at `Server settings > System health` (server admins only). It checks connectivity to all infrastructure services (PostgreSQL, Redis, MinIO), verifies that the API and frontend are responding, and shows queue depth for each worker. It also reports whether the processing pipeline has pending images.
 
-![System health page](https://github.com/user-attachments/assets/c244fc1e-7419-4d83-bb69-e44578f2b79b)
+![System health page](https://github.com/user-attachments/assets/c0708b35-a2b6-4c4a-8000-8c4022cde0b9)
 
 If a service shows as unhealthy, check its logs (see below).
 
