@@ -178,7 +178,10 @@
     - { name: 'MaxDiskUsage', content: '95' }
     - { name: 'CustomerProof', content: 'yes' }
     - { name: 'NoTruncate', content: 'yes' }
-    - { name: 'TLS', content: '1' }
+    # 2 refuses a login without TLS, so the shared camera password never
+    # crosses the network in plain text. 1 accepts both, for cameras that
+    # cannot do TLS (ftps_require_tls: false in host_vars).
+    - { name: 'TLS', content: "{{ '2' if ftps_require_tls | default(true) else '1' }}" }
   notify: restart pure-ftpd
 
 - name: Disable CallUploadScript (using AutoRename instead)
@@ -258,4 +261,4 @@
         - Auto-rename: Duplicate files get numeric suffix (.1, .2, etc)
 
       Connect with: ftp://{{ ftps_username | default('camera') }}@{{ ansible_host }}
-      Use FTPS (explicit TLS) for secure connection.
+      {% if ftps_require_tls | default(true) %}TLS required (explicit FTPS).{% else %}TLS optional, plain FTP allowed (ftps_require_tls: false).{% endif %}

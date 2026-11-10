@@ -276,6 +276,19 @@ else
     fail "FTPS certificate file not found at $FTPS_PEM" "Run the pure-ftpd role"
 fi
 
+# Cameras must log in over TLS (pure-ftpd TLS 2), unless the server admin
+# switched that off for cameras that cannot (ftps_require_tls: false).
+FTPS_TLS_LEVEL="$(cat /etc/pure-ftpd/conf/TLS 2>/dev/null || echo missing)"
+{% if ftps_require_tls | default(true) %}
+if [ "$FTPS_TLS_LEVEL" = "2" ] || [ "$FTPS_TLS_LEVEL" = "3" ]; then
+    pass "FTPS refuses logins without TLS"
+else
+    fail "FTPS accepts logins without TLS (TLS=$FTPS_TLS_LEVEL)" "Run the pure-ftpd role"
+fi
+{% else %}
+warn "FTPS accepts logins without TLS" "ftps_require_tls is false for this server"
+{% endif %}
+
 echo ""
 echo "======================================================================="
 echo "10. PASSWORD/SECRET CONFIGURATION"

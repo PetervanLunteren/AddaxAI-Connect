@@ -70,6 +70,9 @@ jwt_secret: "CHANGE_ME"
 ftps_username: camera
 ftps_password: "CHANGE_ME"
 ftps_upload_dir: /opt/addaxai-connect/uploads
+# Cameras must log in over TLS. Set false only for cameras that cannot do
+# FTPS: then the shared camera password can cross the network unencrypted.
+ftps_require_tls: true
 
 # --- Outgoing mail, for login and notification emails -------------------
 # Gmail needs an app password, not the account password.

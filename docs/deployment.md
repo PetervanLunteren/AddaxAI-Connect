@@ -110,6 +110,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `domain_name` | `"cam.example.com"` | Your domain. You need access to its DNS records. |
     | `letsencrypt_email` | `"you@example.com"` | Email for SSL certificate registration |
     | `letsencrypt_staging` | `false` | Set to `true` during testing to avoid rate limits, `false` for real certificates |
+    | `ftps_require_tls` | `true` | Optional. Cameras must log in over TLS. Set `false` only for cameras that cannot do FTPS. The shared camera password can then cross the network unencrypted. |
 
     **Email and admin account**
 
