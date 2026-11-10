@@ -168,7 +168,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8000:8000"
+      # Loopback only. Docker writes its own iptables rules and bypasses ufw,
+      # so a bare "8000:8000" is reachable from the internet, past nginx.
+      - "127.0.0.1:8000:8000"
     volumes:
       - ${FTPS_UPLOAD_DIR:-/opt/addaxai-connect/uploads}:/uploads
       - ./data/project-images:/app/project-images
@@ -347,7 +349,8 @@ services:
     restart: unless-stopped
     profiles: [full, deepfaune, speciesnet, demo]
     ports:
-      - "3000:80"
+      # Loopback only, for the same reason as the api above.
+      - "127.0.0.1:3000:80"
     volumes:
       - ./data/project-images:/usr/share/nginx/html/project-images
       - ./data/reference-images:/usr/share/nginx/html/reference-images

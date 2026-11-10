@@ -90,15 +90,18 @@ echo "2. PORT EXPOSURE CHECK"
 echo "======================================================================="
 echo ""
 
-# Check that sensitive ports are NOT publicly exposed
-SENSITIVE_PORTS=(5432 6379 9000 9001)
-PORT_NAMES=("PostgreSQL" "Redis" "MinIO-API" "MinIO-Console")
+# Check that sensitive ports are NOT publicly exposed. The API (8000) and the
+# frontend (3000) belong here too: nginx is the only way in, and docker
+# publishes past ufw, so a non-loopback binding is reachable from the internet.
+SENSITIVE_PORTS=(5432 6379 9000 9001 8000 3000)
+PORT_NAMES=("PostgreSQL" "Redis" "MinIO-API" "MinIO-Console" "API" "Frontend")
 
 for i in "${!SENSITIVE_PORTS[@]}"; do
     port="${SENSITIVE_PORTS[$i]}"
     name="${PORT_NAMES[$i]}"
 
-    if netstat -tuln 2>/dev/null | grep -q "0.0.0.0:$port " || ss -tuln 2>/dev/null | grep -q "0.0.0.0:$port "; then
+    # Any listener on all addresses counts: IPv4 0.0.0.0, IPv6 [::] and *.
+    if ss -tuln 2>/dev/null | grep -qE "(0\.0\.0\.0|\[::\]|\*):$port\b"; then
         fail "$name (port $port) is PUBLICLY EXPOSED" "Remove port binding in docker-compose.yml"
     else
         pass "$name (port $port) is not publicly exposed"
