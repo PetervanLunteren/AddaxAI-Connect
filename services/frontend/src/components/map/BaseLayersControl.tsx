@@ -31,6 +31,9 @@ const STORAGE_KEY = 'map-baselayer';
  */
 export const MAP_MAX_ZOOM = 18;
 
+// Every outside host on this page is allowed in the Content-Security-Policy
+// in services/frontend/nginx.conf. A new or changed layer host must be added
+// there too, or the browser blocks it and the map stays blank.
 const LIGHT_STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
 
 // Hardcoded on purpose, like the two raster layers below. The plugin hands
