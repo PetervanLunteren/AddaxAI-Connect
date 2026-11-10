@@ -815,8 +815,46 @@ pipeline workers a deep queue is a normal backlog, not a fault.
 Set by the `security` ansible role, checked afterwards by `security-check`.
 
 - **Firewall.** ufw denies incoming by default. Open: SSH, 80, 443, 21, 990
-  and the passive FTP range. Postgres, Redis and MinIO stay on the docker
-  network and are never published to the host.
+  and the passive FTP range. Postgres and Redis stay on the docker network
+  and are never published to the host.
+- **Published ports are loopback only.** Docker writes its own iptables
+  rules and bypasses ufw, so `"8000:8000"` in compose is open to the internet
+  whatever ufw says. Until Nov 2026 the API (8000) and the frontend (3000)
+  were reachable that way over plain HTTP, past nginx, TLS and the rate
+  limits. Every published port is now `127.0.0.1:...` (MinIO already was),
+  and nginx proxies to `127.0.0.1`, not `localhost`, because `localhost` also
+  resolves to `::1`, where nothing listens. `tests/shared/test_compose_file.py`
+  fails CI on a port without `127.0.0.1:`, and `security-check` fails on a
+  listener on all addresses.
+- **FTPS.** Cameras must log in over TLS (Pure-FTPd `TLS 2`), so the shared
+  camera password never crosses the network in plain text. Photo data is
+  encrypted when the camera asks for it. `ftps_require_tls: false` in
+  host_vars allows plain FTP for cameras that cannot do TLS. Pure-FTPd reads
+  one combined file, `/etc/ssl/private/pure-ftpd.pem`. The pure-ftpd role
+  runs before the ssl role and builds it from the self-signed fallback, so
+  the ssl role hands it the Let's Encrypt certificate, and a certbot deploy
+  hook (`/etc/letsencrypt/renewal-hooks/deploy/ftps-cert.sh`) does that again
+  after every renewal. Before this, servers kept serving the self-signed
+  certificate from deploy day. `security-check` fails when that file expires
+  within 14 days.
+- **Content Security Policy** on the app pages, set in
+  `services/frontend/nginx.conf`, so it ships with the code. Scripts only
+  from the server itself; the outside hosts are the map layers. A new map
+  layer host goes in both `BaseLayersControl.tsx` and that header. The sweep
+  runs against vite and never sees the header, so check a CSP change on a
+  server build, with the console open on a map page.
+- **Passwords** need 15 characters, checked when a password is set
+  (`MIN_PASSWORD_LENGTH` in `services/api/auth/user_manager.py`, mirrored in
+  `services/frontend/src/lib/password.ts`). Existing passwords keep working.
+- **CORS** allows only `CORS_ORIGINS`, by default the server's own https
+  origin. No wildcard: the app reaches the API on its own origin.
+- **Log retention.** Container logs are capped at 5 files of 10 MB per
+  service (`x-logging` in compose), so by size, not by age. The cron logs in
+  `logs/` and `/var/log/certbot-renew.log` rotate weekly, 13 kept.
+- **Backup retention.** Old versions of every backed-up object expire 90
+  days after they were replaced or deleted (bucket rule). `backup.sh` deletes
+  dumps older than 90 days, which makes them old versions, so a deleted
+  database record is gone from the backup within 180 days, a file within 90.
 - **Automatic security updates.** `unattended-upgrades`, security origins
   only. The `#clear` in the config matters: apt appends to a list instead of
   replacing it, so without it the distro defaults stay.
