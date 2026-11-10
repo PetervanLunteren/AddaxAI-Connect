@@ -1,6 +1,18 @@
+# Log cap for every service. Docker's default json-file driver keeps
+# container logs without a limit, and they hold email addresses and IP
+# addresses. 5 files of 10 MB, so at most 50 MB per container; the oldest
+# lines go first. Set here and not in /etc/docker/daemon.json, so it ships
+# with the code and needs no docker daemon restart on a live server.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   # PostgreSQL Database with PostGIS
   postgres:
+    logging: *default-logging
     image: postgis/postgis:15-3.3
     container_name: addaxai-postgres
     restart: unless-stopped
@@ -42,6 +54,7 @@ services:
 
   # Redis Message Queue
   redis:
+    logging: *default-logging
     image: redis:7-alpine
     container_name: addaxai-redis
     restart: unless-stopped
@@ -59,6 +72,7 @@ services:
 
   # MinIO Object Storage
   minio:
+    logging: *default-logging
     # Built from source, see services/minio/Dockerfile.
     build:
       context: .
@@ -94,6 +108,7 @@ services:
   # tag-based ILM rules so objects carrying tag `tier=cold` transition there.
   # Recreates the tier registration on bucket/endpoint change.
   minio-init:
+    logging: *default-logging
     # Same image as minio, it carries mc. The build block is repeated so
     # `docker compose pull --ignore-buildable` skips it instead of trying to
     # pull a name no registry has.
@@ -127,6 +142,7 @@ services:
 
   # FastAPI Backend
   api:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/api/Dockerfile
@@ -187,6 +203,7 @@ services:
 
   # Ingestion Service
   ingestion:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/ingestion/Dockerfile
@@ -220,6 +237,7 @@ services:
   # priority queues. Live cameras keep priority on Detection +
   # Classification via BLPOP key ordering.
   bulk-upload:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/bulk-upload/Dockerfile
@@ -247,6 +265,7 @@ services:
 
   # Detection Worker
   detection:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/detection/Dockerfile
@@ -279,6 +298,7 @@ services:
   # Classification Worker. Holds every model the server's projects use, see
   # services/classification/registry.py.
   classification:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/classification/Dockerfile
@@ -308,6 +328,7 @@ services:
 
   # Notifications Service - core notification coordinator
   notifications:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/notifications/Dockerfile
@@ -344,6 +365,7 @@ services:
 
   # Frontend
   frontend:
+    logging: *default-logging
     build: ./services/frontend
     container_name: addaxai-frontend
     restart: unless-stopped
@@ -361,6 +383,7 @@ services:
 
   # Telegram Notifications Worker
   notifications-telegram:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/notifications-telegram/Dockerfile
@@ -395,6 +418,7 @@ services:
   # Daily check: if local raw-images exceeds COLD_TIER_HOT_BUDGET_GB, tags the
   # oldest objects with tier=cold so the ILM rule transitions them off-box.
   minio-tier-watchdog:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/minio-tier-watchdog/Dockerfile
@@ -429,6 +453,7 @@ services:
 
   # Email Notifications Worker
   notifications-email:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/notifications-email/Dockerfile
@@ -465,6 +490,7 @@ services:
   # EarthRanger delivery via Gundi: posts one event per alert with the
   # project's own API key (see services/notifications-earthranger)
   notifications-earthranger:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/notifications-earthranger/Dockerfile
@@ -494,6 +520,7 @@ services:
   # the project's Cluey group with the account saved on that project (see
   # services/notifications-sensingclues)
   notifications-sensingclues:
+    logging: *default-logging
     build:
       context: .
       dockerfile: services/notifications-sensingclues/Dockerfile

@@ -213,6 +213,16 @@
     mode: "0755"
   tags: [docker-prune, sync-config, env-refresh]
 
+# Without this the cron logs below grow forever.
+- name: Rotate the cron logs
+  template:
+    src: logrotate.j2
+    dest: /etc/logrotate.d/addaxai-connect
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [sync-config, env-refresh]
+
 - name: Schedule weekly docker build cache prune
   cron:
     name: "Docker build cache prune"

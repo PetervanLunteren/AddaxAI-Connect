@@ -70,3 +70,9 @@ def test_every_published_port_is_loopback_only():
     # The api, frontend and minio publish ports; if none are found the parser broke.
     assert found >= 3
 
+
+def test_every_service_caps_its_logs():
+    for name, lines in service_blocks().items():
+        assert "    logging: *default-logging" in lines, (
+            f"{name} has no log cap; add `logging: *default-logging`"
+        )
