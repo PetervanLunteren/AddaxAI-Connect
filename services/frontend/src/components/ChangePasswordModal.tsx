@@ -15,6 +15,7 @@ import {
 } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { changePassword } from '../api/auth';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '../lib/password';
 
 interface ChangePasswordModalProps {
   open: boolean;
@@ -53,8 +54,8 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ open, 
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(PASSWORD_TOO_SHORT);
       return;
     }
 
@@ -173,7 +174,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ open, 
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Must be at least 8 characters
+                  {PASSWORD_HINT}
                 </p>
               </div>
 

@@ -24,6 +24,11 @@ from mailer.sender import get_email_sender
 settings = get_settings()
 logger = get_logger("api.auth")
 
+# Minimum password length, checked when a password is set or changed, so
+# existing passwords keep working. The frontend shows the same number from
+# services/frontend/src/lib/password.ts, keep them equal.
+MIN_PASSWORD_LENGTH = 15
+
 
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     """
@@ -49,9 +54,9 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         Raises:
             exceptions.InvalidPasswordException: If password is invalid
         """
-        if len(password) < 8:
+        if len(password) < MIN_PASSWORD_LENGTH:
             raise exceptions.InvalidPasswordException(
-                reason="Password must be at least 8 characters"
+                reason=f"Password must be at least {MIN_PASSWORD_LENGTH} characters"
             )
 
     async def on_after_register(

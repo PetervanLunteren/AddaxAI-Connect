@@ -6,6 +6,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { register, validateInviteToken } from '../api/auth';
 import { AuthLayout } from '../components/AuthLayout';
 import { Callout } from '../components/ui/Callout';
+import { MIN_PASSWORD_LENGTH, PASSWORD_HINT, PASSWORD_TOO_SHORT } from '../lib/password';
 
 export const Register: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -70,8 +71,8 @@ export const Register: React.FC = () => {
     }
 
     // Validate password length
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(PASSWORD_TOO_SHORT);
       return;
     }
 
@@ -219,7 +220,7 @@ export const Register: React.FC = () => {
                 </button>
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                Must be at least 8 characters
+                {PASSWORD_HINT}
               </p>
             </div>
 
