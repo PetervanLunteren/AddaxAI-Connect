@@ -3,14 +3,22 @@
 #
 # Dumps postgres, mirrors every authoritative MinIO bucket, and mirrors the
 # host-side project-images + reference-images directories. No .env, no Redis,
-# no model weights (those are regenerable). Retention is handled by a Wasabi
-# bucket lifecycle rule, not by this script.
+# no model weights (those are regenerable).
+#
+# Retention. A bucket lifecycle rule expires old versions of every object 90
+# days after they were replaced or deleted. The dumps need one more step:
+# each night writes a new dated name, so a dump is never an "old version" and
+# the rule alone would keep every dump forever. This script deletes dumps
+# older than DUMP_RETENTION_DAYS, which turns them into old versions, and the
+# rule removes them 90 days later. A deleted database record is gone from the
+# backup within 180 days, a deleted file within 90.
 #
 # Scheduled by ansible at 02:00 UTC. Run manually for testing.
 
 set -euo pipefail
 
 APP_DIR="/opt/addaxai-connect"
+DUMP_RETENTION_DAYS=90
 LOG_PREFIX() { date -u +'%Y-%m-%d %H:%M:%S UTC'; }
 log()  { echo "[$(LOG_PREFIX)] $*"; }
 
@@ -175,6 +183,15 @@ for HOST_DIR in project-images reference-images; do
     "/host/$HOST_DIR" "backup-target/$BUCKET/$HOST/$HOST_DIR" > /dev/null
 done
 log "Host image dirs mirrored"
+
+# Last on purpose: tonight's dump and mirrors are already safe when this runs.
+# With versioning on, this only writes a delete marker, which the per-server
+# key is allowed to do; the lifecycle rule erases the version later.
+log "Removing dumps older than $DUMP_RETENTION_DAYS days"
+docker compose exec -T minio mc rm --recursive --force \
+  --older-than "${DUMP_RETENTION_DAYS}d" \
+  "backup-target/$BUCKET/$HOST/postgres/" > /dev/null
+log "Old dumps removed"
 
 redis_set_status "ok"
 log "Backup complete in $(( $(date +%s) - START_EPOCH ))s"
