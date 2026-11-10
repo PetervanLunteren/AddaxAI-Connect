@@ -89,6 +89,52 @@
 - name: Flush handlers to reload nginx with SSL
   meta: flush_handlers
 
+# FTPS uses the same certificate as nginx. This role runs after pure-ftpd, so
+# here the certificate exists and the hook can build the file pure-ftpd reads.
+- name: Make sure the certbot deploy hook folder exists
+  file:
+    path: /etc/letsencrypt/renewal-hooks/deploy
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+    - ssl_cert_exists_after.stat.exists
+
+- name: Install the certbot deploy hook for FTPS
+  copy:
+    src: ftps-cert.sh
+    dest: /etc/letsencrypt/renewal-hooks/deploy/ftps-cert.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+    - ssl_cert_exists_after.stat.exists
+  register: ftps_hook
+
+- name: Read the certificate pure-ftpd serves
+  command: openssl x509 -noout -fingerprint -sha256 -in /etc/ssl/private/pure-ftpd.pem
+  register: ftps_pem_fingerprint
+  changed_when: false
+  failed_when: false
+  when: ftps_hook is not skipped
+
+- name: Read the Let's Encrypt certificate
+  command: "openssl x509 -noout -fingerprint -sha256 -in /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+  register: letsencrypt_fingerprint
+  changed_when: false
+  when: ftps_hook is not skipped
+
+- name: Give pure-ftpd the Let's Encrypt certificate
+  command: "/etc/letsencrypt/renewal-hooks/deploy/ftps-cert.sh /etc/letsencrypt/live/{{ domain_name }}"
+  when:
+    - ftps_hook is not skipped
+    - ftps_pem_fingerprint.stdout != letsencrypt_fingerprint.stdout
+
 - name: Create certbot renewal script
   template:
     src: certbot-renew.sh.j2

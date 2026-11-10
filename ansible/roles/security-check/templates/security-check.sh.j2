@@ -254,18 +254,26 @@ else
     fail "pure-ftpd service is NOT running" "Run: sudo systemctl start pure-ftpd"
 fi
 
-# Check FTPS SSL certificate
-if [ -f /etc/ssl/certs/pure-ftpd.crt ]; then
-    pass "FTPS SSL certificate exists"
-
-    # Check if it's a symlink (Let's Encrypt)
-    if [ -L /etc/ssl/certs/pure-ftpd.crt ]; then
-        pass "FTPS using Let's Encrypt certificate (recommended)"
+# Check the certificate pure-ftpd really serves. That is the combined file,
+# not pure-ftpd.crt: the .crt symlink pointed at Let's Encrypt while the
+# daemon kept serving a self-signed file built on deploy day.
+FTPS_PEM=/etc/ssl/private/pure-ftpd.pem
+if sudo test -f "$FTPS_PEM"; then
+    if sudo openssl x509 -checkend $((14 * 86400)) -noout -in "$FTPS_PEM" >/dev/null 2>&1; then
+        pass "FTPS certificate is valid for at least 14 more days"
     else
-        info "FTPS using self-signed certificate (consider using Let's Encrypt)"
+        # Let's Encrypt renews 30 days ahead, so this means the deploy hook
+        # in /etc/letsencrypt/renewal-hooks/deploy did not run.
+        fail "FTPS certificate expires within 14 days" "Run: sudo /etc/letsencrypt/renewal-hooks/deploy/ftps-cert.sh /etc/letsencrypt/live/<domain>"
+    fi
+
+    if sudo openssl x509 -noout -issuer -in "$FTPS_PEM" 2>/dev/null | grep -q "Let's Encrypt"; then
+        pass "FTPS uses the Let's Encrypt certificate"
+    else
+        warn "FTPS uses a self-signed certificate" "Set a domain_name and run the ssl role"
     fi
 else
-    warn "FTPS SSL certificate not found" "FTPS may not work correctly"
+    fail "FTPS certificate file not found at $FTPS_PEM" "Run the pure-ftpd role"
 fi
 
 echo ""
