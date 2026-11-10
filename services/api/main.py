@@ -99,11 +99,11 @@ async def storage_object_not_found_handler(request: Request, exc: StorageObjectN
 # Request logging middleware (must be added BEFORE CORS)
 app.add_middleware(RequestLoggingMiddleware)
 
-# CORS middleware
-cors_origins = settings.cors_origins.split(",") if hasattr(settings, "cors_origins") and settings.cors_origins else ["*"]
+# CORS. Only the origins in CORS_ORIGINS, never a wildcard: the app itself
+# talks to the API on its own origin and needs no CORS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

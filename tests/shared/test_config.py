@@ -35,3 +35,26 @@ class TestSettings:
         monkeypatch.delenv("DATABASE_URL", raising=False)
         with pytest.raises(Exception):
             Settings()
+
+
+class TestCorsOriginList:
+    """CORS_ORIGINS becomes a clean list, and unset means no origins at all."""
+
+    @pytest.mark.parametrize("raw, expected", [
+        (None, []),
+        ("", []),
+        ("https://a.example", ["https://a.example"]),
+        ("https://a.example,https://b.example", ["https://a.example", "https://b.example"]),
+        (" https://a.example , https://b.example ", ["https://a.example", "https://b.example"]),
+        ("https://a.example,", ["https://a.example"]),
+    ])
+    def test_parsing(self, monkeypatch, raw, expected):
+        if raw is None:
+            monkeypatch.delenv("CORS_ORIGINS", raising=False)
+        else:
+            monkeypatch.setenv("CORS_ORIGINS", raw)
+        assert Settings().cors_origin_list == expected
+
+    def test_never_a_wildcard_when_unset(self, monkeypatch):
+        monkeypatch.delenv("CORS_ORIGINS", raising=False)
+        assert "*" not in Settings().cors_origin_list

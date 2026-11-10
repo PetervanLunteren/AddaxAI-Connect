@@ -34,7 +34,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
 
-    # CORS (API only)
+    # CORS (API only). Comma-separated origins. Unset means no cross-origin
+    # access at all: the browser reaches the API on the same origin through
+    # nginx, and local vite goes through its own proxy.
     cors_origins: Optional[str] = None
 
     # ML Models
@@ -74,6 +76,11 @@ class Settings(BaseSettings):
 
     # Demo
     demo_mode: bool = False
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """CORS_ORIGINS as a list, without blanks. Empty when unset."""
+        return [o.strip() for o in (self.cors_origins or "").split(",") if o.strip()]
 
     class Config:
         env_file = ".env"
