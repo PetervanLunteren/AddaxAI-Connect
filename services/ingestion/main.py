@@ -62,6 +62,21 @@ def heartbeat_due(observer_alive: bool, now: float, last_stamp: float) -> bool:
     return observer_alive and (now - last_stamp) >= HEARTBEAT_TICK_SECONDS
 
 
+def exit_if_watcher_died(observer_alive: bool) -> None:
+    """Stop the service when the watchdog observer thread has died.
+
+    A dead watcher picks up nothing again, while the process stays up and
+    looks healthy to Docker. Exiting lets Docker restart the container
+    (restart: unless-stopped), and the startup scan in main() takes in
+    whatever arrived in uploads/ meanwhile. Seen on drenthe, 11 Nov 2026: a
+    database error in an event handler killed the thread during an update,
+    and camera photos sat in uploads/ until someone restarted ingestion.
+    """
+    if not observer_alive:
+        logger.error("File watcher stopped, exiting so the container restarts and rescans uploads")
+        raise SystemExit(1)
+
+
 def _reject(
     filepath: str,
     reason: str,
@@ -761,6 +776,7 @@ def main():
 
     try:
         while True:
+            exit_if_watcher_died(observer.is_alive())
             if heartbeat_due(observer.is_alive(), time.monotonic(), last_stamp):
                 last_stamp = time.monotonic()
                 try:

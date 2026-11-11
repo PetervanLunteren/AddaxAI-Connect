@@ -798,7 +798,11 @@ staleness rule, 15 minutes, in `shared/shared/queue.py`.
 - Ingestion consumes no queue, it watches the filesystem, so it stamps
   from its own loop and only while the watchdog observer thread is alive
   (`heartbeat_due` in `services/ingestion/main.py`). Watchdog can die
-  while the process survives, and nothing would be picked up again.
+  while the process survives, and nothing would be picked up again. So
+  the loop also exits when the thread is dead (`exit_if_watcher_died`):
+  Docker restarts the container and the startup scan takes in what
+  waited in `uploads/`. An exception in an event handler kills the
+  thread, which is what a schema mismatch during an update does.
 - No TTL on the keys, so the last seen time survives a restart, and a
   missing key means the worker never ran against this Redis.
 

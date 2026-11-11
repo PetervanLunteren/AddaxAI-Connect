@@ -8,7 +8,9 @@ process exists would hide exactly that.
 """
 from shared.queue import HEARTBEAT_TICK_SECONDS
 
-from main import heartbeat_due
+import pytest
+
+from main import exit_if_watcher_died, heartbeat_due
 
 
 class TestHeartbeatDue:
@@ -28,3 +30,15 @@ class TestHeartbeatDue:
         claiming it is alive."""
         assert heartbeat_due(False, 1000.0, 0.0) is False
         assert heartbeat_due(False, 99_999.0, 0.0) is False
+
+
+class TestExitIfWatcherDied:
+    def test_a_live_watcher_keeps_running(self):
+        assert exit_if_watcher_died(True) is None
+
+    def test_a_dead_watcher_stops_the_service(self):
+        """Exit non-zero, so Docker restarts the container and the startup
+        scan picks up what landed in uploads/ while the watcher was dead."""
+        with pytest.raises(SystemExit) as stop:
+            exit_if_watcher_died(False)
+        assert stop.value.code == 1

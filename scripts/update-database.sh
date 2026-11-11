@@ -93,5 +93,14 @@ if docker compose ps --services --status running | grep -qx bulk-upload; then
   docker compose restart bulk-upload > /dev/null
 fi
 
+# Ingestion takes in waiting files once, at startup, which lands in the same
+# window: a photo that arrives before the migration fails on the old schema
+# and stays in uploads/. drenthe kept 14 that way on 11 Nov 2026. Restarting
+# after the migration takes them in on the new schema. demo runs no ingestion.
+if docker compose ps --services --status running | grep -qx ingestion; then
+  echo "Restarting ingestion to take in uploads that waited for the new schema..."
+  docker compose restart ingestion > /dev/null
+fi
+
 echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."
