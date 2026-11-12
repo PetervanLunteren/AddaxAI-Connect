@@ -7,7 +7,15 @@ comparison locally so the suite runs without a live database, the same
 style as tests/notifications/test_rule_engine.py and
 tests/notifications/test_sim_expiry.py.
 """
-from datetime import datetime, timedelta, timezone
+import os
+import sys
+from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "services", "api")))
+
+from fastapi_users.jwt import decode_jwt, generate_jwt  # noqa: E402
+
+from auth.stamps import now_stamp  # noqa: E402
 
 
 def token_is_valid(iat, password_changed_at) -> bool:
@@ -82,3 +90,33 @@ class TestRealisticScenarios:
         post_reset_login = datetime(2026, 5, 8, 10, 0, 5, tzinfo=timezone.utc)
         assert token_is_valid(old_session, pwd_changed) is False
         assert token_is_valid(post_reset_login, pwd_changed) is True
+
+
+class TestStampIsWholeSeconds:
+    """
+    A JWT stores iat in whole seconds. A stamp with microseconds is later
+    than a token minted right after it in the same second, so the fresh
+    token that change-password returns was rejected. now_stamp() cuts the
+    stamp down to whole seconds, these tests pin that down with a real token.
+    """
+
+    def test_microsecond_stamp_rejects_the_fresh_token(self):
+        # The old behaviour: stamp at 09:00:00.5, token minted right after,
+        # iat stored as 09:00:00.
+        pwd_changed = datetime(2026, 5, 8, 9, 0, 0, 500000, tzinfo=timezone.utc)
+        iat = datetime(2026, 5, 8, 9, 0, 0, tzinfo=timezone.utc)
+        assert token_is_valid(iat, pwd_changed) is False
+
+    def test_now_stamp_has_no_microseconds(self):
+        assert now_stamp().microsecond == 0
+        assert now_stamp().tzinfo == timezone.utc
+
+    def test_token_minted_after_now_stamp_is_accepted(self):
+        pwd_changed = now_stamp()
+        token = generate_jwt(
+            {"sub": "1", "aud": "test", "iat": datetime.now(timezone.utc)},
+            "test-only-secret", 60,
+        )
+        data = decode_jwt(token, "test-only-secret", ["test"])
+        iat = datetime.fromtimestamp(int(data["iat"]), tz=timezone.utc)
+        assert token_is_valid(iat, pwd_changed) is True

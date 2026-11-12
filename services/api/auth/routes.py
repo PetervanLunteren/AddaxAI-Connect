@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from .users import fastapi_users, auth_backend, current_verified_user, get_jwt_strategy
 from .rate_limit import login_rate_limit
+from .stamps import now_stamp
 from .schemas import UserRead, UserCreate, UserUpdate
 from .user_manager import UserManager, get_user_manager
 from shared.models import User, UserInvitation, Project
@@ -121,9 +122,11 @@ def get_auth_router() -> APIRouter:
 
         # Hash, stamp password_changed_at, and persist. The stamp is what
         # the JWT strategy compares against to invalidate every other open
-        # session. Stamped server-side so the timestamp is monotonic.
+        # session. Stamped server-side so the timestamp is monotonic, and in
+        # whole seconds so the fresh token below is not older than the stamp
+        # (see auth/stamps.py).
         hashed = user_manager.password_helper.hash(request_body.new_password)
-        now_utc = datetime.now(timezone.utc)
+        now_utc = now_stamp()
         updated_user = await user_manager.user_db.update(
             user,
             {"hashed_password": hashed, "password_changed_at": now_utc},

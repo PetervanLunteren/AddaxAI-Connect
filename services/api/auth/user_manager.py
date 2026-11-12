@@ -19,6 +19,7 @@ from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
 from mailer.sender import get_email_sender
+from .stamps import now_stamp
 
 
 settings = get_settings()
@@ -153,7 +154,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         here; they re-login on the next page.
         """
         await self.user_db.update(
-            user, {"password_changed_at": datetime.now(timezone.utc)}
+            user, {"password_changed_at": now_stamp()}
         )
         logger.info(
             "Password reset completed; password_changed_at stamped",
