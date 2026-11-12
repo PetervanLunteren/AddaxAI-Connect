@@ -89,6 +89,17 @@ export const adminApi = {
   },
 
   /**
+   * Switch two-factor login off for any user, for example after a lost
+   * phone (server admin only)
+   */
+  resetUserTwoFactor: async (userId: number): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>(
+      `/api/admin/users/${userId}/reset-two-factor`
+    );
+    return response.data;
+  },
+
+  /**
    * Remove a server admin (demote to regular user)
    */
   removeServerAdmin: async (userId: number): Promise<RemoveServerAdminResponse> => {

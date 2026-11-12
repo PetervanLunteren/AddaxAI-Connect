@@ -152,6 +152,17 @@ export const projectsApi = {
   },
 
   /**
+   * Switch two-factor login off for a member, for example after a lost
+   * phone (project admin or server admin). Never for a server admin.
+   */
+  resetUserTwoFactor: async (projectId: number, userId: number): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>(
+      `/api/projects/${projectId}/users/${userId}/reset-two-factor`
+    );
+    return response.data;
+  },
+
+  /**
    * Remove user from project (project admin or server admin)
    */
   removeUser: async (projectId: number, userId: number): Promise<{ message: string }> => {

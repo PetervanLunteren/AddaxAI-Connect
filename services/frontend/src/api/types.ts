@@ -321,6 +321,9 @@ export interface Project {
   delete_people: boolean;
   delete_vehicles: boolean;
   independence_interval_minutes: number;
+  // Everyone who can open the project must have two-factor login, server
+  // admins included. Checked at each user's next login.
+  require_two_factor: boolean;
   // Where the cameras are: ISO 3166-1 alpha-3, and an ISO 3166-2 US state.
   // Null on projects made before the country was required.
   country_code: string | null;
@@ -356,6 +359,7 @@ export interface ProjectUpdate {
   delete_people?: boolean;
   delete_vehicles?: boolean;
   independence_interval_minutes?: number;
+  require_two_factor?: boolean;
   classification_thresholds?: { default: number; overrides: Record<string, number> };
   country_code?: string;
   // An empty string clears the state
@@ -377,6 +381,7 @@ export interface User {
   is_active: boolean;
   is_verified: boolean;
   is_superuser: boolean;
+  two_factor_enabled: boolean;
 }
 
 export interface ProjectMembershipInfo {
@@ -424,6 +429,7 @@ export interface ProjectUserInfo {
   is_registered: boolean;  // true for registered users, false for pending invitations
   is_active: boolean;
   is_verified: boolean;
+  two_factor_enabled: boolean;  // always false for a pending invitation
   added_at: string;
 }
 

@@ -5,6 +5,10 @@
     POST /auth/two-factor/enable    confirm the setup with a first code
     POST /auth/two-factor/disable   switch it off, with a code
 
+reset_two_factor is the admin side, for a user who lost the phone. Its two
+routes live with the other user management routes, in routers/projects.py
+and routers/admin.py.
+
 Setup and enable are reached two ways. A logged-in user opens them from the
 user menu. A user who must set it up at login (a project requires it) has no
 login yet and sends the pending token from POST /auth/login in the body.
@@ -113,6 +117,38 @@ async def send_notice(email: str, event: str) -> None:
             "Failed to send two-factor notice",
             email=email, two_factor_event=event, error=str(e), exc_info=True,
         )
+
+
+async def reset_two_factor(db: AsyncSession, user_id: int, admin: User) -> User:
+    """Switch two-factor login off for another user, as an admin.
+
+    The caller has checked that this admin may act on this user. Used by the
+    project route (routers/projects.py) and the server admin route
+    (routers/admin.py), so both follow the same rules and send the same notice.
+
+    Never for yourself. Your own two-factor is switched off with a code
+    (POST /auth/two-factor/disable). Without this rule a stolen login of an
+    admin could drop the admin's own two-factor without a code.
+    """
+    if user_id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot reset your own two-factor login. Switch it off from the user menu",
+        )
+    user = await _lock_user(db, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if not user.two_factor_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Two-factor login is not on for this user",
+        )
+
+    user.clear_two_factor()
+    await db.commit()
+    logger.info("Two-factor login reset by an admin", user_id=user.id, admin_user_id=admin.id)
+    await send_notice(user.email, "reset")
+    return user
 
 
 async def _access_token(user: User) -> dict:

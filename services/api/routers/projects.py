@@ -15,6 +15,7 @@ from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_PROJECT_DOCUMENTS
 from shared.logger import get_logger
 from auth.users import current_verified_user
+from auth.two_factor_routes import reset_two_factor
 from auth.permissions import (
     Role,
     require_server_admin,
@@ -144,6 +145,9 @@ class ProjectUpdate(BaseModel):
     delete_people: Optional[bool] = None
     delete_vehicles: Optional[bool] = None
     independence_interval_minutes: Optional[int] = None
+    # Everyone who can open the project must have two-factor login. Takes
+    # effect at each user's next login (auth/two_factor.py).
+    require_two_factor: Optional[bool] = None
 
 
 class ProjectDeleteResponse(BaseModel):
@@ -168,6 +172,7 @@ class ProjectResponse(BaseModel):
     delete_people: bool
     delete_vehicles: bool
     independence_interval_minutes: int
+    require_two_factor: bool
     country_code: Optional[str] = None
     admin1_region: Optional[str] = None
     classification_model: str
@@ -190,6 +195,7 @@ class ProjectUserInfo(BaseModel):
     is_registered: bool  # True for registered users, False for pending invitations
     is_active: bool
     is_verified: bool
+    two_factor_enabled: bool  # Always false for a pending invitation
     added_at: str
 
 
@@ -265,6 +271,7 @@ async def list_projects(
             delete_people=project.delete_people,
             delete_vehicles=project.delete_vehicles,
             independence_interval_minutes=project.independence_interval_minutes,
+            require_two_factor=project.require_two_factor,
             country_code=project.country_code,
             admin1_region=project.admin1_region,
         classification_model=project.classification_model,
@@ -329,6 +336,7 @@ async def get_project(
         delete_people=project.delete_people,
         delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
+        require_two_factor=project.require_two_factor,
         country_code=project.country_code,
         admin1_region=project.admin1_region,
         classification_model=project.classification_model,
@@ -441,6 +449,7 @@ async def create_project(
         delete_people=project.delete_people,
         delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
+        require_two_factor=project.require_two_factor,
         country_code=project.country_code,
         admin1_region=project.admin1_region,
         classification_model=project.classification_model,
@@ -524,6 +533,8 @@ async def update_project(
         project.blur_people = True
     if project.delete_vehicles:
         project.blur_vehicles = True
+    if project_data.require_two_factor is not None:
+        project.require_two_factor = project_data.require_two_factor
     if project_data.independence_interval_minutes is not None:
         if not (0 <= project_data.independence_interval_minutes <= 1440):
             raise HTTPException(
@@ -572,6 +583,7 @@ async def update_project(
         delete_people=project.delete_people,
         delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
+        require_two_factor=project.require_two_factor,
         country_code=project.country_code,
         admin1_region=project.admin1_region,
         classification_model=project.classification_model,
@@ -787,6 +799,7 @@ async def list_project_users(
                 is_registered=True,
                 is_active=user.is_active,
                 is_verified=user.is_verified,
+                two_factor_enabled=user.two_factor_enabled,
                 added_at=membership.created_at.isoformat(),
             )
         )
@@ -810,6 +823,7 @@ async def list_project_users(
                 is_registered=False,
                 is_active=False,
                 is_verified=False,
+                two_factor_enabled=False,
                 added_at=invitation.created_at.isoformat(),
             )
         )
@@ -1038,6 +1052,52 @@ async def update_project_user_role(
     return {
         "message": f"User {user.email} role in project {project.name} updated from {old_role} to {request.role}",
     }
+
+
+@router.post("/{project_id}/users/{user_id}/reset-two-factor")
+async def reset_project_user_two_factor(
+    project_id: int,
+    user_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Switch two-factor login off for a member of the project, for example
+    after a lost phone (project admin or server admin).
+
+    A project admin can do this for members of their own project, but never
+    for a server admin: that account opens every project on the server. Nobody
+    can do it for themselves, see reset_two_factor.
+
+    Raises:
+        HTTPException: If the caller is no admin of the project, the user is
+            not a member of it, or the user is a server admin
+    """
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    result = await db.execute(
+        select(User)
+        .join(ProjectMembership, ProjectMembership.user_id == User.id)
+        .where(ProjectMembership.project_id == project_id, User.id == user_id)
+    )
+    target = result.scalar_one_or_none()
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not a member of this project",
+        )
+    if target.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a server admin can reset the two-factor login of a server admin",
+        )
+
+    user = await reset_two_factor(db, user_id, current_user)
+    return {"message": f"Two-factor login of {user.email} is reset"}
 
 
 @router.delete(

@@ -35,11 +35,14 @@ import { useToast } from '../components/ui/Toaster';
 import { Select, SelectItem } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
 import type { ProjectUserInfo } from '../api/types';
+import { useAuth } from '../hooks/useAuth';
+import { ResetTwoFactorButton, ResetTwoFactorDialog, TwoFactorPill } from '../components/ResetTwoFactorDialog';
 import { formatDate } from '../utils/datetime';
 
 export const ProjectUsersPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { canAdminCurrentProject } = useProject();
+  const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -47,6 +50,8 @@ export const ProjectUsersPage: React.FC = () => {
   const [showEditRoleModal, setShowEditRoleModal] = useState(false);
   const [showRemoveUserModal, setShowRemoveUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ProjectUserInfo | null>(null);
+  // The member whose two-factor login is about to be reset
+  const [resetTwoFactorUser, setResetTwoFactorUser] = useState<ProjectUserInfo | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('project-viewer');
   const [selectedSites, setSelectedSites] = useState<Option[]>([]);
   const [addUserEmail, setAddUserEmail] = useState<string>('');
@@ -120,6 +125,20 @@ export const ProjectUsersPage: React.FC = () => {
     },
     onError: (error: any) => {
       toast.error(`Failed to remove user: ${error.response?.data?.detail || 'Unknown error'}`);
+    },
+  });
+
+  // Reset two-factor login of a member, for example after a lost phone
+  const resetTwoFactorMutation = useMutation({
+    mutationFn: (userId: number) =>
+      projectsApi.resetUserTwoFactor(parseInt(projectId!), userId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
+      setResetTwoFactorUser(null);
+      toast.success(data.message);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to reset two-factor login');
     },
   });
 
@@ -277,6 +296,7 @@ export const ProjectUsersPage: React.FC = () => {
                             Verified
                           </span>
                         )}
+                        {user.two_factor_enabled && <TwoFactorPill />}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
@@ -284,6 +304,10 @@ export const ProjectUsersPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        {/* Your own is switched off from the user menu, with a code */}
+                        {user.two_factor_enabled && user.user_id !== currentUser?.id && (
+                          <ResetTwoFactorButton onClick={() => setResetTwoFactorUser(user)} />
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -494,6 +518,13 @@ export const ProjectUsersPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ResetTwoFactorDialog
+        email={resetTwoFactorUser?.email ?? null}
+        pending={resetTwoFactorMutation.isPending}
+        onCancel={() => setResetTwoFactorUser(null)}
+        onConfirm={() => resetTwoFactorUser?.user_id && resetTwoFactorMutation.mutate(resetTwoFactorUser.user_id)}
+      />
 
     </div>
   );

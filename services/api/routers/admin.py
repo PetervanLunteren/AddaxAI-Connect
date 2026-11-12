@@ -35,6 +35,7 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATIO
 from auth.permissions import require_server_admin
 from auth.project_access import check_site_scope_or_400
 from auth.users import current_verified_user
+from auth.two_factor_routes import reset_two_factor
 from mailer.sender import get_email_sender
 from utils.dev_mode import is_dev_server, assert_dev_server
 
@@ -59,6 +60,7 @@ class UserResponse(BaseModel):
     is_active: bool
     is_superuser: bool
     is_verified: bool
+    two_factor_enabled: bool  # Always false for a pending invitation
     is_pending_invitation: bool = False  # True if this is a pending invitation, not a registered user
     invitation_expires_at: Optional[str] = None  # ISO timestamp when invitation expires
     project_memberships: list[ProjectMembershipInfo] = []
@@ -138,6 +140,7 @@ async def list_users(
             is_active=user.is_active,
             is_superuser=user.is_superuser,
             is_verified=user.is_verified,
+            two_factor_enabled=user.two_factor_enabled,
             is_pending_invitation=False,
             project_memberships=membership_info
         ))
@@ -159,6 +162,7 @@ async def list_users(
             is_active=False,  # Not active yet
             is_superuser=True,  # Will be superuser when they register
             is_verified=False,  # Not verified yet
+            two_factor_enabled=False,
             is_pending_invitation=True,
             invitation_expires_at=invitation.expires_at.isoformat() if invitation.expires_at else None,
             project_memberships=[]  # No project memberships yet
@@ -840,6 +844,20 @@ async def cancel_invitation(
         "message": f"Invitation for {invitation.email} has been cancelled",
         "email": invitation.email
     }
+
+
+@router.post("/users/{user_id}/reset-two-factor")
+async def reset_user_two_factor(
+    user_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Switch two-factor login off for any user, for example after a lost phone
+    (server admin only). Not for yourself, see reset_two_factor.
+    """
+    user = await reset_two_factor(db, user_id, current_user)
+    return {"message": f"Two-factor login of {user.email} is reset"}
 
 
 @router.delete(

@@ -749,3 +749,128 @@ class TestNotices:
             "two_factor_notice.html", heading=heading, message=message, login_url="https://x/login",
         )
         assert heading in html and message in text
+
+
+# --- Admin resets and the project requirement ---
+
+class TestReset:
+    @pytest.mark.asyncio
+    async def test_admin_resets_a_user(self, notices):
+        admin, _ = make_user(id=1, email="admin@example.org")
+        user, _ = make_user(two_factor_on=True)
+        db = FakeDb(user)
+        assert await two_factor_routes.reset_two_factor(db, user.id, admin) is user
+        assert not user.two_factor_enabled and db.commits == 1
+        assert notices == [(user.email, "reset")]
+
+    @pytest.mark.asyncio
+    async def test_never_for_yourself(self, notices):
+        # A stolen login of an admin must not be able to drop the admin's own
+        # two-factor without a code.
+        admin, _ = make_user(two_factor_on=True)
+        with pytest.raises(HTTPException) as error:
+            await two_factor_routes.reset_two_factor(FakeDb(admin), admin.id, admin)
+        assert error.value.status_code == 400
+        assert admin.two_factor_enabled and notices == []
+
+    @pytest.mark.asyncio
+    async def test_user_without_two_factor(self, notices):
+        admin, _ = make_user(id=1)
+        user, _ = make_user()
+        with pytest.raises(HTTPException) as error:
+            await two_factor_routes.reset_two_factor(FakeDb(user), user.id, admin)
+        assert error.value.status_code == 400 and notices == []
+
+    @pytest.mark.asyncio
+    async def test_unknown_user(self):
+        admin, _ = make_user(id=1)
+        with pytest.raises(HTTPException) as error:
+            await two_factor_routes.reset_two_factor(FakeDb(None), 99, admin)
+        assert error.value.status_code == 404
+
+
+class TestProjectAdminReset:
+    """The project route adds two rules on top of reset_two_factor."""
+
+    @pytest.fixture
+    def projects(self, monkeypatch):
+        from routers import projects
+
+        async def is_admin(user, project_id, db):
+            return True
+
+        monkeypatch.setattr(projects, "can_admin_project", is_admin)
+        return projects
+
+    @pytest.mark.asyncio
+    async def test_member_is_reset(self, projects, notices):
+        admin, _ = make_user(id=1)
+        member, _ = make_user(two_factor_on=True)
+        result = await projects.reset_project_user_two_factor(3, member.id, FakeDb(member), admin)
+        assert not member.two_factor_enabled
+        assert member.email in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_server_admin_is_out_of_reach(self, projects, notices):
+        admin, _ = make_user(id=1)
+        server_admin, _ = make_user(two_factor_on=True, is_superuser=True)
+        with pytest.raises(HTTPException) as error:
+            await projects.reset_project_user_two_factor(3, server_admin.id, FakeDb(server_admin), admin)
+        assert error.value.status_code == 403
+        assert server_admin.two_factor_enabled and notices == []
+
+    @pytest.mark.asyncio
+    async def test_user_outside_the_project(self, projects):
+        admin, _ = make_user(id=1)
+        with pytest.raises(HTTPException) as error:
+            await projects.reset_project_user_two_factor(3, 99, FakeDb(None), admin)
+        assert error.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_no_admin_of_the_project(self, monkeypatch):
+        from routers import projects
+
+        async def is_admin(user, project_id, db):
+            return False
+
+        monkeypatch.setattr(projects, "can_admin_project", is_admin)
+        viewer, _ = make_user(id=1)
+        member, _ = make_user(two_factor_on=True)
+        with pytest.raises(HTTPException) as error:
+            await projects.reset_project_user_two_factor(3, member.id, FakeDb(member), viewer)
+        assert error.value.status_code == 403
+        assert member.two_factor_enabled
+
+
+class TestResponseFields:
+    """A forgotten response builder must crash, not answer a silent false."""
+
+    def test_project_fields_are_required(self):
+        from routers.projects import ProjectResponse, ProjectUpdate, ProjectUserInfo
+        from routers.users import ProjectWithRole
+        from routers.admin import UserResponse
+
+        assert ProjectResponse.model_fields["require_two_factor"].is_required()
+        assert ProjectWithRole.model_fields["require_two_factor"].is_required()
+        assert ProjectUserInfo.model_fields["two_factor_enabled"].is_required()
+        assert UserResponse.model_fields["two_factor_enabled"].is_required()
+        # In an update it is optional, like every other field
+        assert not ProjectUpdate.model_fields["require_two_factor"].is_required()
+
+    def test_update_project_applies_the_switch(self):
+        import inspect
+        from routers.projects import update_project
+
+        assert "project.require_two_factor = project_data.require_two_factor" in inspect.getsource(update_project)
+
+    def test_every_project_builder_passes_the_switch(self):
+        import inspect
+        from routers import projects, users
+
+        assert inspect.getsource(projects).count("require_two_factor=project.require_two_factor") == 4
+        assert inspect.getsource(users).count("require_two_factor=project.require_two_factor") == 2
+
+    def test_model_default_is_off(self):
+        from shared.models import Project
+
+        assert Project.__table__.c.require_two_factor.server_default.arg == "false"

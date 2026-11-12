@@ -29,6 +29,7 @@ import { useToast } from '../../components/ui/Toaster';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 import { useAuth } from '../../hooks/useAuth';
+import { ResetTwoFactorButton, ResetTwoFactorDialog, TwoFactorPill } from '../../components/ResetTwoFactorDialog';
 
 export const ServerAdminManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -41,6 +42,8 @@ export const ServerAdminManagementPage: React.FC = () => {
   const [userToRemove, setUserToRemove] = useState<{ id: number; email: string } | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [invitationToCancel, setInvitationToCancel] = useState<{ id: number; email: string } | null>(null);
+  // The server admin whose two-factor login is about to be reset
+  const [resetTwoFactorUser, setResetTwoFactorUser] = useState<{ id: number; email: string } | null>(null);
 
   // Fetch all users to filter server admins
   const { data: users, isLoading: loadingUsers } = useQuery({
@@ -79,6 +82,19 @@ export const ServerAdminManagementPage: React.FC = () => {
   });
 
   // Cancel invitation mutation
+  // Reset two-factor login of another server admin, for example after a lost phone
+  const resetTwoFactorMutation = useMutation({
+    mutationFn: (userId: number) => adminApi.resetUserTwoFactor(userId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setResetTwoFactorUser(null);
+      toast.success(data.message);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to reset two-factor login');
+    },
+  });
+
   const cancelInvitationMutation = useMutation({
     mutationFn: (invitationId: number) => adminApi.cancelInvitation(invitationId),
     onSuccess: () => {
@@ -180,11 +196,18 @@ export const ServerAdminManagementPage: React.FC = () => {
                                 Verified
                               </span>
                             )}
+                            {serverAdmin.two_factor_enabled && <TwoFactorPill />}
                           </>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
+                      {/* Your own is switched off from the user menu, with a code */}
+                      {serverAdmin.two_factor_enabled && serverAdmin.id !== user?.id && (
+                        <ResetTwoFactorButton
+                          onClick={() => setResetTwoFactorUser({ id: serverAdmin.id, email: serverAdmin.email })}
+                        />
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -343,6 +366,13 @@ export const ServerAdminManagementPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ResetTwoFactorDialog
+        email={resetTwoFactorUser?.email ?? null}
+        pending={resetTwoFactorMutation.isPending}
+        onCancel={() => setResetTwoFactorUser(null)}
+        onConfirm={() => resetTwoFactorUser && resetTwoFactorMutation.mutate(resetTwoFactorUser.id)}
+      />
     </ServerPageLayout>
   );
 };

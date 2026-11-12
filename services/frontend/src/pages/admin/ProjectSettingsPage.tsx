@@ -31,6 +31,8 @@ import { speciesApi } from '../../api/species';
 import { classificationModelsApi } from '../../api/classificationModels';
 import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, SiteGroup } from '../../api/types';
 import { Select } from '../../components/ui/Select';
+import { Switch } from '../../components/ui/Switch';
+import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
 
 const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 0, label: 'Disabled' },
@@ -112,6 +114,7 @@ export const ProjectSettingsPage: React.FC = () => {
   );
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 30);
+  const [requireTwoFactor, setRequireTwoFactor] = useState<boolean>(currentProject?.require_two_factor ?? false);
   const [countryCode, setCountryCode] = useState<string>(currentProject?.country_code ?? '');
   const [admin1Region, setAdmin1Region] = useState<string>(currentProject?.admin1_region ?? '');
   const [classificationDefault, setClassificationDefault] = useState<number>(
@@ -146,6 +149,7 @@ export const ProjectSettingsPage: React.FC = () => {
       setPeoplePrivacy(privacyChoice(currentProject.blur_people, currentProject.delete_people));
       setVehiclesPrivacy(privacyChoice(currentProject.blur_vehicles, currentProject.delete_vehicles));
       setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
+      setRequireTwoFactor(currentProject.require_two_factor);
       setCountryCode(currentProject.country_code ?? '');
       setAdmin1Region(currentProject.admin1_region ?? '');
       setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
@@ -284,6 +288,7 @@ export const ProjectSettingsPage: React.FC = () => {
     vehiclesPrivacy === 'delete' && !currentProject.delete_vehicles ? 'vehicles' : null,
   ].filter((c): c is string => c !== null);
   const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 30);
+  const hasTwoFactorChanges = requireTwoFactor !== currentProject.require_two_factor;
   // The country cannot be cleared, so an emptied country box is no change.
   const hasCountryChanges =
     countryCode !== '' &&
@@ -323,6 +328,7 @@ export const ProjectSettingsPage: React.FC = () => {
     hasSpeciesChanges ||
     hasPrivacyChanges ||
     hasIntervalChanges ||
+    hasTwoFactorChanges ||
     hasCountryChanges ||
     hasGroupChanges ||
     hasClassificationThresholdChanges;
@@ -361,7 +367,7 @@ export const ProjectSettingsPage: React.FC = () => {
         );
       }
 
-      if (hasSpeciesChanges || hasPrivacyChanges || hasIntervalChanges || hasCountryChanges) {
+      if (hasSpeciesChanges || hasPrivacyChanges || hasIntervalChanges || hasTwoFactorChanges || hasCountryChanges) {
         const update: ProjectUpdate = {};
         if (hasSpeciesChanges) {
           // Every species selected is stored as an empty list ("all"), so the
@@ -380,6 +386,9 @@ export const ProjectSettingsPage: React.FC = () => {
         }
         if (hasIntervalChanges) {
           update.independence_interval_minutes = independenceInterval;
+        }
+        if (hasTwoFactorChanges) {
+          update.require_two_factor = requireTwoFactor;
         }
         if (hasCountryChanges) {
           // An empty state clears it on the server
@@ -473,6 +482,7 @@ export const ProjectSettingsPage: React.FC = () => {
     setPeoplePrivacy(privacyChoice(currentProject.blur_people, currentProject.delete_people));
     setVehiclesPrivacy(privacyChoice(currentProject.blur_vehicles, currentProject.delete_vehicles));
     setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
+    setRequireTwoFactor(currentProject.require_two_factor);
     setCountryCode(currentProject.country_code ?? '');
     setAdmin1Region(currentProject.admin1_region ?? '');
     setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
@@ -796,6 +806,21 @@ export const ProjectSettingsPage: React.FC = () => {
               </div>
             </>
           )}
+
+          <SettingRowDivider />
+
+          <SettingRow
+            title="Require two-factor login"
+            titleFor="require-two-factor"
+            description="Everyone who can open this project must log in with a code from an authenticator app, next to their password. That includes server admins. Who has not set it up yet does so at their next login."
+          >
+            <Switch
+              id="require-two-factor"
+              checked={requireTwoFactor}
+              onChange={setRequireTwoFactor}
+              disabled={isSaving}
+            />
+          </SettingRow>
 
           {/* Action buttons */}
           <div className="mt-6 pt-4 border-t flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
