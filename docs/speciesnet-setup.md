@@ -97,7 +97,7 @@ Paste the list you wrote in the previous section, one label per line.
 
 #### Step 3: process and review
 
-Click `Process input`. The tool maps every line to a SpeciesNet taxon. Review the results in the output table:
+Click Process input. The tool maps every line to a SpeciesNet taxon. Review the results in the output table:
 
 ![Screenshot 2026-03-25 at 14 20 15](https://github.com/user-attachments/assets/a7bbde33-95ad-411f-8389-8109645e623e)
 
@@ -108,18 +108,18 @@ Check two things in every row:
 
 #### Step 4: download the CSV
 
-Click `Download CSV`. The file has four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect uses `latin`, and as the label `original_common` when it is filled in, otherwise `common`.
+Click Download CSV. The file has four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect uses `latin`, and as the label `original_common` when it is filled in, otherwise `common`.
 
 #### Step 5: add the CSV to your project
 
-When you create a project, drop the CSV at the `Species labels` field. The project is only created when the CSV is valid.
+When you create a project, drop the CSV at the Species labels field. The project is only created when the CSV is valid.
 
 To change the labels later:
 
-1. Open the project and go to `Settings`
-2. Drop the new CSV at `Species labels`, or click to browse
-3. Click `Save and relabel`
-4. Click `View current labels` to check all went well
+1. Open the project and go to Settings
+2. Drop the new CSV at Species labels, or click to browse
+3. Click Save and relabel
+4. Click View current labels to check all went well
 
 The new file replaces the old labels. Images that nobody has verified yet get new labels right away, without running the model again. Verified images keep their labels. If alert rules, species reports or thresholds still use a label that is no longer in the list, the page names it, so you can update them.
 

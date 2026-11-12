@@ -20,7 +20,7 @@ Use the format `lat<LATITUDE>_lon<LONGITUDE>` with a decimal point and a single 
 
 ### Step 2: register the camera
 
-Go to `Camera Management` and use the lat/lon string as the camera's `Camera ID`, the same field where you would put an IMEI for other cameras. The match is case-insensitive but the rest of the string must be exact. Assign the camera to a project as usual.
+Go to Camera Management and use the lat/lon string as the camera's Camera ID, the same field where you would put an IMEI for other cameras. The match is case-insensitive but the rest of the string must be exact. Assign the camera to a project as usual.
 
 ### Step 3: configure the INSTAR web UI
 
@@ -45,10 +45,10 @@ Only JPEG stills with a timestamped filename go into the ML pipeline. INSTAR als
 |---|---|
 | `A_YYYY-MM-DD_HH-MM-SS.jpeg` | Processed as a normal image. Datetime is parsed from the filename, GPS from the path. |
 | `A_YYYY-MM-DD_HH-MM-SS.mp4` | Logged and deleted. Video is not processed. |
-| `Test-Snapshot.jpeg` | Rejected as `missing_datetime`. Shows on the camera in the Cameras page and in `File management`. |
+| `Test-Snapshot.jpeg` | Rejected as `missing_datetime`. Shows on the camera in the Cameras page and in File management. |
 
 ## Known issues
 
-- **The camera does not move by itself.** The location comes from the upload path, so if you move the camera you have to change the custom-path in the web UI and register a new `Camera ID`. The other cameras handle a move on their own from their GPS.
+- **The camera does not move by itself.** The location comes from the upload path, so if you move the camera you have to change the custom-path in the web UI and register a new Camera ID. The other cameras handle a move on their own from their GPS.
 - **No health reports.** INSTAR sends no daily report, so battery, signal, SD card usage and the last report time stay empty on the camera health page. This is expected, not a misconfiguration. The active and inactive status still works, because it also counts the photos the camera sends.
-- **The `A_` prefix is not understood yet.** Every filename seen so far starts with `A_`. If a future firmware turns that into a per-channel identifier, the `Camera ID` scheme needs another segment. [Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) if you see a different prefix.
+- **The `A_` prefix is not understood yet.** Every filename seen so far starts with `A_`. If a future firmware turns that into a per-channel identifier, the Camera ID scheme needs another segment. [Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) if you see a different prefix.

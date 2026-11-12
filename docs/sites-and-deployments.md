@@ -42,8 +42,8 @@ Click an entry to see more: the camera id, a few photos from that spot, where th
 
 The app already acted, so nothing here blocks anything. A human only reviews. Every entry has one state, shared by the whole project:
 
-- **Needs review.** Nobody has looked at it yet. These entries sit in the first tab and count on the badge.
-- **Reviewed.** A project admin has ticked it or corrected it. It moves to the Reviewed tab for everyone, with who reviewed it and when.
+- Needs review. Nobody has looked at it yet. These entries sit in the first tab and count on the badge.
+- Reviewed. A project admin has ticked it or corrected it. It moves to the Reviewed tab for everyone, with who reviewed it and when.
 
 There is no personal read state. Opening and closing the panel changes nothing, for you or for anyone else. When twenty cameras move on a field day, everyone sees twenty entries until someone reviews them. One admin working through the list clears the count for the whole team.
 
@@ -61,13 +61,13 @@ The Reviewed tab groups entries by time range. The panel loads the newest hundre
 
 Which buttons an entry shows depends on the situation. Only project admins can use them; viewers see the entries without buttons.
 
-- **Show location** opens the camera's spot in Google Maps. It changes nothing. Use it when you want to check the spot on a map before you decide anything.
-- **Name this site** gives a site with a placeholder name a real one. It only shows while the name is still a placeholder. Use it when a camera arrived at a spot the app did not know yet. Later renames happen on the Sites page.
-- **Different site** moves the camera to another existing site nearby. It only shows when there is one within 250 metres. Use it when several sites sit close together and the app picked the wrong one.
-- **New site** splits the camera off to its own new site at its exact spot. It only shows when the camera was placed on a site that already existed. Use it when two cameras stand close together but should count as separate places, like both ends of a wildlife bridge.
-- **It did not move** undoes a move that was GPS noise. The camera and its images go back to the previous site, as if the move never happened. Use it when the entry shows a move but you know the camera hangs where it always was. This is the one action here that cannot be undone: the placement at the new spot is merged away, so be sure before you confirm.
-- **The tick** on the right of every entry that needs review means nothing to change. Use it when the placement is right. The entry is reviewed for everyone, without opening it.
-- **Mark all as reviewed** at the top of the Needs review tab ticks every entry at once, after one confirmation. Use it after a field day when the placements are right. Sites keep their names, so an unnamed site stays marked on the Sites page.
+- Show location opens the camera's spot in Google Maps. It changes nothing. Use it when you want to check the spot on a map before you decide anything.
+- "Name this site" gives a site with a placeholder name a real one. It only shows while the name is still a placeholder. Use it when a camera arrived at a spot the app did not know yet. Later renames happen on the Sites page.
+- "Different site" moves the camera to another existing site nearby. It only shows when there is one within 250 metres. Use it when several sites sit close together and the app picked the wrong one.
+- "New site" splits the camera off to its own new site at its exact spot. It only shows when the camera was placed on a site that already existed. Use it when two cameras stand close together but should count as separate places, like both ends of a wildlife bridge.
+- "It did not move" undoes a move that was GPS noise. The camera and its images go back to the previous site, as if the move never happened. Use it when the entry shows a move but you know the camera hangs where it always was. This is the one action here that cannot be undone: the placement at the new spot is merged away, so be sure before you confirm.
+- The tick on the right of every entry that needs review means nothing to change. Use it when the placement is right. The entry is reviewed for everyone, without opening it.
+- "Mark all as reviewed" at the top of the Needs review tab ticks every entry at once, after one confirmation. Use it after a field day when the placements are right. Sites keep their names, so an unnamed site stays marked on the Sites page.
 
 Every correction also counts as a review, for that entry only. When several cameras share one site, naming it from one entry does not review the others. Their sentences pick up the new name, and each still gets its own look, because one of them may belong on its own site.
 

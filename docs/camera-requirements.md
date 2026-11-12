@@ -58,7 +58,7 @@ Creating a new profile usually takes a bit of time for development and testing. 
 1. Collecting a few sample images and daily reports from the camera
 2. Inspecting the EXIF data and file naming patterns
 3. Writing the extraction logic
-4. Testing with the upload tool on the `File management` page to verify images are accepted and routed correctly
+4. Testing with the upload tool on the File management page to verify images are accepted and routed correctly
 5. Uploading real images via your cameras over FTPS to confirm the full pipeline works end to end
 
 If you need a new camera profile, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) with some sample files and we'll work it out.
@@ -67,7 +67,7 @@ If you need a new camera profile, [open an issue](https://github.com/PetervanLun
 
 Images uploading but not showing up? Here are the most common causes:
 
-- **No matching camera profile**: the system rejects images it can't identify. Go to `File management` (hamburger menu on the projects page, server admins only) to see rejected files and the reason they were rejected.
+- **No matching camera profile**: the system rejects images it can't identify. Go to File management (hamburger menu on the projects page, server admins only) to see rejected files and the reason they were rejected.
 - **Missing required metadata**: if the camera profile requires GPS or date/time and the image doesn't have it, it gets rejected. These files still carry the camera ID, so they show up on the Cameras page, in the needs attention chip while the camera keeps rejecting and in the optional `Rejected files` column, and in the `Rejected` tab of that camera, for every project member.
 - **Wrong file format**: only JPEG images are accepted (max 10 MB).
 - **Daily reports not parsed**: reports must be under 1 MB and match the expected format for the camera profile.

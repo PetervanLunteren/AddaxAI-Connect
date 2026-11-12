@@ -34,9 +34,9 @@ Use "Log visit" for work you did without a plan.
 ## Other actions
 
 - Click a task to change it.
-- **Assign** gives the selected tasks to one project member. Tick "Send email to assignee" to email them a list of these tasks.
-- **Cancel tasks** removes tasks that are no longer needed. Nothing is logged.
-- **Delete** on the Done tab removes a visit that was logged by mistake.
+- Assign gives the selected tasks to one project member. Tick "Send email to assignee" to email them a list of these tasks.
+- Cancel tasks removes tasks that are no longer needed. Nothing is logged.
+- Delete on the Done tab removes a visit that was logged by mistake.
 
 ## Who can do what
 

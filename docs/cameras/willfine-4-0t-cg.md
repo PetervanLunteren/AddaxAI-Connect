@@ -45,13 +45,13 @@ Only the Smart Parks route is tested. The cameras running on AddaxAI Connect ser
 
 ## Setup
 
-Register the camera in `Camera Management` with its serial number as the `Camera ID`, then point it at your server with the standard [FTPS settings](../camera-requirements.md#ftps-settings).
+Register the camera in Camera Management with its serial number as the Camera ID, then point it at your server with the standard [FTPS settings](../camera-requirements.md#ftps-settings).
 
-The camera writes that serial number into the EXIF data of every photo, and the same number onto the `IMEI` line of its daily report. Both have to match the `Camera ID` you registered.
+The camera writes that serial number into the EXIF data of every photo, and the same number onto the `IMEI` line of its daily report. Both have to match the Camera ID you registered.
 
 ## What it sends
 
-- Photos as JPEG, with GPS and the timestamp in the EXIF data. Both are required. A photo missing either one is rejected. It shows up as a rejected file on that camera in the Cameras page, and on the `File management` page, which server admins can reach from the hamburger menu.
+- Photos as JPEG, with GPS and the timestamp in the EXIF data. Both are required. A photo missing either one is rejected. It shows up as a rejected file on that camera in the Cameras page, and on the File management page, which server admins can reach from the hamburger menu.
 - A daily report with signal strength, temperature, battery percentage, SD card usage, GPS, images taken and images sent. These fill the camera health page.
 
 ## Firmware update
