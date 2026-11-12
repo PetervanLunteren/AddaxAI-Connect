@@ -21,7 +21,7 @@ Only Peter van Lunteren (Addax Data Science) and Tim van Dam (Smart Parks) can l
 
 ## Who owns the data?
 
-You do. Addax Data Science and Smart Parks only use your data to run the service for you, and for nothing else. Your photos are not used to train AI models.
+You do. Addax Data Science and Smart Parks only use your data to run the service for you, and for nothing else. Your photos are not used to train AI models. The app does not train models at all. It uses existing models that were trained before, and they stay the same whatever photos come in. If you want a model trained on your own photos for your project, that is a separate job outside the app, and it only happens when you ask for it.
 
 ## How is the server set up?
 
