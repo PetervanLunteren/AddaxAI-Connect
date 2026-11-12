@@ -13,6 +13,10 @@ alembic==1.12.1
 python-multipart==0.0.32
 bcrypt==5.0.0
 fastapi-users[sqlalchemy]==15.0.5
+# Comes in through fastapi-users (pyjwt[crypto]) anyway. Pinned here because
+# two-factor login uses it directly: Fernet for the stored secret and TOTP for
+# the codes (auth/two_factor.py).
+cryptography==50.0.2
 aiosmtplib==5.1.2
 email-validator>=2.3.0,<2.4
 slowapi==0.1.10

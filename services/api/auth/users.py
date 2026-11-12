@@ -27,6 +27,9 @@ from .user_manager import get_user_manager
 
 settings = get_settings()
 
+# The shared account behind "Log in as demo visitor" on a demo server
+DEMO_USER_EMAIL = "demo@email.com"
+
 
 # Ensure JWT secret is configured
 if not settings.jwt_secret:

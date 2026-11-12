@@ -18,6 +18,29 @@ from shared.notify_guard import email_allowed
 logger = get_logger("api.mailer")
 
 
+# Heading and message of the notice a user gets when their two-factor login
+# changes. The heading is also the start of the subject.
+TWO_FACTOR_NOTICES = {
+    "enabled": (
+        "Two-factor login is on",
+        "Two-factor login was switched on for your account. From now on you "
+        "need a code from your authenticator app to log in.",
+    ),
+    "disabled": (
+        "Two-factor login is off",
+        "Two-factor login was switched off for your account. You now log in "
+        "with your password only.",
+    ),
+    "reset": (
+        "Two-factor login was reset",
+        "An admin reset the two-factor login of your account, for example "
+        "because of a lost phone. Your authenticator app and your recovery "
+        "codes no longer work for this account. You can set it up again "
+        "after you log in.",
+    ),
+}
+
+
 class EmailSender:
     """SMTP email sender for authentication flows"""
 
@@ -379,6 +402,35 @@ class EmailSender:
             "Server admin promotion email sent",
             email=email,
         )
+
+    async def send_two_factor_notice_email(self, email: str, event: str) -> None:
+        """
+        Tell a user that the two-factor login of their account changed.
+
+        Sent on every change, so a change the user did not make gets noticed.
+
+        Args:
+            email: User's email address
+            event: A key of TWO_FACTOR_NOTICES (enabled, disabled or reset)
+
+        Raises:
+            KeyError: If the event is not known
+            aiosmtplib.SMTPException: If email sending fails
+        """
+        heading, message = TWO_FACTOR_NOTICES[event]
+
+        html_content, text_content = render_email(
+            "two_factor_notice.html",
+            heading=heading,
+            message=message,
+            login_url=f"https://{self.settings.domain_name}/login",
+        )
+
+        await self.send_email(
+            email, f"{heading} on AddaxAI Connect", text_content, html_content,
+        )
+
+        logger.info("Two-factor notice email sent", email=email, two_factor_event=event)
 
     async def send_server_admin_invitation_email(
         self,

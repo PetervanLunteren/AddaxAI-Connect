@@ -15,6 +15,7 @@ class UserRead(schemas.BaseUser[int]):
     Use /users/me/projects endpoint to get user's project memberships.
     """
     is_superuser: bool  # Server admin flag
+    two_factor_enabled: bool  # Read from the User.two_factor_enabled property
 
 
 class UserCreate(schemas.BaseUserCreate):

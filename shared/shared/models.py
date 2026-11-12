@@ -4,7 +4,7 @@ SQLAlchemy database models
 Defines the database schema for all tables.
 All services import models from this file to ensure consistency.
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean, JSON, Text, UniqueConstraint, Index, text
+from sqlalchemy import BigInteger, Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean, JSON, Text, UniqueConstraint, Index, text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from geoalchemy2 import Geography
@@ -443,6 +443,9 @@ class Project(Base):
     delete_people = Column(Boolean, nullable=False, server_default='false')
     delete_vehicles = Column(Boolean, nullable=False, server_default='false')
     independence_interval_minutes = Column(Integer, nullable=False, server_default='30')  # Group same-species detections within N minutes as one event (0 = disabled)
+    # Everyone who can open this project must have two-factor login, server
+    # admins included. Checked at login (services/api/auth/two_factor.py).
+    require_two_factor = Column(Boolean, nullable=False, server_default='false')
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
@@ -526,7 +529,33 @@ class User(Base):
     # has never changed their password, so every token is accepted.
     password_changed_at = Column(DateTime(timezone=True), nullable=True)
 
+    # Two-factor login (services/api/auth/two_factor.py). It is on when
+    # two_factor_enabled_at is set. A secret with no stamp is a setup that
+    # the user has not confirmed with a code yet.
+    totp_secret = Column(Text, nullable=True)  # Encrypted, never plain
+    two_factor_enabled_at = Column(DateTime(timezone=True), nullable=True)
+    # Time step of the last accepted code, so a code works only once
+    totp_last_step = Column(BigInteger, nullable=True)
+    # sha256 of each recovery code that is not used yet
+    recovery_code_hashes = Column(JSON, nullable=True)
+
     # Note: role and project_id removed - now handled via ProjectMembership table
+
+    @property
+    def two_factor_enabled(self) -> bool:
+        return self.two_factor_enabled_at is not None
+
+    def clear_two_factor(self) -> None:
+        """Switch two-factor login off and forget everything that belongs to it.
+
+        The one place that knows which columns that is. Used when the user
+        switches it off, when an admin resets it, and by
+        scripts/reset_two_factor.py.
+        """
+        self.totp_secret = None
+        self.two_factor_enabled_at = None
+        self.totp_last_step = None
+        self.recovery_code_hashes = None
 
 
 class CameraAlertRule(Base):

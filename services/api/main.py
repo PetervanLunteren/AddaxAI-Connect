@@ -149,11 +149,11 @@ async def demo_login():
 
     from sqlalchemy import select
     from shared.models import User
-    from auth.users import get_jwt_strategy
+    from auth.users import DEMO_USER_EMAIL, get_jwt_strategy
 
     async for session in get_async_session():
         result = await session.execute(
-            select(User).where(User.email == "demo@email.com")
+            select(User).where(User.email == DEMO_USER_EMAIL)
         )
         user = result.scalar_one_or_none()
         if not user:

@@ -14,7 +14,7 @@ password check itself is still the library's (`user_manager.authenticate`).
 There is no logout route: a login is a bearer token that the browser drops.
 """
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_users.router.common import ErrorCode
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,8 @@ from pydantic import BaseModel
 from .users import fastapi_users, current_verified_user, get_jwt_strategy
 from .rate_limit import login_rate_limit
 from .stamps import now_stamp
+from . import two_factor
+from .two_factor_routes import router as two_factor_router
 from .schemas import UserRead, UserCreate
 from .user_manager import UserManager, get_user_manager
 from shared.models import User, UserInvitation, Project
@@ -60,14 +62,24 @@ def get_auth_router() -> APIRouter:
 
     @router.post("/auth/login", tags=["auth"], dependencies=[Depends(login_rate_limit)])
     async def login(
+        request: Request,
         credentials: OAuth2PasswordRequestForm = Depends(),
         user_manager: UserManager = Depends(get_user_manager),
+        db: AsyncSession = Depends(get_async_session),
     ):
         """
         Log in with email and password.
 
         Same form fields and the same 400 error as the FastAPI-Users route
-        this replaces, so clients do not notice the difference.
+        this replaces. For an account without two-factor login the answer is
+        the same too: an access token.
+
+        With two-factor login the answer is no token yet, but
+        {"two_factor": "code_required" | "setup_required", "pending_token"}.
+        The pending token proves the password was right and is traded for the
+        access token by POST /auth/login/two-factor, or by a setup when a
+        project requires two-factor and the account has none (see
+        auth/two_factor.py).
         """
         user = await user_manager.authenticate(credentials)
         if user is None or not user.is_active:
@@ -75,8 +87,25 @@ def get_auth_router() -> APIRouter:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
             )
+
+        outcome = two_factor.login_outcome(
+            enabled=user.two_factor_enabled,
+            required=await two_factor.two_factor_required(user, db),
+            remembered=two_factor.browser_is_remembered(
+                request.cookies.get(two_factor.REMEMBER_COOKIE), user,
+            ),
+        )
+        if outcome != two_factor.TOKEN:
+            return {
+                "two_factor": outcome,
+                "pending_token": two_factor.write_pending_token(user),
+            }
+
         token = await get_jwt_strategy().write_token(user)
         return {"access_token": token, "token_type": "bearer"}
+
+    # The code step, setup, enable and disable
+    router.include_router(two_factor_router)
 
     # Registration route (POST /auth/register)
     router.include_router(

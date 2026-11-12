@@ -31,6 +31,10 @@ settings = get_settings()
 LOGIN_MAX_ATTEMPTS = 20
 LOGIN_WINDOW_SECONDS = 300  # 5 minutes
 
+# Wrong two-factor codes, per account. See the two functions at the bottom.
+TWO_FACTOR_MAX_FAILURES = 5
+TWO_FACTOR_WINDOW_SECONDS = 900  # 15 minutes
+
 _redis: Optional[aioredis.Redis] = None
 
 
@@ -56,6 +60,14 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+async def _count(key: str, window_seconds: int) -> int:
+    """Add one to a counter and return it. The window starts at the first hit."""
+    count = await _client().incr(key)
+    if count == 1:
+        await _client().expire(key, window_seconds)
+    return count
+
+
 async def login_rate_limit(request: Request) -> None:
     """Reject a login once an address has used up its attempts.
 
@@ -68,9 +80,7 @@ async def login_rate_limit(request: Request) -> None:
     key = f"ratelimit:login:{ip}"
 
     try:
-        attempts = await _client().incr(key)
-        if attempts == 1:
-            await _client().expire(key, LOGIN_WINDOW_SECONDS)
+        attempts = await _count(key, LOGIN_WINDOW_SECONDS)
     except Exception:
         logger.warning("Login rate limit unavailable, allowing the request", ip=ip)
         return
@@ -87,4 +97,55 @@ async def login_rate_limit(request: Request) -> None:
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many sign-in attempts. Please wait and try again.",
             headers={"Retry-After": str(retry_after)},
+        )
+
+
+# --- Wrong two-factor codes ---
+#
+# A six-digit code has a million values and three of them are right at any
+# moment. Whoever gets this far already has the password, so this counter is
+# the only thing between them and the account. Two differences with the login
+# throttle above follow from that:
+#
+# - It counts per account and not per address. Spreading the guesses over many
+#   addresses must not help.
+# - It fails closed. When Redis cannot be reached no code is accepted, where
+#   the login throttle lets the request through.
+#
+# Only wrong codes are counted, so a user who types the code right is never
+# slowed down. The account id comes from a checked token, never from the
+# request body, or anyone could lock anyone else out.
+
+def _two_factor_key(user_id: int) -> str:
+    return f"ratelimit:two-factor:{user_id}"
+
+
+async def two_factor_attempt_allowed(user_id: int) -> None:
+    """Refuse a code check once an account has had too many wrong codes."""
+    try:
+        failures = int(await _client().get(_two_factor_key(user_id)) or 0)
+    except Exception:
+        logger.error("Two-factor attempt limit unavailable, refusing the code", user_id=user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TWO_FACTOR_UNAVAILABLE",
+        )
+
+    if failures >= TWO_FACTOR_MAX_FAILURES:
+        logger.warning("Two-factor attempt limit hit", user_id=user_id, failures=failures)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="TWO_FACTOR_TOO_MANY_ATTEMPTS",
+        )
+
+
+async def count_two_factor_failure(user_id: int) -> None:
+    """Note a wrong code. A failure to count is a failure to check, so it raises."""
+    try:
+        await _count(_two_factor_key(user_id), TWO_FACTOR_WINDOW_SECONDS)
+    except Exception:
+        logger.error("Two-factor attempt limit unavailable, refusing the code", user_id=user_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TWO_FACTOR_UNAVAILABLE",
         )
