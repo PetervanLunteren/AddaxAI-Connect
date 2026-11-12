@@ -6,13 +6,28 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Callout } from '../components/ui/Callout';
 import { AuthLayout } from '../components/AuthLayout';
+import { Button } from '../components/ui/Button';
+import { Checkbox } from '../components/ui/Checkbox';
+import { CODE_INPUT_CLASS, TwoFactorSetup } from '../components/TwoFactorSetup';
 import apiClient from '../api/client';
+import {
+  LoginTwoFactorStep,
+  TWO_FACTOR_PENDING_EXPIRED,
+  loginWithCode,
+  twoFactorErrorMessage,
+} from '../api/auth';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { login, completeLogin } = useAuth();
   const returnTo = searchParams.get('from') || '/dashboard';
+
+  // Set after a correct password when the login needs a second step: a code,
+  // or a two-factor setup that a project requires. Null is the password form.
+  const [twoFactorStep, setTwoFactorStep] = useState<LoginTwoFactorStep | null>(null);
+  const [code, setCode] = useState('');
+  const [remember, setRemember] = useState(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +48,11 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const step = await login(email, password);
+      if (step) {
+        setTwoFactorStep(step);
+        return;
+      }
       navigate(returnTo);
     } catch (err: any) {
       if (err.response?.status === 400) {
@@ -45,6 +64,43 @@ export const Login: React.FC = () => {
       } else {
         setError('Login failed. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const backToPassword = (message = '') => {
+    setTwoFactorStep(null);
+    setCode('');
+    setPassword('');
+    setError(message);
+  };
+
+  // A pending token lasts 15 minutes. When it ran out, start over.
+  const handleTwoFactorError = (err: any) => {
+    if (err?.response?.data?.detail === TWO_FACTOR_PENDING_EXPIRED) {
+      backToPassword(twoFactorErrorMessage(err));
+    } else {
+      setError(twoFactorErrorMessage(err));
+    }
+  };
+
+  const finishLogin = async (accessToken: string) => {
+    await completeLogin(accessToken);
+    navigate(returnTo);
+  };
+
+  const handleCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!twoFactorStep) return;
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await loginWithCode(twoFactorStep.pending_token, code, remember);
+      await finishLogin(response.access_token);
+    } catch (err) {
+      handleTwoFactorError(err);
     } finally {
       setLoading(false);
     }
@@ -65,6 +121,83 @@ export const Login: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const backToLoginLink = (
+    <div className="text-center text-sm">
+      <button
+        type="button"
+        onClick={() => backToPassword()}
+        className="font-medium text-blue-600 hover:text-blue-500"
+      >
+        Back to login
+      </button>
+    </div>
+  );
+
+  if (twoFactorStep?.two_factor === 'code_required') {
+    return (
+      <AuthLayout subtitle="Two-factor login">
+        <form className="space-y-6" onSubmit={handleCodeSubmit}>
+          {error && <Callout variant="error">{error}</Callout>}
+
+          <div>
+            <label htmlFor="two-factor-code" className="block text-sm font-medium text-gray-700">
+              Code from your authenticator app
+            </label>
+            <input
+              id="two-factor-code"
+              name="two-factor-code"
+              type="text"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className={`mt-1 ${CODE_INPUT_CLASS}`}
+            />
+            <p className="mt-2 text-sm text-gray-500">
+              No phone at hand? Type one of your recovery codes.
+            </p>
+          </div>
+
+          <Checkbox
+            id="two-factor-remember"
+            checked={remember}
+            onChange={setRemember}
+            label="Remember this browser for 30 days"
+          />
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? 'Checking...' : 'Log in'}
+          </Button>
+
+          {backToLoginLink}
+        </form>
+      </AuthLayout>
+    );
+  }
+
+  if (twoFactorStep?.two_factor === 'setup_required') {
+    return (
+      <AuthLayout subtitle="Set up two-factor login">
+        <div className="space-y-6">
+          <Callout variant="info">
+            A project you can open requires two-factor login. Set it up to continue.
+          </Callout>
+          <TwoFactorSetup
+            pendingToken={twoFactorStep.pending_token}
+            onDone={(accessToken) => accessToken && finishLogin(accessToken)}
+            onFailed={(err) => {
+              if (err?.response?.data?.detail === TWO_FACTOR_PENDING_EXPIRED) {
+                backToPassword(twoFactorErrorMessage(err));
+              }
+            }}
+            cancel={backToLoginLink}
+          />
+        </div>
+      </AuthLayout>
+    );
+  }
 
   return (
     <AuthLayout subtitle={isDemoMode ? "Explore the platform with a demo account" : "Sign in to your account"}>

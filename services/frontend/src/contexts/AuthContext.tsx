@@ -4,12 +4,25 @@
  * Manages user authentication state and provides login/logout functions
  */
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { User, login as apiLogin, logout as apiLogout, getCurrentUser } from '../api/auth';
+import {
+  User,
+  LoginTwoFactorStep,
+  isTwoFactorStep,
+  login as apiLogin,
+  logout as apiLogout,
+  getCurrentUser,
+} from '../api/auth';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /**
+   * Resolves to null when the user is logged in, or to the two-factor step
+   * that still has to be done. That step ends with completeLogin.
+   */
+  login: (email: string, password: string) => Promise<LoginTwoFactorStep | null>;
+  /** Finish a login with the access token a two-factor step returned */
+  completeLogin: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -17,7 +30,8 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  login: async () => {},
+  login: async () => null,
+  completeLogin: async () => {},
   logout: async () => {},
   refreshUser: async () => {},
 });
@@ -52,16 +66,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loadUser();
   }, []);
 
-  const login = async (email: string, password: string): Promise<void> => {
-    const response = await apiLogin(email, password);
-
+  const completeLogin = async (accessToken: string): Promise<void> => {
     // Store token
-    localStorage.setItem('access_token', response.access_token);
+    localStorage.setItem('access_token', accessToken);
 
     // Fetch user data
     const userData = await getCurrentUser();
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
+  };
+
+  const login = async (email: string, password: string): Promise<LoginTwoFactorStep | null> => {
+    // Drop a login that is still in this browser. Whatever follows is for the
+    // account that logs in now, not for the one that was here before.
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
+    setUser(null);
+
+    const response = await apiLogin(email, password);
+    if (isTwoFactorStep(response)) {
+      return response;
+    }
+
+    await completeLogin(response.access_token);
+    return null;
   };
 
   const logout = async (): Promise<void> => {
@@ -83,7 +111,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, completeLogin, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

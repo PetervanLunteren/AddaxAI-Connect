@@ -120,6 +120,14 @@ async function login() {
     throw new Error(`Login failed with status ${response.status}. Is vite running and are the credentials correct?`);
   }
   const data = await response.json();
+  if (data.two_factor) {
+    // The sweep cannot type a code. code_required: the account has two-factor
+    // login on. setup_required: a project on this server requires it.
+    throw new Error(
+      `The sweep account is asked for two-factor login (${data.two_factor}). ` +
+      'Switch two-factor off for this account, and switch "Require two-factor login" off in every project on the dev server.',
+    );
+  }
   if (!data.access_token) throw new Error('Login response had no access_token');
   return data.access_token;
 }

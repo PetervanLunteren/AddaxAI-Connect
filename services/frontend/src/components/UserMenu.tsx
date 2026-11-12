@@ -7,10 +7,11 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, Upload, Settings, Activity, LogOut, Info, KeyRound, BookOpen } from 'lucide-react';
+import { Menu, Users, Upload, Settings, Activity, LogOut, Info, KeyRound, BookOpen, ShieldCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 import { ChangePasswordModal } from './ChangePasswordModal';
+import { TwoFactorModal } from './TwoFactorModal';
 
 interface UserMenuProps {
   user: User;
@@ -22,6 +23,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showTwoFactor, setShowTwoFactor] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -122,6 +124,16 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
               <KeyRound className="h-4 w-4" />
               <span>Change password</span>
             </button>
+            <button
+              onClick={() => { setIsOpen(false); setShowTwoFactor(true); }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Two-factor login</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {user.two_factor_enabled ? 'On' : 'Off'}
+              </span>
+            </button>
           </div>
 
           {/* Server Admin Items (Conditionally Rendered) */}
@@ -173,6 +185,10 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
       <ChangePasswordModal
         open={showChangePassword}
         onClose={() => setShowChangePassword(false)}
+      />
+      <TwoFactorModal
+        open={showTwoFactor}
+        onClose={() => setShowTwoFactor(false)}
       />
     </div>
   );
