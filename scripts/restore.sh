@@ -188,6 +188,14 @@ if [ "$ENVIRONMENT" = "development" ]; then
   log "Dev server: clearing restored integration rows (EarthRanger keys, Sensing Clues accounts) so dev cannot post to real destinations"
   docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
     -c 'DELETE FROM project_integrations;' > /dev/null
+  # Two-factor login. The authenticator secrets are encrypted with a key
+  # derived from the source server's JWT_SECRET, so no code would ever be
+  # accepted here, and a project that requires two-factor would force every
+  # dev account (the sweep account too) through a setup.
+  log "Dev server: switching restored two-factor login off, its secrets cannot be read with this server's key"
+  docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
+    -c 'UPDATE users SET totp_secret = NULL, two_factor_enabled_at = NULL, totp_last_step = NULL, recovery_code_hashes = NULL;' \
+    -c 'UPDATE projects SET require_two_factor = false;' > /dev/null
 fi
 
 # Whole-mirror retries, on top of mc's own per-object --retry. Pulling tens of

@@ -62,6 +62,7 @@ nav:
     - Sites and cameras: sites-and-deployments.md
     - Service: service.md
     - Theft watch: theft-watch.md
+    - Two-factor login: two-factor.md
     - Install as an app: install-as-app.md
   - Integrations:
     - EarthRanger: integrations/earthranger.md

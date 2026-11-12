@@ -63,6 +63,80 @@ that touches per-site data must apply the scope through these helpers.
 
 User must have at least one project membership to register (enforced at registration).
 
+## Two-factor login
+
+Optional per account, and a project can require it (`projects.require_two_factor`).
+The rules are in `services/api/auth/two_factor.py`, the routes in
+`two_factor_routes.py`, the user documentation in `docs/two-factor.md`.
+
+```
+POST /auth/login (email + password)
+   ├─ two-factor off, not required      → access token
+   ├─ two-factor on, browser remembered → access token
+   ├─ two-factor on                     → {two_factor: "code_required",  pending_token}
+   └─ off, but a project requires it    → {two_factor: "setup_required", pending_token}
+
+POST /auth/login/two-factor (pending_token, code, remember) → access token
+POST /auth/two-factor/setup, then /enable (code)            → recovery codes (+ access token)
+```
+
+What to know before changing it:
+
+- **The gate is in the login flow, not in the access token check.**
+  Change-password, `/api/demo-login` and `scripts/verify-server.sh` mint
+  access tokens for accounts that are already in. A check in
+  `PasswordChangeAwareJWTStrategy.read_token` would break the update test.
+  Every new route that hands out an access token must go through
+  `login_outcome`.
+- **Three kinds of token, kept apart by their audience.** An access token, a
+  pending token (password was right, 15 minutes, opens nothing) and a
+  remember token (30 days, in an `HttpOnly` cookie on `/auth`). All signed
+  with `JWT_SECRET`.
+- **No table for remembered browsers.** A remember token is valid while it is
+  younger than `password_changed_at` and `two_factor_enabled_at`. So a new
+  password, switching off, a reset and a new setup end all of them. One
+  browser cannot be revoked on its own.
+- **Stamps are whole seconds** (`auth/stamps.py`). A JWT `iat` has no
+  microseconds, so a stamp with microseconds rejects a token minted right
+  after it.
+- **`JWT_SECRET` is also the key for the stored secrets**, through HKDF. A new
+  `JWT_SECRET` makes them unreadable. Recovery codes are plain sha256 and keep
+  working, `scripts/reset_two_factor.py --all` clears the rest.
+  `scripts/restore.sh` clears two-factor on a dev server for the same reason.
+- **A code works once.** `users.totp_last_step` holds the time step of the
+  last accepted code, and the routes that check a code lock the user row,
+  because the API runs more than one worker.
+- **Wrong codes are counted per account and fail closed** when Redis is down
+  (`auth/rate_limit.py`). The login throttle counts per address and fails
+  open. The difference is on purpose.
+- **Errors are 400 with a code in `detail`**, never 401. The frontend sends
+  every 401 to the login page (`api/client.ts`), and the user is already
+  there. The messages for the codes are in `twoFactorErrorMessage` in
+  `services/frontend/src/api/auth.ts`.
+- **Who may reset whom** is in `reset_two_factor` (never yourself) and in the
+  project route (a member of that project, never a server admin).
+- The FastAPI-Users auth and users routers are not mounted. Login and
+  `GET /users/me` are our own. `PATCH /users/me` changed email and password
+  without the current password. `tests/api/test_auth_routes.py` fails when
+  they come back.
+
+To test by hand without a phone, compute the code from the key on the setup
+screen:
+
+```bash
+python -c "
+import base64, sys, time
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.twofactor.totp import TOTP
+key = sys.argv[1]
+secret = base64.b32decode(key + '=' * (-len(key) % 8))
+print(TOTP(secret, 6, hashes.SHA1(), 30).generate(time.time()).decode())
+" THE_KEY_FROM_THE_SCREEN
+```
+
+The screenshot sweep cannot type a code. Keep two-factor off for the sweep
+account and "Require two-factor login" off in every project on the dev server.
+
 ## Repository structure
 
 Each service directory also contains a `Dockerfile` and `requirements.txt`, and
@@ -158,9 +232,13 @@ addaxai-connect/
 │   │   ├── alembic.ini
 │   │   ├── migrate.sh                 # Run migrations inside the container
 │   │   ├── auth/                      # Authentication and permissions
-│   │   │   ├── routes.py              # Auth route wiring (FastAPI-Users)
+│   │   │   ├── routes.py              # Auth routes: our own login, plus the FastAPI-Users register, verify and reset
 │   │   │   ├── users.py               # User auth backend and dependencies
 │   │   │   ├── user_manager.py        # Registration, verification, password reset hooks
+│   │   │   ├── two_factor.py          # Two-factor login rules: secret, codes, recovery codes, tokens, login outcome
+│   │   │   ├── two_factor_routes.py   # Two-factor routes: code step, setup, enable, disable, admin reset
+│   │   │   ├── rate_limit.py          # Login throttle per address, wrong two-factor codes per account
+│   │   │   ├── stamps.py              # Whole-second stamps that login tokens are compared against
 │   │   │   ├── permissions.py         # Role checks
 │   │   │   ├── project_access.py      # Per-project access checks
 │   │   │   └── schemas.py             # Auth request/response schemas
@@ -269,6 +347,7 @@ addaxai-connect/
 │
 ├── scripts/
 │   ├── create_admin_invitation.py     # Create admin user invitation tokens
+│   ├── reset_two_factor.py            # Switch two-factor login off for an account, from the server
 │   ├── populate_demo_data.py          # Generate demo dataset
 │   ├── shift_demo_dates.py            # Shift demo dates for freshness
 │   ├── backfill_deployment_periods.py # Backfill camera deployment data
@@ -321,6 +400,7 @@ addaxai-connect/
 │   ├── restore-guide.md
 │   ├── dev-server-setup.md
 │   ├── install-as-app.md
+│   ├── two-factor.md
 │   └── architecture.md
 │
 ├── email_previews/                    # HTML previews of all email templates

@@ -63,7 +63,9 @@ redis_password: "CHANGE_ME"
 minio_user: minioadmin
 minio_password: "CHANGE_ME"
 
-# Signs login tokens. Changing it logs everybody out.
+# Signs login tokens, and is the key for the stored two-factor secrets.
+# Changing it logs everybody out and makes every authenticator app stop
+# working for this server: run scripts/reset_two_factor.py --all afterwards.
 jwt_secret: "CHANGE_ME"
 
 # --- FTPS, where the cameras upload -------------------------------------

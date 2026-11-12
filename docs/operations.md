@@ -206,6 +206,8 @@ free.
 
 **Telegram not working:** check `docker compose logs notifications-telegram --tail 20`. The bot token must be configured in Server settings, and each user must link their account from the Notifications page.
 
+**A server admin is locked out of two-factor login:** another server admin resets it in the app. If there is none, run `docker compose exec -T api python /app/scripts/reset_two_factor.py someone@example.org` on the server. See [two-factor login](two-factor.md#for-server-admins).
+
 **EarthRanger events not arriving:** check `docker compose logs notifications-earthranger --tail 20`. The integration page shows the last error under the connection. A 403 from Gundi means the API key is wrong or revoked.
 
 **Sensing Clues observations not arriving:** check `docker compose logs notifications-sensingclues --tail 20`. The account and the group are set per project on its Sensing Clues integration page, which also shows the last error. The address is a server setting (`SENSINGCLUES_BASE_URL` in `.env`, the same for every project). A 401 means the password changed on the Sensing Clues side, a 404 saying the user is not a member means the account was removed from the group.
