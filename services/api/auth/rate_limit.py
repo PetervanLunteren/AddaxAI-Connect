@@ -4,9 +4,8 @@ A password only has to be guessed once, and the login form is the one door on
 this system that faces the whole internet. Without a limit an attacker can try
 passwords as fast as the network allows.
 
-Why not slowapi, which is already a dependency. Its limit() is a decorator and
-has to wrap the route function, and the login route belongs to fastapi-users,
-not to us. A dependency attaches from the outside without forking the library.
+It is a dependency on the login route (auth/routes.py), so it runs before the
+password is even looked at.
 
 Why Redis and not an in-memory counter. The API runs one uvicorn process today,
 so a dict would work, but it would silently stop working the day anyone adds
@@ -28,10 +27,6 @@ from shared.logger import get_logger
 
 logger = get_logger("api.auth.rate_limit")
 settings = get_settings()
-
-# Only this path is throttled. The auth router also carries /auth/logout, and
-# a 429 on logout would be a confusing way to punish a shared office address.
-LOGIN_PATH_SUFFIX = "/auth/login"
 
 LOGIN_MAX_ATTEMPTS = 20
 LOGIN_WINDOW_SECONDS = 300  # 5 minutes
@@ -69,9 +64,6 @@ async def login_rate_limit(request: Request) -> None:
     would turn a cache problem into a total outage, and the rest of the system
     is already broken in that situation anyway.
     """
-    if not request.url.path.endswith(LOGIN_PATH_SUFFIX):
-        return
-
     ip = client_ip(request)
     key = f"ratelimit:login:{ip}"
 

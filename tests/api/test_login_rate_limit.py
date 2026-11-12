@@ -96,13 +96,6 @@ class TestLoginRateLimit:
         await login_rate_limit(innocent)  # must not raise
 
     @pytest.mark.asyncio
-    async def test_logout_is_not_throttled(self, fake_redis):
-        req = FakeRequest(path="/auth/logout", headers={"x-real-ip": "203.0.113.9"})
-        for _ in range(LOGIN_MAX_ATTEMPTS * 3):
-            await login_rate_limit(req)
-        assert fake_redis.counts == {}
-
-    @pytest.mark.asyncio
     async def test_fails_open_when_redis_is_down(self, monkeypatch):
         # A cache problem must not become a total sign-in outage.
         monkeypatch.setattr(rate_limit, "_client", lambda: FakeRedis(broken=True))

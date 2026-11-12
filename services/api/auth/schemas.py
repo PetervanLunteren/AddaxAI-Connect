@@ -27,12 +27,3 @@ class UserCreate(schemas.BaseUserCreate):
     """
     token: str  # Required invitation token (from email link)
     is_superuser: bool = False  # Default to False, will be overridden by invitation
-
-
-class UserUpdate(schemas.BaseUserUpdate):
-    """
-    Schema for updating user data (request).
-
-    Note: role and project_id removed - use project membership endpoints instead.
-    """
-    pass

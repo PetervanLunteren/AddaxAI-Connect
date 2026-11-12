@@ -1,23 +1,30 @@
 """
-Authentication routes using FastAPI-Users.
+Authentication routes.
 
 Provides endpoints for:
+- Login
 - Registration
-- Login/logout
 - Email verification
 - Password reset
 - Invitation token validation
+
+Login is our own route, not the one from FastAPI-Users, so that the
+two-factor step can sit between the password check and the token. The
+password check itself is still the library's (`user_manager.authenticate`).
+There is no logout route: a login is a bearer token that the browser drops.
 """
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi_users.router.common import ErrorCode
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from .users import fastapi_users, auth_backend, current_verified_user, get_jwt_strategy
+from .users import fastapi_users, current_verified_user, get_jwt_strategy
 from .rate_limit import login_rate_limit
 from .stamps import now_stamp
-from .schemas import UserRead, UserCreate, UserUpdate
+from .schemas import UserRead, UserCreate
 from .user_manager import UserManager, get_user_manager
 from shared.models import User, UserInvitation, Project
 from shared.database import get_async_session
@@ -51,15 +58,25 @@ def get_auth_router() -> APIRouter:
     """
     router = APIRouter()
 
-    # Login/logout routes (POST /auth/login, POST /auth/logout)
-    # The dependency covers both, but only throttles /auth/login. See
-    # auth/rate_limit.py for why logout is deliberately left alone.
-    router.include_router(
-        fastapi_users.get_auth_router(auth_backend),
-        prefix="/auth",
-        tags=["auth"],
-        dependencies=[Depends(login_rate_limit)],
-    )
+    @router.post("/auth/login", tags=["auth"], dependencies=[Depends(login_rate_limit)])
+    async def login(
+        credentials: OAuth2PasswordRequestForm = Depends(),
+        user_manager: UserManager = Depends(get_user_manager),
+    ):
+        """
+        Log in with email and password.
+
+        Same form fields and the same 400 error as the FastAPI-Users route
+        this replaces, so clients do not notice the difference.
+        """
+        user = await user_manager.authenticate(credentials)
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorCode.LOGIN_BAD_CREDENTIALS,
+            )
+        token = await get_jwt_strategy().write_token(user)
+        return {"access_token": token, "token_type": "bearer"}
 
     # Registration route (POST /auth/register)
     router.include_router(
@@ -80,13 +97,6 @@ def get_auth_router() -> APIRouter:
         fastapi_users.get_reset_password_router(),
         prefix="/auth",
         tags=["auth"],
-    )
-
-    # User management routes (GET /users/me, PATCH /users/me, etc.)
-    router.include_router(
-        fastapi_users.get_users_router(UserRead, UserUpdate),
-        prefix="/users",
-        tags=["users"],
     )
 
     # Custom change password endpoint

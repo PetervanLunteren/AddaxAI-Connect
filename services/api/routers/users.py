@@ -2,7 +2,13 @@
 User endpoints for accessing user-specific data.
 
 Provides endpoints for users to:
+- Get their own account
 - Get their own project memberships with roles
+
+The FastAPI-Users users router is not mounted on purpose. Its PATCH /users/me
+changes the email address and the password without asking for the current
+password, and its /users/{id} routes are not used by anything. Passwords are
+changed through POST /auth/change-password.
 """
 from typing import List
 from fastapi import APIRouter, Depends
@@ -12,7 +18,8 @@ from pydantic import BaseModel
 
 from shared.models import User, Project, ProjectMembership
 from shared.database import get_async_session
-from auth.users import current_verified_user
+from auth.schemas import UserRead
+from auth.users import current_active_user, current_verified_user
 from routers.projects import build_project_image_urls
 
 
@@ -45,6 +52,12 @@ class ProjectWithRole(BaseModel):
 class UserProjectsResponse(BaseModel):
     """Response for user's project memberships"""
     projects: List[ProjectWithRole]
+
+
+@router.get("/me", response_model=UserRead)
+async def get_me(current_user: User = Depends(current_active_user)):
+    """Get the account that is logged in"""
+    return current_user
 
 
 @router.get(
