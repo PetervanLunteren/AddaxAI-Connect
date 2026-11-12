@@ -16,11 +16,7 @@ import { Callout } from '../components/ui/Callout';
 import { Button } from '../components/ui/Button';
 import { ProjectCard } from '../components/projects/ProjectCard';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
-import { TopBar, TopBarLogo } from '../components/layout/TopBar';
-
-// The page's content column. The top bar uses the same one, so the logo and
-// the avatar line up with the page.
-const PAGE_COLUMN = 'container mx-auto px-6';
+import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -62,35 +58,24 @@ export const ProjectsPage: React.FC = () => {
   }, [isServerAdmin, setupStatus, queryClient]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <TopBar left={<TopBarLogo />} columnClassName={PAGE_COLUMN} />
-
-      {/* Main Content */}
-      <main className={`${PAGE_COLUMN} py-8`}>
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">Projects</h2>
-            <p className="text-muted-foreground mt-1">
-              {isServerAdmin
-                ? 'Manage wildlife monitoring projects'
-                : 'Your assigned projects'
-              }
-            </p>
-          </div>
-          {canCreateProject && (
-            <Button
-              size="sm"
-              onClick={() => setShowCreateModal(true)}
-              disabled={setupStatus && !setupStatus.ready}
-              title={setupStatus && !setupStatus.ready ? 'Server setup incomplete. A server admin sets the timezone in server settings first.' : undefined}
-              className="self-start whitespace-nowrap"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add project
-            </Button>
-          )}
-        </div>
-
+    <ServerPageLayout
+      title="Projects"
+      description={isServerAdmin ? 'Manage wildlife monitoring projects' : 'Your assigned projects'}
+      action={
+        canCreateProject && (
+          <Button
+            size="sm"
+            onClick={() => setShowCreateModal(true)}
+            disabled={setupStatus && !setupStatus.ready}
+            title={setupStatus && !setupStatus.ready ? 'Server setup incomplete. A server admin sets the timezone in server settings first.' : undefined}
+            className="self-start whitespace-nowrap"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add project
+          </Button>
+        )
+      }
+    >
         {/* Telegram not configured banner (server admins only) */}
         {isServerAdmin && setupStatus && !setupStatus.telegram && (
           <Callout
@@ -147,7 +132,6 @@ export const ProjectsPage: React.FC = () => {
             onClose={() => setShowCreateModal(false)}
           />
         )}
-      </main>
-    </div>
+    </ServerPageLayout>
   );
 };

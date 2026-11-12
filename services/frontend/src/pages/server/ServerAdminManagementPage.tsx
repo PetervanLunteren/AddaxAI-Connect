@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Shield, Loader2, UserPlus, Trash2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import {
   Dialog,
@@ -117,30 +117,22 @@ export const ServerAdminManagementPage: React.FC = () => {
 
   return (
     <ServerPageLayout
-      title="Server admin management"
-      description="Manage server administrators. Server admins have access to all projects and can manage users."
+      title="Server admins"
+      description="Server admins have access to all projects and can manage users."
+      action={
+        <Button
+          size="sm"
+          onClick={() => setShowAddModal(true)}
+          className="self-start whitespace-nowrap"
+        >
+          <UserPlus className="h-4 w-4 mr-2" />
+          Add server admin
+        </Button>
+      }
     >
+      {/* No card title. The page title above says what this list is. */}
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              <CardTitle>Server administrators</CardTitle>
-            </div>
-            <Button
-              onClick={() => setShowAddModal(true)}
-              className="self-start whitespace-nowrap"
-            >
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add server admin
-            </Button>
-          </div>
-          <CardDescription>
-            Users with server admin privileges can access all projects and administrative tools
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent>
+        <CardContent className="pt-6">
           {loadingUsers ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

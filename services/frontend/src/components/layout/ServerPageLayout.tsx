@@ -1,44 +1,40 @@
 /**
- * Shared layout for the pages outside a project: the server administration
- * pages, About and Account. The top bar, then the page title with a link
- * back to the projects, then the page.
+ * Shared layout for every page outside a project: the Projects page, the
+ * server administration pages, About and Account. The top bar, then the page
+ * title with its caption, then the page.
+ *
+ * All of them go through here, so the title, the caption and the spacing are
+ * in the same place on each and nothing moves when switching between them.
  */
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
-import { TopBar, TopBarLogo } from './TopBar';
+import { TopBar, TopBarHome } from './TopBar';
 
 interface ServerPageLayoutProps {
   title: string;
   description?: string;
+  /** The page's main action, right of the title, for example "Add project" */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }
-
-// The page's content column. The top bar uses the same one, so the logo and
-// the avatar line up with the page.
-const PAGE_COLUMN = 'container mx-auto px-4 sm:px-6';
 
 export const ServerPageLayout: React.FC<ServerPageLayoutProps> = ({
   title,
   description,
+  action,
   children
 }) => (
   <div className="min-h-screen bg-background">
-    <TopBar left={<TopBarLogo />} columnClassName={PAGE_COLUMN} />
+    <TopBar left={<TopBarHome />} />
 
-    <main className={`${PAGE_COLUMN} py-6 sm:py-8`}>
-      <div className="mb-6">
-        <Link
-          to="/projects"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to projects
-        </Link>
-        <h1 className="mt-2 text-2xl font-bold">{title}</h1>
-        {description && (
-          <p className="text-muted-foreground mt-1">{description}</p>
-        )}
+    <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{title}</h1>
+          {description && (
+            <p className="text-muted-foreground mt-1">{description}</p>
+          )}
+        </div>
+        {action}
       </div>
       {children}
     </main>
