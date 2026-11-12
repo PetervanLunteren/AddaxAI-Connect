@@ -21,9 +21,20 @@ export const TopBarLogo: React.FC<{ className?: string }> = ({ className = '' })
   </Link>
 );
 
-export const TopBar: React.FC<{ left?: React.ReactNode }> = ({ left }) => (
-  <header className="sticky top-[env(safe-area-inset-top)] z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-card px-4 sm:px-6">
-    <div className="flex min-w-0 items-center gap-3">{left}</div>
-    <AccountMenu />
+interface TopBarProps {
+  left?: React.ReactNode;
+  /** The width and side padding of the page's own content column, for
+   *  example "container mx-auto px-4 sm:px-6". The bar's line runs across the
+   *  whole page, but the logo and the avatar sit in this column, so they
+   *  line up with the page under them on any screen width. */
+  columnClassName: string;
+}
+
+export const TopBar: React.FC<TopBarProps> = ({ left, columnClassName }) => (
+  <header className="sticky top-[env(safe-area-inset-top)] z-30 border-b border-border bg-card">
+    <div className={`flex h-14 items-center justify-between gap-3 ${columnClassName}`}>
+      <div className="flex min-w-0 items-center gap-3">{left}</div>
+      <AccountMenu />
+    </div>
   </header>
 );

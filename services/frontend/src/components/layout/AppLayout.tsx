@@ -12,6 +12,10 @@ interface AppLayoutProps {
   children: React.ReactNode;
 }
 
+// The page's content column. The top bar uses the same one, so the avatar
+// lines up with the page.
+const PAGE_COLUMN = 'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8';
+
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -25,6 +29,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             On desktop the sidebar does both, and the bar holds the account
             menu only. */}
         <TopBar
+          columnClassName={PAGE_COLUMN}
           left={
             <div className="flex items-center gap-3 lg:hidden">
               <button
@@ -40,7 +45,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           }
         />
 
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <div className={`${PAGE_COLUMN} py-6 sm:py-8`}>
           {children}
         </div>
       </main>

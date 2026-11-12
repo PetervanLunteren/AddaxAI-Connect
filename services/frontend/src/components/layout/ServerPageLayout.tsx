@@ -14,15 +14,19 @@ interface ServerPageLayoutProps {
   children: React.ReactNode;
 }
 
+// The page's content column. The top bar uses the same one, so the logo and
+// the avatar line up with the page.
+const PAGE_COLUMN = 'container mx-auto px-4 sm:px-6';
+
 export const ServerPageLayout: React.FC<ServerPageLayoutProps> = ({
   title,
   description,
   children
 }) => (
   <div className="min-h-screen bg-background">
-    <TopBar left={<TopBarLogo />} />
+    <TopBar left={<TopBarLogo />} columnClassName={PAGE_COLUMN} />
 
-    <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+    <main className={`${PAGE_COLUMN} py-6 sm:py-8`}>
       <div className="mb-6">
         <Link
           to="/projects"

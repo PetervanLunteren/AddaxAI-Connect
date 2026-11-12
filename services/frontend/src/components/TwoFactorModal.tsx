@@ -1,6 +1,7 @@
 /**
- * Two-factor login for the account that is logged in, opened from the user
- * menu. Off: explain and set it up. On: switch it off, with a code.
+ * Two-factor login for the account that is logged in, opened from the
+ * Account page. Off: the setup starts at once, the button on the page was
+ * the decision. On: switch it off, with a code.
  */
 import React, { useState } from 'react';
 import {
@@ -28,7 +29,6 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
   const { user, refreshUser } = useAuth();
   const { projects } = useProject();
   const toast = useToast();
-  const [settingUp, setSettingUp] = useState(false);
   // True from the moment two-factor is on until the user confirms the
   // recovery codes. They are shown once, so the dialog cannot be closed
   // around them.
@@ -38,7 +38,6 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
   const [loading, setLoading] = useState(false);
 
   const close = () => {
-    setSettingUp(false);
     setShowingCodes(false);
     setCode('');
     setError('');
@@ -78,9 +77,9 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
     }
   };
 
-  // While the setup runs this dialog shows the setup, also after the account
-  // itself already reads as on.
-  const isOn = !!user?.two_factor_enabled && !settingUp;
+  // While the recovery codes are up this dialog still shows the setup,
+  // although the account itself already reads as on.
+  const isOn = !!user?.two_factor_enabled && !showingCodes;
   // The API refuses to switch it off while a project requires it. Say so up
   // front, the user's projects are loaded already.
   const isRequired = !!projects?.some((project) => project.require_two_factor);
@@ -138,14 +137,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
           </form>
         )}
 
-        {!isOn && !settingUp && (
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>Cancel</Button>
-            <Button type="button" onClick={() => setSettingUp(true)}>Set up</Button>
-          </DialogFooter>
-        )}
-
-        {settingUp && <TwoFactorSetup onEnabled={handleEnabled} onDone={handleSetupDone} />}
+        {!isOn && <TwoFactorSetup onEnabled={handleEnabled} onDone={handleSetupDone} />}
       </DialogContent>
     </Dialog>
   );

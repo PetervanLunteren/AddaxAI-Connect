@@ -18,6 +18,10 @@ import { ProjectCard } from '../components/projects/ProjectCard';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 import { TopBar, TopBarLogo } from '../components/layout/TopBar';
 
+// The page's content column. The top bar uses the same one, so the logo and
+// the avatar line up with the page.
+const PAGE_COLUMN = 'container mx-auto px-6';
+
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -59,10 +63,10 @@ export const ProjectsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopBar left={<TopBarLogo />} />
+      <TopBar left={<TopBarLogo />} columnClassName={PAGE_COLUMN} />
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      <main className={`${PAGE_COLUMN} py-8`}>
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold">Projects</h2>
