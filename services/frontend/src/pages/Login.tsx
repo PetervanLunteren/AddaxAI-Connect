@@ -8,6 +8,7 @@ import { Callout } from '../components/ui/Callout';
 import { AuthLayout } from '../components/AuthLayout';
 import { Button } from '../components/ui/Button';
 import { Checkbox } from '../components/ui/Checkbox';
+import { useToast } from '../components/ui/Toaster';
 import { CODE_INPUT_CLASS, TwoFactorSetup } from '../components/TwoFactorSetup';
 import apiClient from '../api/client';
 import {
@@ -28,6 +29,10 @@ export const Login: React.FC = () => {
   const [twoFactorStep, setTwoFactorStep] = useState<LoginTwoFactorStep | null>(null);
   const [code, setCode] = useState('');
   const [remember, setRemember] = useState(false);
+  // True once a forced setup has switched two-factor on and the recovery
+  // codes are on screen. The "set it up to continue" note is done then.
+  const [setupEnabled, setSetupEnabled] = useState(false);
+  const toast = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -71,6 +76,7 @@ export const Login: React.FC = () => {
 
   const backToPassword = (message = '') => {
     setTwoFactorStep(null);
+    setSetupEnabled(false);
     setCode('');
     setPassword('');
     setError(message);
@@ -99,6 +105,16 @@ export const Login: React.FC = () => {
     try {
       const response = await loginWithCode(twoFactorStep.pending_token, code, remember);
       await finishLogin(response.access_token);
+      // A recovery code works once. Say how many are left, so the last one
+      // does not come as a surprise.
+      const left = response.recovery_codes_left;
+      if (left !== undefined) {
+        toast.success(
+          left === 0
+            ? 'That was your last recovery code. Switch two-factor login off and on again to get new ones.'
+            : `Recovery code used. You have ${left} left.`,
+        );
+      }
     } catch (err) {
       handleTwoFactorError(err);
     } finally {
@@ -181,11 +197,14 @@ export const Login: React.FC = () => {
     return (
       <AuthLayout subtitle="Set up two-factor login">
         <div className="space-y-6">
-          <Callout variant="info">
-            A project you can open requires two-factor login. Set it up to continue.
-          </Callout>
+          {!setupEnabled && (
+            <Callout variant="info">
+              A project you can open requires two-factor login. Set it up to continue.
+            </Callout>
+          )}
           <TwoFactorSetup
             pendingToken={twoFactorStep.pending_token}
+            onEnabled={() => setSetupEnabled(true)}
             onDone={(accessToken) => accessToken && finishLogin(accessToken)}
             onFailed={(err) => {
               if (err?.response?.data?.detail === TWO_FACTOR_PENDING_EXPIRED) {

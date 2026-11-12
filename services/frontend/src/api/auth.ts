@@ -12,6 +12,8 @@ export interface LoginRequest {
 export interface LoginToken {
   access_token: string;
   token_type: string;
+  // Only after a login with a recovery code, how many unused ones are left
+  recovery_codes_left?: number;
 }
 
 /**
@@ -257,7 +259,8 @@ export const disableTwoFactor = async (code: string): Promise<void> => {
 export const TWO_FACTOR_PENDING_EXPIRED = 'TWO_FACTOR_PENDING_EXPIRED';
 
 const TWO_FACTOR_MESSAGES: Record<string, string> = {
-  TWO_FACTOR_BAD_CODE: 'That code is not right. Check the app and try again.',
+  // One wording for a code from the app and for a recovery code, the field takes both
+  TWO_FACTOR_BAD_CODE: 'That code is not right. Try again.',
   [TWO_FACTOR_PENDING_EXPIRED]: 'That took too long. Log in again.',
   TWO_FACTOR_TOO_MANY_ATTEMPTS: 'Too many wrong codes. Wait 15 minutes and try again.',
   TWO_FACTOR_UNAVAILABLE: 'Two-factor login is not available right now. Try again in a minute.',

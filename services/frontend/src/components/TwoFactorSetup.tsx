@@ -28,6 +28,10 @@ export const CODE_INPUT_CLASS =
 interface TwoFactorSetupProps {
   /** Set when the setup is part of a login, see LoginTwoFactorStep */
   pendingToken?: string;
+  /** Called the moment two-factor login is on and the recovery codes come
+   *  on screen. From here on the parent must not offer a way to leave
+   *  except through onDone, or the codes are gone unseen. */
+  onEnabled?: () => void;
   /** Called after the user has seen the recovery codes. Gets the access
    *  token when the setup was part of a login. */
   onDone: (accessToken?: string) => void;
@@ -38,7 +42,7 @@ interface TwoFactorSetupProps {
   cancel?: React.ReactNode;
 }
 
-export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, onDone, onFailed, cancel }) => {
+export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, onEnabled, onDone, onFailed, cancel }) => {
   const [setup, setSetup] = useState<SetupData | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -69,6 +73,7 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
       const result = await enableTwoFactor(code, pendingToken);
       setAccessToken(result.access_token);
       setRecoveryCodes(result.recovery_codes);
+      onEnabled?.();
     } catch (err) {
       setError(twoFactorErrorMessage(err));
       onFailed?.(err);
@@ -85,13 +90,17 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
           Save these recovery codes somewhere safe, for example in a password manager. Each code
           logs you in once when you do not have your phone. They are not shown again.
         </p>
-        <div className="relative rounded-md border bg-gray-50 p-4">
-          <ul className="grid grid-cols-1 gap-1 font-mono text-sm sm:grid-cols-2">
+        <div className="rounded-md border bg-gray-50 px-4 pb-4 pt-2">
+          {/* The copy button has its own row, so it never sits on a code */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Recovery codes</span>
+            <CopyButton text={recoveryCodes.join('\n')} />
+          </div>
+          <ul className="grid grid-cols-1 gap-x-4 gap-y-1 font-mono text-sm sm:grid-cols-2">
             {recoveryCodes.map((recoveryCode) => (
-              <li key={recoveryCode}>{recoveryCode}</li>
+              <li key={recoveryCode} className="whitespace-nowrap">{recoveryCode}</li>
             ))}
           </ul>
-          <CopyButton text={recoveryCodes.join('\n')} className="absolute right-2 top-2" />
         </div>
         <Button type="button" className="w-full" onClick={() => onDone(accessToken)}>
           I saved my recovery codes
@@ -117,6 +126,13 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
       <div className="flex justify-center rounded-lg bg-white p-4">
         <QRCode value={setup.otpauth_uri} size={180} />
       </div>
+      {/* A phone cannot scan its own screen. The link holds what the QR code
+          holds and opens the authenticator app on the phone itself. */}
+      <p className="text-center text-sm sm:hidden">
+        <a href={setup.otpauth_uri} className="font-medium text-primary underline underline-offset-4">
+          Open in your authenticator app
+        </a>
+      </p>
       <div className="text-sm text-gray-700">
         <p>Cannot scan it? Type this key into the app.</p>
         <div className="mt-1 flex items-center gap-1">

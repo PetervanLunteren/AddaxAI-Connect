@@ -13,9 +13,11 @@ import {
 } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
+import { useToast } from './ui/Toaster';
 import { CODE_INPUT_CLASS, TwoFactorSetup } from './TwoFactorSetup';
 import { disableTwoFactor, twoFactorErrorMessage } from '../api/auth';
 import { useAuth } from '../hooks/useAuth';
+import { useProject } from '../contexts/ProjectContext';
 
 interface TwoFactorModalProps {
   open: boolean;
@@ -24,21 +26,40 @@ interface TwoFactorModalProps {
 
 export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose }) => {
   const { user, refreshUser } = useAuth();
+  const { projects } = useProject();
+  const toast = useToast();
   const [settingUp, setSettingUp] = useState(false);
+  // True from the moment two-factor is on until the user confirms the
+  // recovery codes. They are shown once, so the dialog cannot be closed
+  // around them.
+  const [showingCodes, setShowingCodes] = useState(false);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleClose = () => {
+  const close = () => {
     setSettingUp(false);
+    setShowingCodes(false);
     setCode('');
     setError('');
     onClose();
   };
 
-  const handleSetupDone = async () => {
-    await refreshUser();
-    handleClose();
+  // Escape, the X and a click outside. Not while the recovery codes are up.
+  const handleDismiss = () => {
+    if (!showingCodes) close();
+  };
+
+  const handleEnabled = () => {
+    setShowingCodes(true);
+    // Read the account again right away, so the menu says "On" whatever
+    // happens to this dialog next.
+    refreshUser();
+  };
+
+  const handleSetupDone = () => {
+    close();
+    toast.success('Two-factor login is on');
   };
 
   const handleDisable = async (e: React.FormEvent) => {
@@ -48,7 +69,8 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
     try {
       await disableTwoFactor(code);
       await refreshUser();
-      handleClose();
+      close();
+      toast.success('Two-factor login is off');
     } catch (err) {
       setError(twoFactorErrorMessage(err));
     } finally {
@@ -56,23 +78,39 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
     }
   };
 
-  // While the setup runs the account still counts as off, until the user
-  // has seen the recovery codes and the account is read again.
+  // While the setup runs this dialog shows the setup, also after the account
+  // itself already reads as on.
   const isOn = !!user?.two_factor_enabled && !settingUp;
+  // The API refuses to switch it off while a project requires it. Say so up
+  // front, the user's projects are loaded already.
+  const isRequired = !!projects?.some((project) => project.require_two_factor);
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent onClose={handleClose}>
+    <Dialog open={open} onOpenChange={handleDismiss}>
+      <DialogContent onClose={showingCodes ? undefined : close}>
         <DialogHeader>
           <DialogTitle>Two-factor login</DialogTitle>
-          <DialogDescription>
-            {isOn
-              ? 'Two-factor login is on. You log in with your password and a code from your authenticator app.'
-              : 'Protect your account with a second step. After your password you type a code from an authenticator app on your phone.'}
-          </DialogDescription>
+          {!showingCodes && (
+            <DialogDescription>
+              {isOn
+                ? 'Two-factor login is on. You log in with your password and a code from your authenticator app.'
+                : 'Protect your account with a second step. After your password you type a code from an authenticator app on your phone.'}
+            </DialogDescription>
+          )}
         </DialogHeader>
 
-        {isOn && (
+        {isOn && isRequired && (
+          <>
+            <Callout variant="info">
+              A project you can open requires two-factor login, so you cannot switch it off.
+            </Callout>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={close}>Close</Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {isOn && !isRequired && (
           <form onSubmit={handleDisable}>
             <div className="space-y-4 py-2">
               {error && <Callout variant="error">{error}</Callout>}
@@ -92,7 +130,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={close}>Cancel</Button>
               <Button type="submit" variant="destructive" disabled={loading}>
                 {loading ? 'Switching off...' : 'Switch off'}
               </Button>
@@ -102,12 +140,12 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
 
         {!isOn && !settingUp && (
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={close}>Cancel</Button>
             <Button type="button" onClick={() => setSettingUp(true)}>Set up</Button>
           </DialogFooter>
         )}
 
-        {settingUp && <TwoFactorSetup onDone={handleSetupDone} />}
+        {settingUp && <TwoFactorSetup onEnabled={handleEnabled} onDone={handleSetupDone} />}
       </DialogContent>
     </Dialog>
   );

@@ -77,14 +77,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const login = async (email: string, password: string): Promise<LoginTwoFactorStep | null> => {
-    // Drop a login that is still in this browser. Whatever follows is for the
-    // account that logs in now, not for the one that was here before.
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user');
-    setUser(null);
-
     const response = await apiLogin(email, password);
     if (isTwoFactorStep(response)) {
+      // Drop a login that is still in this browser. The step that follows is
+      // for the account whose password was just checked, not for the one
+      // that was here before. Only now, so a mistyped password does not log
+      // anyone out.
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      setUser(null);
       return response;
     }
 
