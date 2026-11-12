@@ -376,6 +376,16 @@ Plan to add:
 5. **Image Gallery**: Component for viewing camera trap images
 6. **Map View**: Leaflet integration for site locations
 
+## Top bar and account menu
+
+Every page behind the login starts with `TopBar` (`components/layout/TopBar.tsx`). Do not build another header. Its right side is always `AccountMenu`, the circle with the first letter of the user's email. Its left side is passed in by the layout: the logo, and inside a project on a phone the button that opens the navigation.
+
+What goes where follows the scope of the thing:
+
+- About the user's own account (password, two-factor login): the Account page, `/account`.
+- About the whole server: the server admin section of the account menu, server admins only.
+- About one project: that project's sidebar, never the account menu. On the Projects page no project is selected.
+
 ## Overlay z-index ladder
 
 All stacking follows one ladder. Do not invent new z-index values, pick the matching layer. When two overlays share a layer, DOM order breaks the tie (portalled overlays append to `document.body` last, so they win).
@@ -383,7 +393,7 @@ All stacking follows one ladder. Do not invent new z-index values, pick the matc
 | z | layer | used by |
 |---|-------|---------|
 | 0 | map containers | inline `zIndex: 0` on every `MapContainer` |
-| 10-30 | in-page sticky | table and matrix headers, mobile top bar (30) |
+| 10-30 | in-page sticky | table and matrix headers, top bar (30) |
 | 40 | sidebar backdrop | mobile drawer backdrop |
 | 50 | app overlays | sidebar drawer, Dialog, Sheet, DropdownMenu, Popover, select menus |
 | 60 | iOS status strip | `body::before` in `styles/index.css` |

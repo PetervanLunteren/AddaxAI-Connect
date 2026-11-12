@@ -93,7 +93,7 @@ To invite someone (project admins and server admins only):
 
 Users can have different roles across different projects. For example, someone can be an admin of one project and a viewer of another.
 
-To add a server admin (full access to all projects and system settings), go to Server admins in the hamburger menu on the projects page.
+To add a server admin (full access to all projects and system settings), go to Server admins in the account menu, the circle with your letter in the top right.
 
 ## Set up notifications
 

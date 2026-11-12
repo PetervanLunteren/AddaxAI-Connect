@@ -8,8 +8,8 @@ It is optional for every account. A project can require it for everyone who can 
 
 You need an authenticator app on your phone, for example Google Authenticator, Microsoft Authenticator or 1Password.
 
-1. Open the menu in the top right of the Projects page and click "Two-factor login".
-2. Click "Set up" and scan the QR code with the app.
+1. Click the circle with your letter in the top right and choose Account.
+2. Next to "Two-factor login", click "Set up" and scan the QR code with the app.
 3. Type the six-digit code from the app.
 4. Save the recovery codes that appear. They are shown once.
 
@@ -31,7 +31,7 @@ Every remembered browser is forgotten when you change your password, or when two
 
 ## Switch it off
 
-Open "Two-factor login" in the menu and type a code from the app or a recovery code. This does not work while a project you can open requires two-factor login.
+On the Account page, click "Manage" next to "Two-factor login" and type a code from the app or a recovery code. This does not work while a project you can open requires two-factor login.
 
 ## You lost your phone
 
