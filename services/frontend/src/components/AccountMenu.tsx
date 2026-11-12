@@ -92,11 +92,13 @@ export const AccountMenu: React.FC = () => {
   return (
     <div className="relative" ref={menuRef}>
       {/* The avatar: the first letter of the email. Accounts have no name
-          and no photo, and a letter still tells two accounts apart. */}
+          and no photo, and a letter still tells two accounts apart. A light
+          tint, not a solid fill: the solid colour is for the page's main
+          button, and the avatar should not compete with it. */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground transition-shadow',
+          'flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary transition-shadow',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           isOpen ? 'ring-2 ring-ring ring-offset-2' : 'hover:ring-2 hover:ring-ring hover:ring-offset-2'
         )}
