@@ -16,7 +16,7 @@ import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
 import { useToast } from './ui/Toaster';
 import { CODE_INPUT_CLASS, TwoFactorSetup } from './TwoFactorSetup';
-import { disableTwoFactor, twoFactorErrorMessage } from '../api/auth';
+import { TWO_FACTOR_CANNOT_SWITCH_OFF, disableTwoFactor, twoFactorErrorMessage } from '../api/auth';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 
@@ -93,7 +93,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
             <DialogDescription>
               {isOn
                 ? 'Two-factor login is on. You log in with your password and a code from your authenticator app.'
-                : 'Protect your account with a second step. After your password you type a code from an authenticator app on your phone.'}
+                : 'Protect your account with a second step.'}
             </DialogDescription>
           )}
         </DialogHeader>
@@ -101,7 +101,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
         {isOn && isRequired && (
           <>
             <Callout variant="info">
-              A project you can open requires two-factor login, so you cannot switch it off.
+              {TWO_FACTOR_CANNOT_SWITCH_OFF}
             </Callout>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={close}>Close</Button>

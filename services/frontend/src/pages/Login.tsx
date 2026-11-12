@@ -14,6 +14,7 @@ import apiClient from '../api/client';
 import {
   LoginTwoFactorStep,
   TWO_FACTOR_PENDING_EXPIRED,
+  TWO_FACTOR_SET_UP_TO_CONTINUE,
   loginWithCode,
   twoFactorErrorMessage,
 } from '../api/auth';
@@ -199,7 +200,7 @@ export const Login: React.FC = () => {
         <div className="space-y-6">
           {!setupEnabled && (
             <Callout variant="info">
-              A project you can open requires two-factor login. Set it up to continue.
+              {TWO_FACTOR_SET_UP_TO_CONTINUE}
             </Callout>
           )}
           <TwoFactorSetup

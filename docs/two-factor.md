@@ -6,12 +6,12 @@ It is optional for every account. A project can require it for everyone who can 
 
 ## Switch it on
 
-You need an authenticator app on your phone, for example Google Authenticator, Microsoft Authenticator or 1Password.
-
 1. Click the circle with your letter in the top right and choose Account.
-2. Next to "Two-factor login", click "Set up" and scan the QR code with the app.
-3. Type the six-digit code from the app.
-4. Save the recovery codes that appear. They are shown once.
+2. Next to "Two-factor login", click "Set up". The dialog has three steps.
+3. Install an authenticator app on your phone, for example Google Authenticator or Microsoft Authenticator. Both are free in the App Store and on Google Play.
+4. Scan the QR code with the app. On the phone itself, tap "Open in your authenticator app".
+5. Type the six-digit code the app shows.
+6. Save the recovery codes that appear, with the download or the copy button. They are shown once.
 
 From now on the login page asks for a code after your password.
 

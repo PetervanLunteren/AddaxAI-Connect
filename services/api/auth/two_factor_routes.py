@@ -234,6 +234,9 @@ async def setup(
     return {
         "key": two_factor.secret_as_text(secret),
         "otpauth_uri": two_factor.provisioning_uri(secret, user.email),
+        # For the file of recovery codes the browser offers to download. A
+        # setup at login has no session to read the address from.
+        "email": user.email,
     }
 
 

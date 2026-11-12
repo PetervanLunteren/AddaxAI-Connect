@@ -35,6 +35,7 @@ export const isTwoFactorStep = (response: LoginResponse): response is LoginTwoFa
 export interface TwoFactorSetup {
   key: string; // What a user types into the authenticator app
   otpauth_uri: string; // What the QR code holds
+  email: string; // The account, for the file of recovery codes
 }
 
 export interface TwoFactorEnabled {
@@ -258,13 +259,21 @@ export const disableTwoFactor = async (code: string): Promise<void> => {
  */
 export const TWO_FACTOR_PENDING_EXPIRED = 'TWO_FACTOR_PENDING_EXPIRED';
 
+/**
+ * Why two-factor login is not a free choice for this account. One wording,
+ * used by the setup at login, by the account dialog and for the API's refusal.
+ */
+const TWO_FACTOR_REQUIRED_REASON = 'One of your projects requires two-factor login';
+export const TWO_FACTOR_SET_UP_TO_CONTINUE = `${TWO_FACTOR_REQUIRED_REASON}. Set it up to continue.`;
+export const TWO_FACTOR_CANNOT_SWITCH_OFF = `${TWO_FACTOR_REQUIRED_REASON}, so you cannot switch it off.`;
+
 const TWO_FACTOR_MESSAGES: Record<string, string> = {
   // One wording for a code from the app and for a recovery code, the field takes both
   TWO_FACTOR_BAD_CODE: 'That code is not right. Try again.',
   [TWO_FACTOR_PENDING_EXPIRED]: 'That took too long. Log in again.',
   TWO_FACTOR_TOO_MANY_ATTEMPTS: 'Too many wrong codes. Wait 15 minutes and try again.',
   TWO_FACTOR_UNAVAILABLE: 'Two-factor login is not available right now. Try again in a minute.',
-  TWO_FACTOR_REQUIRED: 'A project you can open requires two-factor login, so you cannot switch it off.',
+  TWO_FACTOR_REQUIRED: TWO_FACTOR_CANNOT_SWITCH_OFF,
   TWO_FACTOR_ALREADY_ON: 'Two-factor login is already on for this account.',
   TWO_FACTOR_NOT_ON: 'Two-factor login is not on for this account.',
   TWO_FACTOR_NO_SETUP: 'Start the setup again.',

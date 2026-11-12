@@ -639,6 +639,7 @@ class TestSetupAndEnable:
         started = await two_factor_routes.setup(two_factor_routes.PendingRequest(), db, user)
         assert not user.two_factor_enabled
         assert started["key"] == secret_as_text(decrypt_secret(user.totp_secret))
+        assert started["email"] == user.email
 
         secret = decrypt_secret(user.totp_secret)
         result = await two_factor_routes.enable(

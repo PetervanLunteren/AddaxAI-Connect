@@ -1,16 +1,16 @@
 /**
  * Setting up two-factor login, in two screens.
  *
- * First the QR code for the authenticator app and a field for the first
- * code. Then the recovery codes, which are shown this once.
+ * First three numbered steps: install an app, scan the QR code, type the
+ * first code. Then the recovery codes, which are shown this once.
  *
  * Used by the login page, when a project requires two-factor login and the
- * account has none (with a pending token), and by the account dialog in the
- * user menu (without one).
+ * account has none (with a pending token), and by the dialog on the Account
+ * page (without one).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
 import { CopyButton } from './ui/CopyButton';
@@ -41,6 +41,28 @@ interface TwoFactorSetupProps {
    *  are on screen two-factor is on, and leaving would skip saving them. */
   cancel?: React.ReactNode;
 }
+
+/** One numbered step of the setup: the number, what to do, and what it needs */
+const Step: React.FC<{
+  number: number;
+  title: string;
+  /** Set when the step is one input, so its title is the input's label */
+  titleFor?: string;
+  children: React.ReactNode;
+}> = ({ number, title, titleFor, children }) => (
+  <li className="flex gap-3">
+    <span
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+      aria-hidden="true"
+    >
+      {number}
+    </span>
+    <div className="min-w-0 flex-1 space-y-2 text-sm text-gray-700">
+      <label htmlFor={titleFor} className="block font-medium text-foreground">{title}</label>
+      {children}
+    </div>
+  </li>
+);
 
 export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, onEnabled, onDone, onFailed, cancel }) => {
   const [setup, setSetup] = useState<SetupData | null>(null);
@@ -82,6 +104,27 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
     }
   };
 
+  // The codes as a text file, with what they belong to. A year from now a
+  // bare list of codes in a downloads folder means nothing.
+  const downloadRecoveryCodes = () => {
+    const text = [
+      'AddaxAI Connect recovery codes',
+      `Server: ${window.location.host}`,
+      `Account: ${setup?.email ?? ''}`,
+      '',
+      'Each code logs you in once when you do not have your phone.',
+      '',
+      ...(recoveryCodes ?? []),
+      '',
+    ].join('\n');
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'addaxai-connect-recovery-codes.txt';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (recoveryCodes) {
     return (
       <div className="space-y-4">
@@ -91,10 +134,21 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
           logs you in once when you do not have your phone. They are not shown again.
         </p>
         <div className="rounded-md border bg-gray-50 px-4 pb-4 pt-2">
-          {/* The copy button has its own row, so it never sits on a code */}
+          {/* The buttons have their own row, so they never sit on a code */}
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Recovery codes</span>
-            <CopyButton text={recoveryCodes.join('\n')} />
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={downloadRecoveryCodes}
+                className="inline-flex items-center justify-center p-2 hover:bg-accent rounded transition-colors"
+                title="Download as a text file"
+                aria-label="Download as a text file"
+              >
+                <Download className="h-3 w-3 text-muted-foreground" />
+              </button>
+              <CopyButton text={recoveryCodes.join('\n')} />
+            </div>
           </div>
           <ul className="grid grid-cols-1 gap-x-4 gap-y-1 font-mono text-sm sm:grid-cols-2">
             {recoveryCodes.map((recoveryCode) => (
@@ -102,8 +156,9 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
             ))}
           </ul>
         </div>
+        {/* A plain label. "I saved my codes" made people claim it, not do it. */}
         <Button type="button" className="w-full" onClick={() => onDone(accessToken)}>
-          I saved my recovery codes
+          Continue
         </Button>
       </div>
     );
@@ -116,46 +171,48 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleConfirm}>
+    <form className="space-y-5" onSubmit={handleConfirm}>
       {error && <Callout variant="error">{error}</Callout>}
 
-      <p className="text-sm text-gray-700">
-        Scan this QR code with an authenticator app on your phone, for example Google
-        Authenticator, Microsoft Authenticator or 1Password.
-      </p>
-      <div className="flex justify-center rounded-lg bg-white p-4">
-        <QRCode value={setup.otpauth_uri} size={180} />
-      </div>
-      {/* A phone cannot scan its own screen. The link holds what the QR code
-          holds and opens the authenticator app on the phone itself. */}
-      <p className="text-center text-sm sm:hidden">
-        <a href={setup.otpauth_uri} className="font-medium text-primary underline underline-offset-4">
-          Open in your authenticator app
-        </a>
-      </p>
-      <div className="text-sm text-gray-700">
-        <p>Cannot scan it? Type this key into the app.</p>
-        <div className="mt-1 flex items-center gap-1">
-          <code className="break-all rounded bg-gray-100 px-2 py-1 text-xs">{setup.key}</code>
-          <CopyButton text={setup.key} />
-        </div>
-      </div>
+      <ol className="space-y-5">
+        <Step number={1} title="Install an authenticator app on your phone">
+          <p>
+            For example Google Authenticator or Microsoft Authenticator. Both are free in the
+            App Store and on Google Play.
+          </p>
+        </Step>
 
-      <div>
-        <label htmlFor="two-factor-setup-code" className="block text-sm font-medium text-gray-700">
-          Code from the app
-        </label>
-        <input
-          id="two-factor-setup-code"
-          type="text"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          required
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          className={`mt-1 ${CODE_INPUT_CLASS}`}
-        />
-      </div>
+        <Step number={2} title="Scan this QR code with the app">
+          <div className="flex justify-center rounded-lg bg-white p-4">
+            <QRCode value={setup.otpauth_uri} size={180} />
+          </div>
+          {/* A phone cannot scan its own screen. The link holds what the QR
+              code holds and opens the authenticator app on the phone itself. */}
+          <p className="text-center sm:hidden">
+            <a href={setup.otpauth_uri} className="font-medium text-primary underline underline-offset-4">
+              Open in your authenticator app
+            </a>
+          </p>
+          <p>Cannot scan it? Type this key into the app.</p>
+          <div className="flex items-center justify-center gap-1 rounded-md border bg-gray-50 px-3 py-1">
+            <code className="break-all font-mono text-xs">{setup.key}</code>
+            <CopyButton text={setup.key} />
+          </div>
+        </Step>
+
+        <Step number={3} title="Type the six-digit code the app shows" titleFor="two-factor-setup-code">
+          <input
+            id="two-factor-setup-code"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className={CODE_INPUT_CLASS}
+          />
+        </Step>
+      </ol>
 
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? 'Checking...' : 'Switch on two-factor login'}
