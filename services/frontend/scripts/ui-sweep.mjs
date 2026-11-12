@@ -41,6 +41,7 @@ const PUBLIC_ROUTES = ['/login', '/forgot-password'];
 const GLOBAL_ROUTES = [
   '/projects',
   '/about',
+  '/account',
   '/admin/users',
   '/server/server-admin-management',
   '/server/user-assignment',

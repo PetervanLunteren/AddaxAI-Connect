@@ -8,20 +8,16 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Upload, Settings, Activity, LogOut, Info, KeyRound, BookOpen, ShieldCheck } from 'lucide-react';
+import { Users, Upload, Settings, Activity, LogOut, Info, BookOpen, UserRound } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
-import { ChangePasswordModal } from './ChangePasswordModal';
-import { TwoFactorModal } from './TwoFactorModal';
 
 export const AccountMenu: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { isServerAdmin } = useProject();
   const [isOpen, setIsOpen] = useState(false);
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [showTwoFactor, setShowTwoFactor] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -113,24 +109,14 @@ export const AccountMenu: React.FC = () => {
             <p className="text-sm text-muted-foreground truncate">{user.email}</p>
           </div>
 
-          {/* Account Actions */}
+          {/* Password and two-factor login are on the Account page */}
           <div className="py-1">
             <button
-              onClick={() => { setIsOpen(false); setShowChangePassword(true); }}
+              onClick={() => handleNavigate('/account')}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
             >
-              <KeyRound className="h-4 w-4" />
-              <span>Change password</span>
-            </button>
-            <button
-              onClick={() => { setIsOpen(false); setShowTwoFactor(true); }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
-            >
-              <ShieldCheck className="h-4 w-4" />
-              <span>Two-factor login</span>
-              <span className="ml-auto text-xs text-muted-foreground">
-                {user.two_factor_enabled ? 'On' : 'Off'}
-              </span>
+              <UserRound className="h-4 w-4" />
+              <span>Account</span>
             </button>
           </div>
 
@@ -191,15 +177,6 @@ export const AccountMenu: React.FC = () => {
           </div>
         </div>
       )}
-
-      <ChangePasswordModal
-        open={showChangePassword}
-        onClose={() => setShowChangePassword(false)}
-      />
-      <TwoFactorModal
-        open={showTwoFactor}
-        onClose={() => setShowTwoFactor(false)}
-      />
     </div>
   );
 };

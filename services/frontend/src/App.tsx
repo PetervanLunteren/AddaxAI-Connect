@@ -28,6 +28,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { ExportsPage } from './pages/ExportsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { AboutPage } from './pages/AboutPage';
+import { AccountPage } from './pages/AccountPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ServerAdminManagementPage } from './pages/server/ServerAdminManagementPage';
 import { FileManagementPage } from './pages/server/FileManagementPage';
@@ -121,6 +122,14 @@ function App() {
                 }
               />
 <Route
+                path="/account"
+                element={
+                  <ProtectedRoute>
+                    <AccountPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/about"
                 element={
                   <ProtectedRoute>
