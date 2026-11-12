@@ -99,31 +99,11 @@ Two optional features copy data to a remote S3-compatible bucket:
 - **Cold storage tier**. When the raw images on local disk grow past a configurable budget, the oldest ones move to a remote bucket. Reads stay transparent, MinIO fetches cold objects on demand. Thumbnails, crops, and annotated images always stay on the server. See [operations](operations.md#cold-storage-tier).
 - **Daily backups**. A nightly job dumps the database and mirrors all image buckets to a separate remote bucket, so a lost server can be rebuilt from the backup alone. See the [restore guide](restore-guide.md).
 
-You choose the remote provider yourself. Any S3-compatible service works (Wasabi, AWS S3, Backblaze B2, and similar). You bring your own buckets and access keys, so the remote data stays under your own account. The system is developed and tested with [Wasabi](https://wasabi.com), and the servers hosted by Addax Data Science and Smart Parks store their cold images and backups on Wasabi as well.
-
-Security of the remote storage:
-
-- All transfers to the remote bucket go over HTTPS.
-- Access keys are scoped to a single bucket with minimal permissions. The backup key has no delete permission.
-- Cold tier and backups use separate buckets with separate keys, so one leaked key never exposes both.
-- The backup bucket keeps old versions of every object for 90 days, so an accidental overwrite or a compromised server cannot silently destroy the backup history.
-- Objects are stored as-is, encryption at rest is handled by the provider. Wasabi encrypts all stored data at rest by default.
+You choose the remote provider yourself. Any S3-compatible service works (Wasabi, AWS S3, Backblaze B2, and similar). You bring your own buckets and access keys, so the remote data stays under your own account. The system is developed and tested with [Wasabi](https://wasabi.com). Where the servers hosted by Addax Data Science and Smart Parks keep their data is on the [hosted service](hosted-service.md) page.
 
 ## Security
 
-The system uses multiple layers of protection:
-
-- **Network isolation**. PostgreSQL, Redis, and MinIO are only reachable within the Docker network, not from the internet.
-- **TLS everywhere**. Nginx terminates HTTPS with Let's Encrypt certificates, FTPS uses explicit TLS.
-- **Authentication on all services**. Password protection on the database, Redis, MinIO, and FTPS.
-- **Firewall**. UFW restricts inbound traffic to SSH, HTTP/HTTPS, and FTPS ports only.
-- **Server access by SSH key only**. Password login is switched off.
-- **Brute-force protection**. fail2ban blocks an address after five failed SSH logins. FTPS is deliberately left out, because all cameras share one account on mobile networks and one wrong password could ban a whole site.
-- **Automatic security updates**. The server installs its own operating system security patches every day, and reboots only when a patch needs it.
-- **Daily security check**. The same check that runs at the end of every deployment also runs each night, and emails server admins when something has drifted.
-- **Role-based access control**. Three-tier permission system (server admin, project admin, project viewer).
-
-The system does not include intrusion detection, file integrity monitoring, or log shipping to a separate system. It notices damage, like a disk filling up or a worker that died, rather than a quiet intruder.
+How the system and its backups are protected is on the [security](security.md) page.
 
 ## User roles
 

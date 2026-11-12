@@ -45,6 +45,10 @@ extra_css:
 
 nav:
   - Home: index.md
+  - Security and privacy:
+    - Privacy and data: privacy.md
+    - Security: security.md
+    - Hosted service: hosted-service.md
   - Cameras:
     - Camera requirements: camera-requirements.md
     - Willfine 4.0T CG: cameras/willfine-4-0t-cg.md

@@ -73,7 +73,7 @@ For contributors: [developer docs](DEVELOPERS.md) and [conventions](CONVENTIONS.
 
 Not every team has the technical capacity to run a server. For those teams, Smart Parks and Addax Data Science offer AddaxAI Connect as a hosted service, always together. They deploy it, keep it running, and help you connect your cameras, so you can spend your time on the wildlife instead of the infrastructure. This part is a paid service, and it is what keeps the open software free for everyone.
 
-The service is practical and mission-driven. It is best-effort and kept lightweight, without formal service level agreements or heavy procurement. If your organisation needs enterprise-level guarantees or contractual service levels, you can deploy the open-source stack yourself or work with a specialised enterprise provider.
+The service is best effort. Problems are fixed as soon as possible, but there is no contract with guaranteed uptime, guaranteed response times or support around the clock. Best effort does not mean less care: where the data is, who can access it and how the servers are kept up to date is on the [hosted service](https://connect.addaxai.com/hosted-service/) page. If your organisation needs such guarantees, you can deploy the open-source stack yourself or work with a specialised provider.
 
 To talk about hosting or setup help, visit [plan.addaxai.com](https://plan.addaxai.com).
 

@@ -11,6 +11,12 @@ An open-source platform that automatically processes camera trap images with mac
 
 <iframe src="https://www.youtube.com/embed/ojZebmYLfrQ" title="AddaxAI Connect intro" style="width: 100%; aspect-ratio: 16 / 9; border: 0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
+## Security and privacy
+
+- [Privacy and data](privacy.md): what is stored, who can see it, how long it is kept, and what happens to photos of people
+- [Security](security.md): how logins, camera uploads, the server and the backups are protected
+- [Hosted service](hosted-service.md): where your data is and who runs the server, when Addax Data Science and Smart Parks host it for you
+
 ## Getting started
 
 1. [Check camera compatibility](camera-requirements.md): any FTPS-capable camera works, but each camera type needs a profile. See the list of supported cameras and how to add yours
@@ -22,6 +28,7 @@ An open-source platform that automatically processes camera trap images with mac
 
 - [Sites and cameras](sites-and-deployments.md): how images are organised by place, and how camera moves are handled
 - [Service](service.md): plan field work on your cameras and keep their service history
+- [Theft watch](theft-watch.md): get a warning when a camera may be stolen or moved
 - [Install as an app](install-as-app.md): put AddaxAI Connect on your phone or computer
 
 ## Integrations
@@ -38,7 +45,7 @@ An open-source platform that automatically processes camera trap images with mac
 
 ## Developer
 
-- [Architecture](architecture.md): technology stack, data flow, services, data storage, security, and user roles
+- [Architecture](architecture.md): technology stack, data flow, services, data storage, and user roles
 - [Dev server setup](dev-server-setup.md): create a development server holding a copy of production data
 
 Questions? [Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) or email peter@addaxdatascience.com.
