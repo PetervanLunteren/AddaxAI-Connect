@@ -1,26 +1,24 @@
 /**
- * User Menu (Hamburger Menu)
+ * Account menu
  *
- * Dropdown menu for all users with role-based items.
- * All users see: email, About, and Logout
- * Server admins additionally see: server admin options
+ * The circle with the first letter of the user's email, on the right of the
+ * top bar on every page. Behind it is everything about the account itself,
+ * and for server admins the server pages. Tools that belong to one project
+ * are not here, they are in that project's sidebar.
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, Upload, Settings, Activity, LogOut, Info, KeyRound, BookOpen, ShieldCheck } from 'lucide-react';
+import { Users, Upload, Settings, Activity, LogOut, Info, KeyRound, BookOpen, ShieldCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { User } from '../api/auth';
+import { useAuth } from '../hooks/useAuth';
+import { useProject } from '../contexts/ProjectContext';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { TwoFactorModal } from './TwoFactorModal';
 
-interface UserMenuProps {
-  user: User;
-  isServerAdmin: boolean;
-  onLogout: () => void;
-}
-
-export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogout }) => {
+export const AccountMenu: React.FC = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const { isServerAdmin } = useProject();
   const [isOpen, setIsOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showTwoFactor, setShowTwoFactor] = useState(false);
@@ -48,10 +46,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
     navigate(path);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsOpen(false);
-    onLogout();
+    await logout();
+    navigate('/login');
   };
+
+  if (!user) return null;
 
   // General items (visible to all users)
   const generalItems = [
@@ -88,16 +89,20 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
 
   return (
     <div className="relative" ref={menuRef}>
-      {/* Hamburger Button */}
+      {/* The avatar: the first letter of the email. Accounts have no name
+          and no photo, and a letter still tells two accounts apart. */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'p-2 rounded-md transition-colors',
-          isOpen ? 'bg-accent' : 'hover:bg-accent'
+          'flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground transition-shadow',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          isOpen ? 'ring-2 ring-ring ring-offset-2' : 'hover:ring-2 hover:ring-ring hover:ring-offset-2'
         )}
-        aria-label="User menu"
+        aria-label="Account menu"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
       >
-        <Menu className="h-5 w-5" />
+        {user.email.charAt(0).toUpperCase()}
       </button>
 
       {/* Dropdown Menu */}
@@ -110,13 +115,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
 
           {/* Account Actions */}
           <div className="py-1">
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Logout</span>
-            </button>
             <button
               onClick={() => { setIsOpen(false); setShowChangePassword(true); }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
@@ -178,6 +176,18 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
                 <span>{item.label}</span>
               </button>
             ))}
+          </div>
+
+          {/* Log out, last, where people look for it */}
+          <div className="border-t border-border my-1" />
+          <div className="py-1">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Log out</span>
+            </button>
           </div>
         </div>
       )}

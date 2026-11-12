@@ -10,19 +10,17 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus } from 'lucide-react';
 import { adminApi } from '../api/admin';
-import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 import { Card, CardContent } from '../components/ui/Card';
 import { Callout } from '../components/ui/Callout';
 import { Button } from '../components/ui/Button';
 import { ProjectCard } from '../components/projects/ProjectCard';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
-import { UserMenu } from '../components/UserMenu';
+import { TopBar, TopBarLogo } from '../components/layout/TopBar';
 
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, logout } = useAuth();
   const { projects, loading, isServerAdmin } = useProject();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -59,30 +57,9 @@ export const ProjectsPage: React.FC = () => {
       });
   }, [isServerAdmin, setupStatus, queryClient]);
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <img src="/logo-wide.png" alt="AddaxAI Connect" className="h-[60px] w-auto" />
-            <div className="flex items-center gap-4">
-              {user && (
-                <UserMenu
-                  user={user}
-                  isServerAdmin={isServerAdmin}
-                  onLogout={handleLogout}
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <TopBar left={<TopBarLogo />} />
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
