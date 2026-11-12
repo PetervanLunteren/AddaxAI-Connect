@@ -378,9 +378,9 @@ Plan to add:
 
 ## Top bar and account menu
 
-Every page behind the login starts with `TopBar` (`components/layout/TopBar.tsx`). Do not build another header. The bar runs from edge to edge of the window, also above a centred page. Its right side is always `AccountMenu`, the circle with the first letter of the user's email. Its left side is passed in by the layout: the logo and the "Projects" link, or inside a project on a phone the button that opens the navigation.
+Every page behind the login starts with `TopBar` (`components/layout/TopBar.tsx`). Do not build another header. The bar runs from edge to edge of the window, also above a centred page. Its right side is always `AccountMenu`, the circle with the first letter of the user's email. Its left side is passed in by the layout: the logo, and inside a project on a phone the button that opens the navigation.
 
-Every page outside a project uses `ServerPageLayout`: the top bar, the title with its caption, an optional main action right of the title, then the page. Do not write a title block by hand, and do not add a "Back to projects" link. The way to the projects is in the bar.
+Every page outside a project uses `ServerPageLayout`: the top bar, the title with its caption, an optional main action right of the title, then the page. Do not write a title block by hand, and do not add a "Back to projects" link or a breadcrumb. The logo goes to the projects, and the account menu has a "Projects" item.
 
 What goes where follows the scope of the thing:
 

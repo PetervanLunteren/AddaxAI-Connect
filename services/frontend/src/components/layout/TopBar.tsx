@@ -3,8 +3,13 @@
  *
  * Right is always the account menu, so "me" is in the same corner on the
  * Projects page, on the server pages and inside a project. Left is up to the
- * page: the logo and the link to the projects, or inside a project on a phone
- * the button that opens the navigation.
+ * page: the logo, and inside a project on a phone the button that opens the
+ * navigation.
+ *
+ * The logo is the way to the projects from every page. The account menu has
+ * a "Projects" item as well, for who does not know a logo is a link. There
+ * is no "Back to projects" link and no breadcrumb: the pages outside a
+ * project are reached from the account menu, they are not below the projects.
  *
  * The bar runs from edge to edge of the window, also where the page under it
  * is a centred column. The avatar then never floats in the middle of a wide
@@ -17,37 +22,13 @@
  * dialogs, slide-outs and the navigation drawer all cover the bar.
  */
 import React from 'react';
-import { Link, NavLink } from 'react-router-dom';
-import { cn } from '../../lib/utils';
+import { Link } from 'react-router-dom';
 import { AccountMenu } from '../AccountMenu';
 
 export const TopBarLogo: React.FC = () => (
   <Link to="/projects" className="shrink-0" aria-label="Projects">
     <img src="/logo-wide.png" alt="AddaxAI Connect" className="h-9 w-auto" />
   </Link>
-);
-
-/**
- * The left side of the bar on a page outside a project: the logo, and the one
- * place those pages have in common to go to, the projects. It replaces a
- * "Back to projects" link in every page, which suggested a path that is not
- * there: those pages are reached from the account menu, not from a project.
- */
-export const TopBarHome: React.FC = () => (
-  <>
-    <TopBarLogo />
-    <NavLink
-      to="/projects"
-      className={({ isActive }) =>
-        cn(
-          'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-          isActive ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-        )
-      }
-    >
-      Projects
-    </NavLink>
-  </>
 );
 
 export const TopBar: React.FC<{ left?: React.ReactNode }> = ({ left }) => (

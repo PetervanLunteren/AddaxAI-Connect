@@ -7,7 +7,7 @@
  * in the same place on each and nothing moves when switching between them.
  */
 import React from 'react';
-import { TopBar, TopBarHome } from './TopBar';
+import { TopBar, TopBarLogo } from './TopBar';
 
 interface ServerPageLayoutProps {
   title: string;
@@ -24,7 +24,7 @@ export const ServerPageLayout: React.FC<ServerPageLayoutProps> = ({
   children
 }) => (
   <div className="min-h-screen bg-background">
-    <TopBar left={<TopBarHome />} />
+    <TopBar left={<TopBarLogo />} />
 
     <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

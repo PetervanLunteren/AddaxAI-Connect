@@ -8,7 +8,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Upload, Settings, Activity, LogOut, Info, BookOpen, UserRound } from 'lucide-react';
+import { Users, Upload, Settings, Activity, LogOut, Info, BookOpen, UserRound, FolderOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
@@ -115,8 +115,16 @@ export const AccountMenu: React.FC = () => {
             <p className="text-sm text-muted-foreground truncate">{user.email}</p>
           </div>
 
-          {/* Password and two-factor login are on the Account page */}
+          {/* Projects first: the one place every account goes to. Password
+              and two-factor login are on the Account page. */}
           <div className="py-1">
+            <button
+              onClick={() => handleNavigate('/projects')}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
+            >
+              <FolderOpen className="h-4 w-4" />
+              <span>Projects</span>
+            </button>
             <button
               onClick={() => handleNavigate('/account')}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
