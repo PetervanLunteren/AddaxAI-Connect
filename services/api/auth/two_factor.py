@@ -53,9 +53,13 @@ TIME_STEP_SECONDS = 30
 ACCEPTED_STEP_OFFSETS = (0, -1, 1)
 
 RECOVERY_CODE_COUNT = 10
-# 80 bits each. Long enough that a plain sha256 of it cannot be guessed back
-# from a leaked database, so the codes do not depend on the encryption key.
-RECOVERY_CODE_BYTES = 10
+# 16 characters from 32, so 80 bits each. Long enough that a plain sha256 of
+# it cannot be guessed back from a leaked database, so the codes do not depend
+# on the encryption key.
+RECOVERY_CODE_LENGTH = 16
+# No 0, 1, I or O. A recovery code is typed by hand from a note or a printout,
+# and those four look alike. A code that has none of them cannot be misread.
+RECOVERY_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 PENDING_AUDIENCE = "two-factor-pending"
 # Long enough to install an authenticator app during a forced setup
@@ -161,7 +165,7 @@ def new_recovery_codes() -> list[str]:
     """Ten one-time codes, shown once, as XXXX-XXXX-XXXX-XXXX."""
     codes = []
     for _ in range(RECOVERY_CODE_COUNT):
-        raw = base64.b32encode(secrets.token_bytes(RECOVERY_CODE_BYTES)).decode()
+        raw = "".join(secrets.choice(RECOVERY_CODE_ALPHABET) for _ in range(RECOVERY_CODE_LENGTH))
         codes.append("-".join(raw[i:i + 4] for i in range(0, len(raw), 4)))
     return codes
 

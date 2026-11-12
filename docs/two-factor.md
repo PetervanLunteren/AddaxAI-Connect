@@ -17,7 +17,9 @@ From now on the login page asks for a code after your password.
 
 ## Recovery codes
 
-You get ten recovery codes when you switch it on. Each code logs you in once when you do not have your phone. Type it in the same field as the code from the app.
+You get ten recovery codes when you switch it on. Each code logs you in once when you do not have your phone. Type it in the same field as the code from the app. After a login with a recovery code, the app says how many you have left.
+
+The codes have no 0, 1, I or O, so you cannot mix those up when you type one.
 
 Keep them somewhere safe that is not your phone, for example in a password manager. To get ten new codes, switch two-factor login off and on again.
 

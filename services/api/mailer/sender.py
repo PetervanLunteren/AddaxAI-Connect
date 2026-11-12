@@ -427,7 +427,7 @@ class EmailSender:
         )
 
         await self.send_email(
-            email, f"{heading} on AddaxAI Connect", text_content, html_content,
+            email, f"{heading} for your AddaxAI Connect account", text_content, html_content,
         )
 
         logger.info("Two-factor notice email sent", email=email, two_factor_event=event)

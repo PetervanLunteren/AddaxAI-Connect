@@ -4,7 +4,7 @@ Project endpoints for managing study areas and species configurations.
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta, timezone
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
@@ -1058,6 +1058,7 @@ async def update_project_user_role(
 async def reset_project_user_two_factor(
     project_id: int,
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
@@ -1096,7 +1097,7 @@ async def reset_project_user_two_factor(
             detail="Only a server admin can reset the two-factor login of a server admin",
         )
 
-    user = await reset_two_factor(db, user_id, current_user)
+    user = await reset_two_factor(db, user_id, current_user, background_tasks)
     return {"message": f"Two-factor login of {user.email} is reset"}
 
 

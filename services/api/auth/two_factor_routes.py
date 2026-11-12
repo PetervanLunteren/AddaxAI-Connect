@@ -22,8 +22,8 @@ than one worker, and without the lock the same code could pass twice.
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,12 +47,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 optional_active_user = fastapi_users.current_user(active=True, optional=True)
 
 
+# Far above any real value, a token is a few hundred characters and a code
+# under twenty. Only there so the API does not hash or decode a huge string.
+MAX_TOKEN_LENGTH = 2048
+MAX_CODE_LENGTH = 64
+
+
 class PendingRequest(BaseModel):
-    pending_token: Optional[str] = None
+    pending_token: Optional[str] = Field(default=None, max_length=MAX_TOKEN_LENGTH)
 
 
 class CodeRequest(BaseModel):
-    code: str
+    code: str = Field(max_length=MAX_CODE_LENGTH)
 
 
 class EnableRequest(CodeRequest, PendingRequest):
@@ -60,7 +66,7 @@ class EnableRequest(CodeRequest, PendingRequest):
 
 
 class LoginCodeRequest(CodeRequest):
-    pending_token: str
+    pending_token: str = Field(max_length=MAX_TOKEN_LENGTH)
     remember: bool = False
 
 
@@ -109,7 +115,11 @@ async def _check_code(user: User, code: str) -> None:
 
 async def send_notice(email: str, event: str) -> None:
     """Tell a user their two-factor login changed. A mail problem is logged
-    and does not undo the change, which is already committed."""
+    and does not undo the change, which is already committed.
+
+    Routes run this as a background task, after the answer has gone out, so
+    nobody waits a second or more on the mail server.
+    """
     try:
         await get_email_sender().send_two_factor_notice_email(email, event)
     except Exception as e:
@@ -119,7 +129,9 @@ async def send_notice(email: str, event: str) -> None:
         )
 
 
-async def reset_two_factor(db: AsyncSession, user_id: int, admin: User) -> User:
+async def reset_two_factor(
+    db: AsyncSession, user_id: int, admin: User, background_tasks: BackgroundTasks,
+) -> User:
     """Switch two-factor login off for another user, as an admin.
 
     The caller has checked that this admin may act on this user. Used by the
@@ -147,7 +159,7 @@ async def reset_two_factor(db: AsyncSession, user_id: int, admin: User) -> User:
     user.clear_two_factor()
     await db.commit()
     logger.info("Two-factor login reset by an admin", user_id=user.id, admin_user_id=admin.id)
-    await send_notice(user.email, "reset")
+    background_tasks.add_task(send_notice, user.email, "reset")
     return user
 
 
@@ -163,12 +175,18 @@ async def login_with_code(
     response: Response,
     db: AsyncSession = Depends(get_async_session),
 ):
-    """The second step of a login: a code from the app, or a recovery code."""
+    """The second step of a login: a code from the app, or a recovery code.
+
+    After a recovery code the answer also says how many are left, so the user
+    knows when to get new ones.
+    """
     user = await _pending_user(db, body.pending_token)
     if not user.two_factor_enabled:
         raise _bad_request("TWO_FACTOR_NOT_ON")
 
+    recovery_codes_before = len(user.recovery_code_hashes or [])
     await _check_code(user, body.code)
+    recovery_codes_left = len(user.recovery_code_hashes or [])
     await db.commit()
     logger.info("Logged in with two-factor code", user_id=user.id, remember=body.remember)
 
@@ -184,7 +202,11 @@ async def login_with_code(
             # http here, uvicorn runs behind nginx without proxy headers.
             secure=request.headers.get("x-forwarded-proto") == "https",
         )
-    return await _access_token(user)
+
+    result = await _access_token(user)
+    if recovery_codes_left < recovery_codes_before:
+        result["recovery_codes_left"] = recovery_codes_left
+    return result
 
 
 @router.post("/two-factor/setup")
@@ -218,6 +240,7 @@ async def setup(
 @router.post("/two-factor/enable")
 async def enable(
     body: EnableRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_session),
     session_user: Optional[User] = Depends(optional_active_user),
 ):
@@ -242,7 +265,7 @@ async def enable(
     recovery_codes = two_factor.start_two_factor(user, step, now_stamp())
     await db.commit()
     logger.info("Two-factor login switched on", user_id=user.id)
-    await send_notice(user.email, "enabled")
+    background_tasks.add_task(send_notice, user.email, "enabled")
 
     result: dict = {"recovery_codes": recovery_codes}
     if by_pending_token:
@@ -253,6 +276,7 @@ async def enable(
 @router.post("/two-factor/disable")
 async def disable(
     body: CodeRequest,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_session),
     session_user: User = Depends(current_active_user),
 ):
@@ -267,5 +291,5 @@ async def disable(
     user.clear_two_factor()
     await db.commit()
     logger.info("Two-factor login switched off", user_id=user.id)
-    await send_notice(user.email, "disabled")
+    background_tasks.add_task(send_notice, user.email, "disabled")
     return {"message": "Two-factor login is off"}

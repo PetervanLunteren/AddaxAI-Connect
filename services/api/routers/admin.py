@@ -9,7 +9,7 @@ import secrets
 import httpx
 import base64
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, update, func
 from pydantic import BaseModel, EmailStr
@@ -849,6 +849,7 @@ async def cancel_invitation(
 @router.post("/users/{user_id}/reset-two-factor")
 async def reset_user_two_factor(
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_server_admin),
 ):
@@ -856,7 +857,7 @@ async def reset_user_two_factor(
     Switch two-factor login off for any user, for example after a lost phone
     (server admin only). Not for yourself, see reset_two_factor.
     """
-    user = await reset_two_factor(db, user_id, current_user)
+    user = await reset_two_factor(db, user_id, current_user, background_tasks)
     return {"message": f"Two-factor login of {user.email} is reset"}
 
 

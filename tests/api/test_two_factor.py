@@ -166,6 +166,11 @@ class TestRecoveryCodes:
         assert len(set(codes)) == 10
         assert all(len(code) == 19 and code.count("-") == 3 for code in codes)
 
+    def test_no_characters_that_look_alike(self):
+        # A recovery code is typed by hand. 0 and O, 1 and I look the same.
+        for _ in range(50):
+            assert not set("".join(new_recovery_codes())) & set("01IO")
+
     def test_typing_style_does_not_matter(self):
         code = new_recovery_codes()[0]
         assert hash_recovery_code(code) == hash_recovery_code(code.lower().replace("-", " "))
@@ -465,16 +470,22 @@ class FakeRequest:
         self.headers = headers or {}
 
 
+class FakeTasks:
+    """Stands in for FastAPI's BackgroundTasks. The routes hand the notice
+    email to it, so the answer does not wait for the mail server. Nothing is
+    sent here, `sent` holds who would have been mailed about what."""
+
+    def __init__(self):
+        self.sent = []
+
+    def add_task(self, func, email, event):
+        assert func is two_factor_routes.send_notice
+        self.sent.append((email, event))
+
+
 @pytest.fixture
-def notices(monkeypatch):
-    """Catch the notice emails instead of sending them."""
-    sent = []
-
-    async def fake_send(email, event):
-        sent.append((email, event))
-
-    monkeypatch.setattr(two_factor_routes, "send_notice", fake_send)
-    return sent
+def notices():
+    return FakeTasks()
 
 
 async def raises(detail, awaitable):
@@ -559,6 +570,36 @@ class TestLoginWithCode:
         ))
 
     @pytest.mark.asyncio
+    async def test_recovery_code_login_says_how_many_are_left(self, fake_redis):
+        user, _ = make_user()
+        codes = start_two_factor(user, 0, now_stamp())
+        body = two_factor_routes.LoginCodeRequest(
+            pending_token=write_pending_token(user), code=codes[0],
+        )
+        result = await two_factor_routes.login_with_code(body, FakeRequest(), Response(), FakeDb(user))
+        assert result["access_token"] and result["recovery_codes_left"] == 9
+
+    @pytest.mark.asyncio
+    async def test_app_code_login_does_not_mention_recovery_codes(self, fake_redis):
+        user, secret = make_user(two_factor_on=True)
+        body = two_factor_routes.LoginCodeRequest(
+            pending_token=write_pending_token(user), code=code_at(secret, time.time()),
+        )
+        result = await two_factor_routes.login_with_code(body, FakeRequest(), Response(), FakeDb(user))
+        assert "recovery_codes_left" not in result
+
+    def test_code_and_token_have_a_length_limit(self):
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            two_factor_routes.CodeRequest(code="9" * (two_factor_routes.MAX_CODE_LENGTH + 1))
+        with pytest.raises(ValidationError):
+            two_factor_routes.LoginCodeRequest(
+                pending_token="x" * (two_factor_routes.MAX_TOKEN_LENGTH + 1), code="123456",
+            )
+        # A recovery code typed with spaces and dashes still fits
+        two_factor_routes.CodeRequest(code="abcd - efgh - jklm - npqr")
+
+    @pytest.mark.asyncio
     async def test_remember_sets_a_cookie_the_page_cannot_read(self, fake_redis):
         user, secret = make_user(two_factor_on=True)
         body = two_factor_routes.LoginCodeRequest(
@@ -601,12 +642,12 @@ class TestSetupAndEnable:
 
         secret = decrypt_secret(user.totp_secret)
         result = await two_factor_routes.enable(
-            two_factor_routes.EnableRequest(code=code_at(secret, time.time())), db, user,
+            two_factor_routes.EnableRequest(code=code_at(secret, time.time())), notices, db, user,
         )
         assert user.two_factor_enabled
         assert len(result["recovery_codes"]) == 10
         assert "access_token" not in result  # already logged in
-        assert notices == [(user.email, "enabled")]
+        assert notices.sent == [(user.email, "enabled")]
 
     @pytest.mark.asyncio
     async def test_enable_by_pending_token_logs_in(self, fake_redis, notices):
@@ -617,7 +658,7 @@ class TestSetupAndEnable:
         secret = decrypt_secret(user.totp_secret)
         result = await two_factor_routes.enable(
             two_factor_routes.EnableRequest(pending_token=pending, code=code_at(secret, time.time())),
-            db, None,
+            notices, db, None,
         )
         assert result["access_token"] and len(result["recovery_codes"]) == 10
 
@@ -627,7 +668,7 @@ class TestSetupAndEnable:
         db = FakeDb(user)
         await two_factor_routes.setup(two_factor_routes.PendingRequest(), db, user)
         code = code_at(decrypt_secret(user.totp_secret), time.time())
-        await two_factor_routes.enable(two_factor_routes.EnableRequest(code=code), db, user)
+        await two_factor_routes.enable(two_factor_routes.EnableRequest(code=code), notices, db, user)
         body = two_factor_routes.LoginCodeRequest(pending_token=write_pending_token(user), code=code)
         await raises("TWO_FACTOR_BAD_CODE", two_factor_routes.login_with_code(
             body, FakeRequest(), Response(), db,
@@ -644,7 +685,7 @@ class TestSetupAndEnable:
         await raises("TWO_FACTOR_ALREADY_ON", two_factor_routes.enable(
             two_factor_routes.EnableRequest(
                 pending_token=pending.pending_token, code=code_at(secret, time.time()),
-            ), FakeDb(user), None,
+            ), FakeTasks(), FakeDb(user), None,
         ))
         assert user.totp_secret == stored
 
@@ -670,7 +711,7 @@ class TestSetupAndEnable:
     async def test_enable_without_a_setup(self, fake_redis):
         user, _ = make_user()
         await raises("TWO_FACTOR_NO_SETUP", two_factor_routes.enable(
-            two_factor_routes.EnableRequest(code="123456"), FakeDb(user), user,
+            two_factor_routes.EnableRequest(code="123456"), FakeTasks(), FakeDb(user), user,
         ))
 
     @pytest.mark.asyncio
@@ -679,9 +720,9 @@ class TestSetupAndEnable:
         db = FakeDb(user)
         await two_factor_routes.setup(two_factor_routes.PendingRequest(), db, user)
         await raises("TWO_FACTOR_BAD_CODE", two_factor_routes.enable(
-            two_factor_routes.EnableRequest(code="not-a-code"), db, user,
+            two_factor_routes.EnableRequest(code="not-a-code"), notices, db, user,
         ))
-        assert not user.two_factor_enabled and notices == []
+        assert not user.two_factor_enabled and notices.sent == []
 
     @pytest.mark.asyncio
     async def test_demo_account_cannot_set_up(self, fake_redis, monkeypatch):
@@ -699,32 +740,34 @@ class TestDisable:
         user, secret = make_user(two_factor_on=True)
         db = FakeDb(user)
         await two_factor_routes.disable(
-            two_factor_routes.CodeRequest(code=code_at(secret, time.time())), db, user,
+            two_factor_routes.CodeRequest(code=code_at(secret, time.time())), notices, db, user,
         )
         assert not user.two_factor_enabled and db.commits == 1
-        assert notices == [(user.email, "disabled")]
+        assert notices.sent == [(user.email, "disabled")]
 
     @pytest.mark.asyncio
     async def test_with_a_recovery_code(self, fake_redis, notices):
         user, _ = make_user()
         codes = start_two_factor(user, 0, now_stamp())
-        await two_factor_routes.disable(two_factor_routes.CodeRequest(code=codes[0]), FakeDb(user), user)
+        await two_factor_routes.disable(
+            two_factor_routes.CodeRequest(code=codes[0]), notices, FakeDb(user), user,
+        )
         assert not user.two_factor_enabled
 
     @pytest.mark.asyncio
     async def test_a_login_alone_is_not_enough(self, fake_redis, notices):
         user, _ = make_user(two_factor_on=True)
         await raises("TWO_FACTOR_BAD_CODE", two_factor_routes.disable(
-            two_factor_routes.CodeRequest(code="AAAA-AAAA-AAAA-AAAA"), FakeDb(user), user,
+            two_factor_routes.CodeRequest(code="AAAA-AAAA-AAAA-AAAA"), notices, FakeDb(user), user,
         ))
-        assert user.two_factor_enabled and notices == []
+        assert user.two_factor_enabled and notices.sent == []
 
     @pytest.mark.asyncio
     async def test_refused_while_a_project_requires_it(self, fake_redis, notices):
         user, secret = make_user(two_factor_on=True)
         await raises("TWO_FACTOR_REQUIRED", two_factor_routes.disable(
             two_factor_routes.CodeRequest(code=code_at(secret, time.time())),
-            FakeDb(user, required=True), user,
+            notices, FakeDb(user, required=True), user,
         ))
         assert user.two_factor_enabled
 
@@ -732,7 +775,7 @@ class TestDisable:
     async def test_when_it_is_off_already(self, fake_redis):
         user, _ = make_user()
         await raises("TWO_FACTOR_NOT_ON", two_factor_routes.disable(
-            two_factor_routes.CodeRequest(code="123456"), FakeDb(user), user,
+            two_factor_routes.CodeRequest(code="123456"), FakeTasks(), FakeDb(user), user,
         ))
 
 
@@ -740,6 +783,17 @@ class TestNotices:
     def test_every_event_has_a_wording(self):
         from mailer.sender import TWO_FACTOR_NOTICES
         assert set(TWO_FACTOR_NOTICES) == {"enabled", "disabled", "reset"}
+
+    @pytest.mark.asyncio
+    async def test_a_mail_problem_is_logged_not_raised(self, monkeypatch):
+        # The notice runs after the answer has gone out. An exception there
+        # would have nowhere to go.
+        class BrokenSender:
+            async def send_two_factor_notice_email(self, email, event):
+                raise ConnectionError("smtp is down")
+
+        monkeypatch.setattr(two_factor_routes, "get_email_sender", lambda: BrokenSender())
+        await two_factor_routes.send_notice("ranger@example.org", "enabled")  # must not raise
 
     def test_template_renders(self):
         from mailer.sender import TWO_FACTOR_NOTICES
@@ -759,9 +813,9 @@ class TestReset:
         admin, _ = make_user(id=1, email="admin@example.org")
         user, _ = make_user(two_factor_on=True)
         db = FakeDb(user)
-        assert await two_factor_routes.reset_two_factor(db, user.id, admin) is user
+        assert await two_factor_routes.reset_two_factor(db, user.id, admin, notices) is user
         assert not user.two_factor_enabled and db.commits == 1
-        assert notices == [(user.email, "reset")]
+        assert notices.sent == [(user.email, "reset")]
 
     @pytest.mark.asyncio
     async def test_never_for_yourself(self, notices):
@@ -769,23 +823,23 @@ class TestReset:
         # two-factor without a code.
         admin, _ = make_user(two_factor_on=True)
         with pytest.raises(HTTPException) as error:
-            await two_factor_routes.reset_two_factor(FakeDb(admin), admin.id, admin)
+            await two_factor_routes.reset_two_factor(FakeDb(admin), admin.id, admin, notices)
         assert error.value.status_code == 400
-        assert admin.two_factor_enabled and notices == []
+        assert admin.two_factor_enabled and notices.sent == []
 
     @pytest.mark.asyncio
     async def test_user_without_two_factor(self, notices):
         admin, _ = make_user(id=1)
         user, _ = make_user()
         with pytest.raises(HTTPException) as error:
-            await two_factor_routes.reset_two_factor(FakeDb(user), user.id, admin)
-        assert error.value.status_code == 400 and notices == []
+            await two_factor_routes.reset_two_factor(FakeDb(user), user.id, admin, notices)
+        assert error.value.status_code == 400 and notices.sent == []
 
     @pytest.mark.asyncio
     async def test_unknown_user(self):
         admin, _ = make_user(id=1)
         with pytest.raises(HTTPException) as error:
-            await two_factor_routes.reset_two_factor(FakeDb(None), 99, admin)
+            await two_factor_routes.reset_two_factor(FakeDb(None), 99, admin, FakeTasks())
         assert error.value.status_code == 404
 
 
@@ -806,24 +860,25 @@ class TestProjectAdminReset:
     async def test_member_is_reset(self, projects, notices):
         admin, _ = make_user(id=1)
         member, _ = make_user(two_factor_on=True)
-        result = await projects.reset_project_user_two_factor(3, member.id, FakeDb(member), admin)
+        result = await projects.reset_project_user_two_factor(3, member.id, notices, FakeDb(member), admin)
         assert not member.two_factor_enabled
         assert member.email in result["message"]
+        assert notices.sent == [(member.email, "reset")]
 
     @pytest.mark.asyncio
     async def test_server_admin_is_out_of_reach(self, projects, notices):
         admin, _ = make_user(id=1)
         server_admin, _ = make_user(two_factor_on=True, is_superuser=True)
         with pytest.raises(HTTPException) as error:
-            await projects.reset_project_user_two_factor(3, server_admin.id, FakeDb(server_admin), admin)
+            await projects.reset_project_user_two_factor(3, server_admin.id, notices, FakeDb(server_admin), admin)
         assert error.value.status_code == 403
-        assert server_admin.two_factor_enabled and notices == []
+        assert server_admin.two_factor_enabled and notices.sent == []
 
     @pytest.mark.asyncio
     async def test_user_outside_the_project(self, projects):
         admin, _ = make_user(id=1)
         with pytest.raises(HTTPException) as error:
-            await projects.reset_project_user_two_factor(3, 99, FakeDb(None), admin)
+            await projects.reset_project_user_two_factor(3, 99, FakeTasks(), FakeDb(None), admin)
         assert error.value.status_code == 404
 
     @pytest.mark.asyncio
@@ -837,7 +892,7 @@ class TestProjectAdminReset:
         viewer, _ = make_user(id=1)
         member, _ = make_user(two_factor_on=True)
         with pytest.raises(HTTPException) as error:
-            await projects.reset_project_user_two_factor(3, member.id, FakeDb(member), viewer)
+            await projects.reset_project_user_two_factor(3, member.id, FakeTasks(), FakeDb(member), viewer)
         assert error.value.status_code == 403
         assert member.two_factor_enabled
 
