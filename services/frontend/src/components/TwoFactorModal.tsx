@@ -49,16 +49,21 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
     if (!showingCodes) close();
   };
 
-  const handleEnabled = () => {
-    setShowingCodes(true);
-    // Read the account again right away, so the menu says "On" whatever
-    // happens to this dialog next.
-    refreshUser();
-  };
+  const handleEnabled = () => setShowingCodes(true);
 
-  const handleSetupDone = () => {
+  // The account is read again only now, after the codes were seen. A failed
+  // read logs the browser out (see refreshUser), and doing it while the codes
+  // are up would take them off screen before anyone saw them.
+  const handleSetupDone = async () => {
+    await refreshUser();
     close();
     toast.success('Two-factor login is on');
+  };
+
+  // Another tab switched it on in the meantime. Read the account again, so
+  // this dialog and the page behind it show what is true.
+  const handleSetupFailed = (err: any) => {
+    if (err?.response?.data?.detail === 'TWO_FACTOR_ALREADY_ON') refreshUser();
   };
 
   const handleDisable = async (e: React.FormEvent) => {
@@ -137,7 +142,9 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({ open, onClose })
           </form>
         )}
 
-        {!isOn && <TwoFactorSetup onEnabled={handleEnabled} onDone={handleSetupDone} />}
+        {!isOn && (
+          <TwoFactorSetup onEnabled={handleEnabled} onDone={handleSetupDone} onFailed={handleSetupFailed} />
+        )}
       </DialogContent>
     </Dialog>
   );

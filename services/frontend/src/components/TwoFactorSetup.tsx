@@ -90,6 +90,13 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    // The first code is always six digits from the app. Anything else is a
+    // typo, and it should not count as one of the five wrong codes the server
+    // allows before it blocks the account.
+    if (!/^\d{6}$/.test(code.replace(/\s/g, ''))) {
+      setError('Type the six digits the app shows.');
+      return;
+    }
     setLoading(true);
     try {
       const result = await enableTwoFactor(code, pendingToken);
@@ -172,8 +179,6 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
 
   return (
     <form className="space-y-5" onSubmit={handleConfirm}>
-      {error && <Callout variant="error">{error}</Callout>}
-
       <ol className="space-y-5">
         <Step number={1} title="Install an authenticator app on your phone">
           <p>
@@ -211,6 +216,9 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
             onChange={(e) => setCode(e.target.value)}
             className={CODE_INPUT_CLASS}
           />
+          {/* Next to the field it is about. At the top of the form it can be
+              out of view on a phone, three steps up. */}
+          {error && <Callout variant="error">{error}</Callout>}
         </Step>
       </ol>
 

@@ -304,7 +304,7 @@ export const ProjectUsersPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {/* Your own is switched off from the user menu, with a code */}
+                        {/* Your own is switched off on the Account page, with a code */}
                         {user.two_factor_enabled && user.user_id !== currentUser?.id && (
                           <ResetTwoFactorButton onClick={() => setResetTwoFactorUser(user)} />
                         )}

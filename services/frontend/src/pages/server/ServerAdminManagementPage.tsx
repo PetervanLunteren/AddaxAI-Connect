@@ -194,7 +194,7 @@ export const ServerAdminManagementPage: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      {/* Your own is switched off from the user menu, with a code */}
+                      {/* Your own is switched off on the Account page, with a code */}
                       {serverAdmin.two_factor_enabled && serverAdmin.id !== user?.id && (
                         <ResetTwoFactorButton
                           onClick={() => setResetTwoFactorUser({ id: serverAdmin.id, email: serverAdmin.email })}

@@ -112,7 +112,7 @@ export const Login: React.FC = () => {
       if (left !== undefined) {
         toast.success(
           left === 0
-            ? 'That was your last recovery code. Switch two-factor login off and on again to get new ones.'
+            ? 'That was your last recovery code. For new ones, switch two-factor login off and on again on the Account page, or ask an admin for a reset.'
             : `Recovery code used. You have ${left} left.`,
         );
       }

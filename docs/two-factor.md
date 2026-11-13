@@ -21,7 +21,7 @@ You get ten recovery codes when you switch it on. Each code logs you in once whe
 
 The codes have no 0, 1, I or O, so you cannot mix those up when you type one.
 
-Keep them somewhere safe that is not your phone, for example in a password manager. To get ten new codes, switch two-factor login off and on again.
+Keep them somewhere safe that is not your phone, for example in a password manager. To get ten new codes, switch two-factor login off and on again. When one of your projects requires two-factor login you cannot switch it off, so ask an admin to reset it. You then set it up again at your next login.
 
 ## Remember this browser
 
@@ -35,7 +35,7 @@ On the Account page, click "Manage" next to "Two-factor login" and type a code f
 
 ## You lost your phone
 
-Log in with a recovery code. Then switch two-factor login off and set it up again with your new phone.
+Log in with a recovery code. Then switch two-factor login off and set it up again with your new phone. When one of your projects requires two-factor login you cannot switch it off, so ask an admin to reset it.
 
 No recovery codes either? Ask a project admin or a server admin to reset your two-factor login. You then log in with your password only and can set it up again.
 
@@ -53,7 +53,7 @@ On the Users page, a user with two-factor login has a "Two-factor" label and a r
 
 Make sure the request really comes from the user. Someone who stole a password could ask for a reset to get past the code.
 
-A project admin cannot reset a server admin. A server admin can reset every user, on the Users page of a project or on the Server admins page. Nobody can reset their own account, that goes with a code, see [switch it off](#switch-it-off).
+A project admin cannot reset a server admin, and cannot reset a user who is also in a project they do not manage. Those users ask a server admin. A server admin can reset every user, on the Users page of a project or on the Server admins page. Nobody can reset their own account, that goes with a code, see [switch it off](#switch-it-off).
 
 ## For server admins
 
