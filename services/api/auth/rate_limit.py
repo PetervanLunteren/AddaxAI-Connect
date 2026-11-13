@@ -149,3 +149,16 @@ async def count_two_factor_failure(user_id: int) -> None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="TWO_FACTOR_UNAVAILABLE",
         )
+
+
+async def clear_two_factor_failures(user_id: int) -> None:
+    """Forget the wrong codes of an account, after an admin reset its two-factor.
+
+    Without this the block outlives the reset, and the first code of the new
+    setup is refused. Not being able to clear it is no reason to fail the
+    reset: the block ends by itself after the window.
+    """
+    try:
+        await _client().delete(_two_factor_key(user_id))
+    except Exception:
+        logger.warning("Could not clear the two-factor attempt counter", user_id=user_id)

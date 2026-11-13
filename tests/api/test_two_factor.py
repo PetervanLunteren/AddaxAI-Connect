@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "services", "api")))
 
 import pytest  # noqa: E402
+from sqlalchemy.dialects import postgresql  # noqa: E402
 from fastapi import HTTPException, Response  # noqa: E402
 from fastapi_users.jwt import generate_jwt  # noqa: E402
 
@@ -394,6 +395,10 @@ class FakeRedis:
         self._check()
         self.expires[key] = seconds
 
+    async def delete(self, key):
+        self._check()
+        self.counts.pop(key, None)
+
 
 @pytest.fixture
 def fake_redis(monkeypatch):
@@ -448,21 +453,37 @@ class FakeResult:
 
 
 class FakeDb:
-    """Hands out one user, and remembers whether the request committed."""
+    """Hands out one user, and remembers what it was asked.
 
-    def __init__(self, user, required=False):
+    It tells the two yes-or-no questions apart by their SQL, so a route that
+    asks the wrong one gets the wrong answer here too:
+    - does a project the user can open require two-factor (`required`)
+    - is the user in a project the admin does not administer (`outside`)
+    """
+
+    def __init__(self, user, required=False, outside=None):
         self.user = user
         self.required = required
+        self.outside = outside
         self.commits = 0
+        self.statements = []
 
     async def execute(self, statement):
+        self.statements.append(sql(statement))
         return FakeResult(self.user)
 
     async def scalar(self, statement):
-        return self.required
+        text = sql(statement)
+        self.statements.append(text)
+        return self.required if "require_two_factor" in text else self.outside
 
     async def commit(self):
         self.commits += 1
+
+
+def sql(statement) -> str:
+    """A statement the way it goes to Postgres, to check what it asks."""
+    return str(statement.compile(dialect=postgresql.dialect()))
 
 
 class FakeRequest:
@@ -810,13 +831,40 @@ class TestNotices:
 
 class TestReset:
     @pytest.mark.asyncio
-    async def test_admin_resets_a_user(self, notices):
+    async def test_admin_resets_a_user(self, notices, fake_redis):
         admin, _ = make_user(id=1, email="admin@example.org")
         user, _ = make_user(two_factor_on=True)
         db = FakeDb(user)
         assert await two_factor_routes.reset_two_factor(db, user.id, admin, notices) is user
         assert not user.two_factor_enabled and db.commits == 1
         assert notices.sent == [(user.email, "reset")]
+
+    @pytest.mark.asyncio
+    async def test_reset_forgets_the_wrong_codes(self, notices, fake_redis):
+        # Blocked after five wrong codes, then reset by an admin. The first
+        # code of the new setup must not run into the old block.
+        admin, _ = make_user(id=1)
+        user, _ = make_user(two_factor_on=True)
+        for _ in range(TWO_FACTOR_MAX_FAILURES):
+            await count_two_factor_failure(user.id)
+        await two_factor_routes.reset_two_factor(FakeDb(user), user.id, admin, notices)
+        await two_factor_attempt_allowed(user.id)  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_reset_does_not_fail_when_redis_is_down(self, notices, monkeypatch):
+        monkeypatch.setattr(rate_limit, "_client", lambda: FakeRedis(broken=True))
+        admin, _ = make_user(id=1)
+        user, _ = make_user(two_factor_on=True)
+        await two_factor_routes.reset_two_factor(FakeDb(user), user.id, admin, notices)
+        assert not user.two_factor_enabled
+
+    @pytest.mark.asyncio
+    async def test_reset_locks_the_user_row(self, notices, fake_redis):
+        admin, _ = make_user(id=1)
+        user, _ = make_user(two_factor_on=True)
+        db = FakeDb(user)
+        await two_factor_routes.reset_two_factor(db, user.id, admin, notices)
+        assert any("FOR UPDATE" in statement for statement in db.statements)
 
     @pytest.mark.asyncio
     async def test_never_for_yourself(self, notices):
@@ -858,13 +906,57 @@ class TestProjectAdminReset:
         return projects
 
     @pytest.mark.asyncio
-    async def test_member_is_reset(self, projects, notices):
+    async def test_member_is_reset(self, projects, notices, fake_redis):
         admin, _ = make_user(id=1)
         member, _ = make_user(two_factor_on=True)
         result = await projects.reset_project_user_two_factor(3, member.id, notices, FakeDb(member), admin)
         assert not member.two_factor_enabled
         assert member.email in result["message"]
         assert notices.sent == [(member.email, "reset")]
+
+    @pytest.mark.asyncio
+    async def test_member_is_looked_up_in_this_project(self, projects, notices, fake_redis):
+        admin, _ = make_user(id=1)
+        member, _ = make_user(two_factor_on=True)
+        db = FakeDb(member)
+        await projects.reset_project_user_two_factor(3, member.id, notices, db, admin)
+        lookup = db.statements[0]
+        assert "JOIN project_memberships" in lookup
+        assert "project_memberships.project_id =" in lookup and "users.id =" in lookup
+
+    @pytest.mark.asyncio
+    async def test_user_who_is_also_in_another_project(self, projects, notices):
+        # Adding someone to a project needs no consent. Without this rule an
+        # admin could pull any user in and drop the two-factor that another
+        # project requires.
+        admin, _ = make_user(id=1)
+        member, _ = make_user(two_factor_on=True)
+        with pytest.raises(HTTPException) as error:
+            await projects.reset_project_user_two_factor(
+                3, member.id, notices, FakeDb(member, outside=42), admin,
+            )
+        assert error.value.status_code == 403
+        assert "server admin" in error.value.detail
+        assert member.two_factor_enabled and notices.sent == []
+
+    @pytest.mark.asyncio
+    async def test_server_admin_resets_a_user_in_any_projects(self, projects, notices, fake_redis):
+        # A server admin administers every project, so the rule does not apply.
+        server_admin, _ = make_user(id=1, is_superuser=True)
+        member, _ = make_user(two_factor_on=True)
+        await projects.reset_project_user_two_factor(
+            3, member.id, notices, FakeDb(member, outside=42), server_admin,
+        )
+        assert not member.two_factor_enabled
+
+    def test_the_scope_question_asks_what_it_should(self, projects):
+        # One membership of the user, in a project that is not among the ones
+        # the admin administers.
+        text = sql(projects.membership_outside_admin_scope(7, 1))
+        assert "project_memberships.user_id =" in text
+        assert "NOT IN (SELECT project_memberships.project_id" in text
+        assert "project_memberships.role =" in text
+        assert "LIMIT" in text
 
     @pytest.mark.asyncio
     async def test_server_admin_is_out_of_reach(self, projects, notices):
@@ -930,3 +1022,173 @@ class TestResponseFields:
         from shared.models import Project
 
         assert Project.__table__.c.require_two_factor.server_default.arg == "false"
+
+    def test_no_recovery_codes_is_a_real_null(self):
+        # Not the JSON value null: restore.sh writes NULL, and one meaning
+        # should have one form in the database.
+        assert User.__table__.c.recovery_code_hashes.type.none_as_null is True
+
+
+# --- The login and change-password routes, over HTTP ---
+#
+# These two live inside get_auth_router, so they are called through a test
+# client. The database, the user manager and the throttle are replaced.
+
+from fastapi import FastAPI  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from auth.rate_limit import login_rate_limit  # noqa: E402
+from auth.routes import get_auth_router  # noqa: E402
+from auth.user_manager import get_user_manager  # noqa: E402
+from auth.users import current_verified_user  # noqa: E402
+from shared.database import get_async_session  # noqa: E402
+
+LOGIN_FORM = {"username": "ranger@example.org", "password": "the-password-is-long"}
+
+
+class FakePasswordHelper:
+    def verify_and_update(self, plain, hashed):
+        return plain == "the-current-password", None
+
+    def hash(self, password):
+        return "hashed"
+
+
+class FakeUserDb:
+    def __init__(self):
+        self.updates = []
+
+    async def update(self, user, fields):
+        self.updates.append(fields)
+        return user
+
+
+class FakeManager:
+    """Stands in for the fastapi-users manager: the password check is theirs."""
+
+    def __init__(self, user):
+        self.user = user
+        self.password_helper = FakePasswordHelper()
+        self.user_db = FakeUserDb()
+
+    async def authenticate(self, credentials):
+        return self.user
+
+    async def validate_password(self, password, user):
+        return None
+
+
+def client_for(user, db=None) -> tuple[TestClient, FakeManager]:
+    app = FastAPI()
+    app.include_router(get_auth_router())
+    manager = FakeManager(user)
+
+    async def no_throttle():
+        return None
+
+    app.dependency_overrides[get_user_manager] = lambda: manager
+    app.dependency_overrides[get_async_session] = lambda: db or FakeDb(user)
+    app.dependency_overrides[login_rate_limit] = no_throttle
+    app.dependency_overrides[current_verified_user] = lambda: user
+    return TestClient(app), manager
+
+
+class TestLoginRoute:
+    def test_account_without_two_factor_gets_a_token(self):
+        user, _ = make_user()
+        client, _ = client_for(user)
+        answer = client.post("/auth/login", data=LOGIN_FORM)
+        assert answer.status_code == 200
+        assert answer.json()["token_type"] == "bearer" and answer.json()["access_token"]
+
+    def test_wrong_password(self):
+        client, _ = client_for(None)
+        answer = client.post("/auth/login", data=LOGIN_FORM)
+        assert answer.status_code == 400
+        assert answer.json()["detail"] == "LOGIN_BAD_CREDENTIALS"
+
+    def test_account_that_is_switched_off(self):
+        user, _ = make_user(is_active=False)
+        client, _ = client_for(user)
+        answer = client.post("/auth/login", data=LOGIN_FORM)
+        assert answer.status_code == 400
+        assert "access_token" not in answer.json()
+
+    def test_two_factor_account_gets_no_token_yet(self):
+        user, _ = make_user(two_factor_on=True)
+        client, _ = client_for(user)
+        answer = client.post("/auth/login", data=LOGIN_FORM).json()
+        assert answer["two_factor"] == CODE_REQUIRED
+        assert "access_token" not in answer
+        user_id, _ = pending_user_id(answer["pending_token"])
+        assert user_id == user.id
+
+    def test_remembered_browser_skips_the_code(self):
+        user, _ = make_user(two_factor_on=True)
+        client, _ = client_for(user)
+        client.cookies.set(two_factor.REMEMBER_COOKIE, write_remember_token(user))
+        answer = client.post("/auth/login", data=LOGIN_FORM).json()
+        assert answer.get("access_token") and "two_factor" not in answer
+
+    def test_remember_token_under_another_cookie_name_does_nothing(self):
+        user, _ = make_user(two_factor_on=True)
+        client, _ = client_for(user)
+        client.cookies.set("some_other_cookie", write_remember_token(user))
+        assert client.post("/auth/login", data=LOGIN_FORM).json()["two_factor"] == CODE_REQUIRED
+
+    def test_remember_cookie_of_someone_else_does_nothing(self):
+        user, _ = make_user(two_factor_on=True)
+        other, _ = make_user(two_factor_on=True, id=8)
+        client, _ = client_for(user)
+        client.cookies.set(two_factor.REMEMBER_COOKIE, write_remember_token(other))
+        assert client.post("/auth/login", data=LOGIN_FORM).json()["two_factor"] == CODE_REQUIRED
+
+    def test_required_but_not_set_up(self):
+        user, _ = make_user()
+        client, _ = client_for(user, FakeDb(user, required=True))
+        answer = client.post("/auth/login", data=LOGIN_FORM).json()
+        assert answer["two_factor"] == SETUP_REQUIRED
+        assert "access_token" not in answer
+
+    def test_required_and_remembered_cookie_without_two_factor(self):
+        # A cookie from before a reset must not get anyone past the setup.
+        user, _ = make_user(two_factor_on=True)
+        cookie = write_remember_token(user)
+        user.clear_two_factor()
+        client, _ = client_for(user, FakeDb(user, required=True))
+        client.cookies.set(two_factor.REMEMBER_COOKIE, cookie)
+        assert client.post("/auth/login", data=LOGIN_FORM).json()["two_factor"] == SETUP_REQUIRED
+
+
+class TestChangePasswordRoute:
+    def test_same_password_is_refused(self):
+        # It would only hand out a fresh token, and with that a session could
+        # be kept alive for ever without the two-factor step of a new login.
+        user, _ = make_user(hashed_password="x")
+        client, manager = client_for(user)
+        answer = client.post("/auth/change-password", json={
+            "current_password": "the-current-password",
+            "new_password": "the-current-password",
+        })
+        assert answer.status_code == 400
+        assert "different" in answer.json()["detail"]
+        assert manager.user_db.updates == []
+
+    def test_other_password_is_accepted(self):
+        user, _ = make_user(hashed_password="x")
+        client, manager = client_for(user)
+        answer = client.post("/auth/change-password", json={
+            "current_password": "the-current-password",
+            "new_password": "a-new-and-long-password",
+        })
+        assert answer.status_code == 200 and answer.json()["access_token"]
+        assert manager.user_db.updates[0]["hashed_password"] == "hashed"
+
+    def test_wrong_current_password(self):
+        user, _ = make_user(hashed_password="x")
+        client, manager = client_for(user)
+        answer = client.post("/auth/change-password", json={
+            "current_password": "not-the-password",
+            "new_password": "a-new-and-long-password",
+        })
+        assert answer.status_code == 400 and manager.user_db.updates == []

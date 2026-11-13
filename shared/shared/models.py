@@ -536,8 +536,10 @@ class User(Base):
     two_factor_enabled_at = Column(DateTime(timezone=True), nullable=True)
     # Time step of the last accepted code, so a code works only once
     totp_last_step = Column(BigInteger, nullable=True)
-    # sha256 of each recovery code that is not used yet
-    recovery_code_hashes = Column(JSON, nullable=True)
+    # sha256 of each recovery code that is not used yet. none_as_null, so
+    # "no codes" is a real NULL and not the JSON value null: one form for one
+    # meaning, the same as scripts/restore.sh writes.
+    recovery_code_hashes = Column(JSON(none_as_null=True), nullable=True)
 
     # Note: role and project_id removed - now handled via ProjectMembership table
 

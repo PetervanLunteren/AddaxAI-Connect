@@ -1054,6 +1054,24 @@ async def update_project_user_role(
     }
 
 
+def membership_outside_admin_scope(user_id: int, admin_id: int):
+    """Query for one membership of a user in a project that an admin does not
+    administer. No row means the admin administers every project the user is in.
+    """
+    administered = select(ProjectMembership.project_id).where(
+        ProjectMembership.user_id == admin_id,
+        ProjectMembership.role == Role.PROJECT_ADMIN.value,
+    )
+    return (
+        select(ProjectMembership.id)
+        .where(
+            ProjectMembership.user_id == user_id,
+            ProjectMembership.project_id.notin_(administered),
+        )
+        .limit(1)
+    )
+
+
 @router.post("/{project_id}/users/{user_id}/reset-two-factor")
 async def reset_project_user_two_factor(
     project_id: int,
@@ -1070,9 +1088,16 @@ async def reset_project_user_two_factor(
     for a server admin: that account opens every project on the server. Nobody
     can do it for themselves, see reset_two_factor.
 
+    A project admin can also only do it for a user whose projects they all
+    administer. Adding someone to a project needs no consent, so "a member of
+    my project" alone would mean "anyone": an admin could pull a user in and
+    drop the two-factor that another project requires. A user who is in other
+    projects too is reset by a server admin.
+
     Raises:
         HTTPException: If the caller is no admin of the project, the user is
-            not a member of it, or the user is a server admin
+            not a member of it, is a server admin, or is also in a project the
+            caller does not administer
     """
     if not await can_admin_project(current_user, project_id, db):
         raise HTTPException(
@@ -1095,6 +1120,13 @@ async def reset_project_user_two_factor(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only a server admin can reset the two-factor login of a server admin",
+        )
+    if not current_user.is_superuser and await db.scalar(
+        membership_outside_admin_scope(user_id, current_user.id)
+    ) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This user is also in a project you do not manage. Ask a server admin to reset their two-factor login",
         )
 
     user = await reset_two_factor(db, user_id, current_user, background_tasks)

@@ -10,7 +10,7 @@ routes live with the other user management routes, in routers/projects.py
 and routers/admin.py.
 
 Setup and enable are reached two ways. A logged-in user opens them from the
-user menu. A user who must set it up at login (a project requires it) has no
+Account page. A user who must set it up at login (a project requires it) has no
 login yet and sends the pending token from POST /auth/login in the body.
 
 No route here answers 401 for a pending token that ran out, because the
@@ -34,7 +34,11 @@ from shared.logger import get_logger
 from shared.models import User
 
 from . import two_factor
-from .rate_limit import count_two_factor_failure, two_factor_attempt_allowed
+from .rate_limit import (
+    clear_two_factor_failures,
+    count_two_factor_failure,
+    two_factor_attempt_allowed,
+)
 from .stamps import now_stamp
 from .users import DEMO_USER_EMAIL, current_active_user, fastapi_users, get_jwt_strategy
 
@@ -145,7 +149,7 @@ async def reset_two_factor(
     if user_id == admin.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot reset your own two-factor login. Switch it off from the user menu",
+            detail="You cannot reset your own two-factor login. Switch it off on the Account page",
         )
     user = await _lock_user(db, user_id)
     if user is None:
@@ -158,6 +162,7 @@ async def reset_two_factor(
 
     user.clear_two_factor()
     await db.commit()
+    await clear_two_factor_failures(user.id)
     logger.info("Two-factor login reset by an admin", user_id=user.id, admin_user_id=admin.id)
     background_tasks.add_task(send_notice, user.email, "reset")
     return user

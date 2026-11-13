@@ -150,6 +150,15 @@ def get_auth_router() -> APIRouter:
                 detail="Incorrect current password",
             )
 
+        # A "change" to the same password would only hand out a fresh token.
+        # With that, a session could be kept alive for ever without passing
+        # the two-factor step that a new login asks for.
+        if request_body.new_password == request_body.current_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The new password must be different from the current one",
+            )
+
         # Validate new password
         try:
             await user_manager.validate_password(request_body.new_password, user)
