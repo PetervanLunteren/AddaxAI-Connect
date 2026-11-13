@@ -36,7 +36,7 @@ import { Select, SelectItem } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
 import type { ProjectUserInfo } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
-import { ResetTwoFactorDialog, TwoFactorPill } from '../components/ResetTwoFactorDialog';
+import { ResetTwoFactorDialog } from '../components/ResetTwoFactorDialog';
 import { RowActionsMenu } from '../components/ui/RowActionsMenu';
 import type { RowAction } from '../components/ui/RowActionsMenu';
 import { StatusPill } from '../components/ui/StatusPill';
@@ -286,7 +286,8 @@ export const ProjectUsersPage: React.FC = () => {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Registered</TableHead>
+                  <TableHead>Two-factor</TableHead>
                   <TableHead>Added</TableHead>
                   <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
@@ -296,15 +297,14 @@ export const ProjectUsersPage: React.FC = () => {
                   <TableRow key={user.user_id || `pending-${index}`}>
                     <TableCell className="font-medium break-all">{user.email}</TableCell>
                     <TableCell>{getRoleBadge(user.role, user.site_ids)}</TableCell>
-                    {/* Only what is not the normal case. Every registered
-                        account is active and verified, so saying so on each
-                        row says nothing. */}
+                    {/* Two plain yes-or-no facts, each in its own column.
+                        Only "Invited" is a label, it is the one that still
+                        needs something. Active and verified are not shown:
+                        every registered account is both. */}
                     <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        {!user.is_registered && <StatusPill tone="warning">Invitation pending</StatusPill>}
-                        {user.two_factor_enabled && <TwoFactorPill />}
-                      </div>
+                      {user.is_registered ? 'Yes' : <StatusPill tone="warning">Invited</StatusPill>}
                     </TableCell>
+                    <TableCell>{user.two_factor_enabled ? 'On' : 'Off'}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(user.added_at)}
                     </TableCell>

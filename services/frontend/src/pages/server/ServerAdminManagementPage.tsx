@@ -30,7 +30,7 @@ import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
-import { ResetTwoFactorDialog, TwoFactorPill } from '../../components/ResetTwoFactorDialog';
+import { ResetTwoFactorDialog } from '../../components/ResetTwoFactorDialog';
 import { RowActionsMenu } from '../../components/ui/RowActionsMenu';
 import type { RowAction } from '../../components/ui/RowActionsMenu';
 import { StatusPill } from '../../components/ui/StatusPill';
@@ -183,7 +183,8 @@ export const ServerAdminManagementPage: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Registered</TableHead>
+                  <TableHead>Two-factor</TableHead>
                   <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
@@ -191,17 +192,13 @@ export const ServerAdminManagementPage: React.FC = () => {
                 {serverAdmins.map((serverAdmin) => (
                   <TableRow key={serverAdmin.id}>
                     <TableCell className="font-medium break-all">{serverAdmin.email}</TableCell>
-                    {/* Only what is not the normal case. Everyone here is a
-                        server admin, and every registered account is active
-                        and verified. */}
+                    {/* The same two columns as the project Users page */}
                     <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        {serverAdmin.is_pending_invitation && (
-                          <StatusPill tone="warning">Invitation pending</StatusPill>
-                        )}
-                        {serverAdmin.two_factor_enabled && <TwoFactorPill />}
-                      </div>
+                      {serverAdmin.is_pending_invitation
+                        ? <StatusPill tone="warning">Invited</StatusPill>
+                        : 'Yes'}
                     </TableCell>
+                    <TableCell>{serverAdmin.two_factor_enabled ? 'On' : 'Off'}</TableCell>
                     <TableCell className="text-right">
                       <RowActionsMenu rowLabel={serverAdmin.email} actions={rowActions(serverAdmin)} />
                     </TableCell>

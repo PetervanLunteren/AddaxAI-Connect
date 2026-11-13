@@ -130,7 +130,7 @@ Location: `src/components/ui/`
 - `TabStrip`: Underlined tabs for switching views on a page or in a slide-out, with an optional count badge and a right-hand `extra` slot. `tabClass` gives the same look to tabs that are links
 - `BulkActionBar`: The bar above a table while rows are selected (count, the page's action buttons, Cancel). Pair it with `useBulkSelection`, `SelectAllCheckbox` and `SortableHeader`, as the cameras, sites and service tables do
 - `RowActionsMenu`: The three-dot menu at the end of a table row, each action with its icon and a word. Use it when a row has actions of its own, never a row of bare icon buttons. Tables where a click on the row opens a panel do not need it
-- `StatusPill`: Every status label in a table or a settings row. Show only what is not the normal case, a label that is true for every row says nothing
+- `StatusPill`: Every status label in a table or a settings row. A yes-or-no fact gets its own column with plain text, and a pill only where something still needs attention. Do not show a label that is true for every row
 - `ChoiceCards`: The bordered radio options at the top of a destructive dialog (delete photos or records, retire or delete a camera). The safer option comes first and is preselected
 - `ImpactBox`: The box in a destructive dialog that says what the action does, a heading with bullets ("This will delete", no colon), red for a delete and grey for an action that keeps data, with optional named rows. Every delete dialog uses it, never a hand-rolled red div. `ConfirmWordField` goes under it
 - `Card`: Content containers

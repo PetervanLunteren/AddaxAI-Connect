@@ -1,7 +1,7 @@
 /**
- * The admin side of two-factor login, shared by the project users page and
- * the server admins page: the label that shows an account has it on, and the
- * dialog that confirms a reset. The reset itself is an item in the row menu.
+ * The dialog that confirms an admin's reset of someone's two-factor login,
+ * shared by the project users page and the server admins page. The reset is
+ * an item in the row menu there.
  *
  * A reset switches two-factor login off for someone else, for example after
  * a lost phone. The user gets an email about it.
@@ -18,10 +18,6 @@ import {
 } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
-import { StatusPill } from './ui/StatusPill';
-
-/** The label for an account that has two-factor login on */
-export const TwoFactorPill: React.FC = () => <StatusPill tone="neutral">Two-factor</StatusPill>;
 
 interface ResetTwoFactorDialogProps {
   /** The account to reset, null keeps the dialog closed */

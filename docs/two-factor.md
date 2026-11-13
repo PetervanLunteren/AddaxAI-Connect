@@ -49,7 +49,7 @@ Nobody is logged out. Who has not set it up yet gets the setup screen at their n
 
 ### Reset it for a user
 
-On the Users page, a user with two-factor login has a "Two-factor" label. Open the three-dot menu at the end of the row and choose "Reset two-factor login". A reset switches it off for that account. The user gets an email about it.
+On the Users page, the "Two-factor" column shows who has it on. Open the three-dot menu at the end of the row and choose "Reset two-factor login". A reset switches it off for that account. The user gets an email about it.
 
 Make sure the request really comes from the user. Someone who stole a password could ask for a reset to get past the code.
 
