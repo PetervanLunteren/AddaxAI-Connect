@@ -29,12 +29,14 @@ import { useToast } from '../../components/ui/Toaster';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 import { useAuth } from '../../hooks/useAuth';
+import { useProject } from '../../contexts/ProjectContext';
 import { ResetTwoFactorButton, ResetTwoFactorDialog, TwoFactorPill } from '../../components/ResetTwoFactorDialog';
 
 export const ServerAdminManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { user } = useAuth();
+  const { projects } = useProject();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [addEmail, setAddEmail] = useState<string>('');
@@ -361,6 +363,11 @@ export const ServerAdminManagementPage: React.FC = () => {
 
       <ResetTwoFactorDialog
         email={resetTwoFactorUser?.email ?? null}
+        requiredBecause={
+          projects?.some((project) => project.require_two_factor)
+            ? 'A project on this server requires two-factor login, and server admins can open every project'
+            : undefined
+        }
         pending={resetTwoFactorMutation.isPending}
         onCancel={() => setResetTwoFactorUser(null)}
         onConfirm={() => resetTwoFactorUser && resetTwoFactorMutation.mutate(resetTwoFactorUser.id)}

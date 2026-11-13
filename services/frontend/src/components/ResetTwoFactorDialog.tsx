@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from './ui/Dialog';
 import { Button } from './ui/Button';
-import { ImpactBox } from './ui/ImpactBox';
+import { Callout } from './ui/Callout';
 
 export const TwoFactorPill: React.FC = () => (
   <span
@@ -43,40 +43,40 @@ export const ResetTwoFactorButton: React.FC<{ onClick: () => void }> = ({ onClic
 interface ResetTwoFactorDialogProps {
   /** The account to reset, null keeps the dialog closed */
   email: string | null;
+  /** Set when the user cannot stay without two-factor login, as the start of
+   *  a sentence that says why, for example "This project requires two-factor
+   *  login for all users". The dialog then says the setup comes back at the
+   *  next login. Left out when two-factor is the user's own choice. */
+  requiredBecause?: string;
   pending: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
 export const ResetTwoFactorDialog: React.FC<ResetTwoFactorDialogProps> = ({
-  email, pending, onCancel, onConfirm,
+  email, requiredBecause, pending, onCancel, onConfirm,
 }) => (
   <Dialog open={email !== null} onOpenChange={(open) => { if (!open) onCancel(); }}>
     <DialogContent>
       <DialogHeader>
         <DialogTitle>Reset two-factor login</DialogTitle>
         <DialogDescription>
-          For a user who lost their phone and their recovery codes. Make sure the request really
-          comes from {email}.
+          For a user who lost their phone and their recovery codes.
         </DialogDescription>
       </DialogHeader>
 
-      <ImpactBox
-        tone="neutral"
-        sections={[{
-          heading: 'This will',
-          bullets: [
-            'Switch two-factor login off for this account',
-            'End the authenticator app entry and the recovery codes of this account',
-            'Send the user an email about it',
-          ],
-        }]}
-      >
-        <p className="text-sm text-muted-foreground">
-          The user logs in with the password only and can set it up again. When a project requires
-          two-factor login, the setup comes at the next login.
+      {/* What happens, in plain sentences. The second one depends on whether
+          two-factor login is the user's own choice or a requirement. */}
+      <Callout variant="info">
+        <p>
+          This switches two-factor login off for {email} and sends them an email about it.
         </p>
-      </ImpactBox>
+        <p className="mt-2">
+          {requiredBecause
+            ? `${requiredBecause}, so they have to set it up again at their next login.`
+            : 'They can switch it on again themselves, on their Account page.'}
+        </p>
+      </Callout>
 
       <DialogFooter>
         <Button variant="outline" onClick={onCancel} disabled={pending}>Cancel</Button>

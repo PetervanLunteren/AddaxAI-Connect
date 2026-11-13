@@ -41,7 +41,7 @@ import { formatDate } from '../utils/datetime';
 
 export const ProjectUsersPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { canAdminCurrentProject } = useProject();
+  const { canAdminCurrentProject, selectedProject } = useProject();
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -521,6 +521,11 @@ export const ProjectUsersPage: React.FC = () => {
 
       <ResetTwoFactorDialog
         email={resetTwoFactorUser?.email ?? null}
+        requiredBecause={
+          selectedProject?.require_two_factor
+            ? 'This project requires two-factor login for all users'
+            : undefined
+        }
         pending={resetTwoFactorMutation.isPending}
         onCancel={() => setResetTwoFactorUser(null)}
         onConfirm={() => resetTwoFactorUser?.user_id && resetTwoFactorMutation.mutate(resetTwoFactorUser.user_id)}
