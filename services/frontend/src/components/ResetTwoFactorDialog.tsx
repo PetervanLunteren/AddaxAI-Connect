@@ -45,8 +45,9 @@ interface ResetTwoFactorDialogProps {
   email: string | null;
   /** Set when the user cannot stay without two-factor login, as the start of
    *  a sentence that says why, for example "This project requires two-factor
-   *  login for all users". The dialog then says the setup comes back at the
-   *  next login. Left out when two-factor is the user's own choice. */
+   *  login for all users". The dialog then shows a note that the setup comes
+   *  back at the next login. Left out when two-factor is the user's own
+   *  choice. */
   requiredBecause?: string;
   pending: boolean;
   onCancel: () => void;
@@ -58,25 +59,23 @@ export const ResetTwoFactorDialog: React.FC<ResetTwoFactorDialogProps> = ({
 }) => (
   <Dialog open={email !== null} onOpenChange={(open) => { if (!open) onCancel(); }}>
     <DialogContent>
+      {/* Like the other confirm dialogs: a title and a plain sentence with
+          the address in bold. The box is only for the one thing that depends
+          on the project, so it means something when it shows. */}
       <DialogHeader>
         <DialogTitle>Reset two-factor login</DialogTitle>
         <DialogDescription>
-          For a user who lost their phone and their recovery codes.
+          This switches two-factor login off for <strong>{email}</strong>. They get an email
+          about it.
+          {!requiredBecause && ' They can switch it on again themselves, on their Account page.'}
         </DialogDescription>
       </DialogHeader>
 
-      {/* What happens, in plain sentences. The second one depends on whether
-          two-factor login is the user's own choice or a requirement. */}
-      <Callout variant="info">
-        <p>
-          This switches two-factor login off for {email} and sends them an email about it.
-        </p>
-        <p className="mt-2">
-          {requiredBecause
-            ? `${requiredBecause}, so they have to set it up again at their next login.`
-            : 'They can switch it on again themselves, on their Account page.'}
-        </p>
-      </Callout>
+      {requiredBecause && (
+        <Callout variant="info">
+          {requiredBecause}, so they set it up again at their next login.
+        </Callout>
+      )}
 
       <DialogFooter>
         <Button variant="outline" onClick={onCancel} disabled={pending}>Cancel</Button>
