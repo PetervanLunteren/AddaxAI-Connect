@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, UserPlus, Trash2, Edit2, Shield, Eye, Users as UsersIcon } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Edit2, Shield, ShieldOff, Eye, Users as UsersIcon } from 'lucide-react';
 import { projectsApi } from '../api/projects';
 import { sitesApi } from '../api/sites';
 import { useProject } from '../contexts/ProjectContext';
@@ -36,7 +36,10 @@ import { Select, SelectItem } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
 import type { ProjectUserInfo } from '../api/types';
 import { useAuth } from '../hooks/useAuth';
-import { ResetTwoFactorButton, ResetTwoFactorDialog, TwoFactorPill } from '../components/ResetTwoFactorDialog';
+import { ResetTwoFactorDialog, TwoFactorPill } from '../components/ResetTwoFactorDialog';
+import { RowActionsMenu } from '../components/ui/RowActionsMenu';
+import type { RowAction } from '../components/ui/RowActionsMenu';
+import { StatusPill } from '../components/ui/StatusPill';
 import { formatDate } from '../utils/datetime';
 
 export const ProjectUsersPage: React.FC = () => {
@@ -192,6 +195,39 @@ export const ProjectUsersPage: React.FC = () => {
     }
   };
 
+  // The actions of one row, for its three-dot menu
+  const rowActions = (user: ProjectUserInfo): RowAction[] => [
+    {
+      label: 'Change role',
+      icon: Edit2,
+      onClick: () => {
+        setSelectedUser(user);
+        setSelectedRole(user.role);
+        setSelectedSites(
+          (user.site_ids ?? []).map((id) => ({ label: siteName(id), value: id }))
+        );
+        setShowEditRoleModal(true);
+      },
+    },
+    // Your own is switched off on the Account page, with a code
+    ...(user.two_factor_enabled && user.user_id !== currentUser?.id
+      ? [{
+          label: 'Reset two-factor login',
+          icon: ShieldOff,
+          onClick: () => setResetTwoFactorUser(user),
+        }]
+      : []),
+    {
+      label: user.is_registered ? 'Remove from project' : 'Cancel invitation',
+      icon: Trash2,
+      destructive: true,
+      onClick: () => {
+        setSelectedUser(user);
+        setShowRemoveUserModal(true);
+      },
+    },
+  ];
+
   const getRoleBadge = (role: string, siteIds?: number[] | null) => {
     const config = {
       'project-admin': { label: 'project admin', icon: UsersIcon, color: '#ff8945' },
@@ -250,10 +286,9 @@ export const ProjectUsersPage: React.FC = () => {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
-                  <TableHead>Registered</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Added</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -261,41 +296,12 @@ export const ProjectUsersPage: React.FC = () => {
                   <TableRow key={user.user_id || `pending-${index}`}>
                     <TableCell className="font-medium break-all">{user.email}</TableCell>
                     <TableCell>{getRoleBadge(user.role, user.site_ids)}</TableCell>
+                    {/* Only what is not the normal case. Every registered
+                        account is active and verified, so saying so on each
+                        row says nothing. */}
                     <TableCell>
-                      {user.is_registered ? (
-                        <span
-                          className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
-                          style={{ backgroundColor: '#0f60641a', color: '#0f6064' }}
-                        >
-                          Yes
-                        </span>
-                      ) : (
-                        <span
-                          className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
-                          style={{ backgroundColor: '#8820001a', color: '#882000' }}
-                        >
-                          No
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {user.is_registered && user.is_active && (
-                          <span
-                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
-                            style={{ backgroundColor: '#0f60641a', color: '#0f6064' }}
-                          >
-                            Active
-                          </span>
-                        )}
-                        {user.is_registered && user.is_verified && (
-                          <span
-                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
-                            style={{ backgroundColor: '#71b7ba1a', color: '#71b7ba' }}
-                          >
-                            Verified
-                          </span>
-                        )}
+                      <div className="flex flex-wrap gap-2">
+                        {!user.is_registered && <StatusPill tone="warning">Invitation pending</StatusPill>}
                         {user.two_factor_enabled && <TwoFactorPill />}
                       </div>
                     </TableCell>
@@ -303,39 +309,7 @@ export const ProjectUsersPage: React.FC = () => {
                       {formatDate(user.added_at)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* Your own is switched off on the Account page, with a code */}
-                        {user.two_factor_enabled && user.user_id !== currentUser?.id && (
-                          <ResetTwoFactorButton onClick={() => setResetTwoFactorUser(user)} />
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setSelectedRole(user.role);
-                            setSelectedSites(
-                              (user.site_ids ?? []).map((id) => ({
-                                label: siteName(id),
-                                value: id,
-                              }))
-                            );
-                            setShowEditRoleModal(true);
-                          }}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setShowRemoveUserModal(true);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
+                      <RowActionsMenu rowLabel={user.email} actions={rowActions(user)} />
                     </TableCell>
                   </TableRow>
                 ))}

@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, Loader2, UserPlus, Trash2 } from 'lucide-react';
+import { Loader2, ShieldOff, UserPlus, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import {
@@ -30,7 +30,11 @@ import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
-import { ResetTwoFactorButton, ResetTwoFactorDialog, TwoFactorPill } from '../../components/ResetTwoFactorDialog';
+import { ResetTwoFactorDialog, TwoFactorPill } from '../../components/ResetTwoFactorDialog';
+import { RowActionsMenu } from '../../components/ui/RowActionsMenu';
+import type { RowAction } from '../../components/ui/RowActionsMenu';
+import { StatusPill } from '../../components/ui/StatusPill';
+import type { UserWithMemberships } from '../../api/types';
 
 export const ServerAdminManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -117,6 +121,37 @@ export const ServerAdminManagementPage: React.FC = () => {
     }
   };
 
+  // The actions of one row, for its three-dot menu. Your own row has none:
+  // you cannot remove yourself, and your own two-factor login is switched off
+  // on the Account page, with a code.
+  const rowActions = (serverAdmin: UserWithMemberships): RowAction[] => {
+    const target = { id: serverAdmin.id, email: serverAdmin.email };
+    if (serverAdmin.is_pending_invitation) {
+      return [{
+        label: 'Cancel invitation',
+        icon: Trash2,
+        destructive: true,
+        onClick: () => { setInvitationToCancel(target); setShowCancelModal(true); },
+      }];
+    }
+    if (serverAdmin.id === user?.id) return [];
+    return [
+      ...(serverAdmin.two_factor_enabled
+        ? [{
+            label: 'Reset two-factor login',
+            icon: ShieldOff,
+            onClick: () => setResetTwoFactorUser(target),
+          }]
+        : []),
+      {
+        label: 'Remove server admin',
+        icon: Trash2,
+        destructive: true,
+        onClick: () => { setUserToRemove(target); setShowRemoveModal(true); },
+      },
+    ];
+  };
+
   return (
     <ServerPageLayout
       title="Server admins"
@@ -149,83 +184,26 @@ export const ServerAdminManagementPage: React.FC = () => {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {serverAdmins.map((serverAdmin) => (
                   <TableRow key={serverAdmin.id}>
                     <TableCell className="font-medium break-all">{serverAdmin.email}</TableCell>
+                    {/* Only what is not the normal case. Everyone here is a
+                        server admin, and every registered account is active
+                        and verified. */}
                     <TableCell>
-                      <div className="flex gap-2 flex-wrap">
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-                          style={{ backgroundColor: '#0f60641a', color: '#0f6064' }}
-                        >
-                          <Shield className="h-3 w-3" />
-                          Server admin
-                        </span>
-                        {serverAdmin.is_pending_invitation ? (
-                          <span
-                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
-                            style={{ backgroundColor: '#8820001a', color: '#882000' }}
-                          >
-                            Pending invitation
-                          </span>
-                        ) : (
-                          <>
-                            {serverAdmin.is_active && (
-                              <span
-                                className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
-                                style={{ backgroundColor: '#0f60641a', color: '#0f6064' }}
-                              >
-                                Active
-                              </span>
-                            )}
-                            {serverAdmin.is_verified && (
-                              <span
-                                className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
-                                style={{ backgroundColor: '#71b7ba1a', color: '#71b7ba' }}
-                              >
-                                Verified
-                              </span>
-                            )}
-                            {serverAdmin.two_factor_enabled && <TwoFactorPill />}
-                          </>
+                      <div className="flex flex-wrap gap-2">
+                        {serverAdmin.is_pending_invitation && (
+                          <StatusPill tone="warning">Invitation pending</StatusPill>
                         )}
+                        {serverAdmin.two_factor_enabled && <TwoFactorPill />}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      {/* Your own is switched off on the Account page, with a code */}
-                      {serverAdmin.two_factor_enabled && serverAdmin.id !== user?.id && (
-                        <ResetTwoFactorButton
-                          onClick={() => setResetTwoFactorUser({ id: serverAdmin.id, email: serverAdmin.email })}
-                        />
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          if (serverAdmin.is_pending_invitation) {
-                            setInvitationToCancel({ id: serverAdmin.id, email: serverAdmin.email });
-                            setShowCancelModal(true);
-                          } else {
-                            setUserToRemove({ id: serverAdmin.id, email: serverAdmin.email });
-                            setShowRemoveModal(true);
-                          }
-                        }}
-                        disabled={!serverAdmin.is_pending_invitation && serverAdmin.id === user?.id}
-                        className="h-8 w-8 p-0"
-                        title={
-                          serverAdmin.is_pending_invitation
-                            ? "Cancel invitation"
-                            : serverAdmin.id === user?.id
-                            ? "Cannot remove yourself"
-                            : "Remove server admin"
-                        }
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <RowActionsMenu rowLabel={serverAdmin.email} actions={rowActions(serverAdmin)} />
                     </TableCell>
                   </TableRow>
                 ))}

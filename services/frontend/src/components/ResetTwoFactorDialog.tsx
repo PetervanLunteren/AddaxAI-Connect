@@ -1,13 +1,13 @@
 /**
  * The admin side of two-factor login, shared by the project users page and
- * the server admins page: the pill that shows an account has it on, the
- * button that opens the reset, and the dialog that confirms it.
+ * the server admins page: the label that shows an account has it on, and the
+ * dialog that confirms a reset. The reset itself is an item in the row menu.
  *
  * A reset switches two-factor login off for someone else, for example after
  * a lost phone. The user gets an email about it.
  */
 import React from 'react';
-import { Loader2, ShieldOff } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,27 +18,10 @@ import {
 } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
+import { StatusPill } from './ui/StatusPill';
 
-export const TwoFactorPill: React.FC = () => (
-  <span
-    className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap"
-    style={{ backgroundColor: '#0f60641a', color: '#0f6064' }}
-  >
-    Two-factor
-  </span>
-);
-
-export const ResetTwoFactorButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
-  <Button
-    variant="ghost"
-    size="sm"
-    onClick={onClick}
-    title="Reset two-factor login"
-    aria-label="Reset two-factor login"
-  >
-    <ShieldOff className="h-4 w-4" />
-  </Button>
-);
+/** The label for an account that has two-factor login on */
+export const TwoFactorPill: React.FC = () => <StatusPill tone="neutral">Two-factor</StatusPill>;
 
 interface ResetTwoFactorDialogProps {
   /** The account to reset, null keeps the dialog closed */
