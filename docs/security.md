@@ -9,7 +9,7 @@ On a server hosted by Addax Data Science and Smart Parks? See [hosted service](h
 
 With an email address and a password. Nobody can create an account without an invitation. A password needs at least 15 characters and is stored as a hash (Argon2), so nobody can read it. One address can try to log in at most 20 times in 5 minutes. A login lasts one hour. Changing your password ends all other logins of your account. What each account may see is on the [privacy](privacy.md#who-can-see-the-photos) page.
 
-Every user can add [two-factor login](two-factor.md): a code from an authenticator app after the password. A project admin can require it for everyone who can open the project, server admins included. The secret of the app is stored encrypted, a code works once, and five wrong codes block the account for 15 minutes. A user who loses the phone uses a recovery code, or asks an admin for a reset.
+Every user can add [two-factor login](two-factor.md): a code from an authenticator app after the password. A project admin can require it for everyone who can open the project, server admins included. The secret of the app is stored encrypted, a code works once, and five wrong codes block the account for 15 minutes.
 
 ## How do cameras send their photos?
 

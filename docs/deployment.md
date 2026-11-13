@@ -68,7 +68,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `db_password` | Database password |
     | `minio_password` | MinIO storage admin password |
     | `redis_password` | Redis password |
-    | `jwt_secret` | Secret key for signing login tokens and for encrypting two-factor secrets. Keep it the same for the life of the server, see [two-factor login](two-factor.md#for-server-admins) |
+    | `jwt_secret` | Secret key for signing login tokens and for encrypting two-factor secrets. Keep it the same for the life of the server, see [operations](operations.md#common-issues) |
     | `monitoring_password` | Password for monitoring tools |
 
     **Version**
