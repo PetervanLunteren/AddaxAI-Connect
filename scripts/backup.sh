@@ -26,8 +26,8 @@ cd "$APP_DIR"
 START_EPOCH="$(date +%s)"
 
 # Load the vars we need from .env without using `source`. `source .env` breaks
-# on values with unquoted spaces (e.g. Gmail app passwords like
-# "pguc htvu fawt bfxo" on MAIL_PASSWORD), which is valid for docker-compose
+# on values with unquoted spaces (e.g. a sender name in MAIL_FROM like
+# "AddaxAI Connect <connect@example.org>"), which is valid for docker-compose
 # but not for bash. Loaded before the skip-guards because we need
 # REDIS_PASSWORD to write the "skipped" status to Redis on guard trip.
 env_get() { grep -E "^$1=" .env | head -1 | cut -d= -f2-; }

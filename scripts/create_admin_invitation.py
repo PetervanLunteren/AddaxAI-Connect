@@ -16,6 +16,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 import smtplib
 from email.message import EmailMessage
+from email.utils import parseaddr
 
 # Add shared module to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
@@ -49,31 +50,38 @@ def send_admin_invitation_email(
         ValueError: If email configuration is missing
         Exception: If email sending fails
     """
-    # Get email configuration from environment
+    # Get email configuration from environment. Same rule as shared/smtp.py:
+    # log in only when a username is set, so a relay that trusts the server's
+    # IP address works without a password. This script runs once, outside the
+    # services, so it reads the environment directly.
     mail_server = os.getenv("MAIL_SERVER")
     mail_port = int(os.getenv("MAIL_PORT", "587"))
-    mail_username = os.getenv("MAIL_USERNAME")
-    mail_password = os.getenv("MAIL_PASSWORD")
+    mail_username = os.getenv("MAIL_USERNAME") or None
+    mail_password = os.getenv("MAIL_PASSWORD") or None
     mail_from = os.getenv("MAIL_FROM")
 
     # Email configuration is required
-    if not all([mail_server, mail_username, mail_password, mail_from]):
+    if not all([mail_server, mail_from]):
         raise ValueError(
             "❌ Email configuration incomplete. Required environment variables:\n"
             "   - MAIL_SERVER\n"
             "   - MAIL_PORT (defaults to 587)\n"
-            "   - MAIL_USERNAME\n"
-            "   - MAIL_PASSWORD\n"
             "   - MAIL_FROM\n"
             "\n"
             "Email is required to securely deliver the admin invitation token.\n"
             "Ansible should have validated SMTP connectivity - check your mail settings."
         )
+    if (mail_username is None) != (mail_password is None):
+        raise ValueError(
+            "❌ Set MAIL_USERNAME and MAIL_PASSWORD together, or leave both "
+            "empty for a server that needs no login."
+        )
 
     # Render HTML email from template
     html_content, text_content = render_email(
         "server_admin_invitation.html",
-        inviter_email=mail_from,
+        # MAIL_FROM may carry a display name, the text wants the address
+        inviter_email=parseaddr(mail_from)[1],
         registration_url=registration_url,
         expiry_days=7,
     )
@@ -87,9 +95,10 @@ def send_admin_invitation_email(
     msg.add_alternative(html_content, subtype='html')
 
     # Send email via SMTP with STARTTLS (raises on failure)
-    with smtplib.SMTP(mail_server, mail_port, timeout=10) as server:
+    with smtplib.SMTP(mail_server, mail_port, local_hostname=domain_name, timeout=10) as server:
         server.starttls()
-        server.login(mail_username, mail_password)
+        if mail_username:
+            server.login(mail_username, mail_password)
         server.send_message(msg)
 
     print(f"✅ Invitation email sent to {to_email}")

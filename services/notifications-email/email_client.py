@@ -1,7 +1,8 @@
 """
 Email client for sending SMTP emails.
 
-Supports both HTML and plain text emails with auto-detection of TLS mode.
+Supports both HTML and plain text emails. Connection settings, TLS mode and
+whether to log in come from shared.smtp.
 """
 import asyncio
 import aiosmtplib
@@ -11,6 +12,7 @@ from typing import Optional
 
 from shared.config import get_settings
 from shared.logger import get_logger
+from shared.smtp import smtp_send_kwargs
 
 logger = get_logger("notifications-email.client")
 settings = get_settings()
@@ -21,31 +23,18 @@ class EmailClient:
 
     def __init__(self):
         """Initialize email client with SMTP configuration."""
-        self._validated = False
+        self._smtp_kwargs: Optional[dict] = None
 
-    def _validate_config(self):
+    def _validate_config(self) -> dict:
         """
-        Validate email configuration.
+        Validate email configuration and return the SMTP arguments.
 
         Raises:
             ValueError: If required settings are missing
         """
-        if self._validated:
-            return
-
-        if not all([
-            settings.mail_server,
-            settings.mail_port,
-            settings.mail_username,
-            settings.mail_password,
-            settings.mail_from,
-        ]):
-            raise ValueError(
-                "Email configuration incomplete. Required: "
-                "MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM"
-            )
-
-        self._validated = True
+        if self._smtp_kwargs is None:
+            self._smtp_kwargs = smtp_send_kwargs(settings)
+        return self._smtp_kwargs
 
     async def send_email(
         self,
@@ -67,7 +56,7 @@ class EmailClient:
             aiosmtplib.SMTPException: If email sending fails
             ValueError: If configuration is incomplete
         """
-        self._validate_config()
+        smtp_kwargs = self._validate_config()
 
         logger.info(
             "Sending email",
@@ -99,29 +88,7 @@ class EmailClient:
                 message['From'] = settings.mail_from
                 message['To'] = to_email
 
-            # Auto-detect TLS mode based on port
-            port = settings.mail_port
-
-            if port == 465:
-                # Implicit TLS (SMTPS)
-                await aiosmtplib.send(
-                    message,
-                    hostname=settings.mail_server,
-                    port=port,
-                    username=settings.mail_username,
-                    password=settings.mail_password,
-                    use_tls=True,
-                )
-            else:
-                # STARTTLS for port 587 or other ports
-                await aiosmtplib.send(
-                    message,
-                    hostname=settings.mail_server,
-                    port=port,
-                    username=settings.mail_username,
-                    password=settings.mail_password,
-                    start_tls=True,
-                )
+            await aiosmtplib.send(message, **smtp_kwargs)
 
             logger.info(
                 "Email sent successfully",

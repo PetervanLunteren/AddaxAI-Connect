@@ -14,6 +14,7 @@ from shared.config import get_settings
 from shared.logger import get_logger
 from shared.email_renderer import render_email
 from shared.notify_guard import email_allowed
+from shared.smtp import smtp_send_kwargs
 
 logger = get_logger("api.mailer")
 
@@ -51,33 +52,21 @@ class EmailSender:
         Configuration is validated lazily on first use.
         """
         self.settings = get_settings()
-        self._validated = False
+        self._smtp_kwargs: Optional[dict] = None
 
-    def _validate_config(self):
+    def _validate_config(self) -> dict:
         """
-        Validate email configuration.
+        Validate email configuration and return the SMTP arguments.
 
         Crashes if required email settings are not configured.
-        Called on first email send attempt.
+        Called on every send, validates only the first time.
         """
-        if self._validated:
-            return
-
-        # Explicit configuration - crash if not set
-        if not all([
-            self.settings.mail_server,
-            self.settings.mail_port,
-            self.settings.mail_username,
-            self.settings.mail_password,
-            self.settings.mail_from,
-            self.settings.domain_name,
-        ]):
-            raise ValueError(
-                "Email configuration incomplete. Required: "
-                "MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM, DOMAIN_NAME"
-            )
-
-        self._validated = True
+        if self._smtp_kwargs is None:
+            # Links in the emails are built from it
+            if not self.settings.domain_name:
+                raise ValueError("Email configuration incomplete. Required: DOMAIN_NAME")
+            self._smtp_kwargs = smtp_send_kwargs(self.settings)
+        return self._smtp_kwargs
 
     async def send_email(
         self,
@@ -99,8 +88,7 @@ class EmailSender:
             aiosmtplib.SMTPException: If email sending fails
             ValueError: If email configuration is incomplete
         """
-        # Validate configuration on first use
-        self._validate_config()
+        smtp_kwargs = self._validate_config()
 
         # Every send_* method below funnels through here, so one check covers
         # verification, password reset, invitations and role changes. These
@@ -149,28 +137,7 @@ class EmailSender:
                 message["Subject"] = subject
                 message.set_content(body_text)
 
-            # Auto-detect TLS mode based on port
-            port = self.settings.mail_port
-            if port == 465:
-                # Implicit TLS for port 465 (SMTPS)
-                await aiosmtplib.send(
-                    message,
-                    hostname=self.settings.mail_server,
-                    port=port,
-                    username=self.settings.mail_username,
-                    password=self.settings.mail_password,
-                    use_tls=True,
-                )
-            else:
-                # STARTTLS for port 587 or other ports
-                await aiosmtplib.send(
-                    message,
-                    hostname=self.settings.mail_server,
-                    port=port,
-                    username=self.settings.mail_username,
-                    password=self.settings.mail_password,
-                    start_tls=True,
-                )
+            await aiosmtplib.send(message, **smtp_kwargs)
 
             logger.info(
                 "Email sent successfully",

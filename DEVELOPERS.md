@@ -325,6 +325,7 @@ addaxai-connect/
 │       ├── storage.py                 # StorageClient (MinIO/S3 wrapper)
 │       ├── logger.py                  # Structured JSON logging with correlation IDs
 │       ├── email_renderer.py          # Jinja2 email template rendering
+│       ├── smtp.py                    # SMTP settings for every mail sender, login only when a username is set
 │       ├── camera_status.py           # Camera liveness rule (active / inactive / never_reported)
 │       ├── earthranger.py             # Gundi event payloads and client for the EarthRanger channel
 │       ├── sensingclues.py            # Cluey observation payloads and client for the Sensing Clues channel
