@@ -31,12 +31,17 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-/* A tall screenshot, like a dialog, would fill the screen at full width.
-   Cap its width and centre it. */
-.screenshot-narrow {
+/* Every image in a page is at most as high as a normal full-width
+   screenshot (16:10 in the content column), whatever its shape. A tall one,
+   like a dialog, then gets narrower instead of filling the screen, and is
+   centred. One rule for all, so no image needs a class for its size.
+   `.md-typeset img` is the selector Material sets max-width on; a plain
+   class loses to it, which is why the earlier width cap never applied. */
+.md-typeset img {
+  max-height: 420px;
   display: block;
-  max-width: 400px;
-  margin: 0 auto;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Row of screenshots at one shared height. Give each image a percentage

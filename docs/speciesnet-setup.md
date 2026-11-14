@@ -1,6 +1,6 @@
 # SpeciesNet setup
 
-![Create project dialog with SpeciesNet](https://github.com/user-attachments/assets/ffbac186-3976-41ad-8e00-cac665a3c997){ .screenshot-narrow }
+![Create project dialog with SpeciesNet](https://github.com/user-attachments/assets/ffbac186-3976-41ad-8e00-cac665a3c997)
 
 This page covers what only applies to SpeciesNet. The general server settings, like the timezone, are in the [deployment guide](deployment.md).
 

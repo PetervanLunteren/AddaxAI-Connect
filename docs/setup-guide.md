@@ -27,7 +27,7 @@ Once those are set, you can create your first project.
 5. If you picked SpeciesNet, add the species labels CSV. See [SpeciesNet setup](speciesnet-setup.md) for how to make one
 6. Click Create project
 
-![Create project dialog](https://github.com/user-attachments/assets/10d7c266-28a3-481e-800e-3d492f078c43){ .screenshot-narrow }
+![Create project dialog](https://github.com/user-attachments/assets/10d7c266-28a3-481e-800e-3d492f078c43)
 
 A project groups your cameras, images, and users together. You can create multiple projects for different study areas or camera networks. When opening the project, you can see the options and a data-hungry dashboard.
 
