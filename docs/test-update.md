@@ -4,11 +4,33 @@ Run an update against a copy of your production data first, on a dev server.
 About three minutes per server. Demo data does not have the shapes real data
 has, so this catches what unit tests cannot.
 
-## What you need
+## The dev server
 
-A dev server, see [dev server setup](dev-server-setup.md). Its `.env` must say
-`ENVIRONMENT=development`, and it needs the backup bucket credentials so it can
-read the other servers' backups.
+You need one server that holds a copy of production data and can never reach
+your users.
+
+Build it like a lost server, with the [restore guide](restore-guide.md), and set
+three things differently in its `host_vars`:
+
+```yaml
+domain_name: "dev.example.com"    # must start with dev
+app_environment: development      # makes it a dev server
+git_version: main                 # follows main, production runs releases
+```
+
+Development mode sends email and Telegram only to the addresses in
+`dev_notify_emails`, which is `admin_email` unless you set it. After a restore
+it also clears the restored Telegram bot, the integrations and two-factor login,
+so the copy cannot act as the real server.
+
+Keep `backup_enabled: false`. The dev server shares the backup bucket with
+production, and with backups on it could write over a real server's backup. It
+does need the bucket keys, to read the backups it restores.
+
+Change its settings in `host_vars` and run the playbook with
+`--tags sync-config`. Never edit `.env` on the server by hand: several values
+come from the domain name, and a hand edit once made a dev server write into a
+production server's backup.
 
 ## One server
 
@@ -23,9 +45,8 @@ bash scripts/test-update.sh <production-domain>
 It restores that server's latest backup, applies the migrations, and verifies
 the result. `PASS` or `FAIL`.
 
-A dev server follows `main` (`git_version: main` in its host_vars, see
-[dev server setup](dev-server-setup.md)), which is why `git pull` is right
-here. Production servers sit on a tagged release instead.
+A dev server follows `main`, which is why `git pull` is right here. Production
+servers sit on a tagged release instead.
 
 You do not say which version to start from. The backup carries the schema
 production is on, so restoring it already puts the dev server at that point.

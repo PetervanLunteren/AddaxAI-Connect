@@ -74,4 +74,3 @@ nav:
     - Restore guide: restore-guide.md
   - Developer:
     - Architecture: architecture.md
-    - Dev server setup: dev-server-setup.md

@@ -398,7 +398,6 @@ addaxai-connect/
 │   ├── update-guide.md
 │   ├── operations.md
 │   ├── restore-guide.md
-│   ├── dev-server-setup.md
 │   ├── install-as-app.md
 │   ├── two-factor.md
 │   └── architecture.md
