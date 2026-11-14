@@ -12,7 +12,7 @@ from typing import Optional
 
 from shared.config import get_settings
 from shared.logger import get_logger
-from shared.smtp import smtp_send_kwargs
+from shared.smtp import smtp_send_kwargs, stamp_headers
 
 logger = get_logger("notifications-email.client")
 settings = get_settings()
@@ -88,6 +88,7 @@ class EmailClient:
                 message['From'] = settings.mail_from
                 message['To'] = to_email
 
+            stamp_headers(message, settings.mail_from)
             await aiosmtplib.send(message, **smtp_kwargs)
 
             logger.info(

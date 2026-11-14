@@ -7,10 +7,14 @@ that still triggers a login fails every send on a relay that needs none, and
 half a login (a username without a password) would only show up as an
 authentication error at the first invitation.
 """
+from email.message import EmailMessage
+from email.mime.multipart import MIMEMultipart
+from email.utils import parsedate_to_datetime
+
 import pytest
 
 from shared.config import Settings
-from shared.smtp import smtp_send_kwargs
+from shared.smtp import smtp_send_kwargs, stamp_headers
 
 
 def _settings(**overrides) -> Settings:
@@ -95,3 +99,21 @@ def test_server_introduces_itself_by_domain_name():
 def test_no_domain_name_leaves_the_default_name():
     kwargs = smtp_send_kwargs(_settings(domain_name=None))
     assert kwargs["local_hostname"] is None
+
+
+# --- headers ----------------------------------------------------------------
+
+@pytest.mark.parametrize("message", [EmailMessage(), MIMEMultipart("alternative")])
+def test_message_gets_date_and_id_on_the_sender_domain(message):
+    """Without these Google adds them and marks the ID as missing, which
+    Microsoft counts as spam. Both message types the senders build get them."""
+    stamp_headers(message, "AddaxAI Connect <connect@example.org>")
+    assert message["Message-ID"].endswith("@example.org>")
+    assert parsedate_to_datetime(message["Date"]).tzinfo is not None
+
+
+def test_every_message_gets_its_own_id():
+    first, second = EmailMessage(), EmailMessage()
+    stamp_headers(first, "connect@example.org")
+    stamp_headers(second, "connect@example.org")
+    assert first["Message-ID"] != second["Message-ID"]

@@ -14,7 +14,7 @@ from shared.config import get_settings
 from shared.logger import get_logger
 from shared.email_renderer import render_email
 from shared.notify_guard import email_allowed
-from shared.smtp import smtp_send_kwargs
+from shared.smtp import smtp_send_kwargs, stamp_headers
 
 logger = get_logger("api.mailer")
 
@@ -137,6 +137,7 @@ class EmailSender:
                 message["Subject"] = subject
                 message.set_content(body_text)
 
+            stamp_headers(message, self.settings.mail_from)
             await aiosmtplib.send(message, **smtp_kwargs)
 
             logger.info(

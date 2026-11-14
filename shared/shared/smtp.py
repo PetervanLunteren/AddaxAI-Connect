@@ -1,16 +1,31 @@
 """
-SMTP connection settings shared by every service that sends mail.
+SMTP settings and message headers shared by every service that sends mail.
 
-One rule: log in only when a username is set. Without one the server must
+One rule for the connection: log in only when a username is set. Without one the server must
 accept the mail on its own terms, for example Google's SMTP relay, which
 accepts the IP addresses of known servers and needs no password at all.
 
 Returns plain keyword arguments for aiosmtplib.send, so shared/ does not
 depend on aiosmtplib itself.
 """
+from email.message import Message
+from email.utils import formatdate, make_msgid, parseaddr
 from typing import Any, Dict
 
 from shared.config import Settings
+
+
+def stamp_headers(message: Message, mail_from: str) -> None:
+    """Give the message the Date and Message-ID every real mail client sets.
+
+    A relay passes a message on as it gets it. Without these two, Google
+    fills them in and marks the ID SMTPIN_ADDED_MISSING, which spam filters
+    count against the sender, Microsoft's most of all. The ID is made on the
+    sender's own domain so it lines up with the From address.
+    """
+    domain = parseaddr(mail_from)[1].rpartition("@")[2] or None
+    message["Date"] = formatdate(localtime=True)
+    message["Message-ID"] = make_msgid(domain=domain)
 
 
 def smtp_send_kwargs(settings: Settings) -> Dict[str, Any]:

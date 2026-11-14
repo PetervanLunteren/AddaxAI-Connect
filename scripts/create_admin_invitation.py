@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from shared.models import User, UserInvitation
 from shared.database import Base
 from shared.email_renderer import render_email
+from shared.smtp import stamp_headers
 
 
 def send_admin_invitation_email(
@@ -91,6 +92,7 @@ def send_admin_invitation_email(
     msg['Subject'] = "Server admin invitation - AddaxAI Connect"
     msg['From'] = mail_from
     msg['To'] = to_email
+    stamp_headers(msg, mail_from)
     msg.set_content(text_content)
     msg.add_alternative(html_content, subtype='html')
 
