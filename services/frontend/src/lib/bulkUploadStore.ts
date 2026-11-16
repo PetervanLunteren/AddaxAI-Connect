@@ -63,7 +63,8 @@ interface BeginNewArgs {
   deviceId?: string;
   siteId?: number;
   manifest: BulkUploadManifest;
-  excludedCapturedAts: string[];
+  // Paths of files already in the project, left out of the upload.
+  excludedPaths: string[];
   // Camera clock correction, already applied to manifest and entries.
   timeOffsetSeconds: number;
   files: File[];
@@ -120,11 +121,7 @@ export const useBulkUploadStore = create<State & Actions>((set, get) => ({
 
 function makeValidEntries(entries: ScanEntry[], excluded: Set<string>): ScanEntry[] {
   return entries
-    .filter(
-      (e) =>
-        e.status === 'valid'
-        && !(e.captured_at && excluded.has(e.captured_at)),
-    )
+    .filter((e) => e.status === 'valid' && !excluded.has(e.relative_path))
     .sort((a, b) => a.relative_path.localeCompare(b.relative_path));
 }
 
@@ -133,7 +130,7 @@ async function runNewUpload(
   set: (partial: Partial<State>) => void,
   get: () => State & Actions,
 ) {
-  const excluded = new Set(args.excludedCapturedAts);
+  const excluded = new Set(args.excludedPaths);
   const validEntries = makeValidEntries(args.entries, excluded);
   const total = validEntries.length;
   const totalBytes = validEntries.reduce((sum, e) => sum + e.size, 0);

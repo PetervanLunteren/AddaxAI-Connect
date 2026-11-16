@@ -7,6 +7,11 @@
  * and classification.
  */
 import apiClient from './client';
+import type { ScanEntry } from '../workers/bulkScanWorker';
+
+// The camera to compare a scan with. A registered camera in profile mode,
+// or the chosen site's bulk camera in manual mode.
+export type DuplicateTarget = { camera_id: number } | { site_id: number };
 
 export interface BulkUploadManifest {
   total_entries: number;
@@ -102,17 +107,22 @@ export const bulkUploadApi = {
    * at a timestamp. Multi-match cases (burst mode) go through and
    * server-side content-hash dedup sorts them out.
    */
+  // Paths of the scanned files that are already in the project. The server
+  // decides, with the rule in shared/shared/bulk_dedup.py.
   checkDuplicates: async (
     projectId: number,
-    cameraId: number,
-    capturedAts: string[],
-  ): Promise<Record<string, number>> => {
-    if (capturedAts.length === 0) return {};
-    const response = await apiClient.post<{ duplicate_counts: Record<string, number> }>(
+    target: DuplicateTarget,
+    entries: ScanEntry[],
+  ): Promise<string[]> => {
+    const files = entries
+      .filter((e) => e.status === 'valid' && e.captured_at)
+      .map((e) => ({ path: e.relative_path, captured_at: e.captured_at! }));
+    if (files.length === 0) return [];
+    const response = await apiClient.post<{ skip_paths: string[] }>(
       `/api/projects/${projectId}/bulk-upload/check-duplicates`,
-      { camera_id: cameraId, captured_ats: capturedAts },
+      { ...target, files },
     );
-    return response.data.duplicate_counts;
+    return response.data.skip_paths;
   },
 
   /**

@@ -46,6 +46,7 @@ import {
   bulkUploadApi,
   type BulkUploadJob,
   type BulkUploadManifest,
+  type DuplicateTarget,
   type ScanProfileEntry,
 } from '../../api/bulkUpload';
 import type { ScanEntry, ScanResult } from '../../workers/bulkScanWorker';
@@ -559,11 +560,9 @@ interface UploadContext {
   site_id?: number;
   folder_name: string;
   manifest: BulkUploadManifest;
-  // Naive captured_at timestamps flagged as duplicates during
-  // pre-flight, scoped to the picked camera. The upload step skips
-  // files whose captured_at hits this set so we don't waste bandwidth
-  // on photos the server would just dedup away.
-  excluded_captured_ats: string[];
+  // Paths of the files the server found already in the project. The
+  // upload leaves them out.
+  excluded_paths: string[];
   // The scan with the camera clock correction applied, and the correction
   // itself. Every captured_at above is in corrected time too.
   entries: ScanEntry[];
@@ -711,7 +710,7 @@ const BulkUploadModal: React.FC<{
                   deviceId: ctx.device_id,
                   siteId: ctx.site_id,
                   manifest: ctx.manifest,
-                  excludedCapturedAts: ctx.excluded_captured_ats,
+                  excludedPaths: ctx.excluded_paths,
                   timeOffsetSeconds: ctx.time_offset_seconds,
                   files: scanned.files,
                   entries: ctx.entries,
@@ -1081,27 +1080,6 @@ const ReviewStep: React.FC<{
     };
   }, [entries]);
 
-  const validCapturedAts = useMemo(() => {
-    const out: string[] = [];
-    for (const e of entries) {
-      if (e.status === 'valid' && e.captured_at) out.push(e.captured_at);
-    }
-    return out;
-  }, [entries]);
-
-  // Count of valid entries per captured_at in the scan. Used together
-  // with the server's per-timestamp DB count to apply the 1:1 safety
-  // rule below.
-  const scanCounts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const e of entries) {
-      if (e.status === 'valid' && e.captured_at) {
-        m.set(e.captured_at, (m.get(e.captured_at) ?? 0) + 1);
-      }
-    }
-    return m;
-  }, [entries]);
-
   // Pre-flight: run the same camera-profile hunt as live ingestion on a sample
   // of the scanned EXIF, to decide the mode before any byte is uploaded.
   const profileSample = useMemo(() => {
@@ -1123,39 +1101,23 @@ const ReviewStep: React.FC<{
     enabled: entries.length > 0,
   });
 
-  // Pre-flight duplicate count. Only meaningful for a Mode A camera that is
-  // already registered; a brand-new (auto-created) or synthetic Mode B camera
-  // has no prior images, so server-side content-hash dedup covers those.
-  const dupCameraId =
-    profile?.mode === 'profile' && profile.camera_registered ? profile.camera_id : null;
-  const { data: duplicateCounts } = useQuery({
-    queryKey: ['bulk-check-duplicates', projectId, dupCameraId, validCapturedAts],
-    queryFn: () => bulkUploadApi.checkDuplicates(projectId, dupCameraId!, validCapturedAts),
-    enabled: !!dupCameraId && validCapturedAts.length > 0,
+  // Which files are already in the project, decided by the server. Runs for
+  // a registered camera (profile mode) or, once a site is picked, for that
+  // site's bulk camera (manual mode). A camera that does not exist yet has
+  // no images, so there is nothing to ask.
+  const duplicateTarget: DuplicateTarget | null =
+    profile?.mode === 'profile'
+      ? (profile.camera_registered && profile.camera_id ? { camera_id: profile.camera_id } : null)
+      : (siteId ? { site_id: Number(siteId) } : null);
+  const { data: skipPaths, isFetching: duplicatesLoading } = useQuery({
+    queryKey: ['bulk-check-duplicates', projectId, duplicateTarget, entries],
+    queryFn: () => bulkUploadApi.checkDuplicates(projectId, duplicateTarget!, entries),
+    enabled: duplicateTarget !== null,
   });
-
-  // 1:1 safety rule. Only skip a captured_at when both the scan and
-  // the DB have exactly one entry at that timestamp; that pair is an
-  // unambiguous duplicate. Anything else (burst mode at the same EXIF
-  // second, multiple existing rows) is ambiguous and goes through to
-  // the server, where content-hash dedup is precise.
-  const safeDuplicateSet = useMemo(() => {
-    const set = new Set<string>();
-    if (!duplicateCounts) return set;
-    for (const [ts, dbCount] of Object.entries(duplicateCounts)) {
-      if (dbCount === 1 && scanCounts.get(ts) === 1) set.add(ts);
-    }
-    return set;
-  }, [duplicateCounts, scanCounts]);
-
-  const duplicateCount = safeDuplicateSet.size;
+  const excludedPaths = duplicateTarget ? (skipPaths ?? []) : [];
+  const duplicateCount = excludedPaths.length;
 
   const rawValidCount = manifest.by_status.valid ?? 0;
-  // Effective "uploadable" count after removing per-camera duplicate
-  // hits returned by /check-duplicates. The pre-flight matches the
-  // server-side dedup key it would have evaluated at ingestion time
-  // (camera_id + captured_at), so a match here is one the worker
-  // would have skipped anyway.
   const validCount = Math.max(0, rawValidCount - duplicateCount);
   const skipReasonEntries: [string, number][] = [
     ...(duplicateCount > 0 ? ([['duplicate', duplicateCount]] as [string, number][]) : []),
@@ -1202,7 +1164,7 @@ const ReviewStep: React.FC<{
         device_id: profile.device_id,
         folder_name: folderName,
         manifest,
-        excluded_captured_ats: Array.from(safeDuplicateSet),
+        excluded_paths: excludedPaths,
         entries,
         time_offset_seconds: timeOffset,
       });
@@ -1217,7 +1179,7 @@ const ReviewStep: React.FC<{
       site_id: Number(siteId),
       folder_name: folderName,
       manifest,
-      excluded_captured_ats: [],
+      excluded_paths: excludedPaths,
       entries,
       time_offset_seconds: timeOffset,
     });
@@ -1350,6 +1312,7 @@ const ReviewStep: React.FC<{
           disabled={
             validCount === 0
             || profileLoading
+            || duplicatesLoading
             || profile?.multiple_cameras
             || (profile?.mode !== 'profile' && !siteId)
           }

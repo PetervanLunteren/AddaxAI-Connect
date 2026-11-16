@@ -438,6 +438,14 @@ classification workers. Bulk-origin images use parallel `-bulk` queues, and the
 workers consume both with strict priority, so live camera traffic always jumps
 ahead of a large import.
 
+Before a bulk upload the server tells the browser which scanned files are
+already in the project (`/check-duplicates`). Per camera and camera-clock
+second, a file with the name of an existing image is skipped, then as many
+remaining files as there are existing images left over, first by name. That
+second step catches the resized copy a 4G camera sends of the first photo of
+a burst. The rule is `files_already_present` in `shared/shared/bulk_dedup.py`.
+The worker's byte-hash check stays as the safety net.
+
 Queue names (defined in `shared/shared/queue.py`):
 - `image-ingested` carries new images from ingestion to detection
 - `detection-complete` carries detected images from detection to classification

@@ -13,7 +13,6 @@ import asyncio
 import csv
 import io
 import os
-import re
 import shutil
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -32,6 +31,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.bulk_dedup import files_already_present, safe_basename
 from shared.bulk_jobs import BULK_IMAGE_EXTENSIONS, BULK_MAX_FILE_MB
 from shared.camera_profiles import identify_camera_profile
 from shared.database import get_async_session
@@ -183,23 +183,32 @@ class ScanProfileResponse(BaseModel):
     device_ids: List[str] = Field(default_factory=list)
 
 
+class ScannedFile(BaseModel):
+    """One file of the scanned folder: its path and naive camera clock time."""
+    path: str
+    captured_at: datetime
+
+
 class CheckDuplicatesRequest(BaseModel):
     """
-    Fingerprint check: for the picked camera, how many Image rows
-    exist at each of these naive EXIF timestamps? Cheap alternative
-    to content-hash dedup, one indexed lookup on Image.captured_at.
+    Which scanned files are already in the project. Exactly one of
+    `camera_id` (a registered camera, profile mode) or `site_id` (the
+    site's bulk camera, manual mode) names the camera to compare with.
     """
-    camera_id: int
-    captured_ats: List[str] = Field(default_factory=list)
+    camera_id: Optional[int] = None
+    site_id: Optional[int] = None
+    files: List[ScannedFile] = Field(default_factory=list, max_length=MAX_FILES_PER_JOB)
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> "CheckDuplicatesRequest":
+        if (self.camera_id is None) == (self.site_id is None):
+            raise ValueError("Provide exactly one of camera_id or site_id")
+        return self
 
 
 class CheckDuplicatesResponse(BaseModel):
-    # captured_at iso -> count of matching Image rows on that camera.
-    # The client uses the count to decide whether a skip is safe: a
-    # single match against a single scan entry is unambiguous, but
-    # multi-match (burst mode) is ambiguous and must be sent through
-    # so the server's content-hash dedup can sort it out.
-    duplicate_counts: Dict[str, int]
+    # Paths of the scanned files to leave out of the upload.
+    skip_paths: List[str]
 
 
 def _staging_prefix(project_id: int, job_uuid: str) -> str:
@@ -238,13 +247,6 @@ def _check_disk_headroom(upload_bytes: int) -> None:
                 "frees its space again."
             ),
         )
-
-
-def _safe_basename(name: str) -> str:
-    """Strip directory components and replace unsafe chars."""
-    base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", base).strip("_")
-    return cleaned or "image.jpg"
 
 
 async def _pipeline_done_counts(
@@ -474,66 +476,45 @@ async def check_duplicates(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    For the picked camera, return the naive EXIF timestamps that
-    already exist on an Image row. Used by the pre-flight scan to
-    show "N already in the project" before the user pays the upload
-    cost. Camera-scoped so two cameras firing at the same second do
-    not produce a false positive across cameras.
-    """
-    if not body.captured_ats:
-        return CheckDuplicatesResponse(duplicate_counts={})
+    Return the scanned files that are already in the project, so the upload
+    leaves them out. The rule is in shared/bulk_dedup.py. Times are naive
+    camera clock values, compared as-is with Image.captured_at.
 
-    # Verify the camera belongs to this project, otherwise this is a
-    # cross-project query attempt.
-    cam = (
+    A camera or site that has no bulk camera yet has no images, so nothing
+    is skipped. The worker's byte-hash check stays as the safety net.
+    """
+    camera_id = (
         await db.execute(
             select(Camera.id).where(
-                Camera.id == body.camera_id,
+                Camera.id == body.camera_id
+                if body.camera_id is not None
+                else Camera.device_id == synthetic_device_id(body.site_id),
+                Camera.retired_at.is_(None),
                 Camera.project_id == project_id,
             )
         )
     ).scalar_one_or_none()
-    if cam is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Camera does not belong to this project",
-        )
+    if camera_id is None or not body.files:
+        return CheckDuplicatesResponse(skip_paths=[])
 
-    # Parse the client's naive ISO strings into Python naive
-    # datetimes. captured_at is stored without tzinfo per the
-    # camera-clock rule in DEVELOPERS.md, so the comparison must use
-    # naive values as well; passing aware datetimes would crash the
-    # query with a tz-mismatch error.
-    parsed: List[datetime] = []
-    for value in body.captured_ats:
-        try:
-            dt = datetime.fromisoformat(value)
-        except ValueError:
-            continue
-        if dt.tzinfo is not None:
-            # Drop the tz; everything in this column is camera-clock
-            # naive. The client should not send an offset here.
-            dt = dt.replace(tzinfo=None)
-        parsed.append(dt)
-    if not parsed:
-        return CheckDuplicatesResponse(duplicate_counts={})
-
-    rows = await db.execute(
-        select(Image.captured_at, func.count(Image.id))
-        .where(
-            Image.camera_id == body.camera_id,
-            Image.captured_at.in_(parsed),
+    # Naive camera clock on both sides; drop a stray offset from the client.
+    files = [(f.path, f.captured_at.replace(tzinfo=None)) for f in body.files]
+    seconds = {captured_at for _path, captured_at in files}
+    existing = (
+        await db.execute(
+            select(Image.filename, Image.captured_at).where(
+                Image.camera_id == camera_id,
+                Image.captured_at.in_(seconds),
+            )
         )
-        .group_by(Image.captured_at)
-    )
-    counts: Dict[str, int] = {}
-    for dt, n in rows.all():
-        if dt is None:
-            continue
-        # Echo back in the ISO shape the client sent so the frontend
-        # can build a Map without timezone gymnastics.
-        counts[dt.strftime("%Y-%m-%dT%H:%M:%S")] = int(n)
-    return CheckDuplicatesResponse(duplicate_counts=counts)
+    ).all()
+    skip = files_already_present(files, [(name, at) for name, at in existing])
+    return CheckDuplicatesResponse(skip_paths=[files[i][0] for i in skip])
+
+
+def synthetic_device_id(site_id: int) -> str:
+    """Device id of the per-site camera that manual (no-profile) uploads use."""
+    return f"bulk-cam-{site_id}"
 
 
 async def _get_or_create_camera_by_device_id(
@@ -589,7 +570,7 @@ async def _get_or_create_synthetic_camera(
     on later uploads to the same site so re-imports never spawn phantom cameras.
     """
     return await _get_or_create_camera_by_device_id(
-        db, project_id, f"bulk-cam-{site_id}"
+        db, project_id, synthetic_device_id(site_id)
     )
 
 
@@ -660,7 +641,7 @@ async def create_bulk_upload_job(
         manifest["site_id"] = body.site_id
 
     job_uuid = str(uuid.uuid4())
-    safe_folder_name = _safe_basename(body.folder_name) or "upload"
+    safe_folder_name = safe_basename(body.folder_name) or "upload"
 
     job = BulkUploadJob(
         uuid=job_uuid,
@@ -771,7 +752,7 @@ async def _upload_bulk_file_inner(
             detail=f"File exceeds {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB cap",
         )
 
-    safe_name = _safe_basename(file.filename)
+    safe_name = safe_basename(file.filename)
     object_key = f"{_staging_prefix(project_id, job_uuid)}{index:06d}_{safe_name}"
 
     storage = StorageClient()

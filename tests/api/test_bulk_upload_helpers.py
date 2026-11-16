@@ -7,23 +7,17 @@ FastAPI app, MinIO client, or database. Same pattern as
 test_camera_tags.py.
 """
 import os
-import re
 import sys
 from typing import Optional
 
 import pytest
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
+from shared.bulk_dedup import safe_basename as _safe_basename
 from shared.camera_profiles import identify_camera_profile
 
 
-# --- copies of _safe_basename and _staging_prefix ---
-def _safe_basename(name: str) -> str:
-    base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", base).strip("_")
-    return cleaned or "image.jpg"
-
-
+# --- copy of _staging_prefix ---
 def _staging_prefix(project_id: int, job_uuid: str) -> str:
     return f"{project_id}/{job_uuid}/"
 
@@ -87,8 +81,7 @@ class TestStagingPrefix:
         assert _staging_prefix(7, "abc-123") == "7/abc-123/"
 
     def test_ends_with_slash(self):
-        # Worker branches on trailing slash to pick the prefix path
-        # over the legacy single-zip path; keep this invariant.
+        # The worker lists everything under this prefix.
         assert _staging_prefix(1, "u").endswith("/")
 
 
@@ -349,7 +342,7 @@ class TestModeSelection:
 
     @staticmethod
     def _synthetic_device_id(site_id: int) -> str:
-        return f"bulk-cam-{site_id}"
+        return TestBulkFileRules._router().synthetic_device_id(site_id)
 
     def test_pinned_site_is_mode_b(self):
         assert self._use_profile({"site_id": 12}) is False
@@ -448,3 +441,35 @@ class TestBulkFileRules:
         assert "IMG_0001.jpeg".endswith(BULK_IMAGE_EXTENSIONS)
         assert not "IMG_0001.png".endswith(BULK_IMAGE_EXTENSIONS)
         assert "image/png" not in self._router().ALLOWED_CONTENT_TYPES
+
+
+class TestCheckDuplicatesRequest:
+    """The pre-flight check names exactly one camera: registered, or a site's bulk camera."""
+
+    @staticmethod
+    def _request(**kwargs):
+        return TestBulkFileRules._router().CheckDuplicatesRequest(**kwargs)
+
+    def test_camera_only_ok(self):
+        assert self._request(camera_id=5).camera_id == 5
+
+    def test_site_only_ok(self):
+        assert self._request(site_id=145).site_id == 145
+
+    def test_both_rejected(self):
+        with pytest.raises(ValidationError):
+            self._request(camera_id=5, site_id=145)
+
+    def test_neither_rejected(self):
+        with pytest.raises(ValidationError):
+            self._request()
+
+    def test_times_parse_as_naive_camera_clock(self):
+        req = self._request(camera_id=5, files=[{"path": "F/A.JPG", "captured_at": "2026-05-12T10:15:20"}])
+        assert req.files[0].captured_at.tzinfo is None
+        assert req.files[0].captured_at.second == 20
+
+    def test_file_count_is_capped(self):
+        too_many = [{"path": f"F/{i}.JPG", "captured_at": "2026-05-12T10:15:20"} for i in range(20001)]
+        with pytest.raises(ValidationError):
+            self._request(camera_id=5, files=too_many)
