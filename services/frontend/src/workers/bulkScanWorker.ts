@@ -57,10 +57,8 @@ const PROGRESS_EVERY = 25;
 // exifr can hang indefinitely on some malformed or oversized images.
 // Race every parse against a wall-clock timeout so a single bad file
 // can't freeze the whole scan. 2 s is plenty for a 256 KB head read
-// on any normal camera-trap JPEG. In dev mode VITE_BULK_SCAN_TIMEOUT_MS
-// can shorten it, to test the second pass.
-const FIRST_PASS_TIMEOUT_MS =
-  (import.meta.env.DEV && Number(import.meta.env.VITE_BULK_SCAN_TIMEOUT_MS)) || 2000;
+// on any normal camera-trap JPEG.
+const FIRST_PASS_TIMEOUT_MS = 2000;
 const SECOND_PASS_TIMEOUT_MS = 10000;
 const HEAD_BYTES = 256 * 1024;
 // EXIF reads are cheap. We still parallelize because file.slice() +
