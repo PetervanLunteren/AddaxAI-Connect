@@ -175,12 +175,17 @@ export const bulkUploadApi = {
   /**
    * Mark a job as done uploading and start the worker pipeline.
    */
+  // `expectedFiles` is how many files this upload sends in total. The
+  // server refuses when fewer are stored, so an incomplete upload is never
+  // processed.
   finalize: async (
     projectId: number,
     jobUuid: string,
+    expectedFiles: number,
   ): Promise<BulkUploadJob> => {
     const response = await apiClient.post<BulkUploadJob>(
       `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}/finalize`,
+      { expected_files: expectedFiles },
     );
     return response.data;
   },

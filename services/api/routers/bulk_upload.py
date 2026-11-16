@@ -61,9 +61,10 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/jpg"}
 
 # Jobs that have been accepting uploads for longer than this without a
 # finalize call get auto-failed and their staged objects deleted. Covers
-# the case of a user closing the tab mid-upload. 24 h is generous enough
-# that a slow upload over a bad connection still has time to finish.
-UPLOAD_TTL = timedelta(hours=24)
+# a user who closes the tab and never resumes. A week survives a weekend
+# and a day off; the disk check and the open-job cap bound what an
+# abandoned job can hold.
+UPLOAD_TTL = timedelta(days=7)
 
 # Cap on concurrent non-terminal bulk-upload jobs per project. Prevents
 # a single user kicking off twenty parallel SD-card uploads and
@@ -183,6 +184,11 @@ class ScanProfileResponse(BaseModel):
     device_ids: List[str] = Field(default_factory=list)
 
 
+class FinalizeRequest(BaseModel):
+    # How many files this upload sends in total, as planned by the client.
+    expected_files: int = Field(ge=1, le=MAX_FILES_PER_JOB)
+
+
 class ScannedFile(BaseModel):
     """One file of the scanned folder: its path and naive camera clock time."""
     path: str
@@ -209,6 +215,11 @@ class CheckDuplicatesRequest(BaseModel):
 class CheckDuplicatesResponse(BaseModel):
     # Paths of the scanned files to leave out of the upload.
     skip_paths: List[str]
+
+
+def missing_files(expected: int, stored: int) -> int:
+    """How many planned files are not in staging. Zero means complete."""
+    return max(0, expected - stored)
 
 
 def _staging_prefix(project_id: int, job_uuid: str) -> str:
@@ -337,7 +348,7 @@ async def _expire_orphan_jobs(db: AsyncSession, project_id: int) -> None:
     for job in orphans:
         _delete_staging(job.staged_object_key)
         job.status = "failed"
-        job.error_message = "Auto-cancelled after 24 hours waiting on upload"
+        job.error_message = f"Auto-cancelled after {UPLOAD_TTL.days} days waiting on upload"
         job.finished_at = now
     await db.commit()
 
@@ -765,12 +776,16 @@ async def _upload_bulk_file_inner(
 async def finalize_bulk_upload(
     project_id: int,
     job_uuid: str,
+    body: FinalizeRequest,
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Mark a job as finished uploading and hand it to the worker. The
-    client calls this once every per-file POST has returned 2xx.
+    Mark a job as finished uploading and hand it to the worker.
+
+    Refuses with 409 while fewer files are stored than the client planned
+    to send, so an upload that lost files is never processed incomplete.
+    The job stays 'uploading' and can be resumed.
     """
     job = (
         await db.execute(
@@ -792,7 +807,15 @@ async def finalize_bulk_upload(
             status_code=400,
             detail="Job has no target camera",
         )
+    stored = len(StorageClient().list_objects(BUCKET_BULK_UPLOAD_STAGING, job.staged_object_key))
+    missing = missing_files(body.expected_files, stored)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{missing} of {body.expected_files} files are not uploaded yet. Resume the upload to send them.",
+        )
 
+    job.total_files = body.expected_files
     job.status = "processing"
     job.started_at = datetime.now(timezone.utc)
     await db.commit()

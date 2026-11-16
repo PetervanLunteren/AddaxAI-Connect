@@ -29,8 +29,9 @@ const UPLOAD_RETRIES = 3;
 export interface ActiveUpload {
   jobUuid: string;
   projectId: number;
-  // total = number of files we'll actually send. Excludes scan
-  // skips (corrupt / missing-EXIF / safe-duplicates).
+  // Number of files this upload sends in total, over all sessions.
+  // Excludes files the scan could not read and files already in the
+  // project.
   total: number;
   uploaded: number;
   // Files already on the server when we started (resume case, or
@@ -49,10 +50,6 @@ export interface ActiveUpload {
   // happens once the loop has actually stopped, so MinIO doesn't
   // see partial-state races.
   cancelled: boolean;
-  // Set if the upload loop hit an unrecoverable error (createJob,
-  // finalize, hash-check). The row falls back to the server-
-  // recorded state, which will surface the failure too.
-  errored: boolean;
 }
 
 interface BeginNewArgs {
@@ -119,21 +116,32 @@ export const useBulkUploadStore = create<State & Actions>((set, get) => ({
   clear: () => set({ active: null }),
 }));
 
-function makeValidEntries(entries: ScanEntry[], excluded: Set<string>): ScanEntry[] {
-  return entries
-    .filter((e) => e.status === 'valid' && !excluded.has(e.relative_path))
-    .sort((a, b) => a.relative_path.localeCompare(b.relative_path));
+/**
+ * The upload plan for a scanned folder.
+ *
+ * Every valid file gets a fixed index: its position in the valid files
+ * sorted by path. The index is the file's key on the server, so a resume
+ * must give every file the same index again. That is why files already in
+ * the project are left out of `toSend`, never out of the numbering.
+ */
+function planUpload(entries: ScanEntry[], excludedPaths: string[]) {
+  const excluded = new Set(excludedPaths);
+  const indexed = entries
+    .filter((e) => e.status === 'valid')
+    .sort((a, b) => a.relative_path.localeCompare(b.relative_path))
+    .map((entry, index) => ({ entry, index }));
+  return indexed.filter(({ entry }) => !excluded.has(entry.relative_path));
 }
+
+type PlannedFile = ReturnType<typeof planUpload>[number];
 
 async function runNewUpload(
   args: BeginNewArgs,
   set: (partial: Partial<State>) => void,
   get: () => State & Actions,
 ) {
-  const excluded = new Set(args.excludedPaths);
-  const validEntries = makeValidEntries(args.entries, excluded);
-  const total = validEntries.length;
-  const totalBytes = validEntries.reduce((sum, e) => sum + e.size, 0);
+  const toSend = planUpload(args.entries, args.excludedPaths);
+  const totalBytes = toSend.reduce((sum, f) => sum + f.entry.size, 0);
 
   let job: BulkUploadJob;
   try {
@@ -141,7 +149,7 @@ async function runNewUpload(
       folder_name: args.folderName,
       device_id: args.deviceId,
       site_id: args.siteId,
-      total_files: total,
+      total_files: toSend.length,
       total_bytes: totalBytes,
       manifest: args.manifest,
       time_offset_seconds: args.timeOffsetSeconds,
@@ -153,24 +161,7 @@ async function runNewUpload(
     return;
   }
 
-  set({
-    active: {
-      jobUuid: job.uuid,
-      projectId: args.projectId,
-      total,
-      uploaded: 0,
-      skipped: 0,
-      failed: 0,
-      startedAt: Date.now(),
-      done: false,
-      cancelled: false,
-      errored: false,
-    },
-  });
-  args.onCacheInvalidate();
-
-  await runUploadLoop(args.projectId, job.uuid, args.files, validEntries, new Set(), set, get);
-  await finishOrCancel(args.projectId, job.uuid, set, get, args.onSuccess, args.onError, args.onCacheInvalidate);
+  await runSession(args, job.uuid, toSend, new Set(), set, get);
 }
 
 async function runResumeUpload(
@@ -178,16 +169,16 @@ async function runResumeUpload(
   set: (partial: Partial<State>) => void,
   get: () => State & Actions,
 ) {
-  const validEntries = makeValidEntries(args.entries, new Set());
-  const total = validEntries.length;
-
-  let alreadyUploaded: Set<number> = new Set();
+  const job = args.resumeJob;
+  // Ask the server again which files are already in the project, so the
+  // plan, and with it every file's index, matches the first session.
+  let excludedPaths: string[];
+  let alreadyUploaded: Set<number>;
   try {
-    const indexes = await bulkUploadApi.uploadedIndexes(
-      args.projectId,
-      args.resumeJob.uuid,
-    );
-    alreadyUploaded = new Set(indexes);
+    excludedPaths = job.camera_id
+      ? await bulkUploadApi.checkDuplicates(args.projectId, { camera_id: job.camera_id }, args.entries)
+      : [];
+    alreadyUploaded = new Set(await bulkUploadApi.uploadedIndexes(args.projectId, job.uuid));
   } catch (err: any) {
     args.onError(
       `Failed to read upload progress, ${err.response?.data?.detail || err.message}`,
@@ -195,54 +186,108 @@ async function runResumeUpload(
     return;
   }
 
+  const toSend = planUpload(args.entries, excludedPaths);
+  await runSession(args, job.uuid, toSend, alreadyUploaded, set, get);
+}
+
+/**
+ * Send what is not on the server yet, then hand the job to the worker.
+ * Shared by a new upload and a resume.
+ */
+async function runSession(
+  args: Pick<BeginNewArgs, 'projectId' | 'files' | 'onError' | 'onSuccess' | 'onCacheInvalidate'>,
+  jobUuid: string,
+  toSend: PlannedFile[],
+  alreadyUploaded: Set<number>,
+  set: (partial: Partial<State>) => void,
+  get: () => State & Actions,
+) {
+  const queue = toSend.filter((f) => !alreadyUploaded.has(f.index));
   set({
     active: {
-      jobUuid: args.resumeJob.uuid,
+      jobUuid,
       projectId: args.projectId,
-      total,
+      total: toSend.length,
       uploaded: 0,
-      skipped: alreadyUploaded.size,
+      skipped: toSend.length - queue.length,
       failed: 0,
       startedAt: Date.now(),
       done: false,
       cancelled: false,
-      errored: false,
     },
   });
   args.onCacheInvalidate();
 
-  await runUploadLoop(
-    args.projectId,
-    args.resumeJob.uuid,
-    args.files,
-    validEntries,
-    alreadyUploaded,
-    set,
-    get,
-  );
-  await finishOrCancel(
-    args.projectId,
-    args.resumeJob.uuid,
-    set,
-    get,
-    args.onSuccess,
-    args.onError,
-    args.onCacheInvalidate,
-  );
+  await runUploadLoop(args.projectId, jobUuid, args.files, queue, set, get);
+
+  if (get().active?.cancelled) {
+    try {
+      // Mark the job cancelled (keeps the row as "Cancelled", clears staging)
+      // rather than removing it, so a stopped upload behaves like a stopped
+      // processing job. The user can remove the row separately.
+      await bulkUploadApi.cancel(args.projectId, jobUuid);
+    } catch {
+      // The row may already be gone, or the worker may have flipped
+      // state. Either way the user asked to stop, do not block.
+    }
+    endSession(jobUuid, set, get, args.onCacheInvalidate);
+    return;
+  }
+
+  // Never start an incomplete job. The job stays paused and the row offers
+  // Resume, which sends only the files that are missing.
+  const failed = get().active?.failed ?? 0;
+  if (failed > 0) {
+    args.onError(
+      `${failed.toLocaleString()} file${failed === 1 ? '' : 's'} did not upload. `
+      + 'Check the connection and resume the upload.',
+    );
+    endSession(jobUuid, set, get, args.onCacheInvalidate);
+    return;
+  }
+
+  try {
+    await bulkUploadApi.finalize(args.projectId, jobUuid, toSend.length);
+  } catch (err: any) {
+    args.onError(
+      `Failed to start processing, ${err.response?.data?.detail || err.message}`,
+    );
+    endSession(jobUuid, set, get, args.onCacheInvalidate);
+    return;
+  }
+  const a = get().active;
+  if (a && a.jobUuid === jobUuid) set({ active: { ...a, done: true } });
+  args.onSuccess();
+  args.onCacheInvalidate();
+  // Hold the "done" state for a beat so the row shows the success before
+  // falling back to server-recorded progress, then clear so a follow-up
+  // upload can start.
+  setTimeout(() => {
+    const cur = get().active;
+    if (cur && cur.jobUuid === jobUuid) set({ active: null });
+  }, 3000);
+}
+
+// Drop the live session, so the row shows the server state again (and the
+// Resume button for a paused upload).
+function endSession(
+  jobUuid: string,
+  set: (partial: Partial<State>) => void,
+  get: () => State & Actions,
+  onCacheInvalidate: () => void,
+) {
+  if (get().active?.jobUuid === jobUuid) set({ active: null });
+  onCacheInvalidate();
 }
 
 async function runUploadLoop(
   projectId: number,
   jobUuid: string,
   files: File[],
-  validEntries: ScanEntry[],
-  alreadyUploaded: Set<number>,
+  queue: PlannedFile[],
   set: (partial: Partial<State>) => void,
   get: () => State & Actions,
 ) {
-  const queue = validEntries
-    .map((e, i) => ({ entry: e, position: i }))
-    .filter((row) => !alreadyUploaded.has(row.position));
   let cursor = 0;
 
   const isCancelled = () => Boolean(get().active?.cancelled);
@@ -261,19 +306,14 @@ async function runUploadLoop(
       const next = queue[cursor];
       if (!next) return;
       cursor += 1;
-      const { entry, position } = next;
+      const { entry, index } = next;
       let attempt = 0;
       while (attempt < UPLOAD_RETRIES) {
         try {
-          await bulkUploadApi.uploadFile(
-            projectId,
-            jobUuid,
-            position,
-            files[entry.index],
-          );
+          await bulkUploadApi.uploadFile(projectId, jobUuid, index, files[entry.index]);
           incUploaded();
           break;
-        } catch (err) {
+        } catch {
           attempt += 1;
           if (attempt >= UPLOAD_RETRIES) {
             incFailed();
@@ -288,57 +328,4 @@ async function runUploadLoop(
   await Promise.all(
     Array.from({ length: UPLOAD_CONCURRENCY }, () => worker()),
   );
-}
-
-async function finishOrCancel(
-  projectId: number,
-  jobUuid: string,
-  set: (partial: Partial<State>) => void,
-  get: () => State & Actions,
-  onSuccess: () => void,
-  onError: (msg: string) => void,
-  onCacheInvalidate: () => void,
-) {
-  if (isCancelledNow(get)) {
-    try {
-      // Mark the job cancelled (keeps the row as "Cancelled", clears staging)
-      // rather than removing it, so a stopped upload behaves like a stopped
-      // processing job. The user can remove the row separately.
-      await bulkUploadApi.cancel(projectId, jobUuid);
-    } catch {
-      // The row may already be gone, or the worker may have flipped
-      // state. Either way the user asked to stop, do not block.
-    }
-    set({ active: null });
-    onCacheInvalidate();
-    return;
-  }
-  try {
-    await bulkUploadApi.finalize(projectId, jobUuid);
-    const a = get().active;
-    if (a && a.jobUuid === jobUuid) {
-      set({ active: { ...a, done: true } });
-    }
-    onSuccess();
-    onCacheInvalidate();
-    // Hold the "done" state for a beat so the row shows the success
-    // before falling back to server-recorded progress, then clear so
-    // a follow-up upload can start.
-    setTimeout(() => {
-      const cur = get().active;
-      if (cur && cur.jobUuid === jobUuid) set({ active: null });
-    }, 3000);
-  } catch (err: any) {
-    onError(
-      `Failed to start processing, ${err.response?.data?.detail || err.message}`,
-    );
-    const a = get().active;
-    if (a && a.jobUuid === jobUuid) {
-      set({ active: { ...a, errored: true } });
-    }
-  }
-}
-
-function isCancelledNow(get: () => State & Actions): boolean {
-  return Boolean(get().active?.cancelled);
 }

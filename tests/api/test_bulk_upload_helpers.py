@@ -473,3 +473,27 @@ class TestCheckDuplicatesRequest:
         too_many = [{"path": f"F/{i}.JPG", "captured_at": "2026-05-12T10:15:20"} for i in range(20001)]
         with pytest.raises(ValidationError):
             self._request(camera_id=5, files=too_many)
+
+
+class TestFinalizeCompleteness:
+    """A job is only processed when every planned file is in staging."""
+
+    def test_complete_upload(self):
+        assert TestBulkFileRules._router().missing_files(2329, 2329) == 0
+
+    def test_lost_files_are_counted(self):
+        # spw job 10: 2329 planned, 2204 arrived.
+        assert TestBulkFileRules._router().missing_files(2329, 2204) == 125
+
+    def test_extra_staged_files_are_fine(self):
+        # A resume after the skip list changed can leave more in staging.
+        assert TestBulkFileRules._router().missing_files(100, 104) == 0
+
+    def test_request_needs_at_least_one_file(self):
+        router = TestBulkFileRules._router()
+        with pytest.raises(ValidationError):
+            router.FinalizeRequest(expected_files=0)
+        assert router.FinalizeRequest(expected_files=1).expected_files == 1
+
+    def test_unfinished_uploads_wait_a_week(self):
+        assert TestBulkFileRules._router().UPLOAD_TTL.days == 7

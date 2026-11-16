@@ -312,23 +312,6 @@ def _process_file(
             pass
 
 
-def _list_prefix(storage: StorageClient, prefix: str) -> list:
-    """
-    List every object under the job's staging prefix.
-
-    Uses paginator-style calls so a 5000-file job is returned in full.
-    The wrapper in shared/storage.py caps at a single page, which is
-    fine for &lt; 1000 objects but truncates the rest. Drop to the boto3
-    paginator for safety.
-    """
-    keys: list = []
-    paginator = storage.client.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=BUCKET_BULK_UPLOAD_STAGING, Prefix=prefix):
-        for obj in page.get("Contents", []) or []:
-            keys.append(obj["Key"])
-    return keys
-
-
 def _process_prefix_job(
     job_uuid: str,
     job_id: int,
@@ -353,7 +336,7 @@ def _process_prefix_job(
     skip_reasons: Counter = Counter()
     file_log: list = []
 
-    object_keys = sorted(_list_prefix(storage, staged_prefix))
+    object_keys = sorted(storage.list_objects(BUCKET_BULK_UPLOAD_STAGING, staged_prefix))
     actual_count = len(object_keys)
     logger.info(
         "Processing bulk upload prefix",

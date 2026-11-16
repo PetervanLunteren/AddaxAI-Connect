@@ -232,11 +232,11 @@ class StorageClient:
         if prefix:
             kwargs['Prefix'] = prefix
 
-        response = self.client.list_objects_v2(**kwargs)
-        if 'Contents' not in response:
-            return []
-
-        return [obj['Key'] for obj in response['Contents']]
+        # One response holds at most 1000 keys, so page through all of them.
+        keys: list[str] = []
+        for page in self.client.get_paginator('list_objects_v2').paginate(**kwargs):
+            keys.extend(obj['Key'] for obj in page.get('Contents', []))
+        return keys
 
 
 # Bucket names (constants)
