@@ -200,6 +200,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const MAX_FILES_PER_JOB = 20000;
+const ALWAYS_FRESH = { staleTime: 0, gcTime: 0 } as const;
 // Same value as BULK_MAX_FILE_MB in shared/shared/bulk_jobs.py.
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
@@ -1092,10 +1093,15 @@ const ReviewStep: React.FC<{
     return out;
   }, [entries]);
 
+  // Both pre-flight answers change with every upload (a new camera, new
+  // images), so never reuse one from the cache. The app default keeps
+  // answers for five minutes, which made a second upload of the same folder
+  // send everything again.
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['bulk-scan-profile', projectId, folderName, entries.length],
     queryFn: () => bulkUploadApi.scanProfile(projectId, profileSample),
     enabled: entries.length > 0,
+    ...ALWAYS_FRESH,
   });
 
   // Which files are already in the project, decided by the server. Runs for
@@ -1110,6 +1116,7 @@ const ReviewStep: React.FC<{
     queryKey: ['bulk-check-duplicates', projectId, duplicateTarget, entries],
     queryFn: () => bulkUploadApi.checkDuplicates(projectId, duplicateTarget!, entries),
     enabled: duplicateTarget !== null,
+    ...ALWAYS_FRESH,
   });
   const excludedPaths = duplicateTarget ? (skipPaths ?? []) : [];
   const duplicateCount = excludedPaths.length;
