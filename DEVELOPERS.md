@@ -94,6 +94,9 @@ What to know before changing it:
   with `JWT_SECRET`.
 - **An access token lasts an hour and renews itself.** `api/client.ts` calls
   `POST /auth/refresh` when a call succeeds with less than 30 minutes left.
+  Renewal needs calls, so a tab in the background (React Query stops
+  polling there) logs out after an hour, while a running bulk upload keeps
+  calling and stays logged in.
   The token carries `auth_time`, the moment the password was typed, and a
   renewed token keeps it, so renewal stops after `MAX_SESSION` (24 hours,
   `auth/users.py`). Refresh skips the two-factor gate like change-password

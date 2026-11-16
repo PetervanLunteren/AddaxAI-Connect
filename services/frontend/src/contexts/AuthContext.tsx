@@ -4,6 +4,7 @@
  * Manages user authentication state and provides login/logout functions
  */
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import { isAxiosError } from 'axios';
 import {
   User,
   LoginTwoFactorStep,
@@ -40,6 +41,17 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Tries for loading the user when the page opens, with 2, 4, 6 and 8 s in
+// between: about 20 s, enough for the API to restart during an update.
+const LOAD_USER_TRIES = 5;
+
+// Only a 401 means the login is gone, and api/client.ts already clears it
+// then. Any other failure (a 502 while the API restarts, no network) says
+// nothing about the login, so it must not log the user out.
+function loginIsGone(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 401;
+}
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -50,13 +62,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const token = localStorage.getItem('access_token');
 
       if (token) {
-        try {
-          const userData = await getCurrentUser();
-          setUser(userData);
-        } catch (error) {
-          // Token invalid, clear it
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('user');
+        for (let attempt = 1; attempt <= LOAD_USER_TRIES; attempt++) {
+          try {
+            setUser(await getCurrentUser());
+            break;
+          } catch (error) {
+            if (loginIsGone(error) || attempt === LOAD_USER_TRIES) break;
+            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+          }
         }
       }
 
@@ -104,10 +117,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
     } catch (error) {
+      // Keep the current state; a 401 is handled in api/client.ts.
       console.error('Failed to refresh user:', error);
-      setUser(null);
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user');
     }
   };
 
