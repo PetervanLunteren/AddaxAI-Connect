@@ -2,10 +2,10 @@
  * Bulk-upload EXIF scan worker
  *
  * Runs in a Web Worker so reading EXIF on thousands of files does not
- * lock the UI. The main thread posts a list of File objects, the
- * worker reads DateTimeOriginal and BodySerialNumber from each file
- * (only the first 256 KB, the EXIF block), and posts progress plus a
- * final summary back.
+ * lock the UI. The main thread posts the File objects with their paths
+ * in the folder, the worker reads DateTimeOriginal, the serial and the
+ * GPS position from each file (only the first 256 KB, the EXIF block),
+ * and posts progress plus a final summary back.
  *
  * Two passes. The first reads 8 files at a time with a short limit. A slow
  * card reader makes reads fail or time out there (pwn: 929 of 2164 good
@@ -17,10 +17,10 @@ import exifr from 'exifr';
 export interface ScanEntry {
   index: number;
   name: string;
-  // The browser's webkitRelativePath includes the top folder, so
-  // "FolderName/sub/IMG_0001.JPG". Stable across sessions for the same
-  // folder, which matters for resume: we sort by this to give every
-  // upload a deterministic position in the staging key.
+  // Path in the picked folder, "FolderName/sub/IMG_0001.JPG". Unique per
+  // file and stable across sessions for the same folder: the upload sorts
+  // by it to give every file its index, and the duplicate check names
+  // files by it.
   relative_path: string;
   size: number;
   // Naive ISO 8601 datetime ("YYYY-MM-DDTHH:MM:SS"), no TZ marker.
@@ -33,6 +33,8 @@ export interface ScanEntry {
   // -profile hunt as live ingestion. Null when absent or unreadable.
   make: string | null;
   model: string | null;
+  // A usable GPS position, by the same rule as the server's is_valid_gps.
+  has_gps: boolean;
   status: 'valid' | 'missing_exif_datetime' | 'corrupt';
 }
 
@@ -51,6 +53,9 @@ export type ScanResult = ScanProgress | ScanDone;
 
 interface ScanRequest {
   files: File[];
+  // One per file. A File sent to a worker loses everything but its
+  // contents and name, so the page sends the paths alongside.
+  paths: string[];
 }
 
 const PROGRESS_EVERY = 25;
@@ -69,7 +74,7 @@ const HEAD_BYTES = 256 * 1024;
 const SCAN_CONCURRENCY = 8;
 
 self.onmessage = async (event: MessageEvent<ScanRequest>) => {
-  const { files } = event.data;
+  const { files, paths } = event.data;
   const total = files.length;
   const entries: ScanEntry[] = new Array(total);
   let nextIndex = 0;
@@ -92,7 +97,7 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
     while (true) {
       const i = nextIndex++;
       if (i >= total) return;
-      entries[i] = await scanOne(i, files[i], FIRST_PASS_TIMEOUT_MS);
+      entries[i] = await scanOne(i, files[i], paths[i], FIRST_PASS_TIMEOUT_MS);
       if (entries[i].status === 'corrupt') retry.push(i);
       else finish();
     }
@@ -104,7 +109,7 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
 
   // Second pass, one file at a time.
   for (const i of retry) {
-    entries[i] = await scanOne(i, files[i], SECOND_PASS_TIMEOUT_MS);
+    entries[i] = await scanOne(i, files[i], paths[i], SECOND_PASS_TIMEOUT_MS);
     finish();
   }
 
@@ -140,18 +145,19 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null | typ
   });
 }
 
-async function scanOne(index: number, file: File, timeoutMs: number): Promise<ScanEntry> {
-  const relPath =
-    (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+async function scanOne(
+  index: number, file: File, path: string, timeoutMs: number,
+): Promise<ScanEntry> {
   const base: ScanEntry = {
     index,
     name: file.name,
-    relative_path: relPath,
+    relative_path: path,
     size: file.size,
     captured_at: null,
     serial: null,
     make: null,
     model: null,
+    has_gps: false,
     status: 'corrupt',
   };
   try {
@@ -165,6 +171,8 @@ async function scanOne(index: number, file: File, timeoutMs: number): Promise<Sc
           SerialNumber?: string | number;
           Make?: string;
           Model?: string;
+          latitude?: number;
+          longitude?: number;
         }
       | null;
     const make = meta?.Make ? String(meta.Make).trim() || null : null;
@@ -186,10 +194,20 @@ async function scanOne(index: number, file: File, timeoutMs: number): Promise<Sc
       serial: serial && serial.length > 0 ? serial : null,
       make,
       model,
+      has_gps: isValidGps(meta.latitude, meta.longitude),
     };
   } catch {
     return base;
   }
+}
+
+// Mirrors is_valid_gps in services/ingestion/utils.py: a number pair in
+// range, and not exactly 0,0, the value cameras write before a GPS fix.
+function isValidGps(lat: unknown, lon: unknown): boolean {
+  if (typeof lat !== 'number' || typeof lon !== 'number') return false;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
+  if (lat === 0 && lon === 0) return false;
+  return Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
 }
 
 function pad2(n: number): string {

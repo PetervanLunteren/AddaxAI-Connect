@@ -39,6 +39,7 @@ import {
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
 import { sitesApi } from '../../api/sites';
+import { apiErrorMessage } from '../../api/client';
 import { SiteFormModal } from '../../components/sites/SiteFormModal';
 import { ClockOffsetDialog } from '../../components/ClockOffsetDialog';
 import { formatOffset, shiftEntries } from '../../utils/clock-offset';
@@ -192,13 +193,6 @@ function computeEta(
   return bucketEta(totalSeconds);
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  valid: 'ready to process',
-  duplicate: 'already in the project',
-  missing_exif_datetime: 'missing EXIF date',
-  corrupt: 'corrupt or unreadable',
-};
-
 const MAX_FILES_PER_JOB = 20000;
 const ALWAYS_FRESH = { staleTime: 0, gcTime: 0 } as const;
 // Same value as BULK_MAX_FILE_MB in shared/shared/bulk_jobs.py.
@@ -263,8 +257,8 @@ export const BulkUploadPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
       toast.success('Upload stopped');
     },
-    onError: (err: any) => {
-      toast.error(`Stop failed, ${err.response?.data?.detail || err.message}`);
+    onError: (err: unknown) => {
+      toast.error(`Stop failed, ${apiErrorMessage(err)}`);
     },
   });
 
@@ -274,8 +268,8 @@ export const BulkUploadPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
       toast.success(`Deleted ${res.deleted} image${res.deleted === 1 ? '' : 's'}`);
     },
-    onError: (err: any) => {
-      toast.error(`Delete failed, ${err.response?.data?.detail || err.message}`);
+    onError: (err: unknown) => {
+      toast.error(`Delete failed, ${apiErrorMessage(err)}`);
     },
   });
 
@@ -944,8 +938,23 @@ async function readDirectoryEntries(
 
 function getFileFromEntry(entry: FileSystemFileEntry): Promise<File | null> {
   return new Promise((resolve) => {
-    entry.file(resolve, () => resolve(null));
+    entry.file((file) => {
+      // fullPath is "/FolderName/sub/IMG_0001.JPG", the same shape a picked
+      // folder gives in webkitRelativePath.
+      droppedPaths.set(file, entry.fullPath.replace(/^\//, ''));
+      resolve(file);
+    }, () => resolve(null));
   });
+}
+
+// Paths of dropped files. A file read from a dropped folder has no
+// webkitRelativePath, and without its path two files with the same name in
+// different subfolders could not be told apart.
+const droppedPaths = new WeakMap<File, string>();
+
+// The file's path in the picked or dropped folder, unique per file.
+function relativePathOf(file: File): string {
+  return droppedPaths.get(file) || file.webkitRelativePath || file.name;
 }
 
 // ----- ScanStep -----
@@ -957,21 +966,19 @@ const ScanStep: React.FC<{
   onCancel: () => void;
   onDone: (entries: ScanEntry[]) => void;
 }> = ({ files, progress, onProgress, onCancel, onDone }) => {
-  // The worker must spawn exactly once per ScanStep mount. The
-  // parent's inline onDone/onProgress callbacks change reference on
-  // every progress-driven re-render, so if we depended on them the
-  // useEffect would terminate the running worker and restart from
-  // index 0 every 25 files. The refs let the latest callback fire
-  // without retriggering the effect.
+  // One worker per folder. The parent's inline onDone/onProgress callbacks
+  // change reference on every progress-driven re-render, so if we depended
+  // on them the useEffect would terminate the running worker and restart
+  // from index 0 every 25 files. The refs let the latest callback fire
+  // without retriggering the effect. In development StrictMode runs the
+  // effect twice; the cleanup stops the first worker, the second run starts
+  // a new one.
   const onProgressRef = useRef(onProgress);
   const onDoneRef = useRef(onDone);
   onProgressRef.current = onProgress;
   onDoneRef.current = onDone;
-  const startedRef = useRef(false);
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
     const worker = new Worker(
       new URL('../../workers/bulkScanWorker.ts', import.meta.url),
       { type: 'module' },
@@ -985,7 +992,7 @@ const ScanStep: React.FC<{
         worker.terminate();
       }
     };
-    worker.postMessage({ files });
+    worker.postMessage({ files, paths: files.map(relativePathOf) });
     return () => {
       worker.terminate();
     };
@@ -1112,12 +1119,19 @@ const ReviewStep: React.FC<{
     profile?.mode === 'profile'
       ? (profile.camera_registered && profile.camera_id ? { camera_id: profile.camera_id } : null)
       : (siteId ? { site_id: Number(siteId) } : null);
-  const { data: skipPaths, isFetching: duplicatesLoading } = useQuery({
+  const {
+    data: skipPaths,
+    isError: duplicatesFailed,
+    refetch: retryDuplicates,
+  } = useQuery({
     queryKey: ['bulk-check-duplicates', projectId, duplicateTarget, entries],
     queryFn: () => bulkUploadApi.checkDuplicates(projectId, duplicateTarget!, entries),
     enabled: duplicateTarget !== null,
     ...ALWAYS_FRESH,
   });
+  // No upload without the server's answer, also when the check failed.
+  // Uploading everything instead would bring the 4G doubles back.
+  const duplicatesKnown = duplicateTarget === null || skipPaths !== undefined;
   const excludedPaths = duplicateTarget ? (skipPaths ?? []) : [];
   const duplicateCount = excludedPaths.length;
 
@@ -1127,10 +1141,15 @@ const ReviewStep: React.FC<{
   const unreadableCount = manifest.by_status.corrupt ?? 0;
   const undatedCount = manifest.by_status.missing_exif_datetime ?? 0;
   const validCount = Math.max(0, rawValidCount - duplicateCount);
-  const skipReasonEntries: [string, number][] = [
-    ...(duplicateCount > 0 ? ([['duplicate', duplicateCount]] as [string, number][]) : []),
-    ...(Object.entries(manifest.by_status).filter(([k]) => k !== 'valid') as [string, number][]),
-  ];
+  // Photos the analysis will skip because the camera needs a location.
+  // They still upload; the worker decides, this only says so in advance.
+  const noLocationCount = useMemo(() => {
+    if (profile?.mode !== 'profile' || !profile.requires_gps) return 0;
+    const excluded = new Set(excludedPaths);
+    return entries.filter(
+      (e) => e.status === 'valid' && !e.has_gps && !excluded.has(e.relative_path),
+    ).length;
+  }, [entries, excludedPaths, profile]);
 
   // Thumbnail strip: a few sample images so the user can confirm they picked
   // the right folder before uploading. Spread evenly so it is not all from one
@@ -1201,15 +1220,11 @@ const ReviewStep: React.FC<{
           {' images in the folder, '}
           <span className="font-medium">{validCount.toLocaleString()}</span>
           {' ready to process'}
-          {skipReasonEntries.length > 0 && (
+          {duplicateCount > 0 && (
             <>
               {', '}
-              {skipReasonEntries.map(([k, n], i) => (
-                <span key={k}>
-                  <span className="font-medium">{n}</span> {STATUS_LABELS[k] ?? k}
-                  {i < skipReasonEntries.length - 1 ? ', ' : ''}
-                </span>
-              ))}
+              <span className="font-medium">{duplicateCount.toLocaleString()}</span>
+              {' already in the project'}
             </>
           )}
         </div>
@@ -1300,7 +1315,21 @@ const ReviewStep: React.FC<{
         </div>
       )}
 
-      {(unreadableCount > 0 || undatedCount > 0) && (
+      {duplicatesFailed && (
+        <Callout variant="error">
+          <span className="font-medium">Could not check which images are already in the project.</span>
+          {' '}
+          <button
+            type="button"
+            onClick={() => retryDuplicates()}
+            className="underline underline-offset-2"
+          >
+            Try again
+          </button>
+        </Callout>
+      )}
+
+      {(unreadableCount > 0 || undatedCount > 0 || noLocationCount > 0) && (
         <Callout variant="warning">
           {unreadableCount > 0 && (
             <>
@@ -1311,8 +1340,16 @@ const ReviewStep: React.FC<{
             </>
           )}
           {undatedCount > 0 && (
+            <>
+              <span className="font-medium">
+                {undatedCount.toLocaleString()} image{undatedCount === 1 ? ' has' : 's have'} no date and will not be uploaded.
+              </span>
+              {' '}
+            </>
+          )}
+          {noLocationCount > 0 && (
             <span className="font-medium">
-              {undatedCount.toLocaleString()} image{undatedCount === 1 ? ' has' : 's have'} no date and will not be uploaded.
+              {noLocationCount.toLocaleString()} image{noLocationCount === 1 ? ' has' : 's have'} no location, the analysis will skip {noLocationCount === 1 ? 'it' : 'them'}.
             </span>
           )}
         </Callout>
@@ -1338,7 +1375,7 @@ const ReviewStep: React.FC<{
           disabled={
             validCount === 0
             || profileLoading
-            || duplicatesLoading
+            || !duplicatesKnown
             || profile?.multiple_cameras
             || (profile?.mode !== 'profile' && !siteId)
           }
@@ -1530,8 +1567,8 @@ const JobRow: React.FC<{
                 try {
                   const { blob, filename } = await bulkUploadApi.downloadLog(projectId, job.uuid);
                   downloadBlob(blob, filename);
-                } catch (err: any) {
-                  toast.error(`Log download failed, ${err.response?.data?.detail || err.message}`);
+                } catch (err) {
+                  toast.error(`Log download failed, ${apiErrorMessage(err)}`);
                 }
               }}
             >
@@ -1657,7 +1694,7 @@ function renderUploadCaption({
   }
   if (counts.uploadPercent === 100) return 'Uploaded';
   if (job.status === 'failed') return 'Incomplete';
-  if (job.status === 'uploading') return 'Paused';
+  if (job.status === 'uploading') return 'Paused. Resume to send the rest of the folder.';
   return '—';
 }
 

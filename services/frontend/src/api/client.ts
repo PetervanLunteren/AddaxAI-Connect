@@ -29,7 +29,9 @@ apiClient.interceptors.request.use(
 );
 
 // Keep the login alive while the app is in use. A token lasts an hour; when
-// a call succeeds with less than half an hour left, ask for a new one. The
+// a call succeeds with less than half an hour left, ask for a new one. A tab
+// that makes no calls (React Query stops polling in the background) is not
+// renewed and logs out after the hour. The
 // server refuses (403) from 24 hours after the password was typed, and the
 // token then runs out on its own. One refused token is not asked for again.
 const RENEW_WHEN_LEFT_MS = 30 * 60 * 1000;
@@ -103,5 +105,20 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * A readable message for a failed API call. FastAPI answers a validation
+ * error with a list of problems in `detail`, which would otherwise show as
+ * "[object Object]".
+ */
+export function apiErrorMessage(error: unknown): string {
+  const err = error as AxiosError<{ detail?: unknown }>;
+  const detail = err.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => (d && typeof d === 'object' && 'msg' in d ? String(d.msg) : String(d))).join(', ');
+  }
+  return err.message || 'Unknown error';
+}
 
 export default apiClient;

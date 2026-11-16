@@ -66,11 +66,10 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/jpg"}
 # abandoned job can hold.
 UPLOAD_TTL = timedelta(days=7)
 
-# Cap on concurrent non-terminal bulk-upload jobs per project. Prevents
-# a single user kicking off twenty parallel SD-card uploads and
-# starving the worker queue for everyone else. 3 covers a normal
-# workflow (one uploading, one or two waiting in processing) with
-# headroom.
+# Cap on jobs per project waiting in or running through the worker.
+# Prevents one project from filling the worker queue for everyone else.
+# Paused uploads do not count: they hold no worker time, can wait a week
+# for a resume, and the disk check limits what they store.
 MAX_CONCURRENT_JOBS_PER_PROJECT = 3
 
 # A bulk import lands its full size on the local data disk (first in the
@@ -178,6 +177,9 @@ class ScanProfileResponse(BaseModel):
     # the job will auto-create it.
     camera_registered: bool = False
     camera_id: Optional[int] = None
+    # Whether the matched profile needs a location on every photo. The
+    # review step warns about photos without one; the worker skips them.
+    requires_gps: bool = False
     # Set when the sample resolves more than one camera. The batch must be
     # split per camera (bulk attaches one camera per job).
     multiple_cameras: bool = False
@@ -429,7 +431,7 @@ async def scan_profile(
     with the device_id when one camera resolves, 'manual' mode (pick a site)
     when none does, and flags a multi-camera sample so the user splits it.
     """
-    device_id_to_profile: Dict[str, str] = {}
+    device_id_to_profile: Dict[str, Any] = {}
     for entry in body.entries:
         exif: Dict[str, Any] = {}
         if entry.make:
@@ -448,7 +450,7 @@ async def scan_profile(
             continue
         device_id = profile.get_camera_id(exif, entry.filename)
         if device_id:
-            device_id_to_profile[device_id] = profile.name
+            device_id_to_profile[device_id] = profile
 
     if not device_id_to_profile:
         return ScanProfileResponse(mode="manual")
@@ -473,9 +475,10 @@ async def scan_profile(
     return ScanProfileResponse(
         mode="profile",
         device_id=device_id,
-        profile_name=device_id_to_profile[device_id],
+        profile_name=device_id_to_profile[device_id].name,
         camera_registered=camera_id is not None,
         camera_id=camera_id,
+        requires_gps=device_id_to_profile[device_id].requires_gps,
     )
 
 
@@ -599,25 +602,21 @@ async def create_bulk_upload_job(
     CreateBulkUploadRequest. Files are then uploaded one at a time to
     /jobs/{uuid}/files and finished with /jobs/{uuid}/finalize.
     """
-    # Soft cap on in-flight jobs per project so one user cannot
-    # starve the bulk worker queue with twenty parallel SD-card
-    # uploads. Counts both 'uploading' (client streaming files) and
-    # 'processing' (worker pipeline). Terminal jobs do not count.
-    in_flight = (
+    # Soft cap on jobs in the worker, so one project cannot fill the queue.
+    in_worker = (
         await db.execute(
             select(func.count(BulkUploadJob.id)).where(
                 BulkUploadJob.project_id == project_id,
-                BulkUploadJob.status.in_(("uploading", "processing")),
+                BulkUploadJob.status == "processing",
             )
         )
     ).scalar_one()
-    if in_flight >= MAX_CONCURRENT_JOBS_PER_PROJECT:
+    if in_worker >= MAX_CONCURRENT_JOBS_PER_PROJECT:
         raise HTTPException(
             status_code=429,
             detail=(
-                f"This project already has {in_flight} bulk uploads in "
-                f"flight (limit {MAX_CONCURRENT_JOBS_PER_PROJECT}). "
-                "Wait for one to finish, or discard a queued one, "
+                f"This project already has {in_worker} bulk uploads being analysed "
+                f"(limit {MAX_CONCURRENT_JOBS_PER_PROJECT}). Wait for one to finish "
                 "before starting another."
             ),
         )

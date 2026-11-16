@@ -21,6 +21,7 @@ import {
   type BulkUploadJob,
   type BulkUploadManifest,
 } from '../api/bulkUpload';
+import { apiErrorMessage } from '../api/client';
 import type { ScanEntry } from '../workers/bulkScanWorker';
 
 const UPLOAD_CONCURRENCY = 4;
@@ -154,9 +155,9 @@ async function runNewUpload(
       manifest: args.manifest,
       time_offset_seconds: args.timeOffsetSeconds,
     });
-  } catch (err: any) {
+  } catch (err) {
     args.onError(
-      `Failed to create job, ${err.response?.data?.detail || err.message}`,
+      `Failed to create job, ${apiErrorMessage(err)}`,
     );
     return;
   }
@@ -179,9 +180,9 @@ async function runResumeUpload(
       ? await bulkUploadApi.checkDuplicates(args.projectId, { camera_id: job.camera_id }, args.entries)
       : [];
     alreadyUploaded = new Set(await bulkUploadApi.uploadedIndexes(args.projectId, job.uuid));
-  } catch (err: any) {
+  } catch (err) {
     args.onError(
-      `Failed to read upload progress, ${err.response?.data?.detail || err.message}`,
+      `Failed to read upload progress, ${apiErrorMessage(err)}`,
     );
     return;
   }
@@ -248,9 +249,9 @@ async function runSession(
 
   try {
     await bulkUploadApi.finalize(args.projectId, jobUuid, toSend.length);
-  } catch (err: any) {
+  } catch (err) {
     args.onError(
-      `Failed to start processing, ${err.response?.data?.detail || err.message}`,
+      `Failed to start processing, ${apiErrorMessage(err)}`,
     );
     endSession(jobUuid, set, get, args.onCacheInvalidate);
     return;
