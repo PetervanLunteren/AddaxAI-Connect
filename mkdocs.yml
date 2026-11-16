@@ -60,6 +60,7 @@ nav:
     - SpeciesNet setup: speciesnet-setup.md
   - Using the app:
     - Sites and cameras: sites-and-deployments.md
+    - Upload an SD card: upload-sd-card.md
     - Service: service.md
     - Theft watch: theft-watch.md
     - Two-factor login: two-factor.md
