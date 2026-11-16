@@ -68,6 +68,22 @@ def pick_twins(
     )
 
 
+def with_removed(manifest: dict, removed: List[int]) -> dict:
+    """
+    The job manifest after picking these images: the list for a second run,
+    and the job summary counting them as duplicates instead of imports, so
+    the job row reads complete ("2262 of 2262 classified, 237 duplicates").
+    """
+    out = dict(manifest or {})
+    out[MARKER] = removed
+    summary = dict(out.get("process_summary") or {})
+    if summary and removed:
+        summary["queued_for_pipeline"] = summary.get("queued_for_pipeline", 0) - len(removed)
+        summary["duplicates"] = summary.get("duplicates", 0) + len(removed)
+        out["process_summary"] = summary
+    return out
+
+
 def is_old_job(manifest: dict) -> bool:
     """Processed before the upload left out 4G copies (no skip_reasons yet)."""
     return "skip_reasons" not in (manifest.get("process_summary") or {})
@@ -139,7 +155,8 @@ async def run(apply: bool, project_id: int | None) -> None:
                 # Write every list of this camera first, so a second run
                 # deletes only these.
                 for job in camera_jobs:
-                    job.manifest = {**(job.manifest or {}), MARKER: per_job[job.id]}
+                    job.manifest = with_removed(job.manifest, per_job[job.id])
+                    job.skipped_files += len(per_job[job.id])
                 await db.commit()
 
         if not apply:

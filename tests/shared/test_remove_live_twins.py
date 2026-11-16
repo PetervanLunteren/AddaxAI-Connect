@@ -50,3 +50,21 @@ class TestIsOldJob:
 
     def test_job_without_summary_counts_as_old(self):
         assert remove_live_twins.is_old_job({})
+
+
+class TestWithRemoved:
+    def test_removed_images_count_as_duplicates(self):
+        manifest = {"process_summary": {"queued_for_pipeline": 2499, "duplicates": 0, "other_skipped": 0}}
+        out = remove_live_twins.with_removed(manifest, [1, 2, 3])
+        assert out["live_twins_removed"] == [1, 2, 3]
+        assert out["process_summary"] == {"queued_for_pipeline": 2496, "duplicates": 3, "other_skipped": 0}
+
+    def test_input_is_not_changed(self):
+        manifest = {"process_summary": {"queued_for_pipeline": 5, "duplicates": 0}}
+        remove_live_twins.with_removed(manifest, [1])
+        assert manifest == {"process_summary": {"queued_for_pipeline": 5, "duplicates": 0}}
+
+    def test_nothing_removed_only_marks_the_job(self):
+        out = remove_live_twins.with_removed({"process_summary": {"queued_for_pipeline": 5, "duplicates": 0}}, [])
+        assert out["live_twins_removed"] == []
+        assert out["process_summary"]["queued_for_pipeline"] == 5
