@@ -35,3 +35,18 @@ class TestPickTwins:
         bulk = [(11, "A.JPG", T1), (12, "B.JPG", T1), (13, "C.JPG", T1)]
         live = [("E1.JPG", T1), ("E2.JPG", T1)]
         assert pick_twins(bulk, live, set()) == ([11, 12], [])
+
+
+class TestIsOldJob:
+    def test_job_from_before_the_rule(self):
+        summary = {"queued_for_pipeline": 2496, "duplicates": 1495, "other_skipped": 0}
+        assert remove_live_twins.is_old_job({"process_summary": summary})
+
+    def test_job_from_the_new_worker_is_left_alone(self):
+        # Its upload already left the 4G copies out; comparing it again
+        # would remove real burst frames (seen on dev, job 12).
+        summary = {"queued_for_pipeline": 14, "duplicates": 0, "other_skipped": 0, "skip_reasons": {}}
+        assert not remove_live_twins.is_old_job({"process_summary": summary})
+
+    def test_job_without_summary_counts_as_old(self):
+        assert remove_live_twins.is_old_job({})
