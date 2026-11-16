@@ -365,6 +365,7 @@ addaxai-connect/
 │   ├── backfill_camera_tags_to_sites.py # Migrate legacy camera tags to sites
 │   ├── merge_contiguous_deployments.py # Merge adjacent deployments
 │   ├── cleanup_empty_deployments.py   # Remove deployments with no images
+│   ├── remove_live_twins.py           # Remove bulk copies of photos already sent over 4G (dry run first)
 │   ├── regenerate_thumbnails.py       # Rebuild image thumbnails
 │   ├── rehydrate_cold_to_hot.py       # Pull cold-tier objects back to local storage
 │   ├── cold_tier_orphan_check.sh      # Find cold-tier objects with no DB record
