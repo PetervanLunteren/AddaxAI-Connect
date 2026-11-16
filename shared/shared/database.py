@@ -23,12 +23,18 @@ engine = create_engine(
 )
 
 # Create async SQLAlchemy engine (for FastAPI)
+# The pool keeps every connection it may open, so no overflow. An overflow
+# connection is closed the moment it is returned, and a grid of 24 thumbnails
+# then logged in to Postgres again on every page. That login hashes the
+# password thousands of times on the event loop, so the thumbnails queued
+# behind it: 12 at once took 0.5 s, and 0.16 s with the connections kept.
+# The ceiling stays 15 connections per API worker.
 async_database_url = settings.database_url.replace("postgresql://", "postgresql+asyncpg://")
 async_engine = create_async_engine(
     async_database_url,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=15,
+    max_overflow=0,
     echo=settings.log_level == "DEBUG"
 )
 
