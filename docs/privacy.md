@@ -1,8 +1,5 @@
 # Privacy and data
 
-!!! note
-    This page describes AddaxAI Connect v0.19.0 (November 2026). It is not legal advice and makes no claim of compliance with any law. The organisation that runs a project decides whether its use is lawful.
-
 On a server hosted by Addax Data Science and Smart Parks? See [hosted service](hosted-service.md) for where your data is and who runs the server.
 
 ## What data does it store?
