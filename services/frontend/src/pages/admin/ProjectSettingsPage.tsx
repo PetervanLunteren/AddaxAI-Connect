@@ -5,7 +5,6 @@
  * Includes detection confidence threshold and species filtering.
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2, ExternalLink } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -99,8 +98,7 @@ interface ModalData {
 const NO_GROUPS: SiteGroup[] = [];
 
 export const ProjectSettingsPage: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>();
-  const { selectedProject: currentProject, canAdminCurrentProject, refreshProjects } = useProject();
+  const { selectedProject: currentProject, refreshProjects } = useProject();
   const queryClient = useQueryClient();
 
   // Form state
@@ -246,10 +244,6 @@ export const ProjectSettingsPage: React.FC = () => {
     setPendingGroups(siteGroups);
   }, [siteGroups]);
 
-  // Redirect if user doesn't have admin access (after all hooks)
-  if (!canAdminCurrentProject) {
-    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
-  }
 
   if (!currentProject) {
     return (

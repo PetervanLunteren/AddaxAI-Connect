@@ -5,7 +5,7 @@
  * Server admins can also access this page.
  */
 import React, { useState } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, UserPlus, Trash2, Edit2, Shield, ShieldOff, Eye, Users as UsersIcon } from 'lucide-react';
 import { projectsApi } from '../api/projects';
@@ -44,7 +44,7 @@ import { formatDate } from '../utils/datetime';
 
 export const ProjectUsersPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { canAdminCurrentProject, selectedProject } = useProject();
+  const { selectedProject } = useProject();
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -159,10 +159,6 @@ export const ProjectUsersPage: React.FC = () => {
     },
   });
 
-  // Redirect if user doesn't have admin access (must be after all hooks)
-  if (!canAdminCurrentProject) {
-    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
-  }
 
   const handleAddUser = () => {
     if (addUserEmail && addUserRole) {

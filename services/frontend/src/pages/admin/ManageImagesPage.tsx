@@ -5,7 +5,6 @@
  * bulk hide/unhide images from analysis, and permanently delete images.
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Navigate } from 'react-router-dom';
 import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -123,7 +122,7 @@ export const ManageImagesPage: React.FC = () => {
   const reportActionError = (verb: string) => (error: any) => {
     toast.error(`Could not ${verb} the images (${error.response?.data?.detail || error.message})`);
   };
-  const { selectedProject, canAdminCurrentProject } = useProject();
+  const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
   const [page, setPage] = useState(1);
@@ -218,10 +217,6 @@ export const ManageImagesPage: React.FC = () => {
 
   const limit = 50;
 
-  // Redirect non-admins
-  if (!canAdminCurrentProject) {
-    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
-  }
 
   // Debounce search input
   useEffect(() => {

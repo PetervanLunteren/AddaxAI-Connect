@@ -21,7 +21,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from .users import fastapi_users, current_verified_user, get_jwt_strategy
+from .users import (
+    bearer_transport,
+    current_active_user,
+    current_verified_user,
+    fastapi_users,
+    get_jwt_strategy,
+    may_renew,
+)
 from .rate_limit import login_rate_limit
 from .stamps import now_stamp
 from . import two_factor
@@ -103,6 +110,33 @@ def get_auth_router() -> APIRouter:
 
         token = await get_jwt_strategy().write_token(user)
         return {"access_token": token, "token_type": "bearer"}
+
+    @router.post("/auth/refresh", tags=["auth"])
+    async def refresh(
+        token: str = Depends(bearer_transport.scheme),
+        user: User = Depends(current_active_user),
+    ):
+        """
+        Hand a logged-in session a fresh access token, so an open app (a long
+        bulk upload, for one) is not logged out after an hour.
+
+        The new token keeps the old one's `auth_time`, so renewing stops
+        MAX_SESSION after the password was typed. It skips the two-factor
+        gate on purpose, like change-password: the session already passed
+        it. A token from before a password change is refused by the user
+        dependency, so it cannot renew. Refused with 403, not 401: the
+        frontend sends every 401 to the login page, while the current token
+        may still have half an hour left.
+        """
+        strategy = get_jwt_strategy()
+        auth_time = strategy.session_start(token)
+        if auth_time is None or not may_renew(auth_time, datetime.now(timezone.utc)):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Log in again to continue",
+            )
+        new_token = await strategy.write_token(user, auth_time=auth_time)
+        return {"access_token": new_token, "token_type": "bearer"}
 
     # The code step, setup, enable and disable
     router.include_router(two_factor_router)

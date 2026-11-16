@@ -92,6 +92,15 @@ What to know before changing it:
   pending token (password was right, 15 minutes, opens nothing) and a
   remember token (30 days, in an `HttpOnly` cookie on `/auth`). All signed
   with `JWT_SECRET`.
+- **An access token lasts an hour and renews itself.** `api/client.ts` calls
+  `POST /auth/refresh` when a call succeeds with less than 30 minutes left.
+  The token carries `auth_time`, the moment the password was typed, and a
+  renewed token keeps it, so renewal stops after `MAX_SESSION` (24 hours,
+  `auth/users.py`). Refresh skips the two-factor gate like change-password
+  does, because the session already passed it; a project that starts
+  requiring two-factor reaches an open session at most a day later. It
+  answers 403, not 401, so a refused renewal does not log the user out
+  while the token still runs.
 - **No table for remembered browsers.** A remember token is valid while it is
   younger than `password_changed_at` and `two_factor_enabled_at`. So a new
   password, switching off, a reset and a new setup end all of them. One

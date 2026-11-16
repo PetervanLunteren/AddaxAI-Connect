@@ -3,7 +3,7 @@ FastAPI-Users configuration.
 
 Sets up authentication backend with JWT bearer tokens.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
@@ -29,6 +29,12 @@ settings = get_settings()
 
 # The shared account behind "Log in as demo visitor" on a demo server
 DEMO_USER_EMAIL = "demo@email.com"
+
+# An access token lasts an hour. While the app is open it renews itself
+# (POST /auth/refresh), for at most this long after the password was typed.
+# A closed tab still runs out within the hour.
+ACCESS_TOKEN_LIFETIME_SECONDS = 3600
+MAX_SESSION = timedelta(hours=24)
 
 
 # Ensure JWT secret is configured
@@ -62,17 +68,38 @@ class PasswordChangeAwareJWTStrategy(JWTStrategy[models.UP, models.ID]):
 
     Tokens minted by the previous strategy (no `iat` claim) are accepted
     until they expire naturally, so the migration is graceful.
+
+    Every token also carries `auth_time`, the moment the password was typed.
+    A renewed token keeps it, which is what limits a session to MAX_SESSION.
     """
 
-    async def write_token(self, user) -> str:
+    async def write_token(self, user, auth_time: Optional[int] = None) -> str:
+        now = datetime.now(timezone.utc)
         data = {
             "sub": str(user.id),
             "aud": self.token_audience,
-            "iat": datetime.now(timezone.utc),
+            "iat": now,
+            "auth_time": auth_time if auth_time is not None else int(now.timestamp()),
         }
         return generate_jwt(
             data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm,
         )
+
+    def session_start(self, token: str) -> Optional[int]:
+        """
+        The `auth_time` of a token, as a Unix timestamp. A token from before
+        renewal existed has none; its `iat` is its login time.
+        """
+        try:
+            data = decode_jwt(
+                token, self.decode_key, self.token_audience, algorithms=[self.algorithm],
+            )
+        except jwt.PyJWTError:
+            return None
+        try:
+            return int(data.get("auth_time", data["iat"]))
+        except (KeyError, TypeError, ValueError):
+            return None
 
     async def read_token(
         self,
@@ -118,8 +145,13 @@ def get_jwt_strategy() -> PasswordChangeAwareJWTStrategy:
     """
     return PasswordChangeAwareJWTStrategy(
         secret=settings.jwt_secret,
-        lifetime_seconds=3600,  # 1 hour
+        lifetime_seconds=ACCESS_TOKEN_LIFETIME_SECONDS,
     )
+
+
+def may_renew(auth_time: int, now: datetime) -> bool:
+    """True while a session is younger than MAX_SESSION."""
+    return now - datetime.fromtimestamp(auth_time, tz=timezone.utc) < MAX_SESSION
 
 
 # Bearer token transport (Authorization: Bearer <token>)

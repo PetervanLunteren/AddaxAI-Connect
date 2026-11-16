@@ -8,7 +8,7 @@
  * row is non-terminal.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
@@ -216,16 +216,13 @@ const FILTER_DEFS: { key: FilterKey; label: string; matches: (s: BulkUploadJob['
 ];
 
 export const BulkUploadPage: React.FC = () => {
-  const { selectedProject, canAdminCurrentProject } = useProject();
+  const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
   const [modalOpen, setModalOpen] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('active');
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  if (!canAdminCurrentProject) {
-    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
-  }
 
   const { data: jobs } = useQuery({
     queryKey: ['bulk-upload-jobs', projectId],

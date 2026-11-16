@@ -49,6 +49,7 @@ def test_user_routes_are_read_only():
 def test_login_is_our_own_route_and_logout_is_gone():
     routes = _routes(get_auth_router())
     assert ("POST", "/auth/login") in routes
+    assert ("POST", "/auth/refresh") in routes
     assert ("POST", "/auth/logout") not in routes
     # The two-factor routes come in through an included router. Seeing them
     # here proves the helper looks inside included routers too.

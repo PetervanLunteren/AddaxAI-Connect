@@ -18,7 +18,7 @@
  * and never while alerts are going out.
  */
 import React, { useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -117,9 +117,6 @@ export const SensingCluesPage: React.FC = () => {
     },
   });
 
-  if (!canAdminCurrentProject) {
-    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
-  }
 
   // Connection status shown on the row: a pill plus a one-line detail.
   const pill = connectionPill(status);

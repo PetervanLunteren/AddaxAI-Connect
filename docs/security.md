@@ -4,7 +4,7 @@ On a server hosted by Addax Data Science and Smart Parks? See [hosted service](h
 
 ## How do users log in?
 
-With an email address and a password. Nobody can create an account without an invitation. A password needs at least 15 characters and is stored as a hash (Argon2), so nobody can read it. One address can try to log in at most 20 times in 5 minutes. A login lasts one hour. Changing your password ends all other logins of your account. What each account may see is on the [privacy](privacy.md#who-can-see-the-photos) page.
+With an email address and a password. Nobody can create an account without an invitation. A password needs at least 15 characters and is stored as a hash (Argon2), so nobody can read it. One address can try to log in at most 20 times in 5 minutes. A login lasts one hour and renews itself while the app is open, for at most 24 hours. A closed tab logs out within the hour. Changing your password ends all other logins of your account. What each account may see is on the [privacy](privacy.md#who-can-see-the-photos) page.
 
 Every user can add [two-factor login](two-factor.md): a code from an authenticator app after the password. A project admin can require it for everyone who can open the project. The secret of the app is stored encrypted, a code works once, and five wrong codes block the account for 15 minutes.
 

@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { ImageCacheProvider } from './contexts/ImageCacheContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { RequireProjectAdmin } from './components/RequireProjectAdmin';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
 import { Toaster } from './components/ui/Toaster';
@@ -180,12 +181,12 @@ function App() {
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="exports" element={<ExportsPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
-                <Route path="settings" element={<ProjectSettingsPage />} />
-                <Route path="users" element={<ProjectUsersPage />} />
-                <Route path="manage-images" element={<ManageImagesPage />} />
-                <Route path="bulk-upload" element={<BulkUploadPage />} />
-                <Route path="integrations/earthranger" element={<EarthRangerPage />} />
-                <Route path="integrations/sensingclues" element={<SensingCluesPage />} />
+                <Route path="settings" element={<RequireProjectAdmin><ProjectSettingsPage /></RequireProjectAdmin>} />
+                <Route path="users" element={<RequireProjectAdmin><ProjectUsersPage /></RequireProjectAdmin>} />
+                <Route path="manage-images" element={<RequireProjectAdmin><ManageImagesPage /></RequireProjectAdmin>} />
+                <Route path="bulk-upload" element={<RequireProjectAdmin><BulkUploadPage /></RequireProjectAdmin>} />
+                <Route path="integrations/earthranger" element={<RequireProjectAdmin><EarthRangerPage /></RequireProjectAdmin>} />
+                <Route path="integrations/sensingclues" element={<RequireProjectAdmin><SensingCluesPage /></RequireProjectAdmin>} />
               </Route>
 
               {/* Redirect root to projects */}
