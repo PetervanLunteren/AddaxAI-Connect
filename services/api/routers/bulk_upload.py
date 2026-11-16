@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.bulk_jobs import BULK_IMAGE_EXTENSIONS, BULK_MAX_FILE_MB
 from shared.camera_profiles import identify_camera_profile
 from shared.database import get_async_session
 from shared.logger import get_logger
@@ -48,16 +49,15 @@ router = APIRouter(
 )
 logger = get_logger("api.bulk_upload")
 
-# Per-file and per-job caps. 50 MB covers any realistic single trail-cam
-# frame with headroom. 20000 files matches the per-job cap users see in
-# the modal, sized for a full-season SD card pull.
-MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+# Per-file and per-job caps. The file limit is shared with the worker.
+# 20000 files matches the per-job cap users see in the modal, sized for a
+# full-season SD card pull.
+MAX_FILE_SIZE_BYTES = BULK_MAX_FILE_MB * 1024 * 1024
 MAX_FILES_PER_JOB = 20000
 # A camera clock correction never needs more than this. Thirty years covers
 # a clock reset to the firmware's default year.
 MAX_TIME_OFFSET_SECONDS = 30 * 366 * 24 * 3600
-ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png"}
-ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png")
+ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/jpg"}
 
 # Jobs that have been accepting uploads for longer than this without a
 # finalize call get auto-failed and their staged objects deleted. Covers
@@ -747,10 +747,10 @@ async def _upload_bulk_file_inner(
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
-    if not file.filename.lower().endswith(ALLOWED_EXTENSIONS):
+    if not file.filename.lower().endswith(BULK_IMAGE_EXTENSIONS):
         raise HTTPException(
             status_code=400,
-            detail="Only JPEG and PNG images are supported",
+            detail="Only JPEG images are supported",
         )
     # Content-type is set by the browser; tolerate octet-stream fallback
     # (Firefox does this for some drag-drop paths) when the extension

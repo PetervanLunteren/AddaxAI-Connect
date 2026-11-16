@@ -24,6 +24,8 @@ export interface BulkUploadManifest {
     queued_for_pipeline: number;
     duplicates: number;
     other_skipped: number;
+    // Count per skip reason. Missing on jobs from before v0.21.
+    skip_reasons?: Record<string, number>;
   };
 }
 

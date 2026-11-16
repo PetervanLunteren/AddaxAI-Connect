@@ -12,6 +12,13 @@ from sqlalchemy import select
 from shared.database import get_db_session
 from shared.models import BulkUploadJob, Image
 
+# What a bulk upload accepts, read by the API (per-file upload) and the
+# worker (validation), so the two cannot disagree. SD cards hold full-size
+# photos, so the limit is above the 10 MB that live 4G uploads get. The
+# frontend keeps a copy of both values in BulkUploadPage.tsx.
+BULK_MAX_FILE_MB = 50
+BULK_IMAGE_EXTENSIONS = (".jpg", ".jpeg")
+
 
 def is_bulk_job_cancelled(job_uuid: str) -> bool:
     """True when the bulk-upload job has been cancelled."""

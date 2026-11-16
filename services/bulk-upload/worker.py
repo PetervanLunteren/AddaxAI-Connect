@@ -19,6 +19,7 @@ import signal
 import sys
 import tempfile
 import uuid
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Iterator, Optional
 
@@ -28,7 +29,7 @@ sys.path.insert(0, "/ingestion_lib")
 
 from sqlalchemy import func, select, text
 
-from shared.bulk_jobs import is_bulk_job_cancelled
+from shared.bulk_jobs import BULK_IMAGE_EXTENSIONS, BULK_MAX_FILE_MB, is_bulk_job_cancelled
 from shared.camera_profiles import identify_camera_profile
 from shared.database import get_db_session
 from shared.logger import get_logger, set_image_id
@@ -46,11 +47,10 @@ from storage_operations import (  # noqa: E402
     generate_and_upload_thumbnail,
     upload_image_to_minio,
 )
-from validators import validate_image  # noqa: E402
+from validators import validate_file_size, validate_mime_type  # noqa: E402
 from utils import is_valid_gps  # noqa: E402
 
 PROGRESS_PERSIST_EVERY = 25
-IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
 # Wall-clock cap per file inside the worker. Normal ingestion (EXIF
 # read + MinIO write + thumbnail) is 1-2 s; a corrupt JPEG that hangs
 # Pillow or a stuck MinIO connection could otherwise wedge the entire
@@ -154,8 +154,8 @@ def _process_file(
     - **Mode B (use_profile=False):** no profile, the batch is pinned to the
       caller-chosen site via `bulk_deployment_id`. DateTimeOriginal is required.
     """
-    if not name.lower().endswith(IMAGE_EXTENSIONS):
-        return {"outcome": "skipped", "reason": "unsupported_extension"}
+    if not name.lower().endswith(BULK_IMAGE_EXTENSIONS):
+        return {"outcome": "skipped", "reason": "not_a_photo"}
 
     content_hash = hashlib.sha256(raw).hexdigest()
 
@@ -181,16 +181,22 @@ def _process_file(
         with os.fdopen(tmp_handle, "wb") as fh:
             fh.write(raw)
 
-        # Validation matches the live FTPS path. Failure is per-file.
-        try:
-            validate_image(tmp_path)
-        except Exception as exc:
-            logger.warning(
-                "Skipping bulk upload entry, validation failed",
-                entry=name,
-                error=str(exc),
-            )
-            return {"outcome": "skipped", "reason": "validation_failed"}
+        # The live FTPS checks, one at a time so the skip reason says which
+        # failed, and with the bulk size limit. Failure is per-file.
+        for check, reason in (
+            (validate_mime_type, "not_a_photo"),
+            (lambda path: validate_file_size(path, max_mb=BULK_MAX_FILE_MB), "too_large"),
+        ):
+            try:
+                check(tmp_path)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping bulk upload entry, validation failed",
+                    entry=name,
+                    reason=reason,
+                    error=str(exc),
+                )
+                return {"outcome": "skipped", "reason": reason}
 
         exif = extract_exif(tmp_path)
         clean_filename = os.path.basename(name)
@@ -344,6 +350,7 @@ def _process_prefix_job(
     processed = 0
     duplicates = 0
     other_skipped = 0
+    skip_reasons: Counter = Counter()
     file_log: list = []
 
     object_keys = sorted(_list_prefix(storage, staged_prefix))
@@ -417,6 +424,7 @@ def _process_prefix_job(
             duplicates += 1
         else:
             other_skipped += 1
+            skip_reasons[result.get("reason", "unexpected_error")] += 1
 
         file_log.append({
             "filename": filename,
@@ -460,6 +468,7 @@ def _process_prefix_job(
             "queued_for_pipeline": processed,
             "duplicates": duplicates,
             "other_skipped": other_skipped,
+            "skip_reasons": dict(skip_reasons),
         }
         manifest["file_log"] = file_log
         row.manifest = manifest

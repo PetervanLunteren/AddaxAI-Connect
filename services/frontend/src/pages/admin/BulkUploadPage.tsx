@@ -199,6 +199,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const MAX_FILES_PER_JOB = 20000;
+// Same value as BULK_MAX_FILE_MB in shared/shared/bulk_jobs.py.
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
 type FilterKey = 'active' | 'done' | 'failed';
@@ -745,10 +746,10 @@ const PickStep: React.FC<{
   const accept = useCallback(
     (files: File[], folderName: string) => {
       const images = files.filter((f) =>
-        /\.(jpe?g|png)$/i.test(f.name)
+        /\.jpe?g$/i.test(f.name)
       );
       if (images.length === 0) {
-        toast.error('No JPEG or PNG images found in the folder');
+        toast.error('No JPEG images found in the folder');
         return;
       }
       if (images.length > MAX_FILES_PER_JOB) {
@@ -890,7 +891,7 @@ const PickStep: React.FC<{
           // also works for our scan code.
           {...({ webkitdirectory: '', directory: '' } as any)}
           multiple
-          accept="image/jpeg,image/png"
+          accept="image/jpeg"
           className="hidden"
           onChange={onPickerChange}
         />
@@ -1373,6 +1374,34 @@ const ReviewStep: React.FC<{
 
 // ----- JobRow -----
 
+// Why the worker skipped a file, as the end of "N skipped ...". The keys are
+// the reasons in services/bulk-upload/worker.py. Unknown keys fall back to
+// "for another reason", so a new reason never breaks the line.
+const SKIP_REASON_LABELS: Record<string, string> = {
+  invalid_gps: 'without location',
+  missing_gps: 'without location',
+  missing_datetime: 'without date',
+  too_large: 'as too large',
+  not_a_photo: 'as not a JPEG photo',
+  unsupported_camera: 'from an unknown camera',
+  processing_timeout: 'as unreadable',
+  unexpected_error: 'as unreadable',
+};
+
+// "2 skipped without location, 25 skipped as too large". Jobs from before
+// the worker recorded reasons only have the total.
+function skipReasonParts(summary: NonNullable<BulkUploadManifest['process_summary']>): string[] {
+  if (!summary.skip_reasons) {
+    return summary.other_skipped > 0 ? [`${summary.other_skipped} other skipped`] : [];
+  }
+  const byLabel = new Map<string, number>();
+  for (const [reason, n] of Object.entries(summary.skip_reasons)) {
+    const label = SKIP_REASON_LABELS[reason] ?? 'for another reason';
+    byLabel.set(label, (byLabel.get(label) ?? 0) + n);
+  }
+  return Array.from(byLabel, ([label, n]) => `${n} skipped ${label}`);
+}
+
 function jobSummaryText(job: BulkUploadJob): string {
   const summary = job.manifest?.process_summary;
   if (!summary) {
@@ -1381,20 +1410,18 @@ function jobSummaryText(job: BulkUploadJob): string {
   }
   const queued = summary.queued_for_pipeline;
   const dups = summary.duplicates;
-  const others = summary.other_skipped;
-  if (queued === 0 && dups > 0 && others === 0) {
+  const skipParts = skipReasonParts(summary);
+  if (queued === 0 && dups > 0 && skipParts.length === 0) {
     return `All ${dups} images were already in the project, nothing new added`;
   }
-  if (queued === 0 && dups + others > 0) {
-    return `No new images added, ${dups} duplicate${dups === 1 ? '' : 's'}`
-      + (others > 0 ? `, ${others} other skipped` : '');
+  const parts: string[] = [];
+  if (dups > 0) parts.push(`${dups} duplicate${dups === 1 ? '' : 's'}`);
+  parts.push(...skipParts);
+  if (queued === 0 && parts.length > 0) {
+    return `No new images added, ${parts.join(', ')}`;
   }
-  const processed = job.processed_files;
-  const skipParts: string[] = [];
-  if (dups > 0) skipParts.push(`${dups} duplicate${dups === 1 ? '' : 's'}`);
-  if (others > 0) skipParts.push(`${others} other skipped`);
-  return `${processed} of ${queued} classified`
-    + (skipParts.length ? `, ${skipParts.join(', ')}` : '');
+  return `${job.processed_files} of ${queued} classified`
+    + (parts.length ? `, ${parts.join(', ')}` : '');
 }
 
 function buildCurationHref(projectId: number, job: BulkUploadJob): string | null {

@@ -6,7 +6,9 @@ and services/bulk-upload/worker.py to test them without dragging in the
 FastAPI app, MinIO client, or database. Same pattern as
 test_camera_tags.py.
 """
+import os
 import re
+import sys
 from typing import Optional
 
 import pytest
@@ -415,3 +417,34 @@ class TestCurationBulkUploadFilter:
     def test_optional_by_default(self):
         assert self._Filter().bulk_upload_job is None
         assert self._Filter().origin is None
+
+
+class TestBulkFileRules:
+    """The API and the worker read one size limit and one extension list.
+
+    Imports the real router, so a limit defined again locally fails here.
+    """
+
+    @staticmethod
+    def _router():
+        api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "services", "api"))
+        if api not in sys.path:
+            sys.path.insert(0, api)
+        from routers import bulk_upload
+        return bulk_upload
+
+    def test_api_size_cap_is_the_shared_limit(self):
+        from shared.bulk_jobs import BULK_MAX_FILE_MB
+        assert self._router().MAX_FILE_SIZE_BYTES == BULK_MAX_FILE_MB * 1024 * 1024
+
+    def test_bulk_limit_is_above_the_live_limit(self):
+        # spw had SD photos of 11.5 to 12.9 MB; live 4G uploads stay at 10 MB.
+        from shared.bulk_jobs import BULK_MAX_FILE_MB
+        assert BULK_MAX_FILE_MB > 13
+
+    def test_jpeg_only(self):
+        from shared.bulk_jobs import BULK_IMAGE_EXTENSIONS
+        assert "IMG_0001.JPG".lower().endswith(BULK_IMAGE_EXTENSIONS)
+        assert "IMG_0001.jpeg".endswith(BULK_IMAGE_EXTENSIONS)
+        assert not "IMG_0001.png".endswith(BULK_IMAGE_EXTENSIONS)
+        assert "image/png" not in self._router().ALLOWED_CONTENT_TYPES
