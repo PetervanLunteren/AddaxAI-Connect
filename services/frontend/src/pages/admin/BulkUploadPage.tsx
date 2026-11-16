@@ -207,12 +207,7 @@ const FILTER_DEFS: { key: FilterKey; label: string; matches: (s: BulkUploadJob['
   {
     key: 'active',
     label: 'Active',
-    matches: (s) =>
-      s === 'uploading'
-      || s === 'queued'
-      || s === 'inspecting'
-      || s === 'awaiting_confirmation'
-      || s === 'processing',
+    matches: (s) => s === 'uploading' || s === 'processing',
   },
   { key: 'done', label: 'Done', matches: (s) => s === 'done' },
   { key: 'failed', label: 'Failed', matches: (s) => s === 'failed' },

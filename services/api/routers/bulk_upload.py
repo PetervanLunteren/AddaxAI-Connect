@@ -7,11 +7,7 @@ every file is in MinIO the client calls /finalize, which flips the job
 to 'processing' and publishes to the bulk-upload worker.
 
 Status flow:
-    uploading -> processing -> done | failed
-
-Legacy jobs created before the per-file refactor (statuses queued,
-inspecting, awaiting_confirmation) are still readable but cannot be
-resumed; they expire via the orphan-cleanup pass.
+    uploading -> processing -> done | failed | cancelled
 """
 import asyncio
 import csv
@@ -297,26 +293,20 @@ async def _finalise_done_jobs(
 
 
 def _delete_staging(staged_object_key: str) -> None:
-    """
-    Delete the MinIO state for a job. Handles both the new per-file
-    prefix layout (key ends with '/') and the legacy single-ZIP layout.
-    """
+    """Delete every staged file under a job's prefix."""
     if not staged_object_key:
         return
     storage = StorageClient()
     try:
-        if staged_object_key.endswith("/"):
-            for key in storage.list_objects(BUCKET_BULK_UPLOAD_STAGING, staged_object_key):
-                try:
-                    storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, key)
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to delete staged file",
-                        key=key,
-                        error=str(exc),
-                    )
-        else:
-            storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
+        for key in storage.list_objects(BUCKET_BULK_UPLOAD_STAGING, staged_object_key):
+            try:
+                storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, key)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to delete staged file",
+                    key=key,
+                    error=str(exc),
+                )
     except Exception as exc:
         logger.warning(
             "Failed to clean staging",
@@ -327,17 +317,14 @@ def _delete_staging(staged_object_key: str) -> None:
 
 async def _expire_orphan_jobs(db: AsyncSession, project_id: int) -> None:
     """
-    Fail jobs stuck in a pre-processing state past UPLOAD_TTL and clean
-    their staging. Covers both the new 'uploading' state and the legacy
-    inspect/awaiting_confirmation states from before the refactor.
+    Fail jobs still uploading past UPLOAD_TTL and clean their staging.
     """
     cutoff = datetime.now(timezone.utc) - UPLOAD_TTL
-    pre_processing = ("uploading", "queued", "inspecting", "awaiting_confirmation")
     orphans = (
         await db.execute(
             select(BulkUploadJob).where(
                 BulkUploadJob.project_id == project_id,
-                BulkUploadJob.status.in_(pre_processing),
+                BulkUploadJob.status == "uploading",
                 BulkUploadJob.created_at < cutoff,
             )
         )
@@ -831,7 +818,7 @@ async def finalize_bulk_upload(
     await db.refresh(job)
 
     queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB_PROCESS)
-    queue.publish({"job_uuid": job_uuid, "phase": "process"})
+    queue.publish({"job_uuid": job_uuid})
 
     camera_name = (
         await db.execute(select(Camera.device_id).where(Camera.id == job.camera_id))
@@ -860,8 +847,7 @@ async def cancel_bulk_upload(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Stop a bulk upload. Allowed while uploading (and the legacy pre-processing
-    states) and while processing. Marks the job 'cancelled' and clears staging;
+    Stop a bulk upload. Allowed while uploading and while processing. Marks the job 'cancelled' and clears staging;
     the bulk worker stops its loop and the detection/classification workers skip
     the job's remaining images. Images already imported are kept (use the
     delete-images endpoint to remove them).
@@ -876,8 +862,7 @@ async def cancel_bulk_upload(
     ).scalar_one_or_none()
     if job is None:
         raise HTTPException(status_code=404, detail="Bulk upload job not found")
-    cancellable = ("uploading", "queued", "inspecting", "awaiting_confirmation", "processing")
-    if job.status not in cancellable:
+    if job.status not in ("uploading", "processing"):
         raise HTTPException(
             status_code=400,
             detail=f"Job is in status '{job.status}', cannot stop",
@@ -958,8 +943,8 @@ async def discard_bulk_upload_job(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Remove a bulk-upload job from the list. Cleans staging for any
-    pre-processing state. Refuses while the worker is mid-pipeline so
+    Remove a bulk-upload job from the list. Cleans staging while it is
+    still uploading. Refuses while the worker is mid-pipeline so
     we don't leak half-deleted state.
     """
     job = (
@@ -978,8 +963,7 @@ async def discard_bulk_upload_job(
             detail="Cannot discard a job that is currently processing",
         )
 
-    pre_processing = ("uploading", "queued", "inspecting", "awaiting_confirmation")
-    if job.status in pre_processing:
+    if job.status == "uploading":
         _delete_staging(job.staged_object_key)
 
     await db.delete(job)

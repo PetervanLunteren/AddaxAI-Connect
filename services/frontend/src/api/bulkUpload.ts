@@ -33,15 +33,7 @@ export interface BulkUploadJob {
   camera_id: number | null;
   camera_name: string | null;
   original_filename: string;
-  status:
-    | 'uploading'
-    | 'queued'
-    | 'inspecting'
-    | 'awaiting_confirmation'
-    | 'processing'
-    | 'done'
-    | 'failed'
-    | 'cancelled';
+  status: 'uploading' | 'processing' | 'done' | 'failed' | 'cancelled';
   total_files: number;
   processed_files: number;
   skipped_files: number;

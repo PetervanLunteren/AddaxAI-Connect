@@ -856,7 +856,9 @@ class BulkUploadJob(Base):
     )
     original_filename = Column(String(255), nullable=False)
     staged_object_key = Column(String(512), nullable=False)
-    # queued | inspecting | awaiting_confirmation | processing | done | failed
+    # uploading | processing | done | failed | cancelled. Every job is
+    # created with status 'uploading'; the 'queued' server default is a
+    # leftover from the removed ZIP flow and never used.
     status = Column(
         String(30), nullable=False, server_default='queued', index=True
     )

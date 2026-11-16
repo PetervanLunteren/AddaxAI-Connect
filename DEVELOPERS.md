@@ -447,7 +447,7 @@ Queue names (defined in `shared/shared/queue.py`):
 - `notification-earthranger` carries Gundi events to the EarthRanger worker
 - `notification-sensingclues` carries Cluey observations to the Sensing Clues worker
 - `image-ingested-bulk` and `detection-complete-bulk` are the lower-priority bulk-upload variants of the two pipeline queues
-- `bulk-upload-job` and `bulk-upload-job-process` carry bulk-upload jobs to the bulk-upload worker (the process variant jumps ahead of pending jobs)
+- `bulk-upload-job-process` carries finished uploads to the bulk-upload worker, one message per job
 - `failed-jobs` is the dead-letter queue
 
 ## Docker Compose profiles
