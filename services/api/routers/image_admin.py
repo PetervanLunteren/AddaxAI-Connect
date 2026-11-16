@@ -9,8 +9,7 @@ from datetime import datetime, timedelta, timezone
 import io
 import re
 import zipfile
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc, asc, update, delete as sql_delete, cast, Float
 from sqlalchemy.orm import selectinload
@@ -1109,8 +1108,8 @@ async def bulk_download_images(
         blurred_whole=blurred_whole,
         size_mb=round(buffer.getbuffer().nbytes / 1024 / 1024, 2),
     )
-    return StreamingResponse(
-        buffer,
+    return Response(
+        content=buffer.getvalue(),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'},
     )

@@ -1,15 +1,14 @@
 """
 Image endpoints for viewing camera trap images with detections and classifications.
 """
+import asyncio
 from typing import List, Literal, Optional
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc, cast, extract, text
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
-import io
 
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment, Site
 from shared.database import get_async_session
@@ -1823,7 +1822,7 @@ def needs_full_blur(image: Image, project: Project | None) -> bool:
     )
 
 
-def _full_blur_response(image_data: bytes, image: Image) -> StreamingResponse:
+async def _full_blur_response(image_data: bytes, image: Image) -> Response:
     """
     Whole-frame blurred response, for images the detector has not seen.
 
@@ -1833,8 +1832,8 @@ def _full_blur_response(image_data: bytes, image: Image) -> StreamingResponse:
     """
     from utils.image_processing import blur_whole_image
 
-    return StreamingResponse(
-        io.BytesIO(blur_whole_image(image_data)),
+    return Response(
+        content=await asyncio.to_thread(blur_whole_image, image_data),
         media_type="image/jpeg",
         headers={
             "Cache-Control": "private, max-age=0",
@@ -1843,21 +1842,21 @@ def _full_blur_response(image_data: bytes, image: Image) -> StreamingResponse:
     )
 
 
-async def _stream_image_from_storage(
+async def _image_from_storage(
     image: Image,
     use_thumbnail: bool = False,
     cache_max_age: int = 3600,
-) -> StreamingResponse:
+) -> Response:
     """
-    Internal helper to stream an image from MinIO storage.
+    Internal helper to serve an image from MinIO storage.
 
     Args:
         image: Image database record
-        use_thumbnail: If True, stream thumbnail instead of full image
+        use_thumbnail: If True, serve the thumbnail instead of the full image
         cache_max_age: Cache-Control max-age in seconds
 
     Returns:
-        StreamingResponse with image data
+        Response with the image bytes
 
     Raises:
         HTTPException: If image cannot be fetched from storage
@@ -1883,9 +1882,8 @@ async def _stream_image_from_storage(
         elif image.filename.lower().endswith('.gif'):
             content_type = "image/gif"
 
-        # Return as streaming response with caching
-        return StreamingResponse(
-            io.BytesIO(image_data),
+        return Response(
+            content=image_data,
             media_type=content_type,
             headers={
                 "Cache-Control": f"private, max-age={cache_max_age}",
@@ -1911,7 +1909,7 @@ async def get_image_thumbnail(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Stream image thumbnail directly from MinIO with authentication.
+    Serve the image thumbnail from MinIO with authentication.
 
     Returns the pre-generated 300px thumbnail if available, otherwise falls back
     to the full-size image. Includes 1-hour cache for faster grid loading.
@@ -1949,7 +1947,7 @@ async def get_image_thumbnail(
 
     if needs_full_blur(image, project):
         storage_client = StorageClient()
-        return _full_blur_response(
+        return await _full_blur_response(
             await storage_client.download_fileobj_async(bucket, object_name), image
         )
 
@@ -1959,9 +1957,9 @@ async def get_image_thumbnail(
         from utils.image_processing import apply_privacy_blur
         storage_client = StorageClient()
         image_data = await storage_client.download_fileobj_async(bucket, object_name)
-        blurred_data = apply_privacy_blur(image_data, blur_regions)
-        return StreamingResponse(
-            io.BytesIO(blurred_data),
+        blurred_data = await asyncio.to_thread(apply_privacy_blur, image_data, blur_regions)
+        return Response(
+            content=blurred_data,
             media_type="image/jpeg",
             headers={
                 "Cache-Control": "private, max-age=3600",
@@ -1969,7 +1967,7 @@ async def get_image_thumbnail(
             }
         )
 
-    return await _stream_image_from_storage(image, use_thumbnail=True, cache_max_age=3600)
+    return await _image_from_storage(image, use_thumbnail=True, cache_max_age=3600)
 
 
 @router.get("/{uuid}/full")
@@ -1987,9 +1985,9 @@ async def get_image_full(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Stream full-size image directly from MinIO with authentication.
+    Serve the full-size image from MinIO with authentication.
 
-    This endpoint fetches the full-resolution image from MinIO and streams it
+    This endpoint fetches the full-resolution image from MinIO and sends it
     to the client with JWT authentication. Includes 24-hour cache to reduce
     server load while maintaining security.
 
@@ -2044,11 +2042,11 @@ async def get_image_full(
             project_id=project.id,
         )
         # max-age 0 so no unblurred copy lingers in the browser cache
-        return await _stream_image_from_storage(image, cache_max_age=0)
+        return await _image_from_storage(image, cache_max_age=0)
 
     if needs_full_blur(image, project):
         storage_client = StorageClient()
-        return _full_blur_response(
+        return await _full_blur_response(
             await storage_client.download_fileobj_async("raw-images", image.storage_path), image
         )
 
@@ -2058,9 +2056,9 @@ async def get_image_full(
         from utils.image_processing import apply_privacy_blur
         storage_client = StorageClient()
         image_data = await storage_client.download_fileobj_async("raw-images", image.storage_path)
-        blurred_data = apply_privacy_blur(image_data, blur_regions)
-        return StreamingResponse(
-            io.BytesIO(blurred_data),
+        blurred_data = await asyncio.to_thread(apply_privacy_blur, image_data, blur_regions)
+        return Response(
+            content=blurred_data,
             media_type="image/jpeg",
             headers={
                 "Cache-Control": "private, max-age=86400",
@@ -2068,7 +2066,7 @@ async def get_image_full(
             }
         )
 
-    return await _stream_image_from_storage(image, cache_max_age=86400)
+    return await _image_from_storage(image, cache_max_age=86400)
 
 
 @router.get("/{uuid}/annotated")
@@ -2160,10 +2158,10 @@ async def get_annotated_image(
     blur_regions = [] if full_blur else await _get_blur_regions(db, image, project)
     if full_blur:
         from utils.image_processing import blur_whole_image
-        image_bytes = blur_whole_image(image_bytes)
+        image_bytes = await asyncio.to_thread(blur_whole_image, image_bytes)
     elif blur_regions:
         from utils.image_processing import apply_privacy_blur
-        image_bytes = apply_privacy_blur(image_bytes, blur_regions)
+        image_bytes = await asyncio.to_thread(apply_privacy_blur, image_bytes, blur_regions)
 
     # Get image dimensions from metadata
     if not image.image_metadata or 'width' not in image.image_metadata:
@@ -2244,9 +2242,8 @@ async def get_annotated_image(
         etag_suffix = "-blurred" if blur_regions else ""
         cache_control = "private, max-age=3600"
 
-    # Return as streaming response with caching
-    return StreamingResponse(
-        io.BytesIO(annotated_bytes),
+    return Response(
+        content=annotated_bytes,
         media_type="image/jpeg",
         headers={
             "Cache-Control": cache_control,

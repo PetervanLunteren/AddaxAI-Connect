@@ -1053,6 +1053,24 @@ docker compose logs -f api  # Follow
 - `image_id` tracks one image through the entire pipeline
 - `user_id` tracks user actions
 
+`duration_ms` on "Outgoing response" stops when the handler returns, before
+the body is sent. A response that is slow to send looks fast in the log, so
+measure the time to the last byte in the browser.
+
+## Sending bytes from the API
+
+Bytes that are already in memory go out as `Response(content=...)`.
+`StreamingResponse` is only for a generator that produces the body bit by bit.
+
+`StreamingResponse(io.BytesIO(data))` looks harmless but iterates the buffer
+line by line, so binary data is cut at every newline byte. A 2.3 MB photo went
+out as 15,586 pieces and took 3.5 s instead of under 1 ms, and the worker
+served nothing else meanwhile. `tests/api/test_response_types.py` enforces the
+rule.
+
+CPU work in an `async def` handler, such as the privacy blur, also blocks the
+worker. Run it with `await asyncio.to_thread(...)`.
+
 ## Frontend UI development loop
 
 How to see and verify UI changes in a real browser without deploying to a server. Code edits hot-reload in seconds while all data comes from the dev server.

@@ -18,8 +18,7 @@ import struct
 import uuid
 import zipfile
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text
 from sqlalchemy.orm import selectinload, aliased
@@ -534,7 +533,7 @@ async def export_camtrap_dp(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
-) -> StreamingResponse:
+) -> Response:
     """
     Export project data as a CamTrap DP package (ZIP file).
 
@@ -741,8 +740,8 @@ async def export_camtrap_dp(
         zip_size_mb=round(zip_buffer.getbuffer().nbytes / 1024 / 1024, 2),
     )
 
-    return StreamingResponse(
-        zip_buffer,
+    return Response(
+        content=zip_buffer.getvalue(),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
@@ -915,7 +914,7 @@ async def export_observations(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
-) -> StreamingResponse:
+) -> Response:
     """
     Export project observations as CSV, TSV, or XLSX.
 
@@ -995,22 +994,22 @@ async def export_observations(
 
     if format == "xlsx":
         content = _serialize_xlsx(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content),
+        return Response(
+            content=content,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": f'attachment; filename="observations-{slug}-{today}.xlsx"'},
         )
     elif format == "tsv":
         content = _serialize_tsv(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8")),
+        return Response(
+            content=content.encode("utf-8"),
             media_type="text/tab-separated-values",
             headers={"Content-Disposition": f'attachment; filename="observations-{slug}-{today}.tsv"'},
         )
     else:
         content = _serialize_csv(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8")),
+        return Response(
+            content=content.encode("utf-8"),
             media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="observations-{slug}-{today}.csv"'},
         )
@@ -1126,7 +1125,7 @@ async def export_cameras(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
-) -> StreamingResponse:
+) -> Response:
     """Export every camera in a project as CSV, TSV, or XLSX."""
     if project_id not in accessible_project_ids:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this project")
@@ -1148,23 +1147,23 @@ async def export_cameras(
 
     if format == "xlsx":
         content = _serialize_xlsx(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content),
+        return Response(
+            content=content,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": f'attachment; filename="cameras-{slug}-{today}.xlsx"'},
         )
     elif format == "tsv":
         content = _serialize_tsv(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8")),
+        return Response(
+            content=content.encode("utf-8"),
             media_type="text/tab-separated-values",
             headers={"Content-Disposition": f'attachment; filename="cameras-{slug}-{today}.tsv"'},
         )
     else:
         # BOM keeps Excel happy when double-clicked.
         content = _serialize_csv(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8-sig")),
+        return Response(
+            content=content.encode("utf-8-sig"),
             media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="cameras-{slug}-{today}.csv"'},
         )
@@ -1231,7 +1230,7 @@ async def export_maintenance(
     format: str = Query("csv", pattern="^(csv|tsv|xlsx)$"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
-) -> StreamingResponse:
+) -> Response:
     """Export every logged service visit in a project (project admin only)."""
     from auth.permissions import can_admin_project
     if not await can_admin_project(current_user, project_id, db):
@@ -1255,22 +1254,22 @@ async def export_maintenance(
 
     if format == "xlsx":
         content = _serialize_xlsx(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content),
+        return Response(
+            content=content,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={"Content-Disposition": f'attachment; filename="service-visits-{slug}-{today}.xlsx"'},
         )
     elif format == "tsv":
         content = _serialize_tsv(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8")),
+        return Response(
+            content=content.encode("utf-8"),
             media_type="text/tab-separated-values",
             headers={"Content-Disposition": f'attachment; filename="service-visits-{slug}-{today}.tsv"'},
         )
     else:
         content = _serialize_csv(headers, rows)
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8-sig")),
+        return Response(
+            content=content.encode("utf-8-sig"),
             media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="service-visits-{slug}-{today}.csv"'},
         )
@@ -1702,7 +1701,7 @@ async def export_spatial(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
-) -> StreamingResponse:
+) -> Response:
     """
     Export spatial data as GeoJSON, Shapefile (ZIP), or GeoPackage.
 
@@ -1832,8 +1831,8 @@ async def export_spatial(
 
     if format == "shapefile":
         content = _serialize_spatial_shapefile(layers)
-        return StreamingResponse(
-            io.BytesIO(content),
+        return Response(
+            content=content,
             media_type="application/zip",
             headers={
                 "Content-Disposition": f'attachment; filename="spatial-{slug}-{today}.zip"'
@@ -1841,8 +1840,8 @@ async def export_spatial(
         )
     elif format == "gpkg":
         content = _serialize_spatial_geopackage(layers)
-        return StreamingResponse(
-            io.BytesIO(content),
+        return Response(
+            content=content,
             media_type="application/geopackage+sqlite3",
             headers={
                 "Content-Disposition": f'attachment; filename="spatial-{slug}-{today}.gpkg"'
@@ -1850,8 +1849,8 @@ async def export_spatial(
         )
     else:
         content = _serialize_spatial_geojson(layers)
-        return StreamingResponse(
-            io.BytesIO(content.encode("utf-8")),
+        return Response(
+            content=content.encode("utf-8"),
             media_type="application/geo+json",
             headers={
                 "Content-Disposition": f'attachment; filename="spatial-{slug}-{today}.geojson"'

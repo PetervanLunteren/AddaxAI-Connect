@@ -6,6 +6,7 @@ successful images by their pipeline status, and rejected files resolved to the
 project (e.g. an image sent at setup before the GPS fix). Rejections are read
 from the rejections table, not by scanning the filesystem.
 """
+import asyncio
 import os
 from io import BytesIO
 from pathlib import Path
@@ -261,7 +262,7 @@ async def get_rejection_image(
     try:
         data = target.read_bytes()
         if must_blur:
-            data = blur_whole_image(data)
+            data = await asyncio.to_thread(blur_whole_image, data)
         if thumb:
             data = generate_thumbnail(BytesIO(data), max_width=REJECTION_THUMB_WIDTH).getvalue()
     except (OSError, ValueError):

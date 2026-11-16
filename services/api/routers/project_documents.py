@@ -5,8 +5,7 @@ Per-project file storage for permits, field notes, config files, etc.
 Admins can upload and delete; all project members can list and download.
 """
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
@@ -154,12 +153,11 @@ async def download_document(
             detail="File not found in storage",
         )
 
-    return StreamingResponse(
-        io.BytesIO(file_bytes),
+    return Response(
+        content=file_bytes,
         media_type=doc.content_type or "application/octet-stream",
         headers={
             "Content-Disposition": f'attachment; filename="{doc.original_filename}"',
-            "Content-Length": str(doc.file_size),
         },
     )
 
