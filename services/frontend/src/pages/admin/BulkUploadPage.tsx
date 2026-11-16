@@ -1115,6 +1115,10 @@ const ReviewStep: React.FC<{
   const duplicateCount = excludedPaths.length;
 
   const rawValidCount = manifest.by_status.valid ?? 0;
+  // Files the scan leaves out. Said out loud, so a slow card reader cannot
+  // silently drop part of a folder.
+  const unreadableCount = manifest.by_status.corrupt ?? 0;
+  const undatedCount = manifest.by_status.missing_exif_datetime ?? 0;
   const validCount = Math.max(0, rawValidCount - duplicateCount);
   const skipReasonEntries: [string, number][] = [
     ...(duplicateCount > 0 ? ([['duplicate', duplicateCount]] as [string, number][]) : []),
@@ -1287,6 +1291,24 @@ const ReviewStep: React.FC<{
             All images in one upload must be from a single site and a single camera.
           </p>
         </div>
+      )}
+
+      {(unreadableCount > 0 || undatedCount > 0) && (
+        <Callout variant="warning">
+          {unreadableCount > 0 && (
+            <>
+              <span className="font-medium">
+                {unreadableCount.toLocaleString()} image{unreadableCount === 1 ? '' : 's'} cannot be read and will not be uploaded.
+              </span>
+              {' '}Go back to scan the folder again, or check the card reader.{' '}
+            </>
+          )}
+          {undatedCount > 0 && (
+            <span className="font-medium">
+              {undatedCount.toLocaleString()} image{undatedCount === 1 ? ' has' : 's have'} no date and will not be uploaded.
+            </span>
+          )}
+        </Callout>
       )}
 
       <Callout variant="warning">

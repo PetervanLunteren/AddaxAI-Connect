@@ -6,6 +6,11 @@
  * worker reads DateTimeOriginal and BodySerialNumber from each file
  * (only the first 256 KB, the EXIF block), and posts progress plus a
  * final summary back.
+ *
+ * Two passes. The first reads 8 files at a time with a short limit. A slow
+ * card reader makes reads fail or time out there (pwn: 929 of 2164 good
+ * files), so every file that failed is read again, one at a time, with a
+ * long limit. Only a file that fails twice is called corrupt.
  */
 import exifr from 'exifr';
 
@@ -52,8 +57,11 @@ const PROGRESS_EVERY = 25;
 // exifr can hang indefinitely on some malformed or oversized images.
 // Race every parse against a wall-clock timeout so a single bad file
 // can't freeze the whole scan. 2 s is plenty for a 256 KB head read
-// on any normal camera-trap JPEG.
-const PER_FILE_TIMEOUT_MS = 2000;
+// on any normal camera-trap JPEG. In dev mode VITE_BULK_SCAN_TIMEOUT_MS
+// can shorten it, to test the second pass.
+const FIRST_PASS_TIMEOUT_MS =
+  (import.meta.env.DEV && Number(import.meta.env.VITE_BULK_SCAN_TIMEOUT_MS)) || 2000;
+const SECOND_PASS_TIMEOUT_MS = 10000;
 const HEAD_BYTES = 256 * 1024;
 // EXIF reads are cheap. We still parallelize because file.slice() +
 // arrayBuffer() does real IO and overlapping several reads keeps the
@@ -74,15 +82,21 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
     (self as unknown as Worker).postMessage(progress);
   };
 
+  const finish = () => {
+    completed += 1;
+    if (completed % PROGRESS_EVERY === 0 || completed === total) post(completed);
+  };
+
+  // First pass. A failed file is not counted yet, so the bar only reaches
+  // 100 % once the second pass is done.
+  const retry: number[] = [];
   const worker = async () => {
     while (true) {
       const i = nextIndex++;
       if (i >= total) return;
-      entries[i] = await scanOne(i, files[i]);
-      completed += 1;
-      if (completed % PROGRESS_EVERY === 0 || completed === total) {
-        post(completed);
-      }
+      entries[i] = await scanOne(i, files[i], FIRST_PASS_TIMEOUT_MS);
+      if (entries[i].status === 'corrupt') retry.push(i);
+      else finish();
     }
   };
 
@@ -90,17 +104,27 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
     Array.from({ length: Math.min(SCAN_CONCURRENCY, total) }, () => worker()),
   );
 
+  // Second pass, one file at a time.
+  for (const i of retry) {
+    entries[i] = await scanOne(i, files[i], SECOND_PASS_TIMEOUT_MS);
+    finish();
+  }
+
   const result: ScanDone = { type: 'done', entries };
   (self as unknown as Worker).postMessage(result);
 };
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+const TIMED_OUT = Symbol('timed out');
+
+// Null when the parse fails (no usable metadata), TIMED_OUT when it takes
+// too long (the file may be fine, the read was slow).
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null | typeof TIMED_OUT> {
   return new Promise((resolve) => {
     let settled = false;
     const t = setTimeout(() => {
       if (settled) return;
       settled = true;
-      resolve(null);
+      resolve(TIMED_OUT);
     }, ms);
     promise
       .then((value) => {
@@ -118,7 +142,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   });
 }
 
-async function scanOne(index: number, file: File): Promise<ScanEntry> {
+async function scanOne(index: number, file: File, timeoutMs: number): Promise<ScanEntry> {
   const relPath =
     (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
   const base: ScanEntry = {
@@ -134,10 +158,9 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
   };
   try {
     const head = await file.slice(0, HEAD_BYTES).arrayBuffer();
-    const meta = (await withTimeout(
-      exifr.parse(head),
-      PER_FILE_TIMEOUT_MS,
-    )) as
+    const result = await withTimeout(exifr.parse(head), timeoutMs);
+    if (result === TIMED_OUT) return base;
+    const meta = result as
       | {
           DateTimeOriginal?: Date | string;
           BodySerialNumber?: string | number;
