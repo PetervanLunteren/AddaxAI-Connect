@@ -56,15 +56,15 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const location = useLocation();
   const projectId = getProjectIdFromPath(location.pathname);
 
-  // Check if user is authenticated
-  const isAuthenticated = !!localStorage.getItem('access_token');
-
   // Fetch user's projects with roles (only if authenticated)
   const { data: projects, isLoading, refetch } = useQuery({
     queryKey: ['user-projects'],
     queryFn: () => getUserProjects(),
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    enabled: isAuthenticated, // Only fetch if user is authenticated
+    // Only once the user has loaded. The user load waits out an API that is
+    // briefly down (AuthContext), so the project list does not fail then
+    // and leave the page empty.
+    enabled: !!user,
   });
 
   // Role checking helpers
