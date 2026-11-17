@@ -75,6 +75,9 @@ ftps_upload_dir: /opt/addaxai-connect/uploads
 # Cameras must log in over TLS. Set false only for cameras that cannot do
 # FTPS: then the shared camera password can cross the network unencrypted.
 ftps_require_tls: true
+# Debug only: log every FTP command to the system log. Apply it with
+# --tags ftps-verbose-log, and set it back to false when done.
+ftps_verbose_log: false
 
 # --- Outgoing mail, for login and notification emails -------------------
 # Gmail needs an app password, not the account password.

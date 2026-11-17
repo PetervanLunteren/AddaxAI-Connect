@@ -184,6 +184,30 @@
     - { name: 'TLS', content: "{{ '2' if ftps_require_tls | default(true) else '1' }}" }
   notify: restart pure-ftpd
 
+# Debug switch, off by default. With it on, Pure-FTPd writes every FTP command
+# to the system log, which shows how a camera continues a broken upload (REST,
+# APPE or a plain STOR). The transfer log cannot tell those apart. The tag of
+# its own lets a run change this one file on a live server:
+#   --limit <host> --tags ftps-verbose-log
+- name: Turn verbose FTP logging on
+  copy:
+    content: "yes"
+    dest: /etc/pure-ftpd/conf/VerboseLog
+    mode: '0644'
+    owner: root
+    group: root
+  when: ftps_verbose_log | default(false) | bool
+  notify: restart pure-ftpd
+  tags: [ftps-verbose-log]
+
+- name: Turn verbose FTP logging off
+  file:
+    path: /etc/pure-ftpd/conf/VerboseLog
+    state: absent
+  when: not (ftps_verbose_log | default(false) | bool)
+  notify: restart pure-ftpd
+  tags: [ftps-verbose-log]
+
 - name: Disable CallUploadScript (using AutoRename instead)
   file:
     path: /etc/pure-ftpd/conf/CallUploadScript
