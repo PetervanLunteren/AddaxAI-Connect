@@ -18,7 +18,8 @@ Per photo one copy stays:
     all stay and are listed, to decide by hand.
   - Otherwise a copy replaced by the privacy placeholder stays, so a removed
     person never comes back through its double.
-  - Otherwise the biggest stored file stays, the most complete copy.
+  - Otherwise the biggest stored file stays, the most complete copy. When
+    a size cannot be read, all copies stay and are listed, to decide by hand.
 
 A second run finds nothing left to delete, so it is safe to run again.
 
@@ -49,14 +50,17 @@ class Copy:
 def pick_copies(copies: Sequence[Copy]) -> Tuple[List[int], List[int]]:
     """Return (ids to keep, ids to delete) for the copies of one photo."""
     worked_on = [c.id for c in copies if c.worked_on]
+    removed = [c.id for c in copies if c.privacy_removed]
     if worked_on:
         keep = worked_on
+    elif removed:
+        keep = removed[:1]
+    elif any(c.size is None for c in copies):
+        # Which copy is better is unknown, so nothing is deleted on a guess.
+        keep = [c.id for c in copies]
     else:
-        removed = [c for c in copies if c.privacy_removed]
-        pool = removed or copies
-        # Biggest first; an unknown size loses; a tie keeps the oldest row.
-        best = min(pool, key=lambda c: (-(c.size if c.size is not None else -1), c.id))
-        keep = [best.id]
+        # The biggest file is the most complete copy; a tie keeps the oldest row.
+        keep = [min(copies, key=lambda c: (-c.size, c.id)).id]
     delete = [c.id for c in copies if c.id not in keep]
     return sorted(keep), sorted(delete)
 
@@ -126,7 +130,7 @@ async def run(apply: bool, project_id: Optional[int]) -> None:
             sizes = ", ".join(f"{c.id}={c.size if c.size is not None else '?'}" for c in copies)
             print(f"camera {camera_id} {filename} {captured_at}: keep {keep}, delete {delete} (bytes {sizes})")
             if len(keep) > 1:
-                print("  several copies were worked on by a person, decide by hand")
+                print("  kept all: several were worked on by a person, or a size is unknown. Decide by hand")
             to_delete[camera_id].extend(delete)
 
         total = sum(len(v) for v in to_delete.values())

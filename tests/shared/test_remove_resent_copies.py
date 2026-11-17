@@ -27,8 +27,12 @@ def test_tie_keeps_the_oldest_row():
     assert pick_copies([copy(5, 100), copy(4, 100)]) == ([4], [5])
 
 
-def test_unknown_size_loses():
-    assert pick_copies([copy(1, None), copy(2, 10)]) == ([2], [1])
+def test_unknown_size_deletes_nothing():
+    assert pick_copies([copy(1, None), copy(2, 10)]) == ([1, 2], [])
+
+
+def test_unknown_size_does_not_block_the_person_rule():
+    assert pick_copies([copy(1, None, worked_on=True), copy(2, None)]) == ([1], [2])
 
 
 def test_copy_worked_on_by_a_person_stays_even_when_smaller():
