@@ -7,7 +7,7 @@ Creates visualization images for notifications by drawing:
 - Label pills with color dot + two-line text layout
 """
 from PIL import Image, ImageDraw, ImageFont
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from io import BytesIO
 
 from shared.logger import get_logger
@@ -49,10 +49,11 @@ def hex_to_rgb(hex_color: str) -> tuple:
 
 
 class Detection:
-    """Detection with bbox coordinates"""
-    def __init__(self, bbox: dict, category: str):
+    """Detection with bbox coordinates and the MegaDetector confidence"""
+    def __init__(self, bbox: dict, category: str, confidence: float):
         self.bbox = bbox  # {x, y, width, height} in pixels
         self.category = category
+        self.confidence = confidence
 
 
 class Classification:
@@ -66,6 +67,22 @@ def _normalize_label(label: str) -> str:
     """Normalize label: underscores to spaces, capitalize first letter."""
     s = label.replace('_', ' ')
     return s[0].upper() + s[1:] if s else s
+
+
+def _percent(confidence: float) -> int:
+    """Confidence as a whole percent, rounding half up like Math.round in
+    the frontend. Python's round() rounds half to even (12.5 -> 12)."""
+    return int(confidence * 100 + 0.5)
+
+
+def _label_texts(detection: Detection, classification: Classification) -> Tuple[str, Optional[str]]:
+    """The two pill lines, as detection-overlay.ts draws them: the category
+    with the detection confidence, then the species with the classification
+    confidence. Person and vehicle have no species line."""
+    category_text = f"{_normalize_label(detection.category)} {_percent(detection.confidence)}%"
+    if detection.category in ('person', 'vehicle') or not classification.species:
+        return category_text, None
+    return category_text, f"{_normalize_label(classification.species)} {_percent(classification.confidence)}%"
 
 
 def generate_annotated_image(
@@ -174,14 +191,7 @@ def generate_annotated_image(
             color = get_category_color(detection.category)
             color_rgb = hex_to_rgb(color)
 
-            # Build label text
-            category_text = f"{_normalize_label(detection.category)} {int(classification.confidence * 100)}%"
-            if detection.category not in ('person', 'vehicle') and classification.species:
-                species_display = classification.species.replace('_', ' ')
-                species_display = species_display[0].upper() + species_display[1:] if species_display else species_display
-                species_text = f"{species_display} {int(classification.confidence * 100)}%"
-            else:
-                species_text = None
+            category_text, species_text = _label_texts(detection, classification)
 
             # Measure text widths
             pad_x = round(PILL_PAD_X * scale)

@@ -2,6 +2,10 @@
 from annotated_image import (
     hex_to_rgb,
     _normalize_label,
+    _label_texts,
+    _percent,
+    Detection,
+    Classification,
     get_category_color,
     CATEGORY_COLORS,
     DEFAULT_COLOR,
@@ -48,3 +52,30 @@ class TestGetCategoryColor:
 
     def test_unknown_returns_default(self):
         assert get_category_color("spaceship") == DEFAULT_COLOR
+
+
+BOX = {"x": 0, "y": 0, "width": 10, "height": 10}
+
+
+class TestPercent:
+    def test_rounds_up_like_the_frontend(self):
+        assert _percent(0.896) == 90
+
+    def test_half_rounds_up_not_to_even(self):
+        assert _percent(0.125) == 13
+
+    def test_bounds(self):
+        assert _percent(0.0) == 0
+        assert _percent(1.0) == 100
+
+
+class TestLabelTexts:
+    def test_animal_uses_detection_then_species_confidence(self):
+        det = Detection(bbox=BOX, category="animal", confidence=0.92)
+        cls = Classification(species="red_fox", confidence=0.45)
+        assert _label_texts(det, cls) == ("Animal 92%", "Red fox 45%")
+
+    def test_person_has_no_species_line(self):
+        det = Detection(bbox=BOX, category="person", confidence=0.81)
+        cls = Classification(species="person", confidence=0.81)
+        assert _label_texts(det, cls) == ("Person 81%", None)

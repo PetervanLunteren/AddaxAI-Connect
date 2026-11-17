@@ -301,7 +301,7 @@ def process_detection_complete(message: dict, registry: ModelRegistry) -> None:
                                         'width': int(bbox_n[2] * det.image_width),
                                         'height': int(bbox_n[3] * det.image_height)
                                     }
-                                    ann_det = AnnotatedDetection(bbox=pixel_bbox, category=det.category)
+                                    ann_det = AnnotatedDetection(bbox=pixel_bbox, category=det.category, confidence=det.confidence)
                                     ann_class = AnnotatedClassification(
                                         species=det.category, confidence=det.confidence
                                     )
@@ -466,7 +466,8 @@ def process_detection_complete(message: dict, registry: ModelRegistry) -> None:
                                         }
                                         ann_det = AnnotatedDetection(
                                             bbox=pixel_bbox,
-                                            category=matching_det.category
+                                            category=matching_det.category,
+                                            confidence=matching_det.confidence
                                         )
                                         ann_class = AnnotatedClassification(
                                             species=classification.species,
@@ -483,7 +484,7 @@ def process_detection_complete(message: dict, registry: ModelRegistry) -> None:
                                         'width': int(bbox_n[2] * det.image_width),
                                         'height': int(bbox_n[3] * det.image_height)
                                     }
-                                    ann_det = AnnotatedDetection(bbox=pixel_bbox, category=det.category)
+                                    ann_det = AnnotatedDetection(bbox=pixel_bbox, category=det.category, confidence=det.confidence)
                                     ann_class = AnnotatedClassification(
                                         species=det.category, confidence=det.confidence
                                     )
