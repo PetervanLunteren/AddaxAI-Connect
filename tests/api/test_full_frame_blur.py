@@ -171,7 +171,7 @@ class TestServePathsAreCovered:
     moment detection finishes."""
 
     @pytest.mark.parametrize(
-        "func_name", ["get_image_thumbnail", "get_image_full", "get_annotated_image"]
+        "func_name", ["get_image_thumbnail", "get_image_full"]
     )
     def test_every_image_endpoint_applies_the_rule(self, func_name):
         from routers import images
@@ -183,12 +183,6 @@ class TestServePathsAreCovered:
         from routers.images import _full_blur_response
 
         src = inspect.getsource(_full_blur_response)
-        assert "max-age=0" in src
-
-    def test_annotated_full_blur_is_not_cached(self):
-        from routers.images import get_annotated_image
-
-        src = inspect.getsource(get_annotated_image)
         assert "max-age=0" in src
 
     def test_the_rule_uses_the_blur_categories_helper(self):

@@ -293,7 +293,6 @@ addaxai-connect/
 │   │   ├── static/                    # Static files
 │   │   └── utils/                     # API utilities
 │   │       ├── activity_analysis.py   # Activity pattern analysis
-│   │       ├── annotated_image_generator.py # On-demand annotated image rendering
 │   │       ├── camera_recency.py      # Per-camera last-capture / last-arrival lookups
 │   │       ├── deployment_edits.py    # Reassign/recompute/merge plumbing (deployments + feed)
 │   │       ├── feed.py                # Feed candidate-site helper

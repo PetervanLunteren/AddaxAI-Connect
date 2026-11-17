@@ -39,12 +39,11 @@ class TestUnblurEndpoint:
         assert "cache_max_age=0" in src
 
     def test_scope_stays_narrow(self):
-        # Only the full-size detail view can be unblurred. Thumbnails and
-        # annotated images must not grow this capability silently.
-        from routers.images import get_image_thumbnail, get_annotated_image
+        # Only the full-size detail view can be unblurred. Thumbnails must
+        # not grow this capability silently.
+        from routers.images import get_image_thumbnail
 
         assert "unblurred" not in inspect.getsource(get_image_thumbnail)
-        assert "unblurred" not in inspect.getsource(get_annotated_image)
 
 
 class TestUnblurRejectedFile:
