@@ -2,14 +2,16 @@
 MinIO storage operations
 """
 import os
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Optional
 from PIL import Image
 from io import BytesIO
 
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_THUMBNAILS
 from shared.logger import get_logger
 
-from resend_hold import JPEG_END_MARKER, StoredCopy
+from resend_hold import JPEG_END_MARKER
 
 logger = get_logger("ingestion")
 
@@ -58,14 +60,21 @@ def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str, filena
     return object_path
 
 
+@dataclass(frozen=True)
+class StoredCopy:
+    """What is known about a stored raw image."""
+    size: Optional[int]  # None when it could not be read
+    complete: bool
+
+
 def stored_copy(storage_path: str) -> StoredCopy:
     """
     Size of a stored raw image and whether it is complete.
 
     One request for the last two bytes gives both: the bytes are the JPEG end
-    marker or not, and the Content-Range header carries the total size. A
-    failure is logged and gives an unknown, incomplete copy, so a late copy
-    is then rejected visibly instead of dropped on a guess.
+    marker or not, and the Content-Range header carries the total size. Only
+    for the late copy log line, so a failure is logged and gives an unknown
+    copy instead of stopping the ingestion of the file at hand.
     """
     try:
         response = StorageClient().client.get_object(

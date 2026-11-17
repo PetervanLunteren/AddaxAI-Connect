@@ -44,16 +44,13 @@ from resend_hold import (
     Action,
     Copies,
     HeldCopy,
-    StoredCopy,
     biggest_copy,
     decide,
     ends_with_jpeg_end_marker,
     held_name,
     held_photos,
     hold_is_over,
-    join_target,
     parse_held_name,
-    starts_with_jpeg_start_marker,
 )
 from utils import ValidationError, reject_file, delete_file, is_valid_gps, prune_empty_parents
 
@@ -324,11 +321,6 @@ def process_image(filepath: str, held: Optional[HeldCopy] = None) -> None:
     )
 
     try:
-        # The rest of a broken upload has no JPEG header and would fail the
-        # validation below. When it completes a held photo, it ends here.
-        if held is None and _join_loose_piece(filepath, clean_filename):
-            return
-
         # Step 1: Validate file (MIME, size)
         validate_image(filepath)
 
@@ -582,35 +574,6 @@ def _store_held(copies: Copies, keep: Path) -> None:
             path.unlink(missing_ok=True)
 
 
-def _join_loose_piece(filepath: str, clean_filename: str) -> bool:
-    """
-    Glue the rest of a broken upload onto the held copy it continues.
-
-    The piece has no JPEG header, so it can never be an image by itself. It
-    is only used when it carries the end of the photo, so a held copy is
-    never changed into something that is still incomplete.
-
-    Returns:
-        True when the piece completed a held photo, which is stored now.
-        False when the caller should treat the file as any other upload.
-    """
-    if starts_with_jpeg_start_marker(filepath) or not ends_with_jpeg_end_marker(filepath):
-        return False
-    with _hold_lock:
-        photos, _ = held_photos(_held_dir())
-        target = join_target(photos, clean_filename)
-        if target is None:
-            return False
-        copy, held_path = target
-        with open(filepath, "rb") as piece, open(held_path, "ab") as photo:
-            shutil.copyfileobj(piece, photo)
-        _remove_upload(filepath, "Joined a loose piece to the held photo, it is complete now",
-                       file_name=clean_filename, device_id=copy.device_id,
-                       size_bytes=held_path.stat().st_size)
-        _store_held(photos[copy.photo], held_path)
-    return True
-
-
 def _hold_step(
     filepath: str,
     clean_filename: str,
@@ -623,8 +586,8 @@ def _hold_step(
     Apply the hold rule to a new upload. Call it under _hold_lock.
 
     Returns:
-        True when the file should be stored now, False when it was held,
-        dropped or rejected.
+        True when the file should be stored now, False when it was held or
+        rejected.
     """
     new_size = os.path.getsize(filepath)
     new_complete = ends_with_jpeg_end_marker(filepath)
@@ -632,23 +595,11 @@ def _hold_step(
                   size_bytes=new_size, complete=new_complete)
 
     existing = find_same_photo(camera_db_id, clean_filename, captured_at)
-    stored = None
-    if existing:
-        # The privacy placeholder replaced the photo. Nothing may bring the
-        # original back, so it counts as complete.
-        stored = (StoredCopy(None, True) if existing["privacy_removed_at"]
-                  else stored_copy(existing["storage_path"]))
-
-    action = decide(new_size, new_complete, stored)
+    action = decide(new_complete, existing is not None)
 
     if action is Action.REJECT_LATE:
         _reject_late_copy(filepath, clean_filename, device_id, captured_at, exif,
-                          new_size, new_complete, existing, stored)
-        return False
-
-    if action is Action.DROP_LATE:
-        _remove_upload(filepath, "Dropped a copy of a photo that is already stored, it adds nothing",
-                       stored_copy_bytes=stored.size, stored_copy_complete=stored.complete, **fields)
+                          new_size, new_complete, existing)
         return False
 
     if action is Action.INGEST_NOW:
@@ -663,7 +614,7 @@ def _hold_step(
     copy = HeldCopy(int(time.time() * 1000), device_id, captured_at, clean_filename)
     shutil.move(filepath, held_dir / held_name(copy))
     prune_empty_parents(filepath)
-    logger.info("Holding an incomplete photo, the camera may complete it",
+    logger.info("Holding an incomplete photo, the camera may send it again",
                 hold_seconds=HOLD_SECONDS, **fields)
     return False
 
@@ -677,33 +628,37 @@ def _reject_late_copy(
     new_size: int,
     new_complete: bool,
     existing: dict,
-    stored: StoredCopy,
 ) -> None:
     """
-    Reject a copy that is better than the stored one, and say so loudly.
+    Reject a copy of a photo that is already an image, and say so loudly.
 
     The rule is new, so this warning is what tells us whether the hold time
     is long enough. The same facts go into the rejection details, so the
     camera's Rejected tab shows them without the log.
     """
     seconds_after = int((datetime.now(timezone.utc) - existing["ingested_at"]).total_seconds())
-    stored_size = f"{stored.size} bytes" if stored.size is not None else "of unknown size"
+    # The privacy placeholder replaced the stored photo, so it says nothing.
+    stored = None if existing["privacy_removed_at"] else stored_copy(existing["storage_path"])
+    stored_text = ""
+    if stored is not None:
+        size = f"{stored.size} bytes" if stored.size is not None else "of unknown size"
+        stored_text = f", the stored copy is {size} and {'complete' if stored.complete else 'incomplete'}"
     details = (
         f"Arrived {seconds_after} s after this photo was stored, so the {HOLD_SECONDS} s hold was over. "
-        f"This copy is {new_size} bytes and {'complete' if new_complete else 'incomplete'}, "
-        f"the stored copy is {stored_size} and incomplete."
+        f"This copy is {new_size} bytes and {'complete' if new_complete else 'incomplete'}{stored_text}."
     )
     logger.warning(
-        "Late copy rejected. A better copy of this photo arrived after the hold "
-        "was over, so the worse copy is already in the app. If this happens "
-        "often, the hold time is too short.",
+        "Late copy rejected. The same photo arrived again after the hold was "
+        "over, so the first copy is already in the app. If this happens often, "
+        "the hold time is too short.",
         file_name=clean_filename,
         device_id=device_id,
         hold_seconds=HOLD_SECONDS,
         seconds_after_image_stored=seconds_after,
         late_copy_bytes=new_size,
         late_copy_complete=new_complete,
-        stored_copy_bytes=stored.size,
+        stored_copy_bytes=stored.size if stored else None,
+        stored_copy_complete=stored.complete if stored else None,
     )
     _reject(filepath, "late_duplicate", details, exif=exif,
             device_id=device_id, captured_at=captured_at)

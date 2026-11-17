@@ -1,27 +1,24 @@
 """
-Hold an incomplete photo for a while, so the camera can complete it.
+Hold an incomplete photo for a while, so the camera can send a better copy.
 
-Some cameras recover from an upload that broke halfway (the profile flag
-`resends_broken_uploads`). Measured on a Willfine 4.0T CG, the camera first
-sends the rest of the file as a loose piece, without a JPEG header, under the
-same file name. Then it sends the whole photo once more. Without a hold, the
-broken first copy becomes an image, the loose piece a rejection, and the
-second copy a second image of the same photo.
+Some cameras send a photo once more when an upload broke halfway (the profile
+flag `resends_broken_uploads`). Without a hold, the broken first copy becomes
+an image, and the second copy a minute later a second image of the same photo.
 
 The rule, per photo (same camera, same file name, same camera clock second):
 
 - A complete copy enters at once. Complete means it ends with the JPEG end
   marker. Held copies of the same photo are dropped.
 - An incomplete copy is held in uploads/held/, for HOLD_SECONDS counted from
-  the first copy. Every incomplete copy is kept until the choice is made.
-- A loose piece is glued onto the newest held copy with its file name,
-  because the camera continues the upload it broke off last. When that gives
-  a complete photo, it enters at once.
+  the first copy.
 - When the hold is over, the biggest held copy enters as it is. Truncated
   photos are never blocked; a cut-off photo still holds a lot of useful data.
-- A copy of a photo that is already an image is dropped. Only when it is
-  better than the stored copy does the caller reject it as late_duplicate,
-  because then the hold was too short and we want to see that.
+- A copy of a photo that is already an image is too late. The caller rejects
+  it as late_duplicate with a warning, so we see when the hold is too short.
+
+The loose piece a broken upload is continued with (no JPEG header) is not
+used here; it is rejected as before. Joining it to the held copy was built
+in commit 19aeb3ae and taken out again as too fragile (DEVELOPERS.md).
 
 All state lives in the held files' names, so a restart of ingestion loses
 nothing and there is no sidecar file to drift from the bytes.
@@ -35,26 +32,19 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-# Measured on lab (Namibia, Nov 2026), counted from the first copy: the loose
-# piece that completes a photo came after 6 to 154 seconds, the second copy
-# after 25 to 125. Three minutes covers both.
+# Measured on lab (Namibia, Nov 2026): the camera sent the second copy 25 to
+# 125 seconds after the first. Three minutes covers all of them with margin.
 HOLD_SECONDS = 180
 
 # Folder under the upload root. The watcher and the startup scan skip it.
 HELD_DIR_NAME = "held"
 
-JPEG_START_MARKER = b"\xff\xd8\xff"
 JPEG_END_MARKER = b"\xff\xd9"
 
 _SEP = "__"
 _CAPTURED_FORMAT = "%Y%m%dT%H%M%S"
-
-
-def starts_with_jpeg_start_marker(path: str) -> bool:
-    with open(path, "rb") as f:
-        return f.read(len(JPEG_START_MARKER)) == JPEG_START_MARKER
 
 
 def ends_with_jpeg_end_marker(path: str) -> bool:
@@ -155,48 +145,14 @@ def biggest_copy(copies: Copies) -> Path:
     return max(copies, key=lambda item: (item[1].stat().st_size, -item[0].arrived_ms))[1]
 
 
-def join_target(photos: Dict[PhotoKey, Copies], filename: str) -> Optional[Tuple[HeldCopy, Path]]:
-    """
-    The held copy a loose piece with this file name continues, or None.
-
-    A loose piece has no EXIF, so the file name is all that ties it to a
-    photo. It continues the upload the camera broke off last, which is the
-    newest held copy. When two held photos share the name (two cameras at the
-    same counter), there is no telling whose piece it is, so nothing is joined.
-    """
-    named = [copies for photo, copies in photos.items() if photo[2] == filename]
-    if len(named) != 1:
-        return None
-    return named[0][-1]
-
-
-@dataclass(frozen=True)
-class StoredCopy:
-    """What is known about the copy of a photo that is already an image."""
-    size: Optional[int]  # None when it could not be read
-    complete: bool
-
-
 class Action(Enum):
-    DROP_LATE = "drop_late"      # already an image, this copy adds nothing
-    REJECT_LATE = "reject_late"  # already an image, but this copy is better
+    REJECT_LATE = "reject_late"  # already an image, the hold was too short
     INGEST_NOW = "ingest_now"    # complete, enters now; held copies are dropped
     HOLD = "hold"                # incomplete, waits for a better copy
 
 
-def decide(new_size: int, new_complete: bool, stored: Optional[StoredCopy]) -> Action:
-    """
-    What to do with a copy that just arrived.
-
-    A copy of a photo that is already an image is normal: the camera sends a
-    broken photo once more whatever became of the pieces. It only matters
-    when it is better than the stored copy. A stored copy of unknown size
-    counts as worse, so that case stays visible.
-    """
-    if stored is not None:
-        if stored.complete:
-            return Action.DROP_LATE
-        if new_complete or stored.size is None or new_size > stored.size:
-            return Action.REJECT_LATE
-        return Action.DROP_LATE
+def decide(new_complete: bool, already_stored: bool) -> Action:
+    """What to do with a copy that just arrived."""
+    if already_stored:
+        return Action.REJECT_LATE
     return Action.INGEST_NOW if new_complete else Action.HOLD

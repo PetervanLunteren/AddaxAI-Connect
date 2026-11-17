@@ -873,32 +873,26 @@ another model only after measuring it). The rule lives in
 - Complete means the file ends with the JPEG end marker `ff d9`. A complete
   photo enters at once, as before, and held copies of it are dropped.
 - An incomplete photo moves to `uploads/held/`, for `HOLD_SECONDS` (180)
-  counted from its first copy. Every incomplete copy is kept until the
-  choice. Same photo is the same camera, file name and camera clock second,
-  the key of `shared/shared/bulk_dedup.py`.
-- A loose piece (no JPEG header, ends with the end marker) is glued onto the
-  newest held copy with its file name, and the photo enters at once. Newest,
-  not biggest: the camera continues the upload it broke off last
-  (`SP1-E1000018` came as 360448, then 262144 + 125837). On lab that join
-  gave a valid photo in 59 of 111 broken uploads, a complete second copy in
-  36. A piece is not joined when it lacks the end of the photo, or when two
-  held photos share the file name; it is then `validation_failed` as before.
+  counted from its first copy. Same photo is the same camera, file name and
+  camera clock second, the key of `shared/shared/bulk_dedup.py`.
 - When the hold is over, the biggest held copy enters as it is. Truncated
   photos are never blocked, they still hold useful pixels.
-- A copy of a photo that is already an image is dropped; the camera sends a
-  broken photo once more whatever became of the pieces. Only a copy that is
-  better than the stored one (complete, or bigger, while the stored one is
-  incomplete) is rejected as `late_duplicate`, on its camera, with a warning.
-  That means the hold was too short.
+- A copy of a photo that is already an image is rejected as `late_duplicate`,
+  on its camera, with a warning. Frequent late copies mean the hold is too
+  short.
 - The held file's name carries the photo key and its arrival time, so a
   restart loses nothing; the startup run of `release_held_images` picks them
   up. The watcher and the startup scan skip `held/` like `rejected/`.
-- A photo that never completes, and its alert, shows up 3 minutes later.
+- An incomplete photo, and its alert, shows up to 3 minutes later.
 
-If the FTP log ever shows that the camera resumes with `REST`, Pure-FTPd
-could do the join itself by offset; the hold moves the file away, so today
-it cannot. `scripts/remove_resent_copies.py` removes the doubles stored
-before this.
+The loose pieces stay `validation_failed`. Joining them to the held copy was
+built in commit `19aeb3ae` and taken out as too fragile: it pairs pieces by
+file name and arrival order, and a wrong pair gives a corrupt photo that
+looks complete. Whether to bring it back depends on how the camera continues
+a broken upload, which the verbose FTP log (`ftps_verbose_log`) shows. With
+`REST` Pure-FTPd can join by offset itself, if the hold leaves the first
+piece in place; with `APPE` or a plain `STOR` only our own join works.
+`scripts/remove_resent_copies.py` removes the doubles stored before this.
 
 ## Service tasks and visits
 
