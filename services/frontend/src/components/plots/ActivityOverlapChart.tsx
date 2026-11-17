@@ -31,6 +31,7 @@ import {
 } from 'chart.js';
 
 import type { ActivityOverlapResponse, SunBands } from '../../api/types';
+import { normalizeLabel } from '../../utils/labels';
 
 ChartJS.register(
   CategoryScale,
@@ -146,7 +147,7 @@ export function ActivityOverlapChart({ data }: ActivityOverlapChartProps) {
     }
 
     datasets.push({
-      label: data.species_a.label,
+      label: normalizeLabel(data.species_a.label),
       data: data.species_a.kde_density,
       borderColor: SPECIES_A_COLOR,
       backgroundColor: 'transparent',
@@ -159,7 +160,7 @@ export function ActivityOverlapChart({ data }: ActivityOverlapChartProps) {
 
     if (data.species_b) {
       datasets.push({
-        label: data.species_b.label,
+        label: normalizeLabel(data.species_b.label),
         data: data.species_b.kde_density,
         borderColor: SPECIES_B_COLOR,
         backgroundColor: 'transparent',
@@ -249,7 +250,9 @@ export function ActivityOverlapChart({ data }: ActivityOverlapChartProps) {
         tooltip: {
           callbacks: {
             title: (items) => {
-              const x = Number(items[0]?.label ?? 0);
+              // parsed.x is the number itself. The label is text in the
+              // browser's locale ("10,2" in German), which Number() cannot read.
+              const x = items[0]?.parsed.x ?? 0;
               if (isSun) {
                 if (x < dawnPos) return 'night';
                 if (x < sunrisePos) return 'dawn';
