@@ -163,6 +163,7 @@ addaxai-connect/
 │   │   ├── daily_report_parser.py     # Parses camera health reports
 │   │   ├── exif_parser.py             # EXIF metadata extraction
 │   │   ├── validators.py              # Image validation (MIME, size, etc.)
+│   │   ├── resend_hold.py             # Holds incomplete photos of cameras that send them again
 │   │   ├── db_operations.py
 │   │   ├── storage_operations.py
 │   │   └── utils.py
@@ -853,6 +854,51 @@ the table; nothing scans the filesystem at read time.
 - Retention is 30 days, files and rows together, in
   `cleanup_old_rejected_files` (`services/ingestion/main.py`). Every count
   is therefore "within the last 30 days" without a parameter.
+
+## Broken uploads that the camera sends again
+
+Measured on lab, Namibia, Nov 2026, one Willfine 4.0T CG on a weak link:
+an upload breaks halfway, the camera sends the rest as a loose piece 7 to
+51 s later, then sends the whole photo again 25 to 125 s after the first
+copy. Ingestion used to take every piece at once, so 94 photos were stored
+twice (mostly truncated next to complete) and the loose pieces were
+rejected as `validation_failed`.
+
+So a profile can hold incomplete photos (`resends_broken_uploads` in
+`shared/shared/camera_profiles.py`, on for Willfine-2025 only; turn it on for
+another model only after measuring it). The rule lives in
+`services/ingestion/resend_hold.py`, the file moves in `main.py`
+(`_hold_step`, `release_held_images`):
+
+- Complete means the file ends with the JPEG end marker `ff d9`. A complete
+  photo enters at once, as before, and held copies of it are dropped.
+- An incomplete photo moves to `uploads/held/`, for `HOLD_SECONDS` (180)
+  counted from its first copy. Every incomplete copy is kept until the
+  choice. Same photo is the same camera, file name and camera clock second,
+  the key of `shared/shared/bulk_dedup.py`.
+- A loose piece (no JPEG header, ends with the end marker) is glued onto the
+  newest held copy with its file name, and the photo enters at once. Newest,
+  not biggest: the camera continues the upload it broke off last
+  (`SP1-E1000018` came as 360448, then 262144 + 125837). On lab that join
+  gave a valid photo in 59 of 111 broken uploads, a complete second copy in
+  36. A piece is not joined when it lacks the end of the photo, or when two
+  held photos share the file name; it is then `validation_failed` as before.
+- When the hold is over, the biggest held copy enters as it is. Truncated
+  photos are never blocked, they still hold useful pixels.
+- A copy of a photo that is already an image is dropped; the camera sends a
+  broken photo once more whatever became of the pieces. Only a copy that is
+  better than the stored one (complete, or bigger, while the stored one is
+  incomplete) is rejected as `late_duplicate`, on its camera, with a warning.
+  That means the hold was too short.
+- The held file's name carries the photo key and its arrival time, so a
+  restart loses nothing; the startup run of `release_held_images` picks them
+  up. The watcher and the startup scan skip `held/` like `rejected/`.
+- A photo that never completes, and its alert, shows up 3 minutes later.
+
+If the FTP log ever shows that the camera resumes with `REST`, Pure-FTPd
+could do the join itself by offset; the hold moves the file away, so today
+it cannot. `scripts/remove_resent_copies.py` removes the doubles stored
+before this.
 
 ## Service tasks and visits
 

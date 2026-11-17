@@ -17,6 +17,7 @@ const REASON_LABELS: Record<string, string> = {
   validation_failed: 'Invalid file',
   parse_failed: 'Bad report',
   unsupported_file_type: 'Unsupported file',
+  late_duplicate: 'Late duplicate',
 };
 
 export function rejectionReasonLabel(reason: string | null | undefined): string {

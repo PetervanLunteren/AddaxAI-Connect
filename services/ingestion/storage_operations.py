@@ -9,6 +9,8 @@ from io import BytesIO
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_THUMBNAILS
 from shared.logger import get_logger
 
+from resend_hold import JPEG_END_MARKER, StoredCopy
+
 logger = get_logger("ingestion")
 
 
@@ -54,6 +56,26 @@ def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str, filena
     )
 
     return object_path
+
+
+def stored_copy(storage_path: str) -> StoredCopy:
+    """
+    Size of a stored raw image and whether it is complete.
+
+    One request for the last two bytes gives both: the bytes are the JPEG end
+    marker or not, and the Content-Range header carries the total size. A
+    failure is logged and gives an unknown, incomplete copy, so a late copy
+    is then rejected visibly instead of dropped on a guess.
+    """
+    try:
+        response = StorageClient().client.get_object(
+            Bucket=BUCKET_RAW_IMAGES, Key=storage_path, Range=f"bytes=-{len(JPEG_END_MARKER)}"
+        )
+        size = int(response["ContentRange"].rsplit("/", 1)[-1])
+        return StoredCopy(size=size, complete=response["Body"].read() == JPEG_END_MARKER)
+    except Exception as e:
+        logger.warning("Could not read the stored image", storage_path=storage_path, error=str(e))
+        return StoredCopy(size=None, complete=False)
 
 
 def generate_and_upload_thumbnail(filepath: str, camera_id: str, image_uuid: str, filename: str = None) -> str:

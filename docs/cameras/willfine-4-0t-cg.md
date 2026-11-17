@@ -73,6 +73,8 @@ If the camera never reaches the update screen, either the file or the card is th
 
 ## Known issues
 
+On a weak mobile connection an upload can break halfway. The camera then sends the rest, or the whole photo again. The server waits up to 3 minutes for that before it stores a cut-off photo, so such a photo, and its alert, can show up a few minutes late.
+
 This camera has a longer re-trigger delay than cameras without a cellular connection. For most wildlife monitoring that is no problem, but it can matter in some research setups. Test the camera in a real field situation before you scale up to many of them. It is the trade-off for a connected camera that uses very little power and keeps running through long deployments.
 
 If you run into something else, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues).

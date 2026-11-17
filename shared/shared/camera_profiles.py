@@ -39,6 +39,10 @@ class CameraProfile:
         parse_path: Function returning {device_id, datetime, gps} from the relative path (path profiles only)
         requires_datetime: Whether DateTimeOriginal is mandatory
         requires_gps: Whether GPS coordinates are mandatory
+        resends_broken_uploads: Whether the camera sends a photo again after
+            an upload broke. Ingestion then holds an incomplete photo for a
+            few minutes and keeps the best copy (services/ingestion/resend_hold.py).
+            Only set this for a model whose behaviour was measured.
     """
     name: str
     make_pattern: Optional[str] = None
@@ -48,6 +52,7 @@ class CameraProfile:
     parse_path: Optional[Callable[[str], dict]] = None
     requires_datetime: bool = True
     requires_gps: bool = False
+    resends_broken_uploads: bool = False
 
     def __post_init__(self) -> None:
         is_path_profile = self.path_pattern is not None or self.parse_path is not None
@@ -232,6 +237,10 @@ WILLFINE_2025_PROFILE = CameraProfile(
     get_camera_id=extract_willfine_2025_camera_id,
     requires_datetime=True,
     requires_gps=True,
+    # Measured on a weak mobile link (Namibia, Nov 2026): after a broken
+    # upload the camera sends the whole photo again within about two minutes.
+    # See "Broken uploads that the camera sends again" in DEVELOPERS.md.
+    resends_broken_uploads=True,
 )
 
 SWIFT_ENDURO_PROFILE = CameraProfile(

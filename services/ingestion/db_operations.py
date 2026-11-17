@@ -77,6 +77,37 @@ def get_camera_by_device_id(device_id: str) -> Optional[int]:
         return None
 
 
+def find_same_photo(camera_id: int, filename: str, captured_at: datetime) -> Optional[dict]:
+    """
+    The image this camera already stored for this photo, or None.
+
+    Same photo means the same file name and the same camera clock second,
+    the key bulk_dedup uses too. Used by the hold for cameras that send a
+    broken photo again (resend_hold.py).
+
+    Returns:
+        dict with ingested_at, storage_path and privacy_removed_at
+    """
+    with get_db_session() as session:
+        row = session.execute(
+            select(Image.ingested_at, Image.storage_path, Image.privacy_removed_at)
+            .where(
+                Image.camera_id == camera_id,
+                Image.filename == filename,
+                Image.captured_at == captured_at,
+            )
+            .order_by(Image.id)
+            .limit(1)
+        ).first()
+        if row is None:
+            return None
+        return {
+            "ingested_at": row.ingested_at,
+            "storage_path": row.storage_path,
+            "privacy_removed_at": row.privacy_removed_at,
+        }
+
+
 def create_rejection_record(
     disk_path: str,
     filename: str,

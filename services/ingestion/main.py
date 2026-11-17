@@ -5,10 +5,13 @@ Watches for new camera trap images and daily reports uploaded via FTPS,
 processes them into the ML pipeline.
 """
 import os
+import shutil
+import threading
 import time
 import uuid
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileMovedEvent
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -27,14 +30,32 @@ from exif_parser import extract_exif, get_datetime_original, check_exif_offset
 from shared.camera_profiles import identify_camera_profile
 from db_operations import (
     get_camera_by_device_id,
+    find_same_photo,
     create_image_record,
     create_rejection_record,
     delete_old_rejections,
     update_camera_health
 )
-from storage_operations import upload_image_to_minio, generate_and_upload_thumbnail
+from storage_operations import upload_image_to_minio, generate_and_upload_thumbnail, stored_copy
 from daily_report_parser import parse_daily_report
-from utils import ValidationError, reject_file, delete_file, is_valid_gps
+from resend_hold import (
+    HOLD_SECONDS,
+    HELD_DIR_NAME,
+    Action,
+    Copies,
+    HeldCopy,
+    StoredCopy,
+    biggest_copy,
+    decide,
+    ends_with_jpeg_end_marker,
+    held_name,
+    held_photos,
+    hold_is_over,
+    join_target,
+    parse_held_name,
+    starts_with_jpeg_start_marker,
+)
+from utils import ValidationError, reject_file, delete_file, is_valid_gps, prune_empty_parents
 
 # Enable PIL to load truncated images from camera traps
 # Camera traps often send incomplete JPEGs over cellular connections
@@ -94,14 +115,21 @@ def _reject(
     be resolved to a project. Centralised here so no rejection path is missed.
 
     The source path is taken before the move, relative to the upload root, so
-    reprocess can put the file back where the camera uploaded it.
+    reprocess can put the file back where the camera uploaded it. A file that
+    comes out of the hold goes back under the name the camera gave it.
     """
+    filename = os.path.basename(filepath)
     source_path = _relative_upload_path(filepath)
+    if _reserved_folder(filepath) == HELD_DIR_NAME:
+        try:
+            filename = source_path = parse_held_name(filename).filename
+        except ValueError:
+            pass
     dest_path = reject_file(filepath, reason, details)
     create_rejection_record(
         disk_path=dest_path,
         source_path=source_path,
-        filename=os.path.basename(filepath),
+        filename=filename,
         reason=reason,
         details=details,
         device_id=device_id,
@@ -110,20 +138,24 @@ def _reject(
     )
 
 
-def _is_under_rejected_tree(filepath: str) -> bool:
+def _reserved_folder(filepath: str) -> Optional[str]:
     """
-    True if ``filepath`` sits under the rejected/ subtree of the upload dir.
+    "rejected" or "held" when ``filepath`` sits in one of those folders of the
+    upload dir, else None.
 
-    With the recursive watchdog observer, file events fire inside rejected/
-    too (when reject_file moves a file in). This guard prevents an infinite
-    loop where rejecting a file immediately re-queues it for processing.
+    Ingestion moves files into these folders itself. With the recursive
+    watchdog observer every such move fires an event, and the startup scan
+    walks the whole tree, so both skip these folders. Otherwise a rejected
+    file would be processed again at once, and a held file before its time.
     """
     upload_dir = settings.ftps_upload_dir or "/uploads"
     try:
         rel = Path(filepath).resolve().relative_to(Path(upload_dir).resolve())
     except ValueError:
-        return False
-    return bool(rel.parts) and rel.parts[0] == "rejected"
+        return None
+    if rel.parts and rel.parts[0] in ("rejected", HELD_DIR_NAME):
+        return rel.parts[0]
+    return None
 
 
 def _dispatch_file(filepath: str, base_ext: str) -> None:
@@ -205,8 +237,9 @@ class IngestionEventHandler(FileSystemEventHandler):
         if filename.startswith('.'):
             return
 
-        # Files landing in rejected/ are the reject path itself, not new input.
-        if _is_under_rejected_tree(filepath):
+        # Files landing in rejected/ or held/ were put there by ingestion
+        # itself, they are not new input.
+        if _reserved_folder(filepath):
             return
 
         # Small delay to ensure file is fully written
@@ -259,7 +292,7 @@ def _relative_upload_path(filepath: str) -> str:
     return rel.as_posix()
 
 
-def process_image(filepath: str) -> None:
+def process_image(filepath: str, held: Optional[HeldCopy] = None) -> None:
     """
     Process uploaded camera trap image.
 
@@ -273,12 +306,14 @@ def process_image(filepath: str) -> None:
 
     Args:
         filepath: Path to image file
+        held: set when the file comes out of the hold (release_held_images).
+            Its original file name is in here, and the hold step is skipped.
     """
     filename = os.path.basename(filepath)
 
     # Strip AutoRename suffix (.1, .2, etc.) to preserve original camera filename
     # This must be done BEFORE any filename-based processing
-    clean_filename = strip_autorename_suffix(filename)
+    clean_filename = held.filename if held else strip_autorename_suffix(filename)
     relative_path = _relative_upload_path(filepath)
 
     logger.info(
@@ -289,6 +324,11 @@ def process_image(filepath: str) -> None:
     )
 
     try:
+        # The rest of a broken upload has no JPEG header and would fail the
+        # validation below. When it completes a held photo, it ends here.
+        if held is None and _join_loose_piece(filepath, clean_filename):
+            return
+
         # Step 1: Validate file (MIME, size)
         validate_image(filepath)
 
@@ -422,59 +462,18 @@ def process_image(filepath: str) -> None:
             )
             return
 
-        # Step 6: Generate UUID for image
-        image_uuid = str(uuid.uuid4())
+        # Step 6: Cameras that send a broken photo again get a short hold, so
+        # the best copy becomes the image (resend_hold.py). A copy coming out
+        # of the hold has been through this step already.
+        if profile.resends_broken_uploads and held is None:
+            with _hold_lock:
+                if _hold_step(filepath, clean_filename, device_id, camera_db_id, captured_at, exif):
+                    _store_image(filepath, filename, clean_filename, device_id,
+                                 camera_db_id, captured_at, gps_location, exif)
+            return
 
-        # Step 7: Upload to MinIO (using cleaned filename, device ID as folder, UUID for uniqueness)
-        storage_path = upload_image_to_minio(filepath, device_id, image_uuid, clean_filename)
-
-        # Step 8: Generate and upload thumbnail
-        # Note: thumbnail generation may fail for severely corrupted images, but we
-        # continue processing since the full image is already uploaded to MinIO
-        try:
-            thumbnail_path = generate_and_upload_thumbnail(filepath, device_id, image_uuid, clean_filename)
-        except Exception as e:
-            logger.warning(
-                "Failed to generate thumbnail, continuing without it",
-                file_name=filename,
-                error=str(e),
-                exc_info=True
-            )
-            thumbnail_path = None
-
-        # Step 9: Create database record (with cleaned filename)
-        create_image_record(
-            image_uuid=image_uuid,
-            camera_id=camera_db_id,
-            filename=clean_filename,
-            storage_path=storage_path,
-            thumbnail_path=thumbnail_path,
-            captured_at=captured_at,
-            gps_location=gps_location,
-            exif_metadata=exif
-        )
-
-        # Set correlation ID for subsequent logs
-        set_image_id(image_uuid)
-
-        # Step 10: Publish to Redis queue
-        queue = RedisQueue(QUEUE_IMAGE_INGESTED)
-        queue.publish({
-            'image_uuid': image_uuid,
-            'storage_path': storage_path,
-            'camera_id': camera_db_id,
-        })
-
-        logger.info(
-            "Image ingestion complete",
-            image_uuid=image_uuid,
-            device_id=device_id,
-            file_name=clean_filename,
-            queued=True
-        )
-
-        # Step 11: Delete original file
-        delete_file(filepath)
+        _store_image(filepath, filename, clean_filename, device_id,
+                     camera_db_id, captured_at, gps_location, exif)
 
     except ValidationError as e:
         # Validation failed - reject file
@@ -489,6 +488,252 @@ def process_image(filepath: str) -> None:
             exc_info=True
         )
         raise
+
+
+def _store_image(
+    filepath: str,
+    filename: str,
+    clean_filename: str,
+    device_id: str,
+    camera_db_id: int,
+    captured_at: datetime,
+    gps_location,
+    exif: dict,
+) -> None:
+    """Store a checked image, put it on the pipeline, delete the upload."""
+    # Generate UUID for image
+    image_uuid = str(uuid.uuid4())
+
+    # Upload to MinIO (using cleaned filename, device ID as folder, UUID for uniqueness)
+    storage_path = upload_image_to_minio(filepath, device_id, image_uuid, clean_filename)
+
+    # Generate and upload thumbnail
+    # Note: thumbnail generation may fail for severely corrupted images, but we
+    # continue processing since the full image is already uploaded to MinIO
+    try:
+        thumbnail_path = generate_and_upload_thumbnail(filepath, device_id, image_uuid, clean_filename)
+    except Exception as e:
+        logger.warning(
+            "Failed to generate thumbnail, continuing without it",
+            file_name=filename,
+            error=str(e),
+            exc_info=True
+        )
+        thumbnail_path = None
+
+    # Create database record (with cleaned filename)
+    create_image_record(
+        image_uuid=image_uuid,
+        camera_id=camera_db_id,
+        filename=clean_filename,
+        storage_path=storage_path,
+        thumbnail_path=thumbnail_path,
+        captured_at=captured_at,
+        gps_location=gps_location,
+        exif_metadata=exif
+    )
+
+    # Set correlation ID for subsequent logs
+    set_image_id(image_uuid)
+
+    # Publish to Redis queue
+    queue = RedisQueue(QUEUE_IMAGE_INGESTED)
+    queue.publish({
+        'image_uuid': image_uuid,
+        'storage_path': storage_path,
+        'camera_id': camera_db_id,
+    })
+
+    logger.info(
+        "Image ingestion complete",
+        image_uuid=image_uuid,
+        device_id=device_id,
+        file_name=clean_filename,
+        queued=True
+    )
+
+    # Delete original file
+    delete_file(filepath)
+
+
+# The watchdog thread (new uploads) and the scheduler thread (release) both
+# read and change uploads/held/, so every decision about a held photo is taken
+# under this lock.
+_hold_lock = threading.Lock()
+
+
+def _held_dir() -> Path:
+    return Path(settings.ftps_upload_dir or "/uploads") / HELD_DIR_NAME
+
+
+def _remove_upload(filepath: str, message: str, **fields) -> None:
+    """Delete an upload that is not needed, with a log line that says why."""
+    os.remove(filepath)
+    prune_empty_parents(filepath)
+    logger.info(message, **fields)
+
+
+def _store_held(copies: Copies, keep: Path) -> None:
+    """Store one held copy of a photo and drop the others. Call it under _hold_lock."""
+    copy = next(c for c, path in copies if path == keep)
+    process_image(str(keep), held=copy)
+    for _, path in copies:
+        if path != keep:
+            path.unlink(missing_ok=True)
+
+
+def _join_loose_piece(filepath: str, clean_filename: str) -> bool:
+    """
+    Glue the rest of a broken upload onto the held copy it continues.
+
+    The piece has no JPEG header, so it can never be an image by itself. It
+    is only used when it carries the end of the photo, so a held copy is
+    never changed into something that is still incomplete.
+
+    Returns:
+        True when the piece completed a held photo, which is stored now.
+        False when the caller should treat the file as any other upload.
+    """
+    if starts_with_jpeg_start_marker(filepath) or not ends_with_jpeg_end_marker(filepath):
+        return False
+    with _hold_lock:
+        photos, _ = held_photos(_held_dir())
+        target = join_target(photos, clean_filename)
+        if target is None:
+            return False
+        copy, held_path = target
+        with open(filepath, "rb") as piece, open(held_path, "ab") as photo:
+            shutil.copyfileobj(piece, photo)
+        _remove_upload(filepath, "Joined a loose piece to the held photo, it is complete now",
+                       file_name=clean_filename, device_id=copy.device_id,
+                       size_bytes=held_path.stat().st_size)
+        _store_held(photos[copy.photo], held_path)
+    return True
+
+
+def _hold_step(
+    filepath: str,
+    clean_filename: str,
+    device_id: str,
+    camera_db_id: int,
+    captured_at: datetime,
+    exif: dict,
+) -> bool:
+    """
+    Apply the hold rule to a new upload. Call it under _hold_lock.
+
+    Returns:
+        True when the file should be stored now, False when it was held,
+        dropped or rejected.
+    """
+    new_size = os.path.getsize(filepath)
+    new_complete = ends_with_jpeg_end_marker(filepath)
+    fields = dict(file_name=clean_filename, device_id=device_id,
+                  size_bytes=new_size, complete=new_complete)
+
+    existing = find_same_photo(camera_db_id, clean_filename, captured_at)
+    stored = None
+    if existing:
+        # The privacy placeholder replaced the photo. Nothing may bring the
+        # original back, so it counts as complete.
+        stored = (StoredCopy(None, True) if existing["privacy_removed_at"]
+                  else stored_copy(existing["storage_path"]))
+
+    action = decide(new_size, new_complete, stored)
+
+    if action is Action.REJECT_LATE:
+        _reject_late_copy(filepath, clean_filename, device_id, captured_at, exif,
+                          new_size, new_complete, existing, stored)
+        return False
+
+    if action is Action.DROP_LATE:
+        _remove_upload(filepath, "Dropped a copy of a photo that is already stored, it adds nothing",
+                       stored_copy_bytes=stored.size, stored_copy_complete=stored.complete, **fields)
+        return False
+
+    if action is Action.INGEST_NOW:
+        photos, _ = held_photos(_held_dir())
+        for _, path in photos.get((device_id, captured_at, clean_filename), []):
+            path.unlink()
+            logger.info("Dropped a held copy, a complete copy arrived", **fields)
+        return True
+
+    held_dir = _held_dir()
+    held_dir.mkdir(parents=True, exist_ok=True)
+    copy = HeldCopy(int(time.time() * 1000), device_id, captured_at, clean_filename)
+    shutil.move(filepath, held_dir / held_name(copy))
+    prune_empty_parents(filepath)
+    logger.info("Holding an incomplete photo, the camera may complete it",
+                hold_seconds=HOLD_SECONDS, **fields)
+    return False
+
+
+def _reject_late_copy(
+    filepath: str,
+    clean_filename: str,
+    device_id: str,
+    captured_at: datetime,
+    exif: dict,
+    new_size: int,
+    new_complete: bool,
+    existing: dict,
+    stored: StoredCopy,
+) -> None:
+    """
+    Reject a copy that is better than the stored one, and say so loudly.
+
+    The rule is new, so this warning is what tells us whether the hold time
+    is long enough. The same facts go into the rejection details, so the
+    camera's Rejected tab shows them without the log.
+    """
+    seconds_after = int((datetime.now(timezone.utc) - existing["ingested_at"]).total_seconds())
+    stored_size = f"{stored.size} bytes" if stored.size is not None else "of unknown size"
+    details = (
+        f"Arrived {seconds_after} s after this photo was stored, so the {HOLD_SECONDS} s hold was over. "
+        f"This copy is {new_size} bytes and {'complete' if new_complete else 'incomplete'}, "
+        f"the stored copy is {stored_size} and incomplete."
+    )
+    logger.warning(
+        "Late copy rejected. A better copy of this photo arrived after the hold "
+        "was over, so the worse copy is already in the app. If this happens "
+        "often, the hold time is too short.",
+        file_name=clean_filename,
+        device_id=device_id,
+        hold_seconds=HOLD_SECONDS,
+        seconds_after_image_stored=seconds_after,
+        late_copy_bytes=new_size,
+        late_copy_complete=new_complete,
+        stored_copy_bytes=stored.size,
+    )
+    _reject(filepath, "late_duplicate", details, exif=exif,
+            device_id=device_id, captured_at=captured_at)
+
+
+def release_held_images() -> None:
+    """
+    Store held photos whose hold is over: the biggest copy, as it is.
+
+    Runs on the scheduler every few seconds and once at startup. One photo
+    that fails does not stop the others; it stays held and is tried again
+    on the next run, with an error in the log each time.
+    """
+    with _hold_lock:
+        photos, strays = held_photos(_held_dir())
+        for path in strays:
+            _reject(str(path), "validation_failed", "Unreadable file name in the hold folder")
+        now = time.time()
+        for (device_id, _, filename), copies in photos.items():
+            if not hold_is_over(copies, now):
+                continue
+            keep = biggest_copy(copies)
+            logger.info("Hold is over, storing the photo as it is",
+                        file_name=filename, device_id=device_id,
+                        size_bytes=keep.stat().st_size, copies_held=len(copies))
+            try:
+                _store_held(copies, keep)
+            except Exception as e:
+                logger.error("Failed to store a held photo", file_name=filename,
+                             error=str(e), exc_info=True)
 
 
 def process_daily_report(filepath: str) -> None:
@@ -664,6 +909,7 @@ def main():
         "parse_failed",
         "exif_extraction_failed",
         "unsupported_file_type",
+        "late_duplicate",
         "conversion_failed"  # TEMPORARY: for Willfine-2024 conversion failures
     ]:
         (rejected_base / reason).mkdir(parents=True, exist_ok=True)
@@ -676,19 +922,13 @@ def main():
 
     # Process any existing files in the upload directory (from before service start).
     # Recursive scan picks up nested camera trees (e.g. INSTAR/<lat-lon>/<date>/images/),
-    # but the rejected/ subtree is excluded so we never re-process old rejections.
+    # The rejected/ and held/ folders are skipped: old rejections are never
+    # processed again, and held photos are released by release_held_images.
     upload_path = Path(upload_dir)
-
-    def _is_under_rejected(path: Path) -> bool:
-        try:
-            rel_parts = path.relative_to(upload_path).parts
-        except ValueError:
-            return False
-        return bool(rel_parts) and rel_parts[0] == "rejected"
 
     existing_files = [
         f for f in upload_path.rglob('*')
-        if f.is_file() and not _is_under_rejected(f) and not f.name.startswith('.')
+        if f.is_file() and not _reserved_folder(str(f)) and not f.name.startswith('.')
     ]
     existing_images = [f for f in existing_files if f.suffix.lower() in ['.jpg', '.jpeg']]
     existing_reports = [f for f in existing_files if f.suffix.lower() == '.txt']
@@ -759,6 +999,17 @@ def main():
         minute=0,
         id='cleanup_rejected_files',
         name='Clean up rejected files older than 30 days'
+    )
+    # Held photos from before a restart are on disk, so the first run picks
+    # them up. Every 15 s keeps the real hold within 15 s of HOLD_SECONDS.
+    release_held_images()
+    scheduler.add_job(
+        release_held_images,
+        'interval',
+        seconds=15,
+        max_instances=1,
+        id='release_held_images',
+        name='Store held photos whose hold is over'
     )
     scheduler.start()
 

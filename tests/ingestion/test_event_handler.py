@@ -69,6 +69,20 @@ def test_reject_move_is_ignored(uploads, dispatched):
     assert dispatched == []
 
 
+def test_move_into_held_is_ignored(uploads, dispatched):
+    """A photo put on hold is released by the scheduler, not by the watcher."""
+    source = uploads / "E1000381.JPG"
+    destination = uploads / "held" / "1763400000__861943071188840__20261117T162652__E1000381.JPG"
+    destination.parent.mkdir()
+    destination.touch()
+
+    main.IngestionEventHandler().on_moved(
+        FileMovedEvent(src_path=str(source), dest_path=str(destination))
+    )
+
+    assert dispatched == []
+
+
 def test_hidden_upload_in_progress_is_ignored(uploads, dispatched):
     """The temp file of an upload is skipped; its visible rename follows."""
     temp = uploads / ".pureftpd-upload.abc123"
