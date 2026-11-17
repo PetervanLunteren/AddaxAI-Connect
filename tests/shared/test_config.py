@@ -37,6 +37,35 @@ class TestSettings:
             Settings()
 
 
+class TestAppUrl:
+    """Every link to the web app is built here: https unless ENABLE_SSL is
+    false, and no link at all without a domain."""
+
+    def test_https_by_default(self, monkeypatch):
+        monkeypatch.delenv("ENABLE_SSL", raising=False)
+        monkeypatch.setenv("DOMAIN_NAME", "cam.example.org")
+        assert Settings().app_url("/login") == "https://cam.example.org/login"
+
+    def test_http_when_ssl_is_off(self, monkeypatch):
+        monkeypatch.setenv("ENABLE_SSL", "false")
+        monkeypatch.setenv("DOMAIN_NAME", "cam.example.org")
+        assert Settings().app_url("/login") == "http://cam.example.org/login"
+
+    def test_no_path_gives_the_root(self, monkeypatch):
+        monkeypatch.delenv("ENABLE_SSL", raising=False)
+        monkeypatch.setenv("DOMAIN_NAME", "cam.example.org")
+        assert Settings().app_url() == "https://cam.example.org"
+
+    @pytest.mark.parametrize("domain", [None, ""])
+    def test_no_domain_raises(self, monkeypatch, domain):
+        if domain is None:
+            monkeypatch.delenv("DOMAIN_NAME", raising=False)
+        else:
+            monkeypatch.setenv("DOMAIN_NAME", domain)
+        with pytest.raises(ValueError, match="DOMAIN_NAME"):
+            Settings().app_url("/login")
+
+
 class TestCorsOriginList:
     """CORS_ORIGINS becomes a clean list, and unset means no origins at all."""
 

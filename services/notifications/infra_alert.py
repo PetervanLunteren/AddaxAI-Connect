@@ -101,8 +101,7 @@ def _build_email(feature_label: str, payload: Dict,
     duration_s = payload.get("duration_s")
     error_msg = payload.get("error")
 
-    domain = settings.domain_name or hostname
-    health_url = f"https://{domain}/server/health"
+    health_url = settings.app_url("/server/health")
 
     html, _ = render_email(
         "infra_alert.html",

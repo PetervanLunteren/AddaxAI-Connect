@@ -98,9 +98,17 @@ class TestQueueEvent:
 
 
 class TestImageLink:
-    def test_deep_link(self):
-        assert ic.image_link("connect.example.org", 5, "img-1") == (
+    def test_deep_link(self, monkeypatch):
+        monkeypatch.setattr(ic.settings, "domain_name", "connect.example.org")
+        assert ic.image_link(5, "img-1") == (
             "https://connect.example.org/projects/5/images?image=img-1"
+        )
+
+    def test_http_without_ssl(self, monkeypatch):
+        monkeypatch.setattr(ic.settings, "domain_name", "connect.example.org")
+        monkeypatch.setattr(ic.settings, "enable_ssl", False)
+        assert ic.image_link(5, "img-1") == (
+            "http://connect.example.org/projects/5/images?image=img-1"
         )
 
 
@@ -172,6 +180,7 @@ def _stub_detection(monkeypatch):
     monkeypatch.setattr(ic, "scientific_name", lambda db, project_id, s, model: "Canis lupus")
     monkeypatch.setattr(da, "get_server_timezone", lambda db: AMS)
     monkeypatch.setattr(da.settings, "domain_name", "connect.example.org")
+    monkeypatch.setattr(ic.settings, "domain_name", "connect.example.org")
     return sent
 
 

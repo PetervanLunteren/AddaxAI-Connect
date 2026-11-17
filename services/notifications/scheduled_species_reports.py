@@ -531,7 +531,6 @@ def send_scheduled_species_reports() -> None:
         start, end = compute_period(frequency, today)
         periods[frequency] = (start, end, previous_period(frequency, start))
 
-    domain = settings.domain_name or "localhost:3000"
 
     with get_sync_session() as db:
         rows = list(db.execute(
@@ -609,9 +608,8 @@ def send_scheduled_species_reports() -> None:
                 label = period_label(rule.frequency, start, end)
                 template_data = {
                     "project_name": project.name,
-                    "project_url": f"https://{domain}/projects/{project.id}/dashboard",
-                    "settings_url": f"https://{domain}/projects/{project.id}/notifications",
-                    "domain": domain,
+                    "project_url": settings.app_url(f"/projects/{project.id}/dashboard"),
+                    "settings_url": settings.app_url(f"/projects/{project.id}/notifications"),
                     "frequency": frequency_label,
                     "period_label": label,
                     "prev_period_label": period_label(rule.frequency, prev_start, prev_end),

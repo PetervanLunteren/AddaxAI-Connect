@@ -172,7 +172,7 @@ class EmailSender:
         Raises:
             aiosmtplib.SMTPException: If email sending fails
         """
-        verification_url = f"https://{self.settings.domain_name}/verify-email?token={token}"
+        verification_url = self.settings.app_url(f"/verify-email?token={token}")
 
         html_content, text_content = render_email(
             "email_verification.html",
@@ -204,7 +204,7 @@ class EmailSender:
             token_length=len(token) if token else 0,
         )
 
-        reset_url = f"https://{self.settings.domain_name}/reset-password?token={token}"
+        reset_url = self.settings.app_url(f"/reset-password?token={token}")
 
         html_content, text_content = render_email(
             "password_reset.html",
@@ -258,7 +258,7 @@ class EmailSender:
         role_display = role.replace('-', ' ').title()
 
         # Registration link with secure token
-        registration_url = f"https://{self.settings.domain_name}/register?token={token}"
+        registration_url = self.settings.app_url(f"/register?token={token}")
 
         html_content, text_content = render_email(
             "project_invitation.html",
@@ -314,7 +314,7 @@ class EmailSender:
         role_display = role.replace('-', ' ').title()
 
         # Login link
-        login_url = f"https://{self.settings.domain_name}/login"
+        login_url = self.settings.app_url("/login")
 
         html_content, text_content = render_email(
             "project_assignment.html",
@@ -355,7 +355,7 @@ class EmailSender:
         )
 
         # Login link
-        login_url = f"https://{self.settings.domain_name}/login"
+        login_url = self.settings.app_url("/login")
 
         html_content, text_content = render_email(
             "server_admin_promotion.html",
@@ -391,7 +391,7 @@ class EmailSender:
             "two_factor_notice.html",
             heading=heading,
             message=message,
-            login_url=f"https://{self.settings.domain_name}/login",
+            login_url=self.settings.app_url("/login"),
         )
 
         await self.send_email(
@@ -424,7 +424,7 @@ class EmailSender:
         )
 
         # Registration link with secure token
-        registration_url = f"https://{self.settings.domain_name}/register?token={token}"
+        registration_url = self.settings.app_url(f"/register?token={token}")
 
         html_content, text_content = render_email(
             "server_admin_invitation.html",
@@ -475,7 +475,7 @@ class EmailSender:
         new_role_display = new_role.replace('-', ' ').title()
 
         # Login link
-        login_url = f"https://{self.settings.domain_name}/login"
+        login_url = self.settings.app_url("/login")
 
         html_content, text_content = render_email(
             "project_role_change.html",
@@ -512,7 +512,7 @@ class EmailSender:
         Raises:
             aiosmtplib.SMTPException: If email sending fails
         """
-        service_url = f"https://{self.settings.domain_name}/projects/{project_id}/service"
+        service_url = self.settings.app_url(f"/projects/{project_id}/service")
         html_content, text_content = render_email(
             "service_tasks_assigned.html", service_url=service_url, **context
         )

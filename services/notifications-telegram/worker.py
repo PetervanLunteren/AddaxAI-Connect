@@ -118,12 +118,11 @@ def start_reply(text: str, chat_id: str) -> str:
     token = parts[1] if len(parts) > 1 else None
 
     if not token:
-        domain = settings.domain_name or "your-domain.com"
         return (
             "👋 Welcome to AddaxAI Connect!\n\n"
             f"Your chat ID is {chat_id}\n\n"
             "To link this chat, use the link on the Notifications page of "
-            f"your project at https://{domain}"
+            f"your project at {settings.app_url()}"
         )
 
     project_name = handle_link_token(token, chat_id)

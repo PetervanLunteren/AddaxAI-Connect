@@ -197,13 +197,13 @@ def species_display_name(species: str) -> str:
     return species.replace('_', ' ').capitalize()
 
 
-def images_link(domain: str, project_id: int, species: str, site_id: Optional[int]) -> str:
+def images_link(project_id: int, species: str, site_id: Optional[int]) -> str:
     """Deep link to the images page filtered to the alert's species (and
     site when the image has one), so the reader lands on the pictures
     that triggered the alert instead of the unfiltered wall. The filter
     format matches the images page URL schema, comma-separated values in
     one query parameter per filter."""
-    url = f"https://{domain}/projects/{project_id}/images?species={quote(species)}"
+    url = settings.app_url(f"/projects/{project_id}/images?species={quote(species)}")
     if site_id is not None:
         url += f"&site_id={site_id}"
     return url
@@ -494,9 +494,8 @@ def _notify_rule(
         time_str = "Unknown"
         date_str = "Unknown"
 
-    domain = settings.domain_name or "localhost:3000"
-    images_url = images_link(domain, project.id, species, site_id)
-    settings_url = f"https://{domain}/projects/{project.id}/notifications"
+    images_url = images_link(project.id, species, site_id)
+    settings_url = settings.app_url(f"/projects/{project.id}/notifications")
 
     count = event.get('species_count', event.get('detection_count'))
     confidence = event.get('confidence')
@@ -641,7 +640,7 @@ def _notify_rule(
                 lat=lat,
                 lon=lon,
                 site_name=site_name,
-                image_url=ic.image_link(domain, project.id, event['image_uuid']),
+                image_url=ic.image_link(project.id, event['image_uuid']),
                 count=count,
                 confidence=confidence,
                 scientific_name=ic.scientific_name(db, project.id, species, project.classification_model),

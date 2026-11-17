@@ -158,7 +158,10 @@ async def main():
 asyncio.run(main())
 " 2>/dev/null | tr -d '[:space:]')"
 
-BASE="https://$(grep -E '^DOMAIN_NAME=' .env | cut -d= -f2-)"
+# Same rule as app_url in shared/config.py: https unless ENABLE_SSL=false.
+SCHEME=https
+grep -qxE 'ENABLE_SSL=false' .env 2>/dev/null && SCHEME=http
+BASE="$SCHEME://$(grep -E '^DOMAIN_NAME=' .env | cut -d= -f2-)"
 
 if [ -z "$TOKEN" ]; then
   fail "auth" "could not mint a token, is there an active server admin?"
@@ -541,7 +544,7 @@ fi
 if [ -n "$JSON_OUT" ]; then
   {
     printf '{\n'
-    printf '  "domain": "%s",\n' "${BASE#https://}"
+    printf '  "domain": "%s",\n' "${BASE#*://}"
     printf '  "checked_at": "%s",\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
     printf '  "failed": %d,\n' "$FAILED"
     printf '  "checks": [\n'

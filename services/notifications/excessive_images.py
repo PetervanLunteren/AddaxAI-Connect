@@ -86,9 +86,8 @@ def send_excessive_image_alerts() -> None:
                 if not cameras:
                     continue
 
-                domain = settings.domain_name or "localhost:3000"
-                images_url = f"https://{domain}/projects/{project_id}/images"
-                settings_url = f"https://{domain}/projects/{project_id}/notifications"
+                images_url = settings.app_url(f"/projects/{project_id}/images")
+                settings_url = settings.app_url(f"/projects/{project_id}/notifications")
 
                 template_data = {
                     'project_name': project_name,

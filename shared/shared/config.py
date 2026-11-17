@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     mail_password: Optional[str] = None
     mail_from: Optional[str] = None
     domain_name: Optional[str] = None  # For constructing verification links
+    # False on a server deployed with enable_ssl: false. Decides http or
+    # https in every link the server sends. See app_url.
+    enable_ssl: bool = True
 
     # Sensing Clues (API and notifications-sensingclues). One address per
     # server; the posting account and group stay per project. Dev overrides
@@ -81,6 +84,14 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         """CORS_ORIGINS as a list, without blanks. Empty when unset."""
         return [o.strip() for o in (self.cors_origins or "").split(",") if o.strip()]
+
+    def app_url(self, path: str = "") -> str:
+        """Address of a page in the web app, for emails and messages.
+        The one place that builds such a link."""
+        if not self.domain_name:
+            raise ValueError("DOMAIN_NAME is not set, cannot build a link to the web app")
+        scheme = "https" if self.enable_ssl else "http"
+        return f"{scheme}://{self.domain_name}{path}"
 
     class Config:
         env_file = ".env"

@@ -9,6 +9,8 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import pytest
+
 import detection_alerts as da
 from detection_alerts import (
     EventFacts,
@@ -186,20 +188,30 @@ class TestSpeciesDisplayName:
 
 
 class TestImagesLink:
+    @pytest.fixture(autouse=True)
+    def _domain(self, monkeypatch):
+        monkeypatch.setattr(da.settings, "domain_name", "dev.example.com")
+
     def test_species_and_site(self):
-        assert images_link("dev.example.com", 1, "wolf", 4) == (
+        assert images_link(1, "wolf", 4) == (
             "https://dev.example.com/projects/1/images?species=wolf&site_id=4"
         )
 
     def test_siteless_image_links_species_only(self):
-        assert images_link("dev.example.com", 1, "wolf", None) == (
+        assert images_link(1, "wolf", None) == (
             "https://dev.example.com/projects/1/images?species=wolf"
         )
 
     def test_species_is_url_encoded(self):
         # SpeciesNet labels can carry spaces
-        assert images_link("d", 2, "domestic dog", None) == (
-            "https://d/projects/2/images?species=domestic%20dog"
+        assert images_link(2, "domestic dog", None) == (
+            "https://dev.example.com/projects/2/images?species=domestic%20dog"
+        )
+
+    def test_http_without_ssl(self, monkeypatch):
+        monkeypatch.setattr(da.settings, "enable_ssl", False)
+        assert images_link(1, "wolf", None) == (
+            "http://dev.example.com/projects/1/images?species=wolf"
         )
 
 

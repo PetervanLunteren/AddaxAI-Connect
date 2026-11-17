@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional, Tuple
 from sqlalchemy import select, text
 
 from shared.classification_models import SPECIESNET, get_model, taxonomy
+from shared.config import get_settings
 from shared.earthranger import build_camera_event, build_detection_event
 from shared.logger import get_logger
 from shared.models import ProjectIntegration, TaxonomyMapping
@@ -38,6 +39,7 @@ from shared.sensingclues import (
 from db_operations import create_notification_log
 
 logger = get_logger("notifications.integration_channel")
+settings = get_settings()
 
 QUEUES = {
     EARTHRANGER: QUEUE_NOTIFICATION_EARTHRANGER,
@@ -123,9 +125,9 @@ def scientific_name(db, project_id: int, species: str, classification_model: str
     return taxonomy(classification_model).get(species, {}).get("scientific_name")
 
 
-def image_link(domain: str, project_id: int, image_uuid: str) -> str:
+def image_link(project_id: int, image_uuid: str) -> str:
     """Deep link that opens one image on the images page."""
-    return f"https://{domain}/projects/{project_id}/images?image={image_uuid}"
+    return settings.app_url(f"/projects/{project_id}/images?image={image_uuid}")
 
 
 def build_detection_payload(

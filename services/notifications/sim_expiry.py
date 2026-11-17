@@ -90,9 +90,8 @@ def send_sim_expiry_alerts() -> None:
                     )
                     continue
 
-                domain = settings.domain_name or "localhost:3000"
-                cameras_url = f"https://{domain}/projects/{project_id}/cameras"
-                settings_url = f"https://{domain}/projects/{project_id}/notifications"
+                cameras_url = settings.app_url(f"/projects/{project_id}/cameras")
+                settings_url = settings.app_url(f"/projects/{project_id}/notifications")
 
                 template_data = {
                     "project_name": project_name,

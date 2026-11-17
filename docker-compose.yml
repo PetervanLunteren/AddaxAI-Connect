@@ -164,6 +164,7 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN_NAME: ${DOMAIN_NAME}
+      ENABLE_SSL: ${ENABLE_SSL:-true}
       SENSINGCLUES_BASE_URL: ${SENSINGCLUES_BASE_URL:-https://central.sensingclues.org/v1/}
       DEMO_MODE: ${DEMO_MODE:-false}
       UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
@@ -342,6 +343,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       DOMAIN_NAME: ${DOMAIN_NAME}
+      ENABLE_SSL: ${ENABLE_SSL:-true}
       # Names the classifier in outbound integration payloads (shared/classification_models.py)
       DISK_ALERT_THRESHOLDS: ${DISK_ALERT_THRESHOLDS:-80,90,95}
       # For infra_alert.py. ADMIN_EMAIL is needed for the TEMP success mails.
@@ -397,6 +399,7 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       DOMAIN_NAME: ${DOMAIN_NAME}
+      ENABLE_SSL: ${ENABLE_SSL:-true}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-production}

@@ -68,6 +68,7 @@ MAIL_USERNAME=mail_username
 MAIL_PASSWORD=mail_password
 MAIL_FROM=mail_from
 DOMAIN_NAME=domain_name
+ENABLE_SSL=enable_ssl
 ADMIN_EMAIL=admin_email
 DEMO_MODE=demo_mode
 ENVIRONMENT=app_environment
@@ -91,7 +92,7 @@ BACKUP_SECRET_KEY=backup_secret_key
 # Values that must not be quoted in the output, so ansible reads them as a
 # boolean or a number rather than a string. Everything else is quoted, which
 # matters for the Gmail app password because it contains spaces.
-UNQUOTED="demo_mode use_gpu cold_tier_enabled backup_enabled mail_port cold_tier_hot_budget_gb"
+UNQUOTED="demo_mode use_gpu enable_ssl cold_tier_enabled backup_enabled mail_port cold_tier_hot_budget_gb"
 
 # A single quote, held in a variable so it can be used inside a ${//} pattern
 # without bash turning the escape into a literal backslash.

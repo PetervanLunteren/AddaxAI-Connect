@@ -21,6 +21,8 @@ os.environ.update({
     # auth/users.py refuses to import without a JWT secret; any value works
     # for tests that only import router modules
     "JWT_SECRET": "test-only-secret",
+    # Links to the web app need a domain (Settings.app_url raises without)
+    "DOMAIN_NAME": "connect.example.org",
 })
 
 # Add shared library to sys.path so `from shared.config import ...` works

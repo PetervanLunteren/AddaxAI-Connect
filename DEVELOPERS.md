@@ -1071,6 +1071,16 @@ rule.
 CPU work in an `async def` handler, such as the privacy blur, also blocks the
 worker. Run it with `await asyncio.to_thread(...)`.
 
+## Links to the web app
+
+Every link the server sends, in emails, Telegram and the integrations, is
+built with `settings.app_url("/path")` (`shared/shared/config.py`). It uses
+`https` unless `ENABLE_SSL=false`, which Ansible writes from `enable_ssl`, and
+it raises when `DOMAIN_NAME` is not set instead of sending a dead link.
+Never write `f"https://{domain}/..."` by hand: a server without SSL serves
+plain http and the link would not open (issue #83).
+`tests/shared/test_app_links.py` enforces the rule.
+
 ## Frontend UI development loop
 
 How to see and verify UI changes in a real browser without deploying to a server. Code edits hot-reload in seconds while all data comes from the dev server.

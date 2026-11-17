@@ -129,8 +129,7 @@ def _queue_email(
 ) -> None:
     """Render the HTML + plaintext bodies and publish to the email queue,
     plus write the notification_logs audit row."""
-    domain = settings.domain_name or "localhost:3000"
-    settings_url = f"https://{domain}/projects/{project.id}/notifications"
+    settings_url = settings.app_url(f"/projects/{project.id}/notifications")
 
     template_data: Dict[str, Any] = {
         "project_name": project.name,

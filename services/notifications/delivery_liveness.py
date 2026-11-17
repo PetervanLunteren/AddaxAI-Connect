@@ -253,8 +253,7 @@ def _send_alerts(
     """One alert about one worker, queued to both channels for every
     server admin. The dead worker's own copy waits in its queue and
     arrives after the restart, which is harmless."""
-    domain = settings.domain_name or hostname
-    health_url = f"https://{domain}/server/health"
+    health_url = settings.app_url("/server/health")
 
     trigger_data = {
         "worker": worker.name,

@@ -440,9 +440,8 @@ def _notify(
 ) -> bool:
     """Send one message per configured channel listing the new offenders.
     Returns True when at least one channel actually queued a message."""
-    domain = settings.domain_name or "localhost:3000"
-    cameras_url = f"https://{domain}/projects/{project.id}/cameras"
-    settings_url = f"https://{domain}/projects/{project.id}/notifications"
+    cameras_url = settings.app_url(f"/projects/{project.id}/cameras")
+    settings_url = settings.app_url(f"/projects/{project.id}/notifications")
 
     label = rule_label(rule.rule_type, rule.threshold)
     cameras = _camera_lines(rule, states, new_camera_ids)

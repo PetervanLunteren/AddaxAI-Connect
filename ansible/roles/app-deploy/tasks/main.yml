@@ -389,6 +389,6 @@
       docker compose down            # Stop all services
 
       Access:
-      - Web UI: https://{{ domain_name | default(ansible_host) }}
-      - API: https://{{ domain_name | default(ansible_host) }}/api
+      - Web UI: {{ 'https' if enable_ssl | default(false) else 'http' }}://{{ domain_name | default(ansible_host) }}
+      - API: {{ 'https' if enable_ssl | default(false) else 'http' }}://{{ domain_name | default(ansible_host) }}/api
       - MinIO Console: http://{{ ansible_host }}:9001

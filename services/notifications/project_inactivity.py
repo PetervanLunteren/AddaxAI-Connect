@@ -103,9 +103,8 @@ def send_project_inactivity_alerts() -> None:
                 if project_has_images[project.id]:
                     continue
 
-                domain = settings.domain_name or "localhost:3000"
-                dashboard_url = f"https://{domain}/projects/{project.id}/dashboard"
-                settings_url = f"https://{domain}/projects/{project.id}/notifications"
+                dashboard_url = settings.app_url(f"/projects/{project.id}/dashboard")
+                settings_url = settings.app_url(f"/projects/{project.id}/notifications")
 
                 template_data = {
                     'project_name': project.name,

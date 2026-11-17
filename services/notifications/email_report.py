@@ -343,9 +343,8 @@ def generate_report_content(
     Returns:
         Tuple of (html_content, text_content)
     """
-    domain = settings.domain_name or "localhost:3000"
-    project_url = f"https://{domain}/projects/{project_id}/dashboard"
-    settings_url = f"https://{domain}/projects/{project_id}/notifications"
+    project_url = settings.app_url(f"/projects/{project_id}/dashboard")
+    settings_url = settings.app_url(f"/projects/{project_id}/notifications")
 
     # Frequency label for hero section ("Capture of the day/week/month")
     frequency_label = "Capture" if frequency == 'daily' else "Highlight"
@@ -377,7 +376,6 @@ def generate_report_content(
         'period_label': f"Showing results of {period_label}",
         'frequency': frequency.capitalize(),
         'frequency_label': frequency_label,
-        'domain': domain,
         'stats': stats,
         'species': species,
         'cameras': cameras
@@ -390,7 +388,6 @@ def generate_report_content(
         'settings_url': settings_url,
         'period_label': period_label,
         'frequency': frequency.capitalize(),
-        'domain': domain,
         'overview': overview,
         'species': species,
         'health': cameras,

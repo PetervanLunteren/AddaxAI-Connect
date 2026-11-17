@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "services" / "api"))
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from shared.config import get_settings
 from shared.models import User, UserInvitation
 from shared.database import Base
 from shared.email_renderer import render_email
@@ -113,7 +114,7 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
     Args:
         email: Admin email address
         database_url: PostgreSQL connection string
-        domain_name: Domain name for registration URL
+        domain_name: Domain name, checked here and used as the SMTP hello name
 
     Returns:
         Registration URL with token
@@ -129,6 +130,8 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
 
     if not domain_name:
         raise ValueError("DOMAIN_NAME environment variable must be set")
+
+    settings = get_settings()
 
     # Create engine and session
     engine = create_engine(database_url)
@@ -182,7 +185,7 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
                 existing_invitation.used = False
                 db.commit()
 
-                registration_url = f"https://{domain_name}/register?token={new_token}"
+                registration_url = settings.app_url(f"/register?token={new_token}")
                 print(f"✅ Regenerated expired invitation for {email}")
                 print(f"   New registration URL: {registration_url}")
                 print(f"   Token expires: {new_expires_at.strftime('%Y-%m-%d %H:%M:%S')} UTC")
@@ -193,7 +196,7 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
                 return registration_url
             else:
                 # Invitation exists and is still valid
-                registration_url = f"https://{domain_name}/register?token={existing_invitation.token}"
+                registration_url = settings.app_url(f"/register?token={existing_invitation.token}")
                 print(f"✅ Valid invitation already exists for {email}")
                 print(f"   Registration URL: {registration_url}")
                 print(f"   Token expires: {existing_invitation.expires_at.strftime('%Y-%m-%d %H:%M:%S')} UTC")
@@ -253,7 +256,7 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
         db.commit()
         db.refresh(invitation)
 
-        registration_url = f"https://{domain_name}/register?token={invite_token}"
+        registration_url = settings.app_url(f"/register?token={invite_token}")
 
         print(f"✅ Admin invitation created for {email}")
         print(f"   Role: server-admin")
