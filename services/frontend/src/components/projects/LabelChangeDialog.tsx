@@ -6,7 +6,8 @@
  *
  * The label is then removed from the rules that use it, and a rule with no
  * label left is deleted. Counts only: rules are private, so the admin never
- * sees whose they are.
+ * sees whose they are. The text says "notifications" for both kinds, the
+ * name of the page where users set them up.
  */
 import React from 'react';
 import { Loader2 } from 'lucide-react';
@@ -38,18 +39,18 @@ export const LabelChangeDialog: React.FC<LabelChangeDialogProps> = ({
   if (!impact) return null;
 
   const rules = impact.rules_updated + impact.rules_deleted;
-  const bullets = [`${listed(impact.labels)} from ${count(rules, 'rule', 'rules')}`];
+  const bullets = [`${listed(impact.labels)} from ${count(rules, 'notification', 'notifications')}`];
   if (impact.rules_deleted > 0) {
-    bullets.push(count(impact.rules_deleted, 'rule has no other label and is deleted', 'rules have no other label and are deleted'));
+    bullets.push(count(impact.rules_deleted, 'notification has no other label and is deleted', 'notifications have no other label and are deleted'));
   }
 
   return (
     <Dialog open onOpenChange={(open) => !open && !isPending && onClose()}>
       <DialogContent onClose={isPending ? undefined : onClose}>
         <DialogHeader>
-          <DialogTitle>Your new list breaks some detection rules</DialogTitle>
+          <DialogTitle>Your new list breaks some notifications</DialogTitle>
           <DialogDescription>
-            Users in this project have detection rules and species reports on labels that are not in your new list.
+            Users in this project have detection alerts and species reports set on labels that are not in your new list.
           </DialogDescription>
         </DialogHeader>
         <ImpactBox sections={[{ heading: 'This will remove', bullets }]}>

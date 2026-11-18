@@ -10,7 +10,7 @@
 {% block content %}
 <p style="font-size: 15px; line-height: 1.6; color: #1f2937; margin: 0 0 12px 0;">
     A project admin changed the species labels of this project.
-    {% if labels|length == 1 %}This label no longer exists{% else %}These labels no longer exist{% endif %}, and your detection rules and species reports used {% if labels|length == 1 %}it{% else %}them{% endif %}.
+    {% if labels|length == 1 %}This label no longer exists{% else %}These labels no longer exist{% endif %}, and your notifications used {% if labels|length == 1 %}it{% else %}them{% endif %}.
 </p>
 {% endblock %}
 
@@ -26,16 +26,16 @@
         </table>
         {% if rules_updated %}
         <p style="font-size: 14px; line-height: 1.5; color: #1f2937; margin: 16px 0 0 0;">
-            {{ rules_updated }} of your rules no longer use{{ 's' if rules_updated == 1 else '' }} {% if labels|length == 1 %}it{% else %}them{% endif %} and still work{{ 's' if rules_updated == 1 else '' }} for {% if rules_updated == 1 %}its{% else %}their{% endif %} other labels.
+            {{ rules_updated }} of your notifications no longer use{{ 's' if rules_updated == 1 else '' }} {% if labels|length == 1 %}it{% else %}them{% endif %} and still work{{ 's' if rules_updated == 1 else '' }} for {% if rules_updated == 1 %}its{% else %}their{% endif %} other labels.
         </p>
         {% endif %}
         {% if rules_deleted %}
         <p style="font-size: 14px; line-height: 1.5; color: #1f2937; margin: 8px 0 0 0;">
-            {{ rules_deleted }} rule{{ 's' if rules_deleted != 1 else '' }} had no other label and {{ 'was' if rules_deleted == 1 else 'were' }} deleted.
+            {{ rules_deleted }} notification{{ 's' if rules_deleted != 1 else '' }} had no other label and {{ 'was' if rules_deleted == 1 else 'were' }} deleted.
         </p>
         {% endif %}
         <p style="font-size: 14px; line-height: 1.5; color: #6b7280; margin: 8px 0 0 0;">
-            If a label got a new name, make a new rule for it.
+            If a label got a new name, make a new notification for it.
         </p>
     </td>
 </tr>
@@ -57,6 +57,6 @@
 
 {% block footer_link %}
 <p style="margin: 0; color: #6b7280; font-size: 13px;">
-    You received this email because your own rules in this project used a label that was removed.
+    You received this email because your own notifications in this project used a label that was removed.
 </p>
 {% endblock %}

@@ -50,7 +50,7 @@ class TestLabelsRemovedEmail:
         html, text = self._render(rules_updated=1)
         assert "This label no longer exists" in text
         assert "porcupine" in text
-        assert "1 of your rules no longer uses it and still works for its other labels" in text
+        assert "1 of your notifications no longer uses it and still works for its other labels" in text
         assert "deleted" not in text
         assert "https://connect.example.org/projects/4/notifications" in html
 
@@ -58,10 +58,10 @@ class TestLabelsRemovedEmail:
         _, text = self._render(labels=["red_deer", "wolf"], rules_updated=2, rules_deleted=3)
         assert "These labels no longer exist" in text
         assert "red deer" in text and "red_deer" not in text
-        assert "2 of your rules no longer use them and still work for their other labels" in text
-        assert "3 rules had no other label and were deleted" in text
+        assert "2 of your notifications no longer use them and still work for their other labels" in text
+        assert "3 notifications had no other label and were deleted" in text
 
     def test_one_deleted_rule(self):
         _, text = self._render(rules_deleted=1)
-        assert "1 rule had no other label and was deleted" in text
-        assert "of your rules" not in text
+        assert "1 notification had no other label and was deleted" in text
+        assert "of your notifications" not in text

@@ -31,7 +31,7 @@ When you create a project and pick SpeciesNet, drop the CSV at Species labels. T
 
 The new list replaces the old one, and every detection gets its new label right away, without running the AI again. Verified detections keep their labels.
 
-If the new list drops a label that detection rules or species reports of users are set on, a window shows what will be removed before anything is saved. When you confirm, the label is taken out of those rules, a rule with no label left is deleted, and the users whose rules changed get an email.
+If the new list drops a label that notifications of users are set on (detection alerts or species reports), a window shows what will be removed before anything is saved. When you confirm, the label is taken out of those notifications, a notification with no label left is deleted, and the users it touches get an email.
 
 ## How matching works
 
