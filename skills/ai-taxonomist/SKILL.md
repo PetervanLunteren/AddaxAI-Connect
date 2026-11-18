@@ -208,4 +208,14 @@ End with the steps:
 2. New project: drop the file at Species labels in the create project dialog. Existing project: open Settings, drop the file at Species labels and click Save changes.
 3. If AddaxAI Connect names rows it does not know, paste that message here.
 
+Then say that the list is a start and name two or three things to watch after a few weeks of photos, taken from this list and not from a standard set:
+
+- an "unknown" label or a catch-all that gets many photos, which means a row is missing or a group is worth splitting
+- a species label that often holds the wrong animal, which means it is better merged with its look-alike
+- a target animal that never shows up under its own label
+
+Close with this text:
+
+> A label list is never final. Let the cameras run for a few weeks, look at what the labels hold, and come back with your list when something is off. Then we change it.
+
 More about the upload is in the [SpeciesNet setup guide](https://connect.addaxai.com/speciesnet-setup/).
