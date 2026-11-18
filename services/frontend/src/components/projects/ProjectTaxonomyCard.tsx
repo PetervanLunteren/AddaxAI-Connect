@@ -88,7 +88,7 @@ export const ProjectTaxonomyCard: React.FC<ProjectTaxonomyCardProps> = ({ projec
         </div>
 
         {uploadMutation.isError && (
-          <Callout variant="error" className="mt-6">{errorDetail || 'Upload failed'}</Callout>
+          <Callout variant="error" className="mt-6 whitespace-pre-line">{errorDetail || 'Upload failed'}</Callout>
         )}
         {result && (
           <Callout variant="success" className="mt-6">

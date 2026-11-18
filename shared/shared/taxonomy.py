@@ -19,6 +19,20 @@ UNKNOWN_ANIMAL = "unknown animal"
 # detection-level categories and the fallback.
 ALWAYS_PRESENT_LABELS = frozenset({"person", "vehicle", UNKNOWN_ANIMAL})
 
+# Two names for one taxon. SpeciesNet's taxonomy has the even-toed hoofed
+# animals under the order "cetartiodactyla" on most lines and "artiodactyla"
+# on a few, and newer releases only use "artiodactyla". A CSV row at either
+# name must catch all of them, so both are read as the name on the right, in
+# the CSV and in the predictions.
+TAXON_ALIASES = {"cetartiodactyla": "artiodactyla"}
+
+
+def normalize_taxon(name: str) -> str:
+    """A taxon name as the mapping compares it: stripped, lowercase, and an
+    alias replaced by its one name."""
+    name = name.strip().lower()
+    return TAXON_ALIASES.get(name, name)
+
 
 def apply_taxonomy_walkup(raw_prediction: str, taxonomy_map: dict[str, str]) -> str:
     """
@@ -37,7 +51,8 @@ def apply_taxonomy_walkup(raw_prediction: str, taxonomy_map: dict[str, str]) -> 
 
     Args:
         raw_prediction: Full SpeciesNet semicolon-delimited label
-        taxonomy_map: Dict mapping lowercase latin names to common names
+        taxonomy_map: Dict mapping latin names to common names, the keys
+            as normalize_taxon writes them (parse_taxonomy_csv does that)
 
     Returns:
         Mapped common name, or UNKNOWN_ANIMAL if no match found
@@ -47,10 +62,10 @@ def apply_taxonomy_walkup(raw_prediction: str, taxonomy_map: dict[str, str]) -> 
         return UNKNOWN_ANIMAL
 
     # Parts: uuid;class;order;family;genus;species;common_name
-    taxon_class = parts[1].strip().lower()
-    order = parts[2].strip().lower()
-    family = parts[3].strip().lower()
-    genus = parts[4].strip().lower()
+    taxon_class = normalize_taxon(parts[1])
+    order = normalize_taxon(parts[2])
+    family = normalize_taxon(parts[3])
+    genus = normalize_taxon(parts[4])
     species = parts[5].strip().lower()
 
     # Build candidates from most specific to least specific

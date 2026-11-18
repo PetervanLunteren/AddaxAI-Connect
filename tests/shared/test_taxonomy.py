@@ -3,6 +3,7 @@ from shared.taxonomy import (
     ALWAYS_PRESENT_LABELS,
     UNKNOWN_ANIMAL,
     apply_taxonomy_walkup,
+    normalize_taxon,
     scientific_names,
     stale_labels,
 )
@@ -11,6 +12,9 @@ FOX = "uuid;mammalia;carnivora;canidae;vulpes;vulpes;red fox"
 CANID_FAMILY = "uuid;mammalia;carnivora;canidae;;;canidae family"
 GREAT_TIT = "uuid;aves;passeriformes;paridae;parus;major;great tit"
 BLANK = "uuid;;;;;;blank"
+# The pinned model writes the even-toed order two ways.
+ROE_DEER = "uuid;mammalia;cetartiodactyla;cervidae;capreolus;capreolus;european roe deer"
+DOMESTIC_PIG = "uuid;mammalia;artiodactyla;suidae;sus;scrofa scrofa;domestic pig"
 
 
 class TestWalkup:
@@ -35,6 +39,22 @@ class TestWalkup:
 
     def test_fallback_is_not_the_detection_category(self):
         assert UNKNOWN_ANIMAL == "unknown animal"
+
+    def test_a_trinomial_matches_its_own_row(self):
+        mapping = {"sus scrofa scrofa": "domestic pig", "sus scrofa": "wild boar"}
+        assert apply_taxonomy_walkup(DOMESTIC_PIG, mapping) == "domestic pig"
+
+
+class TestTaxonAlias:
+    def test_both_names_of_the_even_toed_order_are_one(self):
+        assert normalize_taxon("Cetartiodactyla ") == "artiodactyla"
+        assert normalize_taxon("artiodactyla") == "artiodactyla"
+        assert normalize_taxon(" Canidae") == "canidae"
+
+    def test_one_order_row_catches_both_spellings(self):
+        mapping = {"artiodactyla": "hoofed animal", "mammalia": "mammal"}
+        assert apply_taxonomy_walkup(ROE_DEER, mapping) == "hoofed animal"
+        assert apply_taxonomy_walkup(DOMESTIC_PIG, mapping) == "hoofed animal"
 
 
 class TestScientificNames:

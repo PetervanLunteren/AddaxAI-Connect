@@ -375,7 +375,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             </div>
 
             {/* Error Message */}
-            {error && <Callout variant="error">{error}</Callout>}
+            {error && <Callout variant="error" className="whitespace-pre-line">{error}</Callout>}
           </div>
 
           <DialogFooter>

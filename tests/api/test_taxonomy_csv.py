@@ -17,7 +17,7 @@ _api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "serv
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from utils.taxonomy_csv import MAX_LABEL_LENGTH, parse_taxonomy_csv  # noqa: E402
+from utils.taxonomy_csv import MAX_LABEL_LENGTH, MAX_UNKNOWN_SHOWN, parse_taxonomy_csv  # noqa: E402
 from shared.classification_models import DEEPFAUNE_ID, SPECIESNET_ID  # noqa: E402
 
 
@@ -74,6 +74,32 @@ class TestParseTaxonomyCsv:
     def test_one_label_on_several_rows_is_fine(self):
         text = "latin,common\naccipitridae,bird of prey\nfalconidae,bird of prey\n"
         assert len(parse_taxonomy_csv(text)) == 2
+
+
+    def test_names_speciesnet_does_not_know_are_all_listed(self):
+        text = "latin,common\nvulpes vulpse,red fox\naves,bird\ncanidea,unknown canid\n"
+        with pytest.raises(ValueError) as exc:
+            parse_taxonomy_csv(text)
+        assert str(exc.value).split("\n") == [
+            "SpeciesNet does not know these names",
+            "Row 2, 'vulpes vulpse'",
+            "Row 4, 'canidea'",
+        ]
+
+    def test_a_long_list_of_unknown_names_is_cut(self):
+        text = "latin,common\n" + "".join(f"nope{i},x\n" for i in range(MAX_UNKNOWN_SHOWN + 3))
+        with pytest.raises(ValueError) as exc:
+            parse_taxonomy_csv(text)
+        lines = str(exc.value).split("\n")
+        assert len(lines) == MAX_UNKNOWN_SHOWN + 2
+        assert lines[-1] == "and 3 more"
+
+    def test_both_names_of_the_even_toed_order_are_one_row(self):
+        assert parse_taxonomy_csv("latin,common\nCetartiodactyla,hoofed animal\n") == [
+            ("artiodactyla", "hoofed animal")
+        ]
+        with pytest.raises(ValueError, match="Row 3: duplicate latin value 'artiodactyla'"):
+            parse_taxonomy_csv("latin,common\nartiodactyla,a\ncetartiodactyla,b\n")
 
 
 class _Result:

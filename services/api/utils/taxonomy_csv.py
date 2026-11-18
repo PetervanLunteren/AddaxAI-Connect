@@ -10,24 +10,31 @@ import io
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.classification_models import speciesnet_taxa
 from shared.models import TaxonomyMapping
+from shared.taxonomy import normalize_taxon
 
 
 MAX_LABEL_LENGTH = 255  # the width of taxonomy_mapping.latin and .common
+MAX_UNKNOWN_SHOWN = 20  # unknown names listed in the message, the rest is counted
 
 
 def parse_taxonomy_csv(text: str) -> list[tuple[str, str]]:
     """(latin, common) rows from the mapping CSV text.
 
     The CSV needs 'latin' and 'common' columns (any case, extra columns are
-    ignored, a leading BOM is fine). Latin is lowercased, the walk-up matches
-    lowercase. The label users see is 'original_common' when the row has one,
-    else 'common', kept as written: the SpeciesNet Taxonomy Mapper puts the
-    user's own label in original_common and SpeciesNet's name in common, the
-    same convention as MegaDetector's restrict_to_taxa_list.
+    ignored, a leading BOM is fine). Latin is written as normalize_taxon
+    writes it, the walk-up matches on that. The label users see is
+    'original_common' when the row has one, else 'common', kept as written,
+    the same convention as MegaDetector's restrict_to_taxa_list.
+
+    Every latin must be a name SpeciesNet knows. A name it does not know
+    would be stored and then never match a prediction, without any error.
 
     Raises:
-        ValueError: with a message for the user, on the first problem found.
+        ValueError: with a message for the user. A problem with the file
+            itself is reported on the first one found, names SpeciesNet does
+            not know are all listed, one per line.
     """
     reader = csv.DictReader(io.StringIO(text.lstrip("﻿")))
 
@@ -42,9 +49,11 @@ def parse_taxonomy_csv(text: str) -> list[tuple[str, str]]:
 
     rows: list[tuple[str, str]] = []
     seen_latin: set[str] = set()
+    known = speciesnet_taxa()
+    unknown: list[str] = []
     for i, row in enumerate(reader, start=2):
         normalized = {k.lower().strip(): v for k, v in row.items() if k is not None}
-        latin = (normalized.get("latin") or "").strip().lower()
+        latin = normalize_taxon(normalized.get("latin") or "")
         common = (normalized.get("original_common") or "").strip() or (normalized.get("common") or "").strip()
 
         if not latin:
@@ -56,11 +65,19 @@ def parse_taxonomy_csv(text: str) -> list[tuple[str, str]]:
         if len(latin) > MAX_LABEL_LENGTH or len(common) > MAX_LABEL_LENGTH:
             raise ValueError(f"Row {i}: a value is longer than {MAX_LABEL_LENGTH} characters")
 
+        if latin not in known:
+            unknown.append(f"Row {i}, '{latin}'")
+
         seen_latin.add(latin)
         rows.append((latin, common))
 
     if not rows:
         raise ValueError("CSV has no data rows")
+    if unknown:
+        shown = unknown[:MAX_UNKNOWN_SHOWN]
+        if len(unknown) > len(shown):
+            shown.append(f"and {len(unknown) - len(shown)} more")
+        raise ValueError("\n".join(["SpeciesNet does not know these names", *shown]))
 
     return rows
 

@@ -17,7 +17,12 @@ code change here. There are two kinds:
   change the revision and replace the CSV from that revision:
   curl -L https://huggingface.co/Addax-Data-Science/<id>/resolve/<revision>/taxonomy.csv
 - "speciesnet": SpeciesNet through Google's speciesnet package, with the
-  geofence and the project's own label CSV (see shared.taxonomy).
+  project's own label CSV (see shared.taxonomy). Its taxonomy_release.txt is
+  vendored in model_taxonomy/<id>.txt from the same commit, so the API can
+  refuse a CSV with a name the model does not know, and the AI taxonomist
+  skill reads the same file. To update the model, change the revision and
+  replace the file from that revision:
+  curl -L https://huggingface.co/Addax-Data-Science/<id>/resolve/<revision>/taxonomy_release.txt
 
 Class names are stored as labels in lowercase with underscores ("red deer"
 becomes "red_deer"), one rule for every fixed model, which keeps the labels
@@ -27,7 +32,9 @@ import csv
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Sequence
+
+from shared.taxonomy import normalize_taxon
 
 FIXED = "fixed"
 SPECIESNET = "speciesnet"
@@ -279,6 +286,32 @@ def taxonomy(model_id: str) -> dict[str, dict]:
         name, rank = _scientific(row)
         result[normalise_label(row["model_class"])] = {"scientific_name": name, "taxon_rank": rank}
     return result
+
+
+def taxon_names(taxa: Iterable[Sequence[str]]) -> frozenset[str]:
+    """Every name a mapping CSV row can use, from (class, order, family,
+    genus, species) rows: each filled rank, and "genus species" for a
+    species. Names are written as normalize_taxon writes them."""
+    names: set[str] = set()
+    for taxon_class, order, family, genus, species in taxa:
+        names.update(normalize_taxon(rank) for rank in (taxon_class, order, family, genus) if rank.strip())
+        if genus.strip() and species.strip():
+            names.add(f"{normalize_taxon(genus)} {species.strip().lower()}")
+    return frozenset(names)
+
+
+@lru_cache(maxsize=None)
+def speciesnet_taxa() -> frozenset[str]:
+    """The names SpeciesNet knows, from its vendored taxonomy_release.txt
+    (lines of guid;class;order;family;genus;species;common name). The lines
+    without a taxon (blank, vehicle, animal, "no cv result") give no name."""
+    taxa = []
+    with open(TAXONOMY_DIR / f"{SPECIESNET_ID}.txt", encoding="utf-8") as f:
+        for line in f:
+            parts = line.rstrip("\n").split(";")
+            if len(parts) == 7 and parts[1] != "no cv result":
+                taxa.append(parts[1:6])
+    return taxon_names(taxa)
 
 
 def fits_in_memory(model: ClassificationModel, available_mb: int, loaded: Iterable[str]) -> bool:

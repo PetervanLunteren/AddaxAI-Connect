@@ -15,6 +15,8 @@ from shared.classification_models import (
     fits_in_memory,
     get_model,
     normalise_label,
+    speciesnet_taxa,
+    taxon_names,
     taxonomy,
 )
 
@@ -113,3 +115,30 @@ class TestFitsInMemory:
 
     def test_other_loaded_models_do_not_help(self):
         assert not fits_in_memory(self.model, 100, ["Y"])
+
+
+class TestSpeciesNetTaxa:
+    def test_the_vendored_file_is_there(self):
+        assert (TAXONOMY_DIR / f"{SPECIESNET_ID}.txt").exists()
+
+    def test_every_rank_is_a_name(self):
+        taxa = speciesnet_taxa()
+        for name in ("mammalia", "carnivora", "canidae", "canis", "canis lupus", "canis familiaris"):
+            assert name in taxa, name
+
+    def test_a_trinomial_is_a_name(self):
+        assert "sus scrofa scrofa" in speciesnet_taxa()
+
+    def test_the_even_toed_order_has_one_name(self):
+        taxa = speciesnet_taxa()
+        assert "artiodactyla" in taxa
+        assert "cetartiodactyla" not in taxa
+
+    def test_lines_without_a_taxon_give_no_name(self):
+        taxa = speciesnet_taxa()
+        for name in ("", "blank", "animal", "vehicle", "no cv result"):
+            assert name not in taxa, name
+
+    def test_names_from_rows(self):
+        rows = [("mammalia", "Cetartiodactyla", "cervidae", "", ""), ("aves", "", "", "", "")]
+        assert taxon_names(rows) == {"mammalia", "artiodactyla", "cervidae", "aves"}
