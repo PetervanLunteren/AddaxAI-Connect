@@ -19,14 +19,16 @@ import { ProjectTaxonomyCard } from '../../components/projects/ProjectTaxonomyCa
 import { ThresholdCheckButton, ThresholdCheckDialog } from '../../components/ThresholdCheckDialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
-import { projectsApi } from '../../api/projects';
+import { labelChangeImpact, projectsApi } from '../../api/projects';
+import { apiErrorMessage } from '../../api/client';
+import { LabelChangeDialog } from '../../components/projects/LabelChangeDialog';
 import { statisticsApi } from '../../api/statistics';
 import { siteGroupsApi } from '../../api/siteGroups';
 import { sitesApi } from '../../api/sites';
 import { normalizeLabel } from '../../utils/labels';
 import { speciesApi } from '../../api/species';
 import { classificationModelsApi } from '../../api/classificationModels';
-import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, SiteGroup } from '../../api/types';
+import type { LabelChangeImpact, ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, SiteGroup } from '../../api/types';
 import { Select } from '../../components/ui/Select';
 import { Switch } from '../../components/ui/Switch';
 import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
@@ -111,6 +113,8 @@ export const ProjectSettingsPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 30);
   const [requireTwoFactor, setRequireTwoFactor] = useState<boolean>(currentProject?.require_two_factor ?? false);
+  // Set while the server waits for a confirm, see LabelChangeDialog
+  const [pendingImpact, setPendingImpact] = useState<LabelChangeImpact | null>(null);
   const [classificationDefault, setClassificationDefault] = useState<number>(
     currentProject?.classification_thresholds?.default ?? 0.0,
   );
@@ -176,8 +180,11 @@ export const ProjectSettingsPage: React.FC = () => {
   const updateSpeciesMutation = useMutation({
     mutationFn: (data: { id: number; update: ProjectUpdate }) =>
       projectsApi.update(data.id, data.update),
-    onSuccess: () => {
+    onSuccess: (_project, data) => {
       queryClient.invalidateQueries({ queryKey: ['user-projects'] });
+      // A narrower species list may have removed labels from rules
+      queryClient.invalidateQueries({ queryKey: ['detection-alert-rules', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['species-report-rules', data.id] });
       refreshProjects();
     },
   });
@@ -315,10 +322,12 @@ export const ProjectSettingsPage: React.FC = () => {
     hasGroupChanges ||
     hasClassificationThresholdChanges;
 
-  // Unified save handler
-  const handleSave = async () => {
+  // Unified save handler. confirmLabelChanges is set on the second try, after
+  // LabelChangeDialog asked about a species list that drops a label in use.
+  const handleSave = async (confirmLabelChanges = false) => {
     setSaveStatus('saving');
     setError(null);
+    setPendingImpact(null);
 
     // Snapshot old values before saving
     const oldThreshold = currentProject.detection_threshold;
@@ -333,24 +342,11 @@ export const ProjectSettingsPage: React.FC = () => {
           : null,
       ]);
 
-      // 2. Save all changes
-      const promises: Promise<any>[] = [];
-
-      if (hasThresholdChanges) {
-        promises.push(updateThresholdMutation.mutateAsync(threshold));
-      }
-
-      if (hasClassificationThresholdChanges) {
-        promises.push(
-          updateClassificationThresholdsMutation.mutateAsync({
-            default: classificationDefault,
-            overrides: classificationOverrides,
-          }),
-        );
-      }
-
+      // 2. Save all changes. The project update goes first and on its own:
+      // the server refuses a species list that removes a label from rules or
+      // thresholds until it is confirmed, and then nothing else is saved yet.
       if (hasSpeciesChanges || hasPrivacyChanges || hasIntervalChanges || hasTwoFactorChanges) {
-        const update: ProjectUpdate = {};
+        const update: ProjectUpdate = { confirm_label_changes: confirmLabelChanges };
         if (hasSpeciesChanges) {
           // Every species selected is stored as an empty list ("all"), so the
           // project keeps tracking the model instead of freezing a snapshot.
@@ -372,10 +368,22 @@ export const ProjectSettingsPage: React.FC = () => {
         if (hasTwoFactorChanges) {
           update.require_two_factor = requireTwoFactor;
         }
-        promises.push(updateSpeciesMutation.mutateAsync({
-          id: currentProject.id,
-          update,
-        }));
+        await updateSpeciesMutation.mutateAsync({ id: currentProject.id, update });
+      }
+
+      const promises: Promise<any>[] = [];
+
+      if (hasThresholdChanges) {
+        promises.push(updateThresholdMutation.mutateAsync(threshold));
+      }
+
+      if (hasClassificationThresholdChanges) {
+        promises.push(
+          updateClassificationThresholdsMutation.mutateAsync({
+            default: classificationDefault,
+            overrides: classificationOverrides,
+          }),
+        );
       }
 
       await Promise.all(promises);
@@ -447,7 +455,14 @@ export const ProjectSettingsPage: React.FC = () => {
         setShowToast(false);
       }, 5000);
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Failed to save settings');
+      const impact = labelChangeImpact(err);
+      if (impact) {
+        // Not an error: the server waits for a confirm
+        setPendingImpact(impact);
+        setSaveStatus('idle');
+        return;
+      }
+      setError(apiErrorMessage(err) || 'Failed to save settings');
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
@@ -847,6 +862,14 @@ export const ProjectSettingsPage: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Asked when a narrower species list drops a label that rules or thresholds use */}
+      <LabelChangeDialog
+        impact={pendingImpact}
+        onClose={() => setPendingImpact(null)}
+        onConfirm={() => void handleSave(true)}
+        isPending={isSaving}
+      />
 
       {/* Asked once, when a category newly moves to Delete */}
       <ConfirmDialog

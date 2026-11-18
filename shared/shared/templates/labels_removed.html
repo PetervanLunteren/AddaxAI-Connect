@@ -1,0 +1,62 @@
+{% extends "base_email.html" %}
+
+{% block title %}{{ project_name }} - Species labels changed{% endblock %}
+
+{% block header_content %}
+<h1 style="font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: #0f6064;">{{ project_name }}</h1>
+<p style="font-size: 16px; font-weight: 500; margin: 0; color: #1f2937;">Species labels changed</p>
+{% endblock %}
+
+{% block content %}
+<p style="font-size: 15px; line-height: 1.6; color: #1f2937; margin: 0 0 12px 0;">
+    A project admin changed the species labels of this project.
+    {% if labels|length == 1 %}This label no longer exists{% else %}These labels no longer exist{% endif %}, and your detection rules and species reports used {% if labels|length == 1 %}it{% else %}them{% endif %}.
+</p>
+{% endblock %}
+
+{% block extra_sections %}
+<tr>
+    <td style="padding: 24px; border-top: 1px solid #e5e7eb;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            {% for label in labels %}
+            <tr>
+                <td style="padding: 6px 0; font-size: 15px; font-weight: 600; color: #1f2937;">{{ label.replace('_', ' ') }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% if rules_updated %}
+        <p style="font-size: 14px; line-height: 1.5; color: #1f2937; margin: 16px 0 0 0;">
+            {{ rules_updated }} of your rules no longer use{{ 's' if rules_updated == 1 else '' }} {% if labels|length == 1 %}it{% else %}them{% endif %} and still work{{ 's' if rules_updated == 1 else '' }} for {% if rules_updated == 1 %}its{% else %}their{% endif %} other labels.
+        </p>
+        {% endif %}
+        {% if rules_deleted %}
+        <p style="font-size: 14px; line-height: 1.5; color: #1f2937; margin: 8px 0 0 0;">
+            {{ rules_deleted }} rule{{ 's' if rules_deleted != 1 else '' }} had no other label and {{ 'was' if rules_deleted == 1 else 'were' }} deleted.
+        </p>
+        {% endif %}
+        <p style="font-size: 14px; line-height: 1.5; color: #6b7280; margin: 8px 0 0 0;">
+            If a label got a new name, make a new rule for it.
+        </p>
+    </td>
+</tr>
+{% endblock %}
+
+{% block cta %}
+<tr>
+    <td style="padding: 24px; text-align: center;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+            <tr>
+                <td style="background: #0f6064; border-radius: 8px;">
+                    <a href="{{ notifications_url }}" style="display: inline-block; padding: 12px 28px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">Open notifications</a>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_link %}
+<p style="margin: 0; color: #6b7280; font-size: 13px;">
+    You received this email because your own rules in this project used a label that was removed.
+</p>
+{% endblock %}

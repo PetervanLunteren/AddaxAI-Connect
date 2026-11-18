@@ -663,10 +663,20 @@ as the same two-column CSV.
   the CSV and in the walk-up, so one order row catches all of them.
 - **One request.** A SpeciesNet project gets its CSV in the create request
   (`ProjectCreate.taxonomy_csv`), stored in the same commit, so a project never
-  exists without its list. `routers/project_taxonomy.py` replaces it later:
-  it relabels the project's unverified classifications from `raw_prediction`
-  and returns `stale_labels`, the labels rules or thresholds still use that
-  the new list lacks. Names only, rules are private to their owner.
+  exists without its list. `routers/project_taxonomy.py` replaces it later
+  and relabels the project's unverified classifications from `raw_prediction`.
+- **Labels that disappear.** A project loses a label through a new CSV, or,
+  for a fixed-class model, through a narrower species list in the project
+  settings. One rule for both, in `services/api/utils/label_changes.py`: the
+  label is removed from the detection rules and species reports that use it,
+  a rule with no label left is deleted, and a confidence threshold on it is
+  deleted. The endpoint answers 409 with the impact and writes nothing until
+  the request confirms (`confirm` on the upload, `confirm_label_changes` on
+  the project update); the frontend shows `LabelChangeDialog`. After the
+  commit every other affected owner gets one email, best effort. The impact
+  holds counts and label names only, rules are private to their owner. The
+  cleanup compares with the new list, not with the old one, so a label that
+  disappeared before v0.23.0 leaves its rules at the project's next change.
 - **Per detection.** The worker follows MegaDetector's `run_md_and_speciesnet`
   as it runs with a taxa list: the confidence rollup, a public speciesnet
   function (`speciesnet_model.py`), then the CSV walk-up (`shared/taxonomy.py`).

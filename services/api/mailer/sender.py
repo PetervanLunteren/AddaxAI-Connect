@@ -520,6 +520,42 @@ class EmailSender:
         await self.send_email(email, subject, text_content, html_content)
         logger.info("Service tasks email sent", email=email, project_id=project_id)
 
+    async def send_labels_removed_email(
+        self,
+        email: str,
+        project_id: int,
+        project_name: str,
+        labels: List[str],
+        rules_updated: int,
+        rules_deleted: int,
+    ) -> None:
+        """
+        Tell a user that labels left a project and what that did to their
+        own detection rules and species reports.
+
+        Args:
+            email: The rule owner's email address
+            project_id: Project whose labels changed, for the page link
+            project_name: Its name
+            labels: The labels that are gone and that this user's rules used
+            rules_updated: Their rules that lost a label and kept others
+            rules_deleted: Their rules that had no label left
+
+        Raises:
+            aiosmtplib.SMTPException: If email sending fails
+        """
+        html_content, text_content = render_email(
+            "labels_removed.html",
+            project_name=project_name,
+            labels=labels,
+            rules_updated=rules_updated,
+            rules_deleted=rules_deleted,
+            notifications_url=self.settings.app_url(f"/projects/{project_id}/notifications"),
+        )
+        subject = f"Species labels changed in {project_name}"
+        await self.send_email(email, subject, text_content, html_content)
+        logger.info("Labels removed email sent", email=email, project_id=project_id)
+
 
 # Singleton instance
 _email_sender: Optional[EmailSender] = None

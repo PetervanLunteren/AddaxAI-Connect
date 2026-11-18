@@ -29,7 +29,9 @@ When you create a project and pick SpeciesNet, drop the CSV at Species labels. T
 3. Start the AI taxonomist, say you want to change your list, and paste the file with what you want different. For example wolves, dogs and foxes apart instead of one canid label. It asks what it needs to know and tells you what works best
 4. Drop the new CSV at Species labels and click Save and relabel
 
-The new list replaces the old one, and every detection gets its new label right away, without running the AI again. Verified detections keep their labels. If alert rules, species reports or thresholds still use a label that is no longer in the list, the page names it, so you can update them.
+The new list replaces the old one, and every detection gets its new label right away, without running the AI again. Verified detections keep their labels.
+
+If the new list drops a label that detection rules, species reports or thresholds use, a window shows what will be removed before anything is saved. When you confirm, the label is taken out of those rules, a rule with no label left is deleted, and the users whose rules changed get an email.
 
 ## How matching works
 

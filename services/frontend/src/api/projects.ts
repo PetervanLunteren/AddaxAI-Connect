@@ -8,6 +8,7 @@ import type {
   ProjectCreate,
   ProjectUpdate,
   ProjectDeleteResponse,
+  LabelChangeImpact,
   TaxonomyMappingResponse,
   TaxonomyUploadResponse,
   ProjectUserInfo,
@@ -15,6 +16,20 @@ import type {
   AddProjectUserByEmailRequest,
   AddProjectUserByEmailResponse
 } from './types';
+
+/**
+ * The impact a refused label change came with, or null for any other error.
+ * A save that would remove a label from rules or thresholds is answered with
+ * 409 and this impact, and goes through once it is sent with the confirm flag.
+ */
+export function labelChangeImpact(error: unknown): LabelChangeImpact | null {
+  const response = (error as { response?: { status?: number; data?: { detail?: any } } })?.response;
+  const detail = response?.data?.detail;
+  if (response?.status === 409 && detail?.code === 'label_changes_need_confirmation') {
+    return detail.impact as LabelChangeImpact;
+  }
+  return null;
+}
 
 export const projectsApi = {
   /**
@@ -72,11 +87,14 @@ export const projectsApi = {
   },
 
   /**
-   * Replace the project's taxonomy mapping and relabel its unverified images
+   * Replace the project's taxonomy mapping and relabel its unverified images.
+   * A list that drops a label in use is refused with the impact (see
+   * labelChangeImpact) until it is sent with confirm.
    */
-  uploadTaxonomy: async (id: number, file: File): Promise<TaxonomyUploadResponse> => {
+  uploadTaxonomy: async (id: number, file: File, confirm = false): Promise<TaxonomyUploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('confirm', String(confirm));
     const response = await apiClient.post<TaxonomyUploadResponse>(`/api/projects/${id}/taxonomy`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',

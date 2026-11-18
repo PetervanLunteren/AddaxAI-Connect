@@ -237,8 +237,46 @@ class TestUploadScope:
         assert "Camera.project_id == project_id" in source
         assert "Image.is_verified == False" in source
 
-    def test_stale_labels_report_names_only(self):
+    def test_the_response_reports_counts_only(self):
+        # Rules are private to their owner: the admin gets numbers and label
+        # names, never whose rule it was.
         from routers import project_taxonomy
+        from utils.label_changes import LabelChangeImpact
 
         fields = set(project_taxonomy.TaxonomyUploadResponse.model_fields)
-        assert fields == {"count", "entries", "reprocessed_count", "stale_labels"}
+        assert fields == {"count", "entries", "reprocessed_count", "impact"}
+        assert set(LabelChangeImpact.model_fields) == {
+            "labels", "rules_updated", "rules_deleted", "thresholds_removed", "users_emailed",
+        }
+
+
+class TestUploadConfirm:
+    """A label that leaves the list is removed from rules and thresholds,
+    but only after the admin confirmed it. The rule itself is tested in
+    test_label_changes; this pins where the upload calls it."""
+
+    def _source(self) -> str:
+        from routers import project_taxonomy
+
+        return inspect.getsource(project_taxonomy.upload_project_taxonomy)
+
+    def test_the_check_comes_before_the_first_write(self):
+        source = self._source()
+        check = source.index("await confirm_or_refuse(")
+        assert source.index("parse_taxonomy_csv(text)") < check
+        assert check < source.index("await replace_project_taxonomy(")
+        assert "confirmed=confirm" in source
+
+    def test_confirm_is_off_unless_the_request_sets_it(self):
+        from routers import project_taxonomy
+
+        default = inspect.signature(project_taxonomy.upload_project_taxonomy).parameters["confirm"].default
+        assert default.default is False
+
+    def test_the_cleanup_is_in_the_same_commit_and_the_emails_after_it(self):
+        source = self._source()
+        cleanup = source.index("clean_gone_labels(db, project, labels, current_user, apply=True)")
+        commit = source.index("await db.commit()")
+        assert source.index("await replace_project_taxonomy(") < cleanup < commit
+        assert commit < source.index("await send_label_change_emails(")
+        assert source.count("await db.commit()") == 1

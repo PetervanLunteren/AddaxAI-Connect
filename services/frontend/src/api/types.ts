@@ -354,6 +354,9 @@ export interface ProjectUpdate {
   independence_interval_minutes?: number;
   require_two_factor?: boolean;
   classification_thresholds?: { default: number; overrides: Record<string, number> };
+  // Needed when a narrower species list removes a label that rules or
+  // thresholds use. Without it the server answers 409 with the impact.
+  confirm_label_changes?: boolean;
 }
 
 export interface ProjectDeleteResponse {
@@ -864,11 +867,24 @@ export interface TaxonomyMappingResponse {
   entries: TaxonomyMappingEntry[];
 }
 
+// What a label change removes from rules and thresholds. Counts only: rules
+// are private to the user who made them.
+export interface LabelChangeImpact {
+  // The labels that disappear and are in use
+  labels: string[];
+  // Rules that lose a label and keep others
+  rules_updated: number;
+  // Rules that have no label left
+  rules_deleted: number;
+  thresholds_removed: number;
+  users_emailed: number;
+}
+
 export interface TaxonomyUploadResponse extends TaxonomyMappingResponse {
   // Unverified classifications that got a new label
   reprocessed_count: number;
-  // Labels still used by rules or thresholds that the new mapping no longer has
-  stale_labels: string[];
+  // What the upload removed, because its label is no longer in the list
+  impact: LabelChangeImpact;
 }
 
 export interface DevModeStatus {

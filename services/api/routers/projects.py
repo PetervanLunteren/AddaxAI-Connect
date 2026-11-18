@@ -11,6 +11,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from shared.classification_models import CLASSIFICATION_MODELS, SPECIESNET
 from shared.models import User, Project, Camera, ProjectMembership, UserInvitation, ServerSettings, Site
+from shared.taxonomy import stale_labels
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_PROJECT_DOCUMENTS
 from shared.logger import get_logger
@@ -26,6 +27,13 @@ from auth.permissions import (
 from auth.project_access import get_accessible_project_ids, check_site_scope_or_400
 from utils.model_availability import check_model
 from utils.taxonomy_csv import parse_taxonomy_csv, replace_project_taxonomy
+from utils.label_changes import (
+    clean_gone_labels,
+    confirm_or_refuse,
+    fixed_model_labels,
+    project_labels,
+    send_label_change_emails,
+)
 from routers.cameras import (
     CameraDeletePreviewItem,
     _assert_no_live_bulk_jobs,
@@ -96,6 +104,10 @@ class ProjectUpdate(BaseModel):
     # Everyone who can open the project must have two-factor login. Takes
     # effect at each user's next login (auth/two_factor.py).
     require_two_factor: Optional[bool] = None
+    # Narrowing the species list of a fixed-class project removes the gone
+    # labels from rules and thresholds. Without this flag such a request is
+    # refused with 409 and the impact (utils/label_changes.py).
+    confirm_label_changes: bool = False
 
 
 class ProjectDeleteResponse(BaseModel):
@@ -410,6 +422,11 @@ async def update_project(
         project_id: Project ID to update
         project_data: Fields to update
 
+    A species list that drops a label which rules or thresholds use is
+    refused with 409 and the impact, until the body confirms it. Then the
+    label is removed from those rules and thresholds in the same commit, and
+    the other affected users get an email (utils/label_changes.py).
+
     Returns:
         Updated project
 
@@ -432,6 +449,15 @@ async def update_project(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
+        )
+
+    # A new species list changes the labels of a fixed-class project. A
+    # SpeciesNet project takes its labels from its CSV and ignores the list.
+    new_labels = None
+    if project_data.included_species is not None and CLASSIFICATION_MODELS[project.classification_model].kind != SPECIESNET:
+        new_labels = fixed_model_labels(project.classification_model, project_data.included_species)
+        await confirm_or_refuse(
+            db, project, new_labels, current_user, confirmed=project_data.confirm_label_changes
         )
 
     # Update fields if provided
@@ -487,10 +513,20 @@ async def update_project(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"classification_thresholds.overrides['{species}'] must be between 0.0 and 1.0",
                 )
+        # A threshold only exists for a label of the project, so a threshold
+        # save that runs next to a species save cannot put a gone label back.
+        labels = new_labels if new_labels is not None else await project_labels(db, project)
+        gone = stale_labels(overrides, labels)
+        overrides = {label: value for label, value in overrides.items() if label not in gone}
         project.classification_thresholds = {"default": default, "overrides": overrides}
+
+    recipients = []
+    if new_labels is not None:
+        _, recipients = await clean_gone_labels(db, project, new_labels, current_user, apply=True)
 
     await db.commit()
     await db.refresh(project)
+    await send_label_change_emails(project.id, project.name, recipients)
 
     image_url, thumbnail_url = build_project_image_urls(project)
 

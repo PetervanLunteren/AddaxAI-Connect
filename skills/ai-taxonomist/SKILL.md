@@ -110,7 +110,7 @@ Ask the user to paste the current CSV (Download CSV at Species labels in the pro
 | An animal never gets its label | The latin name is not in the taxonomy file, or the row sits too low | Fix the name, or move the row up |
 | One animal often gets the label of a look-alike, while the rows are right | SpeciesNet itself confuses the two | Merge them into one label, or accept it. No row can fix this |
 
-Show the edit as rows added, removed and changed, with one line of reason each. Then go through "Refine" and "Hand over". Tell the user that alert rules, reports and thresholds keep their old label names: after the upload, AddaxAI Connect names the ones that no longer exist.
+Show the edit as rows added, removed and changed, with one line of reason each. Then go through "Refine" and "Hand over". Tell the user what happens to a label that leaves the list: AddaxAI Connect removes it from the detection rules, species reports and thresholds that use it, deletes a rule that has no label left, and emails the users whose rules changed. It shows the counts and asks first. So a renamed label means those rules are made again.
 
 ## Hand over
 

@@ -1,8 +1,8 @@
 /**
  * Project settings card for a SpeciesNet project's label list (its taxonomy
  * mapping CSV). Saving a new CSV replaces the list and relabels the images
- * nobody has verified yet; labels that rules or thresholds still use but the
- * new list lacks are named, so the admin can update those.
+ * nobody has verified yet. When the new list lacks a label that rules or
+ * thresholds use, the server saves nothing and LabelChangeDialog asks first.
  */
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,10 +12,11 @@ import { Button } from '../ui/Button';
 import { Callout } from '../ui/Callout';
 import { TaxonomyDropzone } from './TaxonomyDropzone';
 import { TaxonomyMappingDialog } from './TaxonomyMappingDialog';
-import { projectsApi } from '../../api/projects';
-import { normalizeLabel } from '../../utils/labels';
+import { LabelChangeDialog } from './LabelChangeDialog';
+import { labelChangeImpact, projectsApi } from '../../api/projects';
+import { apiErrorMessage } from '../../api/client';
 import { downloadCsv } from '../../utils/download';
-import type { TaxonomyUploadResponse } from '../../api/types';
+import type { LabelChangeImpact, TaxonomyUploadResponse } from '../../api/types';
 
 interface ProjectTaxonomyCardProps {
   projectId: number;
@@ -26,6 +27,8 @@ export const ProjectTaxonomyCard: React.FC<ProjectTaxonomyCardProps> = ({ projec
   const [file, setFile] = useState<File | null>(null);
   const [showMapping, setShowMapping] = useState(false);
   const [result, setResult] = useState<TaxonomyUploadResponse | null>(null);
+  // Set while the server waits for a confirm, see LabelChangeDialog
+  const [pendingImpact, setPendingImpact] = useState<LabelChangeImpact | null>(null);
 
   const { data: mapping } = useQuery({
     queryKey: ['project-taxonomy', projectId],
@@ -34,10 +37,12 @@ export const ProjectTaxonomyCard: React.FC<ProjectTaxonomyCardProps> = ({ projec
   const entries = mapping?.entries ?? [];
 
   const uploadMutation = useMutation({
-    mutationFn: (csv: File) => projectsApi.uploadTaxonomy(projectId, csv),
+    mutationFn: ({ csv, confirm }: { csv: File; confirm: boolean }) =>
+      projectsApi.uploadTaxonomy(projectId, csv, confirm),
     onSuccess: (response) => {
       setResult(response);
       setFile(null);
+      setPendingImpact(null);
       // New labels everywhere labels show: the list itself, the label
       // pickers, and every image and number that carried an old label.
       queryClient.invalidateQueries({ queryKey: ['project-taxonomy', projectId] });
@@ -46,11 +51,20 @@ export const ProjectTaxonomyCard: React.FC<ProjectTaxonomyCardProps> = ({ projec
       queryClient.invalidateQueries({ queryKey: ['images'] });
       queryClient.invalidateQueries({ queryKey: ['image'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      // Rules and thresholds may have lost a label that is gone
+      queryClient.invalidateQueries({ queryKey: ['detection-alert-rules', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['species-report-rules', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
     },
-    onError: () => setResult(null),
+    onError: (error) => {
+      setResult(null);
+      setPendingImpact(labelChangeImpact(error));
+    },
   });
-  const errorDetail = (uploadMutation.error as any)?.response?.data?.detail
-    || uploadMutation.error?.message;
+  // A refusal that waits for a confirm is a question, not an error
+  const uploadError = uploadMutation.isError && !labelChangeImpact(uploadMutation.error)
+    ? apiErrorMessage(uploadMutation.error)
+    : null;
 
   // The same two columns an upload reads, so the file can go back in as it is.
   const downloadLabels = () => downloadCsv(
@@ -97,30 +111,19 @@ export const ProjectTaxonomyCard: React.FC<ProjectTaxonomyCardProps> = ({ projec
           </div>
         </div>
 
-        {uploadMutation.isError && (
-          <Callout variant="error" className="mt-6 whitespace-pre-line">{errorDetail || 'Upload failed'}</Callout>
+        {uploadError && (
+          <Callout variant="error" className="mt-6 whitespace-pre-line">{uploadError}</Callout>
         )}
         {result && (
           <Callout variant="success" className="mt-6">
             Saved {result.count} rows. {result.reprocessed_count} detections got a new label.
           </Callout>
         )}
-        {result && result.stale_labels.length > 0 && (
-          <Callout variant="warning" className="mt-3">
-            These labels are no longer in the list, but alert rules, species reports or thresholds still use them. Update those so they keep working.
-            <ul className="list-disc ml-5 mt-1">
-              {result.stale_labels.map((label) => (
-                <li key={label}>{normalizeLabel(label)}</li>
-              ))}
-            </ul>
-          </Callout>
-        )}
-
         {file && (
           <>
             <div className="border-t my-6" />
             <div className="flex justify-end">
-              <Button onClick={() => uploadMutation.mutate(file)} disabled={uploadMutation.isPending}>
+              <Button onClick={() => uploadMutation.mutate({ csv: file, confirm: false })} disabled={uploadMutation.isPending}>
                 {uploadMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -139,6 +142,12 @@ export const ProjectTaxonomyCard: React.FC<ProjectTaxonomyCardProps> = ({ projec
       </CardContent>
 
       <TaxonomyMappingDialog open={showMapping} onClose={() => setShowMapping(false)} entries={entries} />
+      <LabelChangeDialog
+        impact={pendingImpact}
+        onClose={() => { setPendingImpact(null); uploadMutation.reset(); }}
+        onConfirm={() => file && uploadMutation.mutate({ csv: file, confirm: true })}
+        isPending={uploadMutation.isPending}
+      />
     </Card>
   );
 };
