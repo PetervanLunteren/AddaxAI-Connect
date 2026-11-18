@@ -181,7 +181,7 @@ addaxai-connect/
 │   │   ├── worker.py                  # Entry point
 │   │   ├── registry.py                # The loaded models: download at the pinned commit, load on first use
 │   │   ├── fixed_model.py             # Fixed-class models through their own inference.py (the desktop contract)
-│   │   ├── speciesnet_model.py        # SpeciesNet through the speciesnet package, geofence and rollup
+│   │   ├── speciesnet_model.py        # SpeciesNet through the speciesnet package, rollup and the label CSV
 │   │   ├── records.py                 # DetectionInfo, Classification, ProjectConfig
 │   │   ├── annotated_image.py         # Generates annotated images with boxes, labels, privacy blur
 │   │   ├── config.py
@@ -317,7 +317,7 @@ addaxai-connect/
 │       │   ├── hooks/                 # Custom React hooks
 │       │   ├── lib/                   # Stores, query client, feature flags, helpers
 │       │   ├── pages/                 # Page components (with admin/, insights/, server/ subdirs)
-│       │   ├── geodata/               # Country and timezone lookup data
+│       │   ├── geodata/               # Timezone lookup data
 │       │   ├── workers/               # Web workers (bulk scan)
 │       │   ├── styles/                # Global CSS
 │       │   └── utils/                 # Helpers (colors, hex-grid, detection overlays)
@@ -344,7 +344,7 @@ addaxai-connect/
 │       ├── project_channels.py        # The project channels (earthranger, sensingclues) and their labels
 │       ├── timestamps.py              # ISO 8601 with offset, for the outbound integrations
 │       ├── classification_models.py   # The model catalog: pinned HF commits, labels, scientific names, memory rule
-│       ├── model_taxonomy/            # Each fixed-class model's taxonomy.csv, from its pinned commit
+│       ├── model_taxonomy/            # Each model's taxonomy file, from its pinned commit
 │       ├── notify_guard.py            # Development server allow-lists for outbound notifications
 │       ├── device.py                  # The one rule for cpu vs cuda in the ML workers
 │       ├── taxonomy.py                # SpeciesNet label mapping (walk-up, fallback label, scientific names)
@@ -378,7 +378,7 @@ addaxai-connect/
 │   └── verify-redis-security.sh       # Redis security validation
 │
 ├── skills/
-│   └── ai-taxonomist/SKILL.md         # Instructions an AI assistant follows to build a SpeciesNet label list
+│   └── ai-taxonomist/SKILL.md         # Instructions an AI assistant follows to build or change a SpeciesNet label CSV
 │
 ├── tests/                             # Pytest test suite
 │   ├── conftest.py                    # Shared fixtures and env setup
@@ -493,7 +493,12 @@ pinned commit, its kind, and the memory rule. Two kinds:
   list and the exports and integrations their scientific names. The
   project's `included_species` renormalises the probabilities.
 - **SpeciesNet** runs through Google's `speciesnet` package with the
-  project's label CSV and the geofence (next section).
+  project's label CSV (see "SpeciesNet labels"). Its `taxonomy_release.txt`
+  is vendored in `shared/model_taxonomy/` from the same commit, as
+  `<model id>.txt`. That file is the one list of names a label CSV can use.
+  It has three readers: the API refuses an uploaded CSV with a name that is
+  not in it, the worker refuses to load a model whose own taxonomy differs
+  from it, and the AI taxonomist skill reads it from GitHub.
 
 The worker (`services/classification/registry.py`) loads the models the
 server's projects use at start, loads a new project's model on its first
@@ -511,6 +516,14 @@ and the load peak measured on a CPU server, its `taxonomy.csv` from that
 commit (its class names must equal the model's, the worker refuses the
 model otherwise), and a parity run against the desktop app on the same
 crops.
+
+To move SpeciesNet to another commit: change the revision, replace the
+vendored `.txt` from that commit (the curl line is in the docstring of
+`shared/classification_models.py`), and update the file's URL in
+`skills/ai-taxonomist/SKILL.md` when the model id changes. Names can change
+between releases (`cetartiodactyla` became `artiodactyla`, the domestic pig
+got another name), so check which stored mapping rows the new file no longer
+knows before the release.
 
 ## MinIO image
 
@@ -630,29 +643,43 @@ the result an hour. There is no correction after import.
 
 A SpeciesNet project has its own label list, its taxonomy mapping: rows of `latin` (a SpeciesNet taxon) and `common` (the label users
 see) in `taxonomy_mapping`, keyed by project. User docs:
-`docs/speciesnet-setup.md`.
+`docs/speciesnet-setup.md`. Users make and change the CSV with the AI
+taxonomist (`skills/ai-taxonomist/SKILL.md`), which any chat assistant with
+web access can follow. The project settings can download the current list
+as the same two-column CSV.
 
-- **Country.** `projects.country_code` and the optional US state
-  `admin1_region` are required when a project is created, for every model.
-  SpeciesNet geofences on them. A change applies to new images only, because
-  `raw_prediction` is stored after the geofence.
+- **No geofence, no country.** The label CSV is what narrows SpeciesNet to a
+  place. A country geofence in front of it only removes information: it
+  rolls an out-of-range look-alike up to a broad group before the CSV sees
+  it. MegaDetector's own pipeline also drops the geofence when a taxa list
+  is set. Projects had a country until v0.22.0; images from before the
+  change keep the `raw_prediction` they got after the geofence.
+- **Known names only.** `parse_taxonomy_csv` refuses a CSV with a `latin`
+  that is not in `speciesnet_taxa()` (the vendored taxonomy), and lists every
+  such row. A name SpeciesNet does not know would never match a prediction.
+- **One name for the even-toed order.** The pinned model writes it as
+  `cetartiodactyla` on most lines and `artiodactyla` on a few.
+  `normalize_taxon` (`shared/taxonomy.py`) reads both as `artiodactyla`, in
+  the CSV and in the walk-up, so one order row catches all of them.
 - **One request.** A SpeciesNet project gets its CSV in the create request
   (`ProjectCreate.taxonomy_csv`), stored in the same commit, so a project never
   exists without its list. `routers/project_taxonomy.py` replaces it later:
   it relabels the project's unverified classifications from `raw_prediction`
   and returns `stale_labels`, the labels rules or thresholds still use that
   the new list lacks. Names only, rules are private to their owner.
-- **Per detection.** The worker follows MegaDetector's `run_md_and_speciesnet`:
-  geofence, then the confidence rollup, both public speciesnet functions
-  (`speciesnet_model.py`), then the CSV walk-up (`shared/taxonomy.py`). Never
+- **Per detection.** The worker follows MegaDetector's `run_md_and_speciesnet`
+  as it runs with a taxa list: the confidence rollup, a public speciesnet
+  function (`speciesnet_model.py`), then the CSV walk-up (`shared/taxonomy.py`).
+  The walk-up only matches rows that are in the CSV, from species up to
+  class; unlike `restrict_to_taxa_list` it allows no parents of its own. Never
   `ensemble.combine()`, that combines one label per whole image.
 - **Fallback.** One label, `UNKNOWN_ANIMAL` ("unknown animal"), for a
   prediction that matches no row and for no SpeciesNet output. Not "animal",
   which is MegaDetector's category. `/api/species/available` adds it to the
   project's list so rules can target it.
-- **No config, no label.** The worker reads the project's mapping and country
-  right before classifying, after the early returns, and fails the image when
-  either is missing. There are no startup waits, so a fresh server is healthy
+- **No mapping, no label.** The worker reads the project's mapping right
+  before classifying, after the early returns, and fails the image when it
+  is missing. There are no startup waits, so a fresh server is healthy
   before any project exists.
 - **Scientific names.** For SpeciesNet labels they come from the project's
   CSV, only when a label has exactly one row (`scientific_names`). Never from
