@@ -21,17 +21,7 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { exportApi } from '../api/export';
 import { statisticsApi } from '../api/statistics';
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
-}
+import { downloadBlob } from '../utils/download';
 
 async function extractErrorMessage(err: any): Promise<string> {
   if (err.response?.data instanceof Blob) {

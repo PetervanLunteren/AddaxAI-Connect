@@ -55,21 +55,11 @@ import {
   useBulkUploadStore,
   type ActiveUpload,
 } from '../../lib/bulkUploadStore';
+import { downloadBlob } from '../../utils/download';
 
 const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed', 'cancelled']);
 
 // Save a fetched blob to disk via a temporary anchor.
-function downloadBlob(blob: Blob, filename: string) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
-}
-
 function statusLabel(status: BulkUploadJob['status']): string {
   // Collapse every in-flight server status to "Active" so the
   // badge matches the filter chips above. The per-row caption and

@@ -14,6 +14,7 @@ import { TaxonomyDropzone } from './TaxonomyDropzone';
 import { TaxonomyMappingDialog } from './TaxonomyMappingDialog';
 import { projectsApi } from '../../api/projects';
 import { normalizeLabel } from '../../utils/labels';
+import { downloadCsv } from '../../utils/download';
 import type { TaxonomyUploadResponse } from '../../api/types';
 
 interface ProjectTaxonomyCardProps {
@@ -51,6 +52,13 @@ export const ProjectTaxonomyCard: React.FC<ProjectTaxonomyCardProps> = ({ projec
   const errorDetail = (uploadMutation.error as any)?.response?.data?.detail
     || uploadMutation.error?.message;
 
+  // The same two columns an upload reads, so the file can go back in as it is.
+  const downloadLabels = () => downloadCsv(
+    ['latin', 'common'],
+    entries.map((entry) => [entry.latin, entry.common]),
+    'species-labels.csv',
+  );
+
   return (
     <Card className="mt-6">
       <CardContent className="pt-6">
@@ -58,25 +66,27 @@ export const ProjectTaxonomyCard: React.FC<ProjectTaxonomyCardProps> = ({ projec
           <div className="w-full sm:w-1/2 sm:shrink-0">
             <label className="text-sm font-medium block">Species labels</label>
             <p className="text-sm text-muted-foreground mt-1">
-              The labels SpeciesNet uses in this project, from a CSV with latin and common columns. Make one with Dan Morris's{' '}
+              The labels SpeciesNet uses in this project, from a CSV with latin and common columns. The AI taxonomist in the{' '}
               <a
-                href="https://dmorris.net/speciesnet-taxonomy-mapper/"
+                href="https://connect.addaxai.com/speciesnet-setup/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
               >
-                taxonomy mapper
-              </a>
-              . A new file replaces the labels and relabels the images nobody has verified yet.
-              {entries.length > 0 && (
-                <>
-                  {' '}
-                  <button type="button" onClick={() => setShowMapping(true)} className="text-primary hover:underline">
-                    View current labels ({entries.length} rows)
-                  </button>
-                </>
-              )}
+                SpeciesNet setup guide
+              </a>{' '}
+              makes a new file with you, or changes the current one. A new file replaces the labels and relabels the images nobody has verified yet.
             </p>
+            {entries.length > 0 && (
+              <p className="text-sm mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                <button type="button" onClick={() => setShowMapping(true)} className="text-primary hover:underline">
+                  View current labels ({entries.length} rows)
+                </button>
+                <button type="button" onClick={downloadLabels} className="text-primary hover:underline">
+                  Download CSV
+                </button>
+              </p>
+            )}
           </div>
           <div className="flex-1">
             <TaxonomyDropzone

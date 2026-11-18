@@ -20,6 +20,7 @@ import {
   setupTwoFactor,
   twoFactorErrorMessage,
 } from '../api/auth';
+import { downloadBlob } from '../utils/download';
 
 /** One look for the code fields on the login page and in the account dialog */
 export const CODE_INPUT_CLASS =
@@ -124,12 +125,7 @@ export const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ pendingToken, on
       ...(recoveryCodes ?? []),
       '',
     ].join('\n');
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'addaxai-connect-recovery-codes.txt';
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(new Blob([text], { type: 'text/plain' }), 'addaxai-connect-recovery-codes.txt');
   };
 
   if (recoveryCodes) {

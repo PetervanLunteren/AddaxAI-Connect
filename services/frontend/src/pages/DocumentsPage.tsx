@@ -30,22 +30,12 @@ import {
 import { Button } from '../components/ui/Button';
 import type { ProjectDocument } from '../api/types';
 import { formatDate } from '../utils/datetime';
+import { downloadBlob } from '../utils/download';
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
 }
 
 export const DocumentsPage: React.FC = () => {
