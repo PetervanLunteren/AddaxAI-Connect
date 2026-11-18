@@ -5,7 +5,7 @@
  * picked file and uploads it on Save changes. A new list replaces the old
  * one and relabels the images nobody has verified yet.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Callout } from '../ui/Callout';
 import { TaxonomyDropzone } from './TaxonomyDropzone';
@@ -30,6 +30,13 @@ export const SpeciesLabelsRow: React.FC<SpeciesLabelsRowProps> = ({
   projectId, file, onFileChange, error, disabled = false,
 }) => {
   const [showMapping, setShowMapping] = useState(false);
+
+  // Save changes is at the bottom of the page and this row near the top, so
+  // a refused file would stay out of sight. Bring its message into view.
+  const errorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [error]);
 
   const { data: mapping } = useQuery({
     queryKey: ['project-taxonomy', projectId],
@@ -80,7 +87,11 @@ export const SpeciesLabelsRow: React.FC<SpeciesLabelsRowProps> = ({
           <TaxonomyDropzone file={file} onFileChange={onFileChange} disabled={disabled} />
         </div>
       </div>
-      {error && <Callout variant="error" className="mt-4 whitespace-pre-line">{error}</Callout>}
+      {error && (
+        <div ref={errorRef}>
+          <Callout variant="error" className="mt-4 whitespace-pre-line">{error}</Callout>
+        </div>
+      )}
 
       <TaxonomyMappingDialog open={showMapping} onClose={() => setShowMapping(false)} entries={entries} />
     </>
