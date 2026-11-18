@@ -4,7 +4,7 @@
  * On a fixed-class model, classification runs against every species the model
  * knows. Limiting a project to the species that occur in its area re-normalizes
  * the predictions and usually improves accuracy. SpeciesNet ignores the project
- * species list (taxonomy mapping and country code handle filtering), so the
+ * species list (its taxonomy mapping does the filtering), so the
  * hint never shows there.
  *
  * The banner self-resolves once the admin narrows the list, because it only

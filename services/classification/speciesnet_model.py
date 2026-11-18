@@ -8,28 +8,27 @@ MegaDetector, which Connect's detection worker already runs.
 
 Per detection this follows the reference pipeline for detection-level
 SpeciesNet, `_process_classification_batch` in MegaDetector's
-`megadetector/detection/run_md_and_speciesnet.py`: geofence first, then
-taxonomic rollup when the geofence did not already roll up. Both steps are
-the public functions of the speciesnet package. The ensemble's `combine()`
-is deliberately not used: it picks one label for a whole image and mixes in
-detector-confidence rules for people, vehicles and blanks, which do not
-belong on a single detection.
+`megadetector/detection/run_md_and_speciesnet.py`, the way it runs with a
+custom taxa list: no geofence, the taxonomic rollup, then the project's
+label CSV. A country geofence would roll an out-of-range species up to a
+broad group before the CSV sees it, and the CSV is what narrows the labels
+to the place. The rollup is the public function of the speciesnet package.
+The ensemble's `combine()` is deliberately not used: it picks one label for
+a whole image and mixes in detector-confidence rules for people, vehicles
+and blanks, which do not belong on a single detection.
 """
 import json
 from pathlib import Path
 from PIL import Image
-from typing import Any, List, Optional
+from typing import Any, List
 
 from speciesnet import BBox, SpeciesNetClassifier, SpeciesNetEnsemble
-from speciesnet.geofence_utils import (
-    geofence_animal_classification,
-    roll_up_labels_to_first_matching_level,
-)
+from speciesnet.geofence_utils import roll_up_labels_to_first_matching_level
 
-from shared.classification_models import ClassificationModel
+from shared.classification_models import ClassificationModel, speciesnet_taxa, taxon_names
 from shared.logger import get_logger
 from shared.taxonomy import UNKNOWN_ANIMAL, apply_taxonomy_walkup
-from db_operations import get_project_species_config
+from db_operations import get_project_taxonomy_map
 from records import Classification, DetectionInfo, ProjectConfig
 
 logger = get_logger("classification.speciesnet_model")
@@ -41,56 +40,23 @@ ROLLUP_TARGET_CONFIDENCE = 0.65
 ROLLUP_LEVELS = ["species", "genus", "family", "order", "class", "kingdom"]
 
 
-def speciesnet_admin1(region: Optional[str]) -> Optional[str]:
-    """The admin1 region in the form SpeciesNet's geofence expects.
-
-    Server settings store the full ISO 3166-2 code ("US-CA"), but the
-    geofence keys hold only the part after the country ("CA"). Passing the
-    full code makes every state-limited species count as out of range,
-    everywhere in the country.
-    """
-    if not region:
-        return None
-    return region.split("-", 1)[-1]
-
-
-def geofence_and_roll_up(
-    classes: List[str],
-    scores: List[float],
-    ensemble: Any,
-    country: Optional[str],
-    admin1_region: Optional[str],
-) -> tuple[str, float]:
+def roll_up(classes: List[str], scores: List[float], ensemble: Any) -> tuple[str, float]:
     """Label and score for one detection from the classifier's top-5.
 
-    Mirrors run_md_and_speciesnet: with a country, geofence first, which
-    rolls an out-of-range top-1 up to an allowed ancestor. Otherwise apply
-    the confidence roll-up. A roll-up that finds no level above the
-    threshold keeps the top-1.
+    The confidence rollup of run_md_and_speciesnet, without a geofence: the
+    first level, from species up, where the summed scores pass the
+    threshold. A rollup that finds no such level keeps the top-1.
     """
-    if country:
-        label, score, source = geofence_animal_classification(
-            labels=classes,
-            scores=scores,
-            country=country,
-            admin1_region=admin1_region,
-            taxonomy_map=ensemble.taxonomy_map,
-            geofence_map=ensemble.geofence_map,
-            enable_geofence=True,
-        )
-        if source != "classifier":
-            return label, score
-
     rollup = roll_up_labels_to_first_matching_level(
         labels=classes,
         scores=scores,
-        country=country,
-        admin1_region=admin1_region,
+        country=None,
+        admin1_region=None,
         target_taxonomy_levels=ROLLUP_LEVELS,
         non_blank_threshold=ROLLUP_TARGET_CONFIDENCE,
         taxonomy_map=ensemble.taxonomy_map,
         geofence_map=ensemble.geofence_map,
-        enable_geofence=country is not None,
+        enable_geofence=False,
     )
     if rollup is not None:
         label, score, _ = rollup
@@ -105,13 +71,12 @@ def run_classification(
     detections: List[DetectionInfo],
     taxonomy_map: dict[str, str],
     ensemble: Any,
-    geofencing_config: Optional[dict[str, str]] = None
 ) -> List[Classification]:
     """
     Run SpeciesNet classification on animal detections.
 
     Only processes detections with category="animal". Each detection's
-    top-5 goes through geofence_and_roll_up, then the taxonomy CSV walk-up.
+    top-5 goes through roll_up, then the taxonomy CSV walk-up.
 
     Args:
         classifier: Loaded SpeciesNetClassifier instance
@@ -119,8 +84,7 @@ def run_classification(
         detections: List of DetectionInfo objects with bbox coordinates
         taxonomy_map: The project's taxonomy CSV mapping, never empty (the
             worker refuses to classify for a project without one)
-        ensemble: SpeciesNetEnsemble, the source of the taxonomy and geofence tables
-        geofencing_config: Dict with 'country_code' and 'admin1_region', or None
+        ensemble: SpeciesNetEnsemble, the source of the taxonomy table
 
     Returns:
         List of Classification objects (top-1 predictions per animal)
@@ -128,17 +92,10 @@ def run_classification(
     Raises:
         Exception: If inference fails
     """
-    country = geofencing_config.get("country_code") if geofencing_config else None
-    admin1_region = speciesnet_admin1(
-        geofencing_config.get("admin1_region") if geofencing_config else None
-    )
-
     logger.info(
         "Running classification",
         image_path=image_path,
         num_detections=len(detections),
-        country=country,
-        admin1_region=admin1_region,
     )
 
     try:
@@ -187,12 +144,10 @@ def run_classification(
             if classes and scores:
                 raw_score = scores[0]
 
-                label_for_taxonomy, score_for_taxonomy = geofence_and_roll_up(
-                    classes, scores, ensemble, country, admin1_region
-                )
+                label_for_taxonomy, score_for_taxonomy = roll_up(classes, scores, ensemble)
                 if label_for_taxonomy != classes[0]:
                     logger.debug(
-                        "Geofence or rollup applied",
+                        "Rollup applied",
                         detection_id=detection.detection_id,
                         raw_label=classes[0],
                         label=label_for_taxonomy,
@@ -272,19 +227,38 @@ class SpeciesNetModel:
     def classify(
         self, image_path: str, detections: List[DetectionInfo], project: ProjectConfig
     ) -> List[Classification]:
-        """Top-1 per animal detection, through the project's geofence and
-        label CSV. The project config is read per image, so a CSV upload
-        takes effect on the next image."""
-        taxonomy_map, geofencing_config = get_project_species_config(project.project_id)
+        """Top-1 per animal detection, through the project's label CSV. The
+        mapping is read per image, so a CSV upload takes effect on the next
+        image."""
+        taxonomy_map = get_project_taxonomy_map(project.project_id)
         return run_classification(
-            self.classifier, image_path, detections, taxonomy_map, self.ensemble, geofencing_config
+            self.classifier, image_path, detections, taxonomy_map, self.ensemble
         )
 
 
 def load(model: ClassificationModel, model_dir: Path, device: str) -> SpeciesNetModel:
-    """The classifier on the device, and the ensemble for its taxonomy and
-    geofence tables (`combine()` is never called)."""
+    """The classifier on the device, and the ensemble for its taxonomy
+    table (`combine()` is never called, and nothing is geofenced)."""
     patch_info_json(model_dir)
     classifier = SpeciesNetClassifier(model_name=str(model_dir), device=device)
-    ensemble = SpeciesNetEnsemble(model_name=str(model_dir), geofence=True)
+    ensemble = SpeciesNetEnsemble(model_name=str(model_dir), geofence=False)
+    check_vendored_taxonomy(model, ensemble.taxonomy_map)
     return SpeciesNetModel(model, classifier, ensemble)
+
+
+def check_vendored_taxonomy(model: ClassificationModel, taxonomy_map: dict) -> None:
+    """Refuse to run when the vendored taxonomy is not the model's own.
+
+    The API checks uploaded CSVs against the vendored file, so a difference
+    would accept names this model never predicts, or refuse ones it does.
+    The ensemble's keys are "class;order;family;genus;species".
+    """
+    names = taxon_names(
+        taxa for taxa in (key.split(";") for key in taxonomy_map) if len(taxa) == 5
+    )
+    expected = speciesnet_taxa()
+    if names != expected:
+        raise RuntimeError(
+            f"{model.id}: the model's taxonomy differs from model_taxonomy/{model.id}.txt: "
+            f"{sorted(names ^ expected)[:20]}"
+        )

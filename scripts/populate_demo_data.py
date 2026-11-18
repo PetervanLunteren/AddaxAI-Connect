@@ -1725,12 +1725,12 @@ def insert_project(session: Session) -> int:
     result = session.execute(
         text("""
             INSERT INTO projects (
-                name, description, location, included_species, country_code,
+                name, description, location, included_species,
                 classification_model, detection_threshold, classification_thresholds,
                 blur_people, blur_vehicles, independence_interval_minutes
             ) VALUES (
                 :name, :description, ST_GeogFromText(:boundary),
-                :species, 'NLD', :model, :threshold, CAST(:cls_thresholds AS json),
+                :species, :model, :threshold, CAST(:cls_thresholds AS json),
                 :blur, :blur, :independence
             ) RETURNING id
         """),

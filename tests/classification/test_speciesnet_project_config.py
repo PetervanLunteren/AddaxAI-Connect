@@ -1,9 +1,8 @@
 """Where the worker reads the image's model and project config.
 
 The model belongs to the image's project and loads on first use, and a
-SpeciesNet project's config (country, and the taxonomy mapping) is read per
-image. Both must come after every early return in
-process_detection_complete: an image without detections, a photo removed for
+SpeciesNet project's taxonomy mapping is read per image. Both must come
+after every early return in process_detection_complete: an image without detections, a photo removed for
 privacy, or an image with only people and vehicles never depends on them, so
 a missing config or a failing model load can never fail those images or drop
 their alerts. The worker module imports torch, so this reads the source,
@@ -40,11 +39,11 @@ def test_speciesnet_reads_its_project_config_per_image():
     with open(path, encoding="utf-8") as handle:
         source = handle.read()
     classify = source.index("def classify(")
-    assert "get_project_species_config(project.project_id)" in source[classify:]
+    assert "get_project_taxonomy_map(project.project_id)" in source[classify:]
 
 
 def test_startup_loads_the_models_in_use_and_nothing_else_waits():
     main = _function_source("main")
     assert "registry.load_all(models_in_use())" in main
     assert "time.sleep" not in main
-    assert "get_project_species_config" not in main
+    assert "get_project_taxonomy_map" not in main

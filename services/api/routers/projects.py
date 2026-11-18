@@ -7,7 +7,7 @@ import secrets
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field
 
 from shared.classification_models import CLASSIFICATION_MODELS, SPECIESNET
 from shared.models import User, Project, Camera, ProjectMembership, UserInvitation, ServerSettings, Site
@@ -65,37 +65,6 @@ def build_project_image_urls(project: Project) -> tuple[str | None, str | None]:
     return (image_url, thumbnail_url)
 
 
-def normalize_country_code(value: Optional[str]) -> Optional[str]:
-    """ISO 3166-1 alpha-3, uppercased ("nld" -> "NLD")."""
-    if value is None:
-        return None
-    code = value.strip().upper()
-    if len(code) != 3 or not code.isalpha():
-        raise ValueError("Country must be a 3-letter ISO 3166-1 alpha-3 code")
-    return code
-
-
-def normalize_admin1_region(value: Optional[str]) -> Optional[str]:
-    """ISO 3166-2 US state, uppercased ("us-ca" -> "US-CA").
-
-    An empty string passes through: on update it means "clear the state".
-    """
-    if value is None:
-        return None
-    region = value.strip().upper()
-    if region == "":
-        return ""
-    if len(region) != 5 or not region.startswith("US-") or not region[3:].isalpha():
-        raise ValueError("State must be an ISO 3166-2 US state code, like US-CA")
-    return region
-
-
-def check_admin1_with_country(country_code: Optional[str], admin1_region: Optional[str]) -> None:
-    """A state is only meaningful for the USA, the only country with state rules."""
-    if admin1_region and country_code != "USA":
-        raise ValueError("A state can only be set when the country is USA")
-
-
 class ProjectCreate(BaseModel):
     """Request body for creating a project"""
     # pattern: at least one character that is not a space. The UI trims the
@@ -103,10 +72,6 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255, pattern=r"\S")
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
-    # Optional, except for SpeciesNet, whose geofence needs it (checked in
-    # create_project, next to the CSV rule).
-    country_code: Optional[str] = None
-    admin1_region: Optional[str] = None
     # The classification model, a key of shared.classification_models.
     # Locked after creation: it is not in ProjectUpdate.
     classification_model: str
@@ -115,29 +80,12 @@ class ProjectCreate(BaseModel):
     # create_project), so a project never exists without its label list.
     taxonomy_csv: Optional[str] = Field(default=None, max_length=1_000_000)
 
-    _country = field_validator("country_code")(normalize_country_code)
-    _admin1 = field_validator("admin1_region")(normalize_admin1_region)
-
-    @model_validator(mode="after")
-    def _admin1_needs_usa(self) -> "ProjectCreate":
-        self.admin1_region = self.admin1_region or None
-        check_admin1_with_country(self.country_code, self.admin1_region)
-        return self
-
 
 class ProjectUpdate(BaseModel):
     """Request body for updating a project"""
     name: Optional[str] = Field(default=None, min_length=1, max_length=255, pattern=r"\S")
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
-    # The country cannot be cleared. An empty admin1_region clears the state;
-    # whether a state fits is checked against the stored country after the
-    # merge, since a partial update may send only one of the two.
-    country_code: Optional[str] = None
-    admin1_region: Optional[str] = None
-
-    _country = field_validator("country_code")(normalize_country_code)
-    _admin1 = field_validator("admin1_region")(normalize_admin1_region)
     detection_threshold: Optional[float] = None
     classification_thresholds: Optional[Dict[str, Any]] = None
     blur_people: Optional[bool] = None
@@ -173,8 +121,6 @@ class ProjectResponse(BaseModel):
     delete_vehicles: bool
     independence_interval_minutes: int
     require_two_factor: bool
-    country_code: Optional[str] = None
-    admin1_region: Optional[str] = None
     classification_model: str
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
@@ -272,8 +218,6 @@ async def list_projects(
             delete_vehicles=project.delete_vehicles,
             independence_interval_minutes=project.independence_interval_minutes,
             require_two_factor=project.require_two_factor,
-            country_code=project.country_code,
-            admin1_region=project.admin1_region,
         classification_model=project.classification_model,
             image_url=image_url,
             thumbnail_url=thumbnail_url,
@@ -337,8 +281,6 @@ async def get_project(
         delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         require_two_factor=project.require_two_factor,
-        country_code=project.country_code,
-        admin1_region=project.admin1_region,
         classification_model=project.classification_model,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -364,8 +306,8 @@ async def create_project(
     one project; a non-server-admin creator becomes project admin of the
     new project. Deleting a project stays server admin only.
 
-    Requires the server timezone to be configured. The country, the model
-    and, for SpeciesNet, the taxonomy mapping CSV come with the request and
+    Requires the server timezone to be configured. The model and, for
+    SpeciesNet, the taxonomy mapping CSV come with the request and
     are stored in the same commit as the project. The model must be in the
     catalog and fit the server's memory (utils.model_availability).
     """
@@ -386,11 +328,6 @@ async def create_project(
 
     taxonomy_rows = None
     if model.kind == SPECIESNET:
-        if not project_data.country_code:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A SpeciesNet project needs a country",
-            )
         if not project_data.taxonomy_csv:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -410,8 +347,6 @@ async def create_project(
         name=project_data.name,
         description=project_data.description,
         included_species=project_data.included_species,
-        country_code=project_data.country_code,
-        admin1_region=project_data.admin1_region,
         classification_model=model.id,
     )
 
@@ -450,8 +385,6 @@ async def create_project(
         delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         require_two_factor=project.require_two_factor,
-        country_code=project.country_code,
-        admin1_region=project.admin1_region,
         classification_model=project.classification_model,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -508,16 +441,6 @@ async def update_project(
         project.description = project_data.description
     if project_data.included_species is not None:
         project.included_species = project_data.included_species
-    if project_data.country_code is not None:
-        project.country_code = project_data.country_code
-        if project.country_code != "USA":
-            project.admin1_region = None
-    if project_data.admin1_region is not None:
-        project.admin1_region = project_data.admin1_region or None
-    try:
-        check_admin1_with_country(project.country_code, project.admin1_region)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     if project_data.blur_people is not None:
         project.blur_people = project_data.blur_people
     if project_data.blur_vehicles is not None:
@@ -584,8 +507,6 @@ async def update_project(
         delete_vehicles=project.delete_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         require_two_factor=project.require_two_factor,
-        country_code=project.country_code,
-        admin1_region=project.admin1_region,
         classification_model=project.classification_model,
         image_url=image_url,
         thumbnail_url=thumbnail_url,

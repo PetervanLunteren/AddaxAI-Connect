@@ -422,10 +422,6 @@ class Project(Base):
     description = Column(Text, nullable=True)
     location = Column(Geography(geometry_type='POLYGON', srid=4326), nullable=True)
     included_species = Column(JSON, nullable=True)  # List of species names that ARE present in project area (null = all species)
-    # Where the cameras are. Required for new projects (API), NULL on
-    # projects made before it existed. SpeciesNet geofences on it.
-    country_code = Column(String(3), nullable=True)  # ISO 3166-1 alpha-3, e.g. "NLD"
-    admin1_region = Column(String(10), nullable=True)  # ISO 3166-2 US state, e.g. "US-CA"; USA only
     # The classification model, a key of shared.classification_models.
     # Picked at creation and never changed, so it also says which model
     # made every label in the project.

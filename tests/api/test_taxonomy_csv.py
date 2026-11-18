@@ -75,7 +75,6 @@ class TestParseTaxonomyCsv:
         text = "latin,common\naccipitridae,bird of prey\nfalconidae,bird of prey\n"
         assert len(parse_taxonomy_csv(text)) == 2
 
-
     def test_names_speciesnet_does_not_know_are_all_listed(self):
         text = "latin,common\nvulpes vulpse,red fox\naves,bird\ncanidea,unknown canid\n"
         with pytest.raises(ValueError) as exc:
@@ -136,7 +135,6 @@ class TestCreateProjectCsvRule:
             # The model fits unless the test says otherwise
             monkeypatch.setattr(projects, "check_model", lambda m: None)
             db = _Db(_Result(SimpleNamespace(timezone="Europe/Amsterdam")))
-            fields.setdefault("country_code", "NLD")
             data = projects.ProjectCreate(name="Park", classification_model=model, **fields)
             return projects.create_project(data, db=db, current_user=SimpleNamespace(is_superuser=True))
 
@@ -155,18 +153,11 @@ class TestCreateProjectCsvRule:
 
         monkeypatch.setattr(projects, "check_model", lambda m: "Not enough memory")
         db = _Db(_Result(SimpleNamespace(timezone="Europe/Amsterdam")))
-        data = projects.ProjectCreate(name="Park", country_code="NLD", classification_model=DEEPFAUNE_ID)
+        data = projects.ProjectCreate(name="Park", classification_model=DEEPFAUNE_ID)
         with pytest.raises(HTTPException) as exc:
             await projects.create_project(data, db=db, current_user=SimpleNamespace(is_superuser=True))
         assert exc.value.status_code == 400
         assert exc.value.detail == "Not enough memory"
-
-    @pytest.mark.asyncio
-    async def test_speciesnet_needs_a_country(self, create):
-        with pytest.raises(HTTPException) as exc:
-            await create(SPECIESNET_ID, country_code=None, taxonomy_csv="latin,common\naves,bird\n")
-        assert exc.value.status_code == 400
-        assert exc.value.detail == "A SpeciesNet project needs a country"
 
     @pytest.mark.asyncio
     async def test_speciesnet_needs_a_csv(self, create):

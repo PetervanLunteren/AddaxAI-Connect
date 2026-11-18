@@ -324,10 +324,6 @@ export interface Project {
   // Everyone who can open the project must have two-factor login, server
   // admins included. Checked at each user's next login.
   require_two_factor: boolean;
-  // Where the cameras are: ISO 3166-1 alpha-3, and an ISO 3166-2 US state.
-  // Null on projects made before the country was required.
-  country_code: string | null;
-  admin1_region: string | null;
   // The classification model, picked at creation and never changed. A key
   // of the classification models catalog (classificationModelsApi).
   classification_model: string;
@@ -342,9 +338,6 @@ export interface ProjectCreate {
   description?: string;
   // null means all species are allowed, same as omitting it.
   included_species?: string[] | null;
-  /** Required for SpeciesNet, optional for every other model */
-  country_code?: string | null;
-  admin1_region?: string | null;
   classification_model: string;
   // The taxonomy mapping CSV text, required for a SpeciesNet project only
   taxonomy_csv?: string;
@@ -361,9 +354,6 @@ export interface ProjectUpdate {
   independence_interval_minutes?: number;
   require_two_factor?: boolean;
   classification_thresholds?: { default: number; overrides: Record<string, number> };
-  country_code?: string;
-  // An empty string clears the state
-  admin1_region?: string;
 }
 
 export interface ProjectDeleteResponse {

@@ -13,8 +13,6 @@ import { Button, buttonVariants } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
-import { CountrySelect } from '../../components/ui/CountrySelect';
-import { StateSelect } from '../../components/ui/StateSelect';
 import { SiteGroupsModal } from '../../components/SiteGroupsModal';
 import { ClassificationThresholdsModal } from '../../components/ClassificationThresholdsModal';
 import { ProjectTaxonomyCard } from '../../components/projects/ProjectTaxonomyCard';
@@ -113,8 +111,6 @@ export const ProjectSettingsPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 30);
   const [requireTwoFactor, setRequireTwoFactor] = useState<boolean>(currentProject?.require_two_factor ?? false);
-  const [countryCode, setCountryCode] = useState<string>(currentProject?.country_code ?? '');
-  const [admin1Region, setAdmin1Region] = useState<string>(currentProject?.admin1_region ?? '');
   const [classificationDefault, setClassificationDefault] = useState<number>(
     currentProject?.classification_thresholds?.default ?? 0.0,
   );
@@ -148,8 +144,6 @@ export const ProjectSettingsPage: React.FC = () => {
       setVehiclesPrivacy(privacyChoice(currentProject.blur_vehicles, currentProject.delete_vehicles));
       setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
       setRequireTwoFactor(currentProject.require_two_factor);
-      setCountryCode(currentProject.country_code ?? '');
-      setAdmin1Region(currentProject.admin1_region ?? '');
       setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
       setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
     }
@@ -283,11 +277,6 @@ export const ProjectSettingsPage: React.FC = () => {
   ].filter((c): c is string => c !== null);
   const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 30);
   const hasTwoFactorChanges = requireTwoFactor !== currentProject.require_two_factor;
-  // The country cannot be cleared, so an emptied country box is no change.
-  const hasCountryChanges =
-    countryCode !== '' &&
-    (countryCode !== (currentProject.country_code ?? '') ||
-      admin1Region !== (currentProject.admin1_region ?? ''));
 
   const hasClassificationThresholdChanges = (() => {
     const stored = currentProject.classification_thresholds ?? { default: 0.0, overrides: {} };
@@ -323,7 +312,6 @@ export const ProjectSettingsPage: React.FC = () => {
     hasPrivacyChanges ||
     hasIntervalChanges ||
     hasTwoFactorChanges ||
-    hasCountryChanges ||
     hasGroupChanges ||
     hasClassificationThresholdChanges;
 
@@ -361,7 +349,7 @@ export const ProjectSettingsPage: React.FC = () => {
         );
       }
 
-      if (hasSpeciesChanges || hasPrivacyChanges || hasIntervalChanges || hasTwoFactorChanges || hasCountryChanges) {
+      if (hasSpeciesChanges || hasPrivacyChanges || hasIntervalChanges || hasTwoFactorChanges) {
         const update: ProjectUpdate = {};
         if (hasSpeciesChanges) {
           // Every species selected is stored as an empty list ("all"), so the
@@ -383,11 +371,6 @@ export const ProjectSettingsPage: React.FC = () => {
         }
         if (hasTwoFactorChanges) {
           update.require_two_factor = requireTwoFactor;
-        }
-        if (hasCountryChanges) {
-          // An empty state clears it on the server
-          update.country_code = countryCode;
-          update.admin1_region = admin1Region;
         }
         promises.push(updateSpeciesMutation.mutateAsync({
           id: currentProject.id,
@@ -477,8 +460,6 @@ export const ProjectSettingsPage: React.FC = () => {
     setVehiclesPrivacy(privacyChoice(currentProject.blur_vehicles, currentProject.delete_vehicles));
     setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
     setRequireTwoFactor(currentProject.require_two_factor);
-    setCountryCode(currentProject.country_code ?? '');
-    setAdmin1Region(currentProject.admin1_region ?? '');
     setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
     setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
     const included = currentProject.included_species || [];
@@ -677,34 +658,6 @@ export const ProjectSettingsPage: React.FC = () => {
             </>
           )}
 
-          <div className="border-t my-6" />
-
-          {/* Country, and the state for the USA */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-            <div className="w-full sm:w-1/2 sm:shrink-0">
-              <label className="text-sm font-medium block">
-                Country
-              </label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Where the cameras of this project are. A change applies to new images only.
-              </p>
-            </div>
-            <div className="flex-1 space-y-2">
-              <CountrySelect
-                value={countryCode}
-                onChange={(code) => {
-                  setCountryCode(code);
-                  if (code !== 'USA') setAdmin1Region('');
-                }}
-                disabled={isSaving}
-              />
-              {countryCode === 'USA' && (
-                <StateSelect value={admin1Region} onChange={setAdmin1Region} disabled={isSaving} />
-              )}
-            </div>
-          </div>
-
-          {/* Divider */}
           <div className="border-t my-6" />
 
           {/* Privacy, one row, people and vehicles choose independently */}

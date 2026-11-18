@@ -1,7 +1,7 @@
 /**
  * The look of every searchable select (react-select), so it matches the
  * plain Select in ui/Select.tsx: same height, border, focus ring, text size
- * and the same lucide chevron. Country, state and timezone pickers use it.
+ * and the same lucide chevron. The timezone and label pickers use it.
  */
 import { ChevronDown } from 'lucide-react';
 import { components, type DropdownIndicatorProps, type GroupBase, type StylesConfig } from 'react-select';

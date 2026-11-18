@@ -21,32 +21,19 @@ def models_in_use() -> list[str]:
     return sorted(row[0] for row in rows)
 
 
-def get_project_species_config(project_id: int) -> tuple[dict[str, str], dict[str, str]]:
+def get_project_taxonomy_map(project_id: int) -> dict[str, str]:
     """
-    A SpeciesNet project's classification config: its taxonomy mapping and
-    its geofence.
+    A SpeciesNet project's taxonomy mapping, as {latin: common}.
 
-    Raises ValueError when the project has no taxonomy mapping or no
-    country, so the image fails visibly instead of being classified without
-    its label list or geofence. A SpeciesNet project gets both when it is
-    created.
-
-    Returns:
-        ({lowercase latin: common}, {'country_code', 'admin1_region' ('' when unset)})
+    Raises ValueError when the project has none, so the image fails visibly
+    instead of being classified without its label list. A SpeciesNet project
+    gets its mapping when it is created.
     """
     with get_db_session() as db:
-        project = db.query(Project).filter(Project.id == project_id).first()
-        if not project or not project.country_code:
-            raise ValueError(f"Project {project_id} has no country, set one in project settings")
         rows = db.query(TaxonomyMapping).filter(TaxonomyMapping.project_id == project_id).all()
         if not rows:
             raise ValueError(f"Project {project_id} has no taxonomy mapping, upload one in project settings")
-        taxonomy_map = {row.latin: row.common for row in rows}
-        geofence = {
-            "country_code": project.country_code,
-            "admin1_region": project.admin1_region or "",
-        }
-        return taxonomy_map, geofence
+        return {row.latin: row.common for row in rows}
 
 
 def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], ProjectConfig | None]:
