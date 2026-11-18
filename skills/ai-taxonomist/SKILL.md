@@ -162,7 +162,7 @@ When the user wants one animal apart and does not care about the rest of its gro
 
 Ask with this text:
 
-> Paste your current label list here. You get it in your project under Settings, at Species labels, with "download the CSV". Then tell me in your own words what you want different, for example a label that holds the wrong animals, too many photos that only say "mammal", or animals you want apart.
+> Paste your current label list here. You get it in your project under Settings, at Species labels, with "download the CSV". Then tell me in your own words what you want different, for example a label that holds the wrong animals, too many photos that only say "mammal", or animals you want apart. If you did not tell me yet, also say where the project is and what it is about.
 
 Find the cause in the rows and propose the smallest edit.
 

@@ -680,6 +680,36 @@ setting, and the current list can be downloaded as the same two-column CSV.
   holds counts and label names only, rules are private to their owner. The
   cleanup compares with the new list, not with the old one, so a label that
   disappeared before v0.23.0 leaves its rules at the project's next change.
+- **What a list does to real photos.** Every classification keeps
+  SpeciesNet's own answer next to the project's label
+  (`classifications.raw_prediction`, stored after the rollup), and no screen
+  shows it. To see why photos land on a catch-all, or which answers a label
+  holds, ask the database. Read-only, so it is safe on a production server:
+
+  ```bash
+  docker exec addaxai-postgres psql -U addaxai -d addaxai_connect -c "
+    SELECT cl.species AS label,
+           split_part(cl.raw_prediction, ';', 7) AS speciesnet_said,
+           count(*)
+    FROM classifications cl
+    JOIN detections d ON d.id = cl.detection_id
+    JOIN images i ON i.id = d.image_id
+    JOIN cameras c ON c.id = i.camera_id
+    JOIN projects p ON p.id = c.project_id
+    WHERE p.id = <project id>
+      AND d.category = 'animal'
+      AND d.confidence >= p.detection_threshold
+      AND NOT i.is_hidden
+    GROUP BY 1, 2
+    ORDER BY 1, 3 DESC"
+  ```
+
+  A label with one big answer under it is missing a row for that answer.
+  `cl.species` on a verified photo can still be the label of an older list,
+  because an upload only relabels photos nobody verified. Fields 2 to 6 of
+  `raw_prediction` are class, order, family, genus and species, for a finer
+  look. A label report for users, built on this, was written and dropped on
+  18 Nov 2026 as not needed yet (YAGNI).
 - **Per detection.** The worker follows MegaDetector's `run_md_and_speciesnet`
   as it runs with a taxa list: the confidence rollup, a public speciesnet
   function (`speciesnet_model.py`), then the CSV walk-up (`shared/taxonomy.py`).
