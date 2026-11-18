@@ -129,9 +129,13 @@ class TestThresholds:
     async def test_only_thresholds_on_gone_labels_are_removed(self, clean):
         impact, _, _, project = await _run(clean, [], overrides={"wolf": 0.4, "porcupine": 0.7})
         assert project.classification_thresholds == {"default": 0.5, "overrides": {"wolf": 0.4}}
-        assert impact.thresholds_removed == 1
-        assert impact.labels == ["porcupine"]
-        assert not impact.is_empty
+
+    @pytest.mark.asyncio
+    async def test_a_threshold_goes_quietly(self, clean):
+        # It is the admin's own setting and did nothing anymore, so it is not
+        # in the impact and never opens the confirm window on its own.
+        impact, recipients, _, _ = await _run(clean, [], overrides={"porcupine": 0.7})
+        assert impact.is_empty and impact.labels == [] and recipients == []
 
     @pytest.mark.asyncio
     async def test_a_project_without_thresholds(self, clean):
@@ -151,7 +155,7 @@ class TestCountingOnly:
         assert kept.species == ["wolf", "porcupine"] and gone.species == ["porcupine"]
         assert db.deleted == []
         assert project.classification_thresholds["overrides"] == {"porcupine": 0.7}
-        assert (impact.rules_updated, impact.rules_deleted, impact.thresholds_removed) == (1, 1, 1)
+        assert (impact.rules_updated, impact.rules_deleted) == (1, 1)
         assert len(recipients) == 1
 
     @pytest.mark.asyncio
@@ -216,8 +220,7 @@ class TestConfirmOrRefuse:
         assert exc.value.status_code == 409
         assert exc.value.detail["code"] == "label_changes_need_confirmation"
         assert exc.value.detail["impact"] == {
-            "labels": ["porcupine"], "rules_updated": 0, "rules_deleted": 1,
-            "thresholds_removed": 0, "users_emailed": 1,
+            "labels": ["porcupine"], "rules_updated": 0, "rules_deleted": 1, "users_emailed": 1,
         }
         assert db.deleted == []
 

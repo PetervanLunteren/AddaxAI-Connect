@@ -670,7 +670,8 @@ as the same two-column CSV.
   settings. One rule for both, in `services/api/utils/label_changes.py`: the
   label is removed from the detection rules and species reports that use it,
   a rule with no label left is deleted, and a confidence threshold on it is
-  deleted. The endpoint answers 409 with the impact and writes nothing until
+  deleted. When rules are affected (a threshold alone goes without a
+  question), the endpoint answers 409 with the impact and writes nothing until
   the request confirms (`confirm` on the upload, `confirm_label_changes` on
   the project update); the frontend shows `LabelChangeDialog`. After the
   commit every other affected owner gets one email, best effort. The impact

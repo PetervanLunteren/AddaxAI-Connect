@@ -867,16 +867,15 @@ export interface TaxonomyMappingResponse {
   entries: TaxonomyMappingEntry[];
 }
 
-// What a label change removes from rules and thresholds. Counts only: rules
-// are private to the user who made them.
+// What a label change does to detection rules and species reports. Counts
+// only: rules are private to the user who made them.
 export interface LabelChangeImpact {
-  // The labels that disappear and are in use
+  // The labels that disappear and that rules use
   labels: string[];
   // Rules that lose a label and keep others
   rules_updated: number;
   // Rules that have no label left
   rules_deleted: number;
-  thresholds_removed: number;
   users_emailed: number;
 }
 

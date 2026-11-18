@@ -246,7 +246,7 @@ class TestUploadScope:
         fields = set(project_taxonomy.TaxonomyUploadResponse.model_fields)
         assert fields == {"count", "entries", "reprocessed_count", "impact"}
         assert set(LabelChangeImpact.model_fields) == {
-            "labels", "rules_updated", "rules_deleted", "thresholds_removed", "users_emailed",
+            "labels", "rules_updated", "rules_deleted", "users_emailed",
         }
 
 

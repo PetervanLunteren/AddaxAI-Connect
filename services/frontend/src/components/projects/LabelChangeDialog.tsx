@@ -1,12 +1,12 @@
 /**
- * Asked before a project loses a label that rules or thresholds use: a new
- * SpeciesNet label list without it, or a narrower species list of a
- * fixed-class project. The server answers such a save with the impact and
- * writes nothing until it is sent again with the confirm flag.
+ * Asked before a project loses a label that detection rules or species
+ * reports use: a new SpeciesNet label list without it, or a narrower species
+ * list of a fixed-class project. The server answers such a save with the
+ * impact and writes nothing until it is sent again with the confirm flag.
  *
- * The label is then removed from the rules that use it, a rule with no label
- * left is deleted, and a threshold on it is deleted. Counts only: rules are
- * private, so the admin never sees whose they are.
+ * The label is then removed from the rules that use it, and a rule with no
+ * label left is deleted. Counts only: rules are private, so the admin never
+ * sees whose they are.
  */
 import React from 'react';
 import { Loader2 } from 'lucide-react';
@@ -38,32 +38,24 @@ export const LabelChangeDialog: React.FC<LabelChangeDialogProps> = ({
   if (!impact) return null;
 
   const rules = impact.rules_updated + impact.rules_deleted;
-  const bullets: string[] = [];
-  if (rules > 0) {
-    bullets.push(`${listed(impact.labels)} from ${count(rules, 'detection rule or species report', 'detection rules and species reports')}`);
-  }
+  const bullets = [`${listed(impact.labels)} from ${count(rules, 'rule', 'rules')}`];
   if (impact.rules_deleted > 0) {
-    bullets.push(`${count(impact.rules_deleted, 'of those has no other label and is deleted', 'of those have no other label and are deleted')}`);
-  }
-  if (impact.thresholds_removed > 0) {
-    bullets.push(count(impact.thresholds_removed, 'confidence threshold', 'confidence thresholds'));
+    bullets.push(count(impact.rules_deleted, 'rule has no other label and is deleted', 'rules have no other label and are deleted'));
   }
 
   return (
     <Dialog open onOpenChange={(open) => !open && !isPending && onClose()}>
       <DialogContent onClose={isPending ? undefined : onClose}>
         <DialogHeader>
-          <DialogTitle>
-            {impact.labels.length === 1 ? 'A label that is in use disappears' : 'Labels that are in use disappear'}
-          </DialogTitle>
+          <DialogTitle>Your new list breaks some detection rules</DialogTitle>
           <DialogDescription>
-            Nothing is saved yet. Everything that does not use {impact.labels.length === 1 ? 'this label' : 'these labels'} stays as it is.
+            Users in this project have detection rules and species reports on labels that are not in your new list.
           </DialogDescription>
         </DialogHeader>
         <ImpactBox sections={[{ heading: 'This will remove', bullets }]}>
           {impact.users_emailed > 0 && (
             <p className="text-muted-foreground">
-              {count(impact.users_emailed, 'user gets', 'users get')} an email that says what changed in their rules.
+              {count(impact.users_emailed, 'user gets', 'users get')} an email that says what changed.
             </p>
           )}
         </ImpactBox>

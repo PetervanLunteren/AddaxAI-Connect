@@ -7,10 +7,12 @@ both: the label is removed everywhere it is used. A detection rule or
 species report that has no label left is deleted, and a confidence threshold
 on the label is deleted. Everything else stays as it is.
 
-The admin sees the counts first (the endpoints answer 409 with the impact
-until the request confirms), and every other affected user gets one email
-after the save. clean_gone_labels gives the window its numbers and does the
-work, so the two cannot disagree.
+When rules are affected the admin sees the counts first (the endpoints
+answer 409 with the impact until the request confirms), and every other
+affected user gets one email after the save. clean_gone_labels gives the
+window its numbers and does the work, so the two cannot disagree. A
+threshold is the admin's own setting and did nothing anymore, so it goes
+without a question.
 """
 from dataclasses import dataclass, field
 from typing import Iterable, List, Optional
@@ -35,17 +37,17 @@ NEEDS_CONFIRMATION = "label_changes_need_confirmation"
 
 
 class LabelChangeImpact(BaseModel):
-    """What a label change removes. Counts only: rules are private to the
-    user who made them, so the admin never sees whose they are."""
-    labels: List[str]  # the labels that disappear and are in use, sorted
+    """What a label change does to detection rules and species reports.
+    Counts only: rules are private to the user who made them, so the admin
+    never sees whose they are."""
+    labels: List[str]  # the labels that disappear and that rules use, sorted
     rules_updated: int  # rules that lose a label and keep others
     rules_deleted: int  # rules that have no label left
-    thresholds_removed: int
     users_emailed: int
 
     @property
     def is_empty(self) -> bool:
-        return not (self.rules_updated or self.rules_deleted or self.thresholds_removed)
+        return not (self.rules_updated or self.rules_deleted)
 
 
 @dataclass
@@ -156,9 +158,9 @@ async def clean_gone_labels(
         elif apply:
             await db.delete(rule)
 
+    # Thresholds go quietly: they are not in the impact and never ask.
     overrides = threshold_overrides(project)
     gone_thresholds = stale_labels(overrides, labels)
-    gone_labels.update(gone_thresholds)
     if apply and gone_thresholds:
         project.classification_thresholds = {
             **project.classification_thresholds,
@@ -175,7 +177,6 @@ async def clean_gone_labels(
         labels=sorted(gone_labels),
         rules_updated=rules_updated,
         rules_deleted=rules_deleted,
-        thresholds_removed=len(gone_thresholds),
         users_emailed=len(recipients),
     )
     return impact, recipients
@@ -188,8 +189,8 @@ async def confirm_or_refuse(
     current_user: User,
     confirmed: bool,
 ) -> None:
-    """Answer 409 with the impact when the change removes something and the
-    request did not confirm it. Writes nothing."""
+    """Answer 409 with the impact when the change takes labels out of rules
+    and the request did not confirm it. Writes nothing."""
     impact, _ = await clean_gone_labels(db, project, labels, current_user, apply=False)
     if not impact.is_empty and not confirmed:
         raise HTTPException(
