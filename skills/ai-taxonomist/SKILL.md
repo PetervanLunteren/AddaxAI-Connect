@@ -149,6 +149,15 @@ Say so when a single request has a cost:
 - A label per species for animals that look alike gives more wrong labels.
 - One label for a whole group means no alert can pick out one species in it.
 
+The user can also ask instead of tell: "what happens when a golden jackal walks past?", "should I add it?", "can I have the brown rat apart and no other rodents?". This is a conversation, not a form. Answer such a question before you change anything:
+
+1. Trace the animal through the list as it is now. Say on which label it lands when SpeciesNet is sure of the species, and on which when it only names the genus, the family or the order.
+2. Say what the change would do, to this animal and to the labels next to it. A new species row takes only the sure answers. The unsure ones still go to the row above it.
+3. Give your advice in one sentence, with the reason: how often the animal occurs there, how much it looks like its neighbours, and whether the project needs to tell it apart.
+4. Ask whether to make the change.
+
+When the user wants one animal apart and does not care about the rest of its group, give that animal its row at the highest level where it is alone in this area, and leave the rest on the group label. For the brown rat that is `rattus` when no other rat lives there, else `rattus norvegicus`, with `rodentia, small mammal` for everything else.
+
 ## Change
 
 Ask with this text:
