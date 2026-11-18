@@ -26,6 +26,7 @@ AddaxAI Connect is an open-source platform for camera traps. MegaDetector finds 
 - SpeciesNet knows about 2,000 species and 1,400 groups above them (genus, family, order, class). When it is unsure it names a group: a fox can come back as "canine family", "carnivorous mammal" or "mammal".
 - For each answer Connect looks for a row at that exact level, then one level up, and so on: species, genus, family, order, class. The first row it finds gives the label. No row at all gives "unknown animal".
 - So a row catches everything at its level and below, and nothing above. A row at `vulpes vulpes` misses an answer of "canine family". A row at `canidae` catches both.
+- A missing row never moves an animal sideways into a neighbouring row. With `canis lupus, wolf` and no row for the dog, a dog lands on the canid or mammal row, never on "wolf". A dog gets "wolf" only when the wolf row sits higher, at `canis`, or when SpeciesNet itself says "grey wolf".
 - Alerts and statistics run on labels. A label that mixes wolves and dogs makes a wolf alert useless.
 - A group label is right much more often than a species label. "Mustelid" is nearly always right, "pine marten" is often a guess.
 - `person` and `vehicle` come from the detector. Never use these two as labels, and never "unknown animal".
@@ -102,11 +103,12 @@ Ask the user to paste the current CSV (Download CSV at Species labels in the pro
 
 | What the user sees | Usual cause | Fix |
 |---|---|---|
-| A label holds animals that do not belong | The row sits too high, or a look-alike has no row | Add a row for the look-alike or the domestic relative, or move the row down |
+| A label holds animals that do not belong | The row sits too high, at a genus or family that holds more than you meant | Move the row down, and give the look-alike or the domestic relative its own row |
 | Much lands on "mammal", "bird" or "unknown animal" | No row at the family or order SpeciesNet falls back to | Add the family row, or the "unknown" order row |
 | A species label is often wrong | Look-alike species the model cannot tell apart | Merge them into one group label |
 | An alert cannot pick out one animal | The animal shares a group label | Give its family species rows and an "unknown" row |
 | An animal never gets its label | The latin name is not in the taxonomy file, or the row sits too low | Fix the name, or move the row up |
+| One animal often gets the label of a look-alike, while the rows are right | SpeciesNet itself confuses the two | Merge them into one label, or accept it. No row can fix this |
 
 Show the edit as rows added, removed and changed, with one line of reason each. Then go through "Refine" and "Hand over". Tell the user that alert rules, reports and thresholds keep their old label names: after the upload, AddaxAI Connect names the ones that no longer exist.
 
