@@ -1339,7 +1339,29 @@ const ReviewStep: React.FC<{
               {' '}Go back to scan the folder again, or check the card reader.{' '}
             </>
           )}
-          {undatedCount > 0 && (
+          {undatedCount > 0 && rawValidCount === 0 ? (
+            // Nothing can go up, so say where the date comes from and what to
+            // try. Copying through a chat app or cloud service often strips
+            // the EXIF (issue #99).
+            <>
+              <span className="font-medium">
+                None of these photos has a date, so there is nothing to upload.
+              </span>
+              {' '}The date comes from the camera, which writes it into each photo.
+              {' '}Copy the folder straight from the SD card, because sending photos
+              {' '}through a chat app, a cloud service or a photo editor can remove it.
+              {' '}If that does not help,{' '}
+              <a
+                href="https://github.com/PetervanLunteren/AddaxAI-Connect/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2"
+              >
+                open an issue on GitHub
+              </a>
+              {' '}with a few photos.{' '}
+            </>
+          ) : undatedCount > 0 && (
             <>
               <span className="font-medium">
                 {undatedCount.toLocaleString()} image{undatedCount === 1 ? ' has' : 's have'} no date and will not be uploaded.
