@@ -83,7 +83,7 @@ DeepFaune, since nothing says they were SpeciesNet. Later releases copy the
 data, so a server that skips v0.17.0 is fine.
 
 If that happened to you, set the model back per project, then upload the CSV
-and set the country again in project settings:
+again in project settings:
 
 ```bash
 docker exec addaxai-postgres psql -U addaxai -d addaxai_connect \
