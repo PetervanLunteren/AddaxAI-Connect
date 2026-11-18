@@ -99,7 +99,7 @@ Apply what the user asks and show only the labels that changed. Ask again, until
 
 ## Change
 
-Ask the user to paste the current CSV (Download CSV at Species labels in the project settings) and to say what bothers them. Find the cause in the rows and propose the smallest edit.
+Ask the user to paste the current CSV ("download the CSV" at Species labels in the project settings) and to say what bothers them. Find the cause in the rows and propose the smallest edit.
 
 | What the user sees | Usual cause | Fix |
 |---|---|---|
@@ -138,7 +138,7 @@ mammalia,mammal
 End with the steps:
 
 1. Save the list as a file ending in `.csv`.
-2. New project: drop the file at Species labels in the create project dialog. Existing project: open Settings, drop the file at Species labels and click Save and relabel.
+2. New project: drop the file at Species labels in the create project dialog. Existing project: open Settings, drop the file at Species labels and click Save changes.
 3. If AddaxAI Connect names rows it does not know, paste that message here.
 
 More about the upload is in the [SpeciesNet setup guide](https://connect.addaxai.com/speciesnet-setup/).

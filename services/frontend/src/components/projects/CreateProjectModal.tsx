@@ -27,6 +27,7 @@ import { Button } from '../ui/Button';
 import { Callout } from '../ui/Callout';
 import { Select } from '../ui/Select';
 import { TaxonomyDropzone } from './TaxonomyDropzone';
+import { captionLinkClass } from './SpeciesLabelsRow';
 import { projectsApi } from '../../api/projects';
 import { classificationModelsApi, ClassificationModelInfo } from '../../api/classificationModels';
 
@@ -282,7 +283,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
                     href="https://connect.addaxai.com/speciesnet-setup/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline"
+                    className={captionLinkClass}
                   >
                     SpeciesNet setup guide
                   </a>{' '}

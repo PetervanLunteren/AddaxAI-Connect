@@ -15,7 +15,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
 import { SiteGroupsModal } from '../../components/SiteGroupsModal';
 import { ClassificationThresholdsModal } from '../../components/ClassificationThresholdsModal';
-import { ProjectTaxonomyCard } from '../../components/projects/ProjectTaxonomyCard';
+import { SpeciesLabelsRow, captionLinkClass } from '../../components/projects/SpeciesLabelsRow';
 import { ThresholdCheckButton, ThresholdCheckDialog } from '../../components/ThresholdCheckDialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
@@ -115,6 +115,10 @@ export const ProjectSettingsPage: React.FC = () => {
   const [requireTwoFactor, setRequireTwoFactor] = useState<boolean>(currentProject?.require_two_factor ?? false);
   // Set while the server waits for a confirm, see LabelChangeDialog
   const [pendingImpact, setPendingImpact] = useState<LabelChangeImpact | null>(null);
+  // A SpeciesNet project's new label CSV, picked and not saved yet, and why
+  // the last save refused it (see SpeciesLabelsRow)
+  const [taxonomyFile, setTaxonomyFile] = useState<File | null>(null);
+  const [taxonomyError, setTaxonomyError] = useState<string | null>(null);
   const [classificationDefault, setClassificationDefault] = useState<number>(
     currentProject?.classification_thresholds?.default ?? 0.0,
   );
@@ -316,6 +320,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const hasUnsavedChanges =
     hasThresholdChanges ||
     hasSpeciesChanges ||
+    taxonomyFile !== null ||
     hasPrivacyChanges ||
     hasIntervalChanges ||
     hasTwoFactorChanges ||
@@ -323,10 +328,12 @@ export const ProjectSettingsPage: React.FC = () => {
     hasClassificationThresholdChanges;
 
   // Unified save handler. confirmLabelChanges is set on the second try, after
-  // LabelChangeDialog asked about a species list that drops a label in use.
+  // LabelChangeDialog asked about a label list or species list that drops a
+  // label in use.
   const handleSave = async (confirmLabelChanges = false) => {
     setSaveStatus('saving');
     setError(null);
+    setTaxonomyError(null);
     setPendingImpact(null);
 
     // Snapshot old values before saving
@@ -342,9 +349,30 @@ export const ProjectSettingsPage: React.FC = () => {
           : null,
       ]);
 
-      // 2. Save all changes. The project update goes first and on its own:
-      // the server refuses a species list that removes a label from rules or
-      // thresholds until it is confirmed, and then nothing else is saved yet.
+      // 2. Save all changes. The label list and the project update go first
+      // and on their own: the server refuses a list that takes a label out of
+      // notifications until it is confirmed, and then nothing else is saved yet.
+      if (taxonomyFile) {
+        try {
+          await projectsApi.uploadTaxonomy(currentProject.id, taxonomyFile, confirmLabelChanges);
+        } catch (err) {
+          if (labelChangeImpact(err)) throw err;
+          // A refused file, shown at its own row with one problem per line
+          setTaxonomyError(apiErrorMessage(err));
+          setSaveStatus('idle');
+          return;
+        }
+        setTaxonomyFile(null);
+        // New labels everywhere labels show: the list itself, the label
+        // pickers, the rules, and every image and number with an old label.
+        for (const key of ['project-taxonomy', 'available-species', 'species', 'detection-alert-rules', 'species-report-rules']) {
+          queryClient.invalidateQueries({ queryKey: [key, currentProject.id] });
+        }
+        for (const key of ['images', 'image', 'statistics', 'user-projects']) {
+          queryClient.invalidateQueries({ queryKey: [key] });
+        }
+      }
+
       if (hasSpeciesChanges || hasPrivacyChanges || hasIntervalChanges || hasTwoFactorChanges) {
         const update: ProjectUpdate = { confirm_label_changes: confirmLabelChanges };
         if (hasSpeciesChanges) {
@@ -482,6 +510,8 @@ export const ProjectSettingsPage: React.FC = () => {
       included.map(species => ({ label: normalizeLabel(species), value: species }))
     );
     setPendingGroups(siteGroups);
+    setTaxonomyFile(null);
+    setTaxonomyError(null);
   };
 
   // Restore defaults (fill form only, user must save)
@@ -607,7 +637,7 @@ export const ProjectSettingsPage: React.FC = () => {
                   type="button"
                   onClick={() => setShowClassificationOverridesModal(true)}
                   disabled={isSaving}
-                  className="text-primary underline underline-offset-2 hover:text-primary/80 disabled:opacity-50"
+                  className={captionLinkClass}
                 >
                   per-species overrides
                   {overrideCount > 0 && ` (${overrideCount} set)`}
@@ -647,7 +677,20 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Species Filtering (fixed-class models only, SpeciesNet uses the Species labels card below) */}
+          {/* A project has one of two rows here. SpeciesNet takes its labels
+              from a CSV, a fixed-class model narrows its own class list. */}
+          {isSpeciesNet && (
+            <>
+              <div className="border-t my-6" />
+              <SpeciesLabelsRow
+                projectId={currentProject.id}
+                file={taxonomyFile}
+                onFileChange={(file) => { setTaxonomyFile(file); setTaxonomyError(null); }}
+                error={taxonomyError}
+                disabled={isSaving}
+              />
+            </>
+          )}
           {!isSpeciesNet && (
             <>
               <div className="border-t my-6" />
@@ -828,9 +871,6 @@ export const ProjectSettingsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* SpeciesNet label list, saved on its own: it relabels images */}
-      {isSpeciesNet && <ProjectTaxonomyCard projectId={currentProject.id} />}
-
       {/* Toast notification */}
       {showToast && (
         <div
@@ -863,7 +903,7 @@ export const ProjectSettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Asked when a narrower species list drops a label that rules or thresholds use */}
+      {/* Asked when a new label list or a narrower species list drops a label that notifications use */}
       <LabelChangeDialog
         impact={pendingImpact}
         onClose={() => setPendingImpact(null)}

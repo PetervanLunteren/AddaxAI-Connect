@@ -25,9 +25,9 @@ When you create a project and pick SpeciesNet, drop the CSV at Species labels. T
 ## Change the list
 
 1. Open the project and go to Settings
-2. Click Download CSV at Species labels
+2. At Species labels, click "download the CSV"
 3. Start the AI taxonomist, say you want to change your list, and paste the file with what you want different. For example wolves, dogs and foxes apart instead of one canid label. It asks what it needs to know and tells you what works best
-4. Drop the new CSV at Species labels and click Save and relabel
+4. Drop the new CSV at Species labels and click Save changes
 
 The new list replaces the old one, and every detection gets its new label right away, without running the AI again. Verified detections keep their labels.
 

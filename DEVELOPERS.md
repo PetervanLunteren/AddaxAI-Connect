@@ -645,8 +645,10 @@ A SpeciesNet project has its own label list, its taxonomy mapping: rows of `lati
 see) in `taxonomy_mapping`, keyed by project. User docs:
 `docs/speciesnet-setup.md`. Users make and change the CSV with the AI
 taxonomist (`skills/ai-taxonomist/SKILL.md`), which any chat assistant with
-web access can follow. The project settings can download the current list
-as the same two-column CSV.
+web access can follow. In the project settings the list is one row of the
+settings card (`SpeciesLabelsRow`), where a fixed-class project has its
+Species filtering row: a new CSV is uploaded by Save changes like every other
+setting, and the current list can be downloaded as the same two-column CSV.
 
 - **No geofence, no country.** The label CSV is what narrows SpeciesNet to a
   place. A country geofence in front of it only removes information: it
