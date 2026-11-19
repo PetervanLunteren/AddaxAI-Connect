@@ -120,6 +120,10 @@ with them, the rules win and the detail is discussed with Peter.
   fixes, tests with the change.
 - **Plan with Peter.** Every step gets its own plan first, see the next
   section. No code before he agrees with the approach.
+- **End every message to Peter with a plain English summary.** A few short
+  sentences at the bottom, no jargon, also after a report, a question or a
+  deploy. This is the global rule in `~/.claude/CLAUDE.md` and in
+  `CONVENTIONS.md`, repeated here so no session on this plan skips it.
 
 ## How each step is planned
 
