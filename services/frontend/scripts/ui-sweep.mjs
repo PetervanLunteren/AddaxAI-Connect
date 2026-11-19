@@ -133,24 +133,22 @@ async function login() {
   return data.access_token;
 }
 
-// Refuse to run against anything but a dev server. The API decides using the
-// deny-list in services/api/utils/dev_mode.py, so a wrong proxy target or
-// SWEEP_BASE_URL cannot point this script at production. Requires the sweep
-// account to be a server admin, a 403 here also means refusal.
+// Refuse to run against anything but a development server. The API answers
+// from its own ENVIRONMENT setting, so a wrong proxy target or SWEEP_BASE_URL
+// cannot point this script at production. Requires the sweep account to be a
+// server admin, a 403 here also means refusal.
 async function assertDevServer(token) {
   const response = await fetch(`${BASE}/api/admin/dev-mode-status`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
-    throw new Error(`Could not confirm dev server (status ${response.status}), refusing to sweep`);
+    throw new Error(`Could not confirm development server (status ${response.status}), refusing to sweep`);
   }
   const status = await response.json();
-  if (status.is_dev_server !== true) {
-    throw new Error(
-      `Target ${BASE} reports domain "${status.domain_name}" which is not a dev server, refusing to sweep`
-    );
+  if (status.is_development !== true) {
+    throw new Error(`Target ${BASE} is not a development server, refusing to sweep`);
   }
-  console.log(`Target confirmed as dev server (${status.domain_name})`);
+  console.log(`Target confirmed as development server (${BASE})`);
 }
 
 async function getProjectId(token) {

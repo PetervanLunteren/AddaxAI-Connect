@@ -5,7 +5,6 @@ import React, { useState } from 'react';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { TopBar, TopBarLogo } from './TopBar';
-import { DevServerBanner } from '../DevServerBanner';
 import { InstallHint } from '../InstallApp';
 
 interface AppLayoutProps {
@@ -20,7 +19,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="lg:pl-64 min-h-screen">
-        <DevServerBanner />
         {/* On a phone the bar also opens the navigation and shows the logo.
             On desktop the sidebar does both, and the bar holds the account
             menu only. */}

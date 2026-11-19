@@ -5,8 +5,7 @@
  * code chip and a copy button right after it, then the input with the word as
  * its placeholder. The caller keeps the typed value in state and disables its
  * button until `value === word`; no error message, the button simply does not
- * work until the word is right. Used by the camera, project and image deletes
- * and the dev purge.
+ * work until the word is right. Used by the camera, project and image deletes.
  */
 import React from 'react';
 import { CopyButton } from './CopyButton';

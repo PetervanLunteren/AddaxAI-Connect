@@ -289,7 +289,7 @@ addaxai-connect/
 │   │   │   ├── project_taxonomy.py    # A SpeciesNet project's label list (taxonomy mapping)
 │   │   │   ├── species.py             # Species data and taxonomy
 │   │   │   ├── statistics.py          # Dashboard statistics and pipeline status
-│   │   │   ├── devtools.py            # Dev-mode tools (data purge, etc.)
+│   │   │   ├── devtools.py            # Dev tools (test upload to the FTPS server)
 │   │   │   └── users.py               # User management
 │   │   ├── static/                    # Static files
 │   │   └── utils/                     # API utilities
@@ -304,8 +304,7 @@ addaxai-connect/
 │   │       ├── sun_time.py            # Sunrise/sunset times
 │   │       ├── taxonomy_csv.py        # Parse and store a project's taxonomy mapping CSV
 │   │       ├── timeline.py            # Deployment timeline
-│   │       ├── timeline_activity.py   # Activity over the timeline
-│   │       └── dev_mode.py            # Dev-mode helpers
+│   │       └── timeline_activity.py   # Activity over the timeline
 │   │
 │   └── frontend/                      # React + Vite + TypeScript web interface
 │       ├── src/
@@ -1231,7 +1230,7 @@ Logs in with the `SWEEP_*` credentials, visits every page at phone (390px), tabl
 
 The route list lives at the top of `scripts/ui-sweep.mjs`. When adding a page to `src/App.tsx`, add it there too.
 
-The sweep refuses to run against anything but a dev server. It asks the target API via `/api/admin/dev-mode-status`, which uses the deny-list in `services/api/utils/dev_mode.py`, so a wrong proxy target cannot point it at production.
+The sweep refuses to run against anything but a dev server. It asks the target API via `/api/admin/dev-mode-status`, which answers from the server's `ENVIRONMENT` setting, so a wrong proxy target cannot point it at production.
 
 ### Interactive browser driving
 

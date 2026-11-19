@@ -11,7 +11,7 @@ import base64
 from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, update, func
+from sqlalchemy import select, delete
 from pydantic import BaseModel, EmailStr
 
 from shared.models import (
@@ -21,23 +21,16 @@ from shared.models import (
     ProjectMembership,
     UserInvitation,
     ServerSettings,
-    Image,
-    HumanObservation,
-    ProjectReminder,
-    ProjectDocument,
-    ProjectNotificationPreference,
-    BulkUploadJob,
 )
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
-from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATION_TELEGRAM
+from shared.notify_guard import is_development
 from auth.permissions import require_server_admin
 from auth.project_access import check_site_scope_or_400
 from auth.users import current_verified_user
 from auth.two_factor_routes import reset_two_factor
 from mailer.sender import get_email_sender
-from utils.dev_mode import is_dev_server, assert_dev_server
 
 settings = get_settings()
 logger = get_logger("api.admin")
@@ -1625,219 +1618,16 @@ async def get_setup_status(
 
 
 class DevModeStatusResponse(BaseModel):
-    is_dev_server: bool
-    domain_name: Optional[str]
-    non_admin_user_count: int
-    project_membership_count: int
-    notification_preference_count: int
-    queued_notification_email_count: int
-    queued_notification_telegram_count: int
-
-
-class PurgeNonAdminUsersRequest(BaseModel):
-    confirm_domain: str
-
-
-class PurgeNonAdminUsersResponse(BaseModel):
-    deleted_users: int
-    deleted_notification_preferences: int
-    drained_email: int
-    drained_telegram: int
-    reassigned_to_user_id: int
-
-
-def _queue_size(name: str) -> int:
-    try:
-        return RedisQueue(name).queue_depth()
-    except Exception as e:
-        logger.warning("Failed to read queue size", queue=name, error=str(e))
-        return 0
+    is_development: bool
 
 
 @router.get("/dev-mode-status", response_model=DevModeStatusResponse)
 async def get_dev_mode_status(
-    db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(require_server_admin),
 ):
     """
-    Report whether this server looks like a dev box and how many real users
-    are still on it. Used by the dev-server banner to decide whether to nag.
+    Is this a development server? The same answer that restricts outgoing
+    email and Telegram (shared/notify_guard.py). The screenshot sweep asks
+    this before it runs, so it cannot be pointed at production.
     """
-    domain = settings.domain_name
-    dev = is_dev_server(domain)
-
-    non_admin_count = await db.scalar(
-        select(func.count())
-        .select_from(User)
-        .where(User.is_superuser.is_(False))
-        .where(User.email != "system@addaxai.com")
-    )
-    membership_count = await db.scalar(select(func.count()).select_from(ProjectMembership))
-    preference_count = await db.scalar(
-        select(func.count()).select_from(ProjectNotificationPreference)
-    )
-
-    return DevModeStatusResponse(
-        is_dev_server=dev,
-        domain_name=domain,
-        non_admin_user_count=int(non_admin_count or 0),
-        project_membership_count=int(membership_count or 0),
-        notification_preference_count=int(preference_count or 0),
-        queued_notification_email_count=_queue_size(QUEUE_NOTIFICATION_EMAIL),
-        queued_notification_telegram_count=_queue_size(QUEUE_NOTIFICATION_TELEGRAM),
-    )
-
-
-@router.post("/purge-non-admin-users", response_model=PurgeNonAdminUsersResponse)
-async def purge_non_admin_users(
-    body: PurgeNonAdminUsersRequest,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_server_admin),
-):
-    """
-    Reset a dev server: hard-delete every non-admin user and clear all
-    notification preferences. Server admins stay.
-
-    Notification preferences are wiped for everyone, not just the deleted users.
-    A user delete already cascade-removes the non-admins' preferences, but the
-    server admins' own preferences survive and keep the scheduled jobs (project
-    inactivity, digests, reports) mailing on a dev box. Clearing them here is
-    what actually silences the mail. The two server-admin infra alerts
-    (disk_usage_alert, infra_alert) do not use preferences and are left alone.
-
-    Two gates guard this:
-      1. Typed-domain confirmation must match settings.domain_name exactly.
-      2. assert_dev_server refuses on prod-shaped hostnames, even if (1) passes.
-    """
-    domain = settings.domain_name
-    assert_dev_server(domain)
-    if body.confirm_domain != domain:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Confirmation domain does not match",
-        )
-
-    # Clear all notification preferences first. Safe on a dev server, these are
-    # restored prod rows; re-set them if you need them. Runs even when no
-    # non-admin users remain, which is the case that still emails the admin.
-    pref_result = await db.execute(delete(ProjectNotificationPreference))
-    deleted_preferences = pref_result.rowcount or 0
-
-    non_admin_ids_result = await db.execute(
-        select(User.id)
-        .where(User.is_superuser.is_(False))
-        .where(User.email != "system@addaxai.com")
-    )
-    non_admin_ids = [row[0] for row in non_admin_ids_result.all()]
-
-    deleted_count = 0
-    if non_admin_ids:
-        # NULL out optional historical attributions.
-        await db.execute(
-            update(Image)
-            .where(Image.verified_by_user_id.in_(non_admin_ids))
-            .values(verified_by_user_id=None)
-        )
-        await db.execute(
-            update(Image)
-            .where(Image.liked_by_user_id.in_(non_admin_ids))
-            .values(liked_by_user_id=None)
-        )
-        await db.execute(
-            update(Image)
-            .where(Image.needs_review_by_user_id.in_(non_admin_ids))
-            .values(needs_review_by_user_id=None)
-        )
-        await db.execute(
-            update(HumanObservation)
-            .where(HumanObservation.updated_by_user_id.in_(non_admin_ids))
-            .values(updated_by_user_id=None)
-        )
-        await db.execute(
-            update(ProjectMembership)
-            .where(ProjectMembership.added_by_user_id.in_(non_admin_ids))
-            .values(added_by_user_id=None)
-        )
-        await db.execute(
-            update(ProjectReminder)
-            .where(ProjectReminder.cancelled_by_user_id.in_(non_admin_ids))
-            .values(cancelled_by_user_id=None)
-        )
-
-        # Reassign non-nullable FKs to the caller so DELETE can proceed.
-        await db.execute(
-            update(HumanObservation)
-            .where(HumanObservation.created_by_user_id.in_(non_admin_ids))
-            .values(created_by_user_id=current_user.id)
-        )
-        await db.execute(
-            update(ProjectDocument)
-            .where(ProjectDocument.uploaded_by_user_id.in_(non_admin_ids))
-            .values(uploaded_by_user_id=current_user.id)
-        )
-        await db.execute(
-            update(ProjectReminder)
-            .where(ProjectReminder.created_by_user_id.in_(non_admin_ids))
-            .values(created_by_user_id=current_user.id)
-        )
-        await db.execute(
-            update(UserInvitation)
-            .where(UserInvitation.invited_by_user_id.in_(non_admin_ids))
-            .values(invited_by_user_id=current_user.id)
-        )
-        await db.execute(
-            update(BulkUploadJob)
-            .where(BulkUploadJob.created_by_user_id.in_(non_admin_ids))
-            .values(created_by_user_id=current_user.id)
-        )
-
-        # Everything else is handled by the schema itself: project_memberships,
-        # notification_logs and telegram_linking_tokens cascade on
-        # users.id, and feed_events.resolved_by_user_id is ON DELETE SET NULL.
-        # Preferences were already cleared above.
-        #
-        # Any new NOT NULL column pointing at users.id has to be added to the
-        # reassignment block above or this delete fails with a foreign key
-        # violation, which is exactly how bulk_upload_jobs was missed.
-        # tests/api/test_purge_user_references.py fails when that happens.
-        delete_result = await db.execute(
-            delete(User)
-            .where(User.is_superuser.is_(False))
-            .where(User.email != "system@addaxai.com")
-        )
-        deleted_count = delete_result.rowcount or 0
-    await db.commit()
-
-    # Drain queued notifications so nothing in-flight fires after the purge.
-    drained_email = 0
-    drained_telegram = 0
-    try:
-        client = RedisQueue(QUEUE_NOTIFICATION_EMAIL).client
-        drained_email = int(client.llen(QUEUE_NOTIFICATION_EMAIL) or 0)
-        client.delete(QUEUE_NOTIFICATION_EMAIL)
-    except Exception as e:
-        logger.warning("Failed to drain email queue", error=str(e))
-    try:
-        client = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM).client
-        drained_telegram = int(client.llen(QUEUE_NOTIFICATION_TELEGRAM) or 0)
-        client.delete(QUEUE_NOTIFICATION_TELEGRAM)
-    except Exception as e:
-        logger.warning("Failed to drain telegram queue", error=str(e))
-
-    logger.info(
-        "Dev server reset: non-admin users and notification preferences cleared",
-        domain=domain,
-        deleted_users=deleted_count,
-        deleted_notification_preferences=deleted_preferences,
-        drained_email=drained_email,
-        drained_telegram=drained_telegram,
-        caller=current_user.email,
-    )
-
-    return PurgeNonAdminUsersResponse(
-        deleted_users=deleted_count,
-        deleted_notification_preferences=deleted_preferences,
-        drained_email=drained_email,
-        drained_telegram=drained_telegram,
-        reassigned_to_user_id=current_user.id,
-    )
+    return DevModeStatusResponse(is_development=is_development())

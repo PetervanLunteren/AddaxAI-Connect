@@ -885,21 +885,3 @@ export interface TaxonomyUploadResponse extends TaxonomyMappingResponse {
   // What the upload removed, because its label is no longer in the list
   impact: LabelChangeImpact;
 }
-
-export interface DevModeStatus {
-  is_dev_server: boolean;
-  domain_name: string | null;
-  non_admin_user_count: number;
-  project_membership_count: number;
-  notification_preference_count: number;
-  queued_notification_email_count: number;
-  queued_notification_telegram_count: number;
-}
-
-export interface PurgeNonAdminUsersResponse {
-  deleted_users: number;
-  deleted_notification_preferences: number;
-  drained_email: number;
-  drained_telegram: number;
-  reassigned_to_user_id: number;
-}

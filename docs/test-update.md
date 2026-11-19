@@ -13,7 +13,7 @@ Build it like a lost server, with the [restore guide](restore-guide.md), and set
 three things differently in its `host_vars`:
 
 ```yaml
-domain_name: "dev.example.com"    # must start with dev
+domain_name: "dev.example.com"
 app_environment: development      # makes it a dev server
 git_version: main                 # follows main, production runs releases
 ```
