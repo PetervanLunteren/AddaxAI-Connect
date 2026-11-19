@@ -31,7 +31,7 @@ restore.sh runs update-database.sh without output. Read it with
 import argparse
 import sys
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 sys.path.insert(0, '/app')
@@ -109,45 +109,28 @@ def history_is_rebuilt(stored: list[Stored], photos: list[RebuildPhoto],
 
 
 def statements_for(stored: list[Stored], photos: list[RebuildPhoto]) -> list[dict]:
-    """One statement per stored deployment, oldest first, so a newer one wins
-    on a day two deployments share. A deployment without a site cannot be
-    stated and is left to the GPS.
+    """One statement per stored deployment, with exactly its days. The open
+    one is fixed up to its newest photo, after that the GPS carries on as for
+    any camera. A deployment without a site cannot be stated and is left to
+    the GPS.
 
-    Stored deployments know only days. A statement starts at the time of the
-    deployment's first photo when that photo is on its start day, so photos
-    taken at the old place on the morning of a move stay with the old
-    deployment, and the dates come out the same."""
-    in_time = sorted(stored, key=lambda s: (s.start_at, s.number))
-    first_photo: dict[int, datetime] = {}
+    Stored deployments only know days, so on the day of a move every photo
+    goes to the new deployment, also one taken at the old place that morning.
+    Two deployments that share a day: the later one wins that day."""
     newest_photo: dict[int, datetime] = {}
     for p in photos:
         if p.deployment_id is not None:
-            first_photo[p.deployment_id] = min(first_photo.get(p.deployment_id, p.taken_at), p.taken_at)
             newest_photo[p.deployment_id] = max(newest_photo.get(p.deployment_id, p.taken_at), p.taken_at)
-
-    def starts_at(s: Stored) -> datetime:
-        first = first_photo.get(s.id)
-        return first if first is not None and first.date() == s.start_date else s.start_at
-
-    result = []
-    for index, s in enumerate(in_time):
-        if s.site_id is None:
-            continue
-        nxt = in_time[index + 1] if index + 1 < len(in_time) else None
-        if s.end_at is None:
-            # Open: fixed up to the newest photo, the GPS carries on after it.
-            until_at = None
-            fixed_until_at = newest_photo.get(s.id, s.start_at)
-        elif nxt is not None and nxt.start_date <= s.end_date + timedelta(days=1):
-            # Back to back: up to where the next one starts.
-            until_at, fixed_until_at = starts_at(nxt), None
-        else:
-            until_at, fixed_until_at = s.end_at, None
-        result.append({
-            "site_id": s.site_id, "from_at": starts_at(s),
-            "until_at": until_at, "fixed_until_at": fixed_until_at,
-        })
-    return result
+    return [
+        {
+            "site_id": s.site_id,
+            "from_at": s.start_at,
+            "until_at": s.end_at,
+            "fixed_until_at": newest_photo.get(s.id, s.start_at) if s.end_at is None else None,
+        }
+        for s in sorted(stored, key=lambda s: (s.start_at, s.number))
+        if s.site_id is not None
+    ]
 
 
 def gate(before: list[Row], after: list[Row], links_before: dict[int, Optional[int]],
