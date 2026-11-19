@@ -31,7 +31,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 |---|---|---|
 | 1a | done, release pending | `main` |
 | 1b | done, release pending | `main` |
-| 2a | not started | branch for phase 2 |
+| 2a | in progress | `deployments-phase-2` |
 | 2b | not started | branch for phase 2 |
 | 2c | not started | branch for phase 2 |
 | 3a | not started | `main` |
@@ -121,6 +121,46 @@ Notes per step:
     comes first and opens a deployment of its own, which the next photos then
     confirm as a move. The two-reading check guards a move, not the first
     deployment. See the open point for phase 2.
+  - The replay script was removed in step 2a: it compared against the order
+    the old resolver saw, which no longer exists. The results above stay.
+- **2a**, planned and built on 19 November 2026, on branch
+  `deployments-phase-2`.
+  - Decided: carry over by pinning only what differs, a site in use cannot be
+    deleted (merge it instead), a removed statement stays marked removed, the
+    first reading of a camera is trusted as before.
+  - `deployment_statements`, `deployments.start_at` and `end_at`
+    (migration `20261119_deployment_statements`). `build_deployments` takes
+    statements, `rebuild_camera` in `shared/shared/deployment_rebuild.py` is
+    the only writer of deployments. See "Deployments, statements and the
+    rebuild" in `DEVELOPERS.md`.
+  - A statement with an end is exactly that period, after it the walk starts
+    fresh. Without an end it fixes up to the camera's newest photo when it was
+    made, and the GPS carries on after that. Agreed with Peter after stage 1.
+  - Live photo: store and rebuild in one transaction. Bulk job: one rebuild
+    at the end, also when it fails; an upload to a chosen site is a statement
+    for its days. Daily reports no longer touch deployments.
+  - Corrections: change site, set site, new site and "it did not move" write
+    statements. Site merge repoints statements and rebuilds. Site delete is
+    refused while deployments or statements use the site. Retire and image
+    delete rebuild.
+  - Gone: the old resolver, the bulk deployment helper, the merge SQL, the
+    held reading in `cameras.config`, the four deployment scripts in
+    `update-database.sh`, `cleanup_empty_deployments` and its midnight bug,
+    `dev_simulate_feed.py`.
+  - `scripts/carry_over_deployments.py` runs once from `update-database.sh`.
+    A camera with a hand-set site is always pinned, even when its dates match
+    the GPS, so the choice does not hang on a row alone.
+  - Changed on purpose: New site removes the auto site it emptied, a site
+    merge joins back to back deployments, an old SD card without a chosen
+    site is read as history.
+  - Not in CI: the rebuild's database code is tested in the local folder
+    only. CI also does not run on branch pushes, only on `main` and pull
+    requests. Decide in 2c whether the local folder stays or CI gets PostGIS.
+  - For 2b: the "It did not move" dialog still says it cannot be undone.
+    That stays true until the statements list with Remove exists.
+  - Left to do: the dry run of the carry-over on dev against all five
+    datasets, to go through with Peter, then deploy the branch to dev and the
+    gate.
 
 ## How to work on this plan
 
@@ -406,9 +446,11 @@ it exists without statements: `build_deployments` in
   assign a period to a site 400 m away without the next photo causing a move.
 - Inside a statement's period there is one deployment at the stated site, and
   cuts from GPS are ignored there.
-- After the period the walk carries on at the stated site. If readings exist it
-  measures from them. If none exist, as for a camera without GPS, nothing
-  contradicts the statement and it runs until the next one.
+- After a period with an end, the walk starts fresh from the next reading.
+  A statement without an end fixes the past up to the camera's newest photo
+  when it was made, and after that the walk carries on from it. A camera
+  without GPS has nothing that contradicts the statement, so it runs until
+  the next one. (Refined in step 2a.)
 - Every photo belongs to the deployment that covers its capture time. This also
   holds for a photo without GPS.
 
