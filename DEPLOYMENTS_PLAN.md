@@ -173,6 +173,11 @@ with them, the rules win and the detail is discussed with Peter.
 - **A simple model beats a perfect one.** The goal is rules a user can predict
   and a maintainer can read. No pile of heuristics to fit every scenario. When
   a case does not fit, say so and leave it out. Do not add a rule for it.
+- **Explainable beats identical.** Prefer one simple rule that explains its
+  results over small heuristic rules that make every number match. A few dates
+  or photos that shift are fine when the rule explains them. Do not add a
+  special case only to make a test or a before and after comparison pass.
+  Peter, 19 November 2026, after two such rules crept into the carry-over.
 - **Be critical and honest.** Say when an idea is bad, also when it is in this
   plan. No sugar coating.
 - **Be thorough.** Simple is not the same as half done. Do not cut corners.
