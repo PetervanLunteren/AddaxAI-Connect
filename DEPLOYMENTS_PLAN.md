@@ -67,9 +67,18 @@ Notes per step:
     Deployments and image links were byte for byte the same before and after.
     `verify-server.sh` passed. End to end: a photo through ingestion and a
     daily report through the upload folder both stored their reading.
-  - Left to do before 1a is done: time the migration against the largest
-    production dataset restored on dev, and check the GPS shapes there,
-    including INSTAR photos, which the data on dev does not have.
+  - spw restored on dev the same day (`test-update.sh`, pass in 218 s). The
+    migration alone took 4 s for 41,665 photos. Every photo with GPS in the
+    JSON is filled with the same values, except 11 live photos at (0, 0)
+    from before the guard, which stay empty as they should. Run twice, the
+    columns, image links and deployments came out identical.
+  - spw project 4 holds 11,811 bulk photos with no GPS at all, uploaded to a
+    chosen site. Phase 2 must keep them on their deployments, since the
+    rebuild has no reading for them.
+  - No INSTAR photos on drenthe or spw. Their backfill is covered by the
+    local test only.
+  - Left to do before 1a is done: pwn, the largest dataset (about 72k
+    photos), if Peter wants the worst case timed.
 
 ## How to work on this plan
 
