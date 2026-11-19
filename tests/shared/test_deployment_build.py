@@ -1,8 +1,7 @@
 """The rule that turns a camera's GPS readings into deployments.
 
-Plain Python, no database. The same rule runs inside live ingestion today
-(update_or_create_site_and_deployment); the local PostGIS tests prove the two
-agree, these pin the rule itself.
+Plain Python, no database. Without statements it is the rule live ingestion
+ran before phase 2, which step 1b proved on every production dataset.
 """
 import math
 from datetime import date, datetime

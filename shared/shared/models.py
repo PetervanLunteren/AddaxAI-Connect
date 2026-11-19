@@ -317,6 +317,12 @@ class Deployment(Base):
     # A label only (drives the GPS-guessed vs human-confirmed badge and filter
     # on the Deployments page); it does not change ingestion behavior.
     site_source = Column(String(16), nullable=False, server_default='auto')
+    # The period is [start_at, end_at), camera clock, naive, like
+    # images.captured_at. end_at NULL = the camera still stands there. The two
+    # dates follow from the times (BuiltDeployment.start_date and end_date in
+    # shared/deployment_build.py) and are what effort and exports read.
+    start_at = Column(DateTime(timezone=False), nullable=False)
+    end_at = Column(DateTime(timezone=False), nullable=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment
     location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)
@@ -330,6 +336,42 @@ class Deployment(Base):
 
     # Relationships
     site = relationship("Site", back_populates="deployments")
+
+
+class DeploymentStatement(Base):
+    """
+    A decision about where a camera stood: this camera, this site, this period.
+
+    Deployments are rebuilt per camera from the GPS readings of its photos
+    plus these rows (shared/deployment_rebuild.py). A statement overrules the
+    GPS for its period. Rows are never edited: a newer statement wins over an
+    older one where they overlap, and taking a decision back sets removed_at,
+    so the table is also the history of every correction.
+
+    A statement fixes the past, not the future. With until_at it is exactly
+    that period. Without, the camera is still there: everything up to
+    fixed_until_at (the camera's newest photo when the statement was made) is
+    fixed, and after that the GPS rule carries on from there.
+    """
+    __tablename__ = "deployment_statements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    # RESTRICT: a site that statements point at cannot be deleted. Merge it
+    # into another site, or move its deployments, first.
+    site_id = Column(Integer, ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False, index=True)
+    # Camera clock, naive, like images.captured_at.
+    from_at = Column(DateTime(timezone=False), nullable=False)
+    until_at = Column(DateTime(timezone=False), nullable=True)
+    fixed_until_at = Column(DateTime(timezone=False), nullable=True)
+    # 'person' = a correction in the app, 'upload' = an upload to a chosen
+    # site, 'carried_over' = written once by scripts/carry_over_deployments.py
+    # to keep history from before phase 2 as it was.
+    source = Column(String(16), nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    removed_at = Column(DateTime(timezone=True), nullable=True)
+    removed_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
 
 class CameraHealthReport(Base):
@@ -1020,6 +1062,9 @@ class ServerSettings(Base):
     # purpose: the security state belongs to the machine, not to a project, and
     # only a server admin can act on it. Default TRUE.
     notify_security_failures = Column(Boolean, nullable=False, server_default="true")
+    # When scripts/carry_over_deployments.py carried the deployments from
+    # before phase 2 over. It runs once per server; NULL = not yet.
+    deployments_carried_over_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

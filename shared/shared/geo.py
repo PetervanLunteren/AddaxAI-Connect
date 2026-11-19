@@ -28,7 +28,7 @@ SITE_THRESHOLD_METERS = 250.0
 # deployment. A lone outlier (a single bad GPS fix) is attached to the current
 # deployment instead of spawning a phantom site. 2 kills the single-outlier
 # case; the cost is that a real move sending only one reading before the camera
-# dies attaches to the old deployment. See update_or_create_site_and_deployment.
+# dies attaches to the old deployment. See build_deployments in deployment_build.py.
 RELOCATION_CONFIRMATIONS = 2
 
 def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

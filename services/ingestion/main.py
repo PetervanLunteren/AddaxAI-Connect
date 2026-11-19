@@ -521,7 +521,6 @@ def _store_image(
         storage_path=storage_path,
         thumbnail_path=thumbnail_path,
         captured_at=captured_at,
-        gps_location=gps_location,
         gps_reading=gps_location,
         exif_metadata=exif
     )
