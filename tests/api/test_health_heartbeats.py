@@ -99,6 +99,25 @@ class TestCheckHeartbeat:
         assert row.status == "healthy"
         assert "25000" in row.message
 
+    def test_the_bulk_queue_counts_on_the_row(self, monkeypatch):
+        """pwn on 19 Nov 2026: 7,654 import images waited in the bulk queue
+        and the detection row said queue depth 0, because it only read the
+        live queue."""
+        asked: list[str] = []
+        _install_queue(
+            monkeypatch,
+            {"heartbeat:detection": _stamp(0.5)},
+            depths={"image-ingested": 3, "image-ingested-bulk": 7654},
+            asked=asked,
+        )
+        row = health_router.check_heartbeat(
+            "detection", "heartbeat:detection", "image-ingested",
+            bulk_queue_name="image-ingested-bulk",
+        )
+        assert row.status == "healthy"
+        assert "queue depth 7657" in row.message
+        assert asked == ["image-ingested", "image-ingested-bulk"]
+
     def test_without_a_queue_no_depth_is_reported_or_read(self, monkeypatch):
         """Ingestion watches the filesystem. Naming the queue it publishes
         to would put the detection backlog on the ingestion row."""

@@ -19,7 +19,9 @@ from shared.logger import get_logger
 from shared.queue import (
     RedisQueue,
     QUEUE_IMAGE_INGESTED,
+    QUEUE_IMAGE_INGESTED_BULK,
     QUEUE_DETECTION_COMPLETE,
+    QUEUE_DETECTION_COMPLETE_BULK,
     QUEUE_NOTIFICATION_EVENTS,
     QUEUE_NOTIFICATION_EMAIL,
     QUEUE_NOTIFICATION_TELEGRAM,
@@ -256,6 +258,7 @@ def check_heartbeat(
     heartbeat_key: str,
     queue_name: Optional[str] = None,
     device_key: Optional[str] = None,
+    bulk_queue_name: Optional[str] = None,
 ) -> ServiceStatus:
     """
     Check a worker through its Redis heartbeat.
@@ -270,7 +273,10 @@ def check_heartbeat(
     With a queue_name the message carries the backlog waiting for that
     worker. Ingestion has none to report, it watches the filesystem and
     publishes rather than consumes, and naming the queue it publishes to
-    would show the detection backlog on the ingestion row.
+    would show the detection backlog on the ingestion row. A worker that
+    also consumes a bulk queue gets both depths added up: during an SD-card
+    import the live queue is empty, and a row saying "queue depth 0" next
+    to thousands of waiting images reads as a worker with nothing to do.
 
     With a device_key the row carries the device the ML worker loaded its
     model on (see RedisQueue.record_device), but only when the row is
@@ -280,6 +286,8 @@ def check_heartbeat(
     try:
         queue = RedisQueue(queue_name or "health-check")
         depth = queue.queue_depth() if queue_name else None
+        if bulk_queue_name:
+            depth = (depth or 0) + RedisQueue(bulk_queue_name).queue_depth()
         # Same tolerant parse as the delivery liveness check, so a
         # missing key and an unreadable value classify identically
         last_seen = parse_heartbeat(queue.client.get(heartbeat_key))
@@ -366,8 +374,8 @@ async def get_services_health(
     # the top of its own loop. Ingestion passes no queue: it watches the
     # filesystem, so there is no backlog of its own to report.
     services.append(check_heartbeat("ingestion", HEARTBEAT_KEY_INGESTION))
-    services.append(check_heartbeat("detection", HEARTBEAT_KEY_DETECTION, QUEUE_IMAGE_INGESTED, DEVICE_KEY_DETECTION))
-    services.append(check_heartbeat("classification", HEARTBEAT_KEY_CLASSIFICATION, QUEUE_DETECTION_COMPLETE, DEVICE_KEY_CLASSIFICATION))
+    services.append(check_heartbeat("detection", HEARTBEAT_KEY_DETECTION, QUEUE_IMAGE_INGESTED, DEVICE_KEY_DETECTION, QUEUE_IMAGE_INGESTED_BULK))
+    services.append(check_heartbeat("classification", HEARTBEAT_KEY_CLASSIFICATION, QUEUE_DETECTION_COMPLETE, DEVICE_KEY_CLASSIFICATION, QUEUE_DETECTION_COMPLETE_BULK))
     services.append(check_heartbeat("notifications", HEARTBEAT_KEY_NOTIFICATIONS, QUEUE_NOTIFICATION_EVENTS))
     services.append(check_heartbeat("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, QUEUE_NOTIFICATION_EMAIL))
     services.append(check_heartbeat("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, QUEUE_NOTIFICATION_TELEGRAM))

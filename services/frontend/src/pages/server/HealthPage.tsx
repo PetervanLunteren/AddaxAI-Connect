@@ -10,7 +10,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Button } from '../../components/ui/Button';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { getServicesHealth, type ServiceStatus } from '../../api/health';
-import { statisticsApi } from '../../api/statistics';
 
 /**
  * Map service names to display names with proper capitalization
@@ -29,7 +28,6 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
   'notifications-telegram': 'Telegram notifications worker',
   'notifications-earthranger': 'EarthRanger notifications worker',
   'notifications-sensingclues': 'Sensing Clues notifications worker',
-  'processing-pipeline': 'Processing pipeline',
 };
 
 const ServiceStatusBadge: React.FC<{ status: ServiceStatus }> = ({ status }) => {
@@ -83,30 +81,7 @@ export const HealthPage: React.FC = () => {
     retry: false,
   });
 
-  // Fetch pipeline status
-  const { data: pipelineData, refetch: refetchPipeline } = useQuery({
-    queryKey: ['statistics', 'pipeline-status'],
-    queryFn: () => statisticsApi.getPipelineStatus(),
-  });
-
-  const handleRefresh = () => {
-    refetch();
-    refetchPipeline();
-  };
-
-  // Build pipeline status as a service
-  const pipelineService: ServiceStatus | null = pipelineData ? {
-    name: 'processing-pipeline',
-    status: pipelineData.pending === 0 ? 'healthy' : 'unhealthy',
-    message: pipelineData.pending === 0
-      ? 'No images pending classification'
-      : `${pipelineData.pending.toLocaleString()} image${pipelineData.pending === 1 ? '' : 's'} pending classification`,
-  } : null;
-
-  // Combine services with pipeline status
-  const allServices = data?.services
-    ? [...data.services, ...(pipelineService ? [pipelineService] : [])]
-    : [];
+  const allServices = data?.services ?? [];
 
   const healthyCount = allServices.filter((s) => s.status === 'healthy').length;
   const totalCount = allServices.length;
@@ -128,7 +103,7 @@ export const HealthPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleRefresh}
+                onClick={() => refetch()}
                 disabled={isLoading}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />

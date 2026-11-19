@@ -4,7 +4,7 @@ Once your server is running, here is how to check that everything is healthy and
 
 ## System health page
 
-The web interface has a built-in health page at `Server settings > System health` (server admins only). It checks connectivity to all infrastructure services (PostgreSQL, Redis, MinIO), verifies that the API and frontend are responding, and shows queue depth for each worker. It also reports whether the processing pipeline has pending images.
+The web interface has a built-in health page at `Server settings > System health` (server admins only). It checks connectivity to all infrastructure services (PostgreSQL, Redis, MinIO), verifies that the API and frontend are responding, and shows queue depth for each worker. The depth on the detection and classification rows includes images from an SD-card upload, so a large upload shows there as a backlog while the worker stays healthy.
 
 ![System health page](https://github.com/user-attachments/assets/c0708b35-a2b6-4c4a-8000-8c4022cde0b9)
 
@@ -103,6 +103,8 @@ docker compose exec minio mc stat local/raw-images/<key>
 ```
 
 Read the watchdog log. Each tick reports `hot=X GB, budget=Y GB` and, if over budget, how many objects were tagged for transition.
+
+Only classified images move to the cold tier. During a large SD-card upload the disk can therefore stay over the budget until the images are processed. The budget is a target, not a limit. The health page reports a problem only when images were tagged and none of them reached the cold tier.
 
 ```bash
 docker compose logs minio-tier-watchdog --tail 50
