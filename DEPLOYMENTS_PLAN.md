@@ -62,9 +62,14 @@ Notes per step:
   - The test on an old SD card confirms the audit: photos with GPS from
     elsewhere, imported without a chosen site, become the camera's current
     deployment, and the live one is closed on its own start day.
-  - Left to do before 1a is done: time the migration on dev against the
-    largest production dataset, and compare per project the photos with GPS
-    in the JSON against the photos with the columns filled.
+  - Deployed to dev on 19 November 2026 (commit `1ed08657`). The migration took
+    39 s for 47,513 photos, all of them filled and equal to the JSON.
+    Deployments and image links were byte for byte the same before and after.
+    `verify-server.sh` passed. End to end: a photo through ingestion and a
+    daily report through the upload folder both stored their reading.
+  - Left to do before 1a is done: time the migration against the largest
+    production dataset restored on dev, and check the GPS shapes there,
+    including INSTAR photos, which the data on dev does not have.
 
 ## How to work on this plan
 
