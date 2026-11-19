@@ -111,12 +111,23 @@ def history_is_rebuilt(stored: list[Stored], photos: list[RebuildPhoto],
 def statements_for(stored: list[Stored], photos: list[RebuildPhoto]) -> list[dict]:
     """One statement per stored deployment, oldest first, so a newer one wins
     on a day two deployments share. A deployment without a site cannot be
-    stated and is left to the GPS."""
+    stated and is left to the GPS.
+
+    Stored deployments know only days. A statement starts at the time of the
+    deployment's first photo when that photo is on its start day, so photos
+    taken at the old place on the morning of a move stay with the old
+    deployment, and the dates come out the same."""
     in_time = sorted(stored, key=lambda s: (s.start_at, s.number))
+    first_photo: dict[int, datetime] = {}
     newest_photo: dict[int, datetime] = {}
     for p in photos:
         if p.deployment_id is not None:
+            first_photo[p.deployment_id] = min(first_photo.get(p.deployment_id, p.taken_at), p.taken_at)
             newest_photo[p.deployment_id] = max(newest_photo.get(p.deployment_id, p.taken_at), p.taken_at)
+
+    def starts_at(s: Stored) -> datetime:
+        first = first_photo.get(s.id)
+        return first if first is not None and first.date() == s.start_date else s.start_at
 
     result = []
     for index, s in enumerate(in_time):
@@ -129,11 +140,11 @@ def statements_for(stored: list[Stored], photos: list[RebuildPhoto]) -> list[dic
             fixed_until_at = newest_photo.get(s.id, s.start_at)
         elif nxt is not None and nxt.start_date <= s.end_date + timedelta(days=1):
             # Back to back: up to where the next one starts.
-            until_at, fixed_until_at = nxt.start_at, None
+            until_at, fixed_until_at = starts_at(nxt), None
         else:
             until_at, fixed_until_at = s.end_at, None
         result.append({
-            "site_id": s.site_id, "from_at": s.start_at,
+            "site_id": s.site_id, "from_at": starts_at(s),
             "until_at": until_at, "fixed_until_at": fixed_until_at,
         })
     return result
