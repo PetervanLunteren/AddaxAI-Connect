@@ -50,6 +50,7 @@ REASONS = [
     'camera retired',
     'opened by a report',
     'merged at one site',
+    'photos deleted',
     'older rule',
     'arrival order',
     'unexplained',
@@ -153,6 +154,14 @@ def merged_at_one_site(built: list[BuiltDeployment], stored: list[Stored], photo
     return any(a is not None and a == b for a, b in zip(homes, homes[1:]))
 
 
+def photos_deleted(built: list[BuiltDeployment], stored: list[Stored]) -> bool:
+    """A stored pin averaged more readings than the photos that are left: photos
+    were deleted after they arrived, and their readings still pull the pin."""
+    return len(built) == len(stored) and any(
+        s.reading_count > b.reading_count for b, s in zip(built, stored)
+    )
+
+
 def explain(cam: Camera, by_arrival: list[BuiltDeployment], by_capture: list[BuiltDeployment],
             cutoff: Optional[datetime]) -> tuple[str, str]:
     """(reason, first difference in words) for one camera."""
@@ -173,6 +182,8 @@ def explain(cam: Camera, by_arrival: list[BuiltDeployment], by_capture: list[Bui
         return 'opened by a report', diff
     if merged_at_one_site(by_arrival, cam.stored, cam.photos):
         return 'merged at one site', diff
+    if photos_deleted(by_arrival, cam.stored):
+        return 'photos deleted', diff
     parting = first_differing_photo(by_arrival, cam.stored, cam.photos)
     if cutoff is not None and parting is not None and parting.ingested_at <= cutoff:
         return 'older rule', diff

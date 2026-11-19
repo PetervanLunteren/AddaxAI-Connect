@@ -106,6 +106,13 @@ def test_two_built_deployments_on_one_stored_one_were_merged():
     assert run(camera(photos, folded)).reason == "merged at one site"
 
 
+def test_a_pin_averaged_from_more_readings_than_are_left_means_photos_were_deleted():
+    """spw camera 861943072916181: 114 readings in the pin, 62 photos left."""
+    photos = [photo(1, HOME, 1, 10), photo(2, HOME, 2, 10)]
+    pulled = [stored(10, date(2026, 3, 1), None, east(HOME, 15), count=5)]
+    assert run(camera(photos, pulled)).reason == "photos deleted"
+
+
 def test_a_difference_in_photos_from_before_the_cutoff_is_an_older_rule():
     # The old 100 m rule split at 150 m; today's rule keeps one deployment.
     near = east(HOME, 150)
