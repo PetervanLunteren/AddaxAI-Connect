@@ -690,6 +690,19 @@ The rules:
   exports read: the day of a move belongs to the new deployment.
 - A live photo is stored and rebuilt in one transaction. A bulk job rebuilds
   once, when it ends.
+- GPS is optional on a photo. A photo that no deployment covers has
+  `deployment_id` NULL: it has no site yet. Admins see these photos, viewers
+  limited to sites do not (`site_image_clause` fails closed). The count per
+  camera is `utils/camera_unplaced.py`, the same pattern as rejected files.
+- A person sets a deployment with `POST /api/projects/{id}/deployments/statements`
+  (camera, site, first day, last day or none). The days become a period by
+  `period_of_days`: from the start of the first day to the start of the day
+  after the last. The camera panel's Change site uses the same endpoint with
+  the deployment's own days. `GET .../statements?camera_id=` lists the fixed
+  periods in force, `DELETE .../statements/{id}` takes one back.
+- GPS for alerts, integrations and exports comes from `images.gps_lat` and
+  `gps_lon`, never from `image_metadata['gps_decimal']`: an accepted photo
+  can carry (0, 0) in its EXIF.
 - `scripts/carry_over_deployments.py` ran once per server in the update to
   phase 2. Cameras whose stored history the readings give back stay
   automatic, every other camera got `carried_over` statements, and the

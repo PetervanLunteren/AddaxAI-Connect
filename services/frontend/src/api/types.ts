@@ -36,6 +36,12 @@ export interface Camera {
   // so a camera that recovered after a battery change stops warning. Drives
   // the attention chip and the filter. Null exactly when the count is null.
   rejecting: boolean | null;
+  // Photos no deployment covers yet, with their first and last day (camera
+  // clock, YYYY-MM-DD) for the Set deployment form. Null for site-restricted
+  // viewers, who cannot see these photos.
+  unplaced_photo_count: number | null;
+  unplaced_first_day: string | null;
+  unplaced_last_day: string | null;
 }
 
 // Service actions. The vocabulary mirrors VALID_ACTION_TYPES in

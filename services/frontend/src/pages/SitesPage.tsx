@@ -984,8 +984,9 @@ export const SitesPage: React.FC = () => {
         title="Delete site"
         body={
           <>
-            Delete "{deleteSite?.name}"? Its deployments keep their data but lose
-            the site link. This cannot be undone.
+            Delete "{deleteSite?.name}"? Only a site where no camera has stood
+            can be deleted. To clean up a site that is in use, merge it into
+            another site.
           </>
         }
         confirmLabel="Delete"

@@ -1,69 +1,75 @@
 /**
- * Deployment history for one camera, shown in the camera detail sheet.
+ * Deployments of one camera, the Deployments tab of the camera panel.
  *
- * Tells the story "where has this camera lived over time?" as a journey:
- * each step is a site the camera moved to, oldest first. Site assignment is
- * automatic; corrections normally happen from the camera updates panel. As a
- * late-correction escape hatch, project admins get a "change site" action on
- * each step, which reassigns that placement to any site of the project, or to
- * a brand new site created at the placement's own GPS. That new-site path is
- * the only way to split a backlog site that the automatic clustering merged by
- * mistake, since the feed's "new site" decision is not replayable for old data.
+ * The history reads as a journey: each step is a site the camera stood at,
+ * oldest first. The server works the deployments out from the photos' GPS
+ * plus fixed periods. Project admins can set a deployment (place a camera
+ * without GPS, change the site of a step, correct the past) and see the
+ * fixed periods with who set them, each of which can be taken back.
  */
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MapPinPlus } from 'lucide-react';
 import { camerasApi } from '../api/cameras';
-import { sitesApi } from '../api/sites';
-import { deploymentsApi } from '../api/deployments';
+import { deploymentsApi, type FixedPeriod } from '../api/deployments';
+import type { Camera } from '../api/types';
 import { DeploymentJourney, type JourneyItem } from './DeploymentJourney';
-import { SiteFormModal } from './sites/SiteFormModal';
+import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
-import { Select } from './ui/Select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/Dialog';
+import { Callout } from './ui/Callout';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 import { useToast } from './ui/Toaster';
 import { useProject } from '../contexts/ProjectContext';
+import { formatDate } from '../utils/datetime';
 
-export const CameraDeploymentHistory: React.FC<{
-  cameraId: number;
-  cameraName: string;
-}> = ({ cameraId, cameraName }) => {
+const today = () => new Date().toISOString().slice(0, 10);
+
+// Plain day labels from YYYY-MM-DD, read as the day it says, never shifted by
+// the browser's timezone.
+const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
+
+function sourceLabel(p: FixedPeriod): string {
+  if (p.source === 'upload') return 'set by an upload';
+  if (p.source === 'carried_over') return 'kept from before the update';
+  const when = dayLabel(p.created_at.slice(0, 10));
+  return p.created_by ? `set by ${p.created_by} on ${when}` : `set on ${when}`;
+}
+
+export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { isProjectAdmin } = useProject();
   const queryClient = useQueryClient();
   const toast = useToast();
   const pid = projectId ? Number(projectId) : undefined;
+  const canEdit = pid !== undefined && isProjectAdmin;
 
-  const [editItem, setEditItem] = useState<JourneyItem | null>(null);
-  const [siteId, setSiteId] = useState<number | null>(null);
-  const [creatingSite, setCreatingSite] = useState(false);
+  const [prefill, setPrefill] = useState<SetDeploymentPrefill | null>(null);
+  const [removing, setRemoving] = useState<FixedPeriod | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['camera-deployments', cameraId],
-    queryFn: () => camerasApi.getDeployments(cameraId),
+    queryKey: ['camera-deployments', camera.id],
+    queryFn: () => camerasApi.getDeployments(camera.id),
   });
 
-  const { data: sites } = useQuery({
-    queryKey: ['sites', pid],
-    queryFn: () => sitesApi.list(pid!),
-    enabled: pid !== undefined && editItem !== null,
+  const { data: fixedPeriods } = useQuery({
+    queryKey: ['fixed-periods', camera.id],
+    queryFn: () => deploymentsApi.fixedPeriods(pid!, camera.id),
+    enabled: canEdit,
   });
 
-  // Reassign the edited placement to a site, by id. Shared by the "pick an
-  // existing site" dropdown and the "create a new site here" path.
-  const assignMutation = useMutation({
-    mutationFn: (targetSiteId: number) =>
-      deploymentsApi.update(pid!, editItem!.id, { site_id: targetSiteId }),
+  const remove = useMutation({
+    mutationFn: (p: FixedPeriod) => deploymentsApi.removeFixedPeriod(pid!, p.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
+      queryClient.invalidateQueries({ queryKey: ['fixed-periods'] });
+      queryClient.invalidateQueries({ queryKey: ['cameras'] });
       queryClient.invalidateQueries({ queryKey: ['sites', pid] });
-      queryClient.invalidateQueries({ queryKey: ['feed', pid] });
-      setEditItem(null);
-      toast.success('Site changed');
+      setRemoving(null);
+      toast.success('Fixed period removed');
     },
     onError: (error: any) => {
-      toast.error(`Could not change the site. ${error.response?.data?.detail || error.message || ''}`);
+      toast.error(`Could not remove the fixed period. ${error.response?.data?.detail || error.message || ''}`);
     },
   });
 
@@ -71,22 +77,56 @@ export const CameraDeploymentHistory: React.FC<{
     return (
       <div className="flex items-center justify-center py-10 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
-        Loading deployment history
+        Loading deployments
       </div>
     );
   }
 
   const deployments = data ?? [];
-  const editDep = editItem ? deployments.find((d) => d.id === editItem.id) : undefined;
+  const unplaced = camera.unplaced_photo_count ?? 0;
 
-  const openEdit = (item: JourneyItem) => {
+  const changeSite = (item: JourneyItem) => {
     const dep = deployments.find((d) => d.id === item.id);
-    setSiteId(dep?.site_id ?? null);
-    setEditItem(item);
+    if (!dep) return;
+    setPrefill({
+      siteId: dep.site_id,
+      fromDate: dep.start_date ?? today(),
+      untilDate: dep.end_date,
+      lat: dep.latitude,
+      lon: dep.longitude,
+    });
   };
 
+  const newDeployment = (fromDate: string, untilDate: string | null) =>
+    setPrefill({ siteId: null, fromDate, untilDate, lat: null, lon: null });
+
   return (
-    <>
+    <div className="space-y-6">
+      {canEdit && unplaced > 0 && camera.unplaced_first_day && (
+        <Callout
+          variant="warning"
+          action={
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => newDeployment(camera.unplaced_first_day!, null)}
+            >
+              Set deployment
+            </Button>
+          }
+        >
+          {unplaced} {unplaced === 1 ? 'photo has' : 'photos have'} no site yet, taken
+          from {dayLabel(camera.unplaced_first_day)} to {dayLabel(camera.unplaced_last_day!)}.
+        </Callout>
+      )}
+
+      {canEdit && (
+        <Button size="sm" variant="outline" onClick={() => newDeployment(today(), null)}>
+          <MapPinPlus className="h-4 w-4 mr-2" />
+          Set deployment
+        </Button>
+      )}
+
       <DeploymentJourney
         mode="camera"
         items={deployments.map((d) => ({
@@ -96,71 +136,68 @@ export const CameraDeploymentHistory: React.FC<{
           endDate: d.end_date,
           imageCount: d.image_count,
         }))}
-        emptyText={`No deployment history for camera ${cameraName} yet.`}
-        onChangeSite={pid !== undefined && isProjectAdmin ? openEdit : undefined}
+        emptyText={`No deployments for camera ${camera.name} yet.`}
+        onChangeSite={canEdit ? changeSite : undefined}
       />
 
-      {editItem && (
-        <Dialog open onOpenChange={(o) => !o && setEditItem(null)}>
-          <DialogContent onClose={() => setEditItem(null)}>
-            <DialogHeader>
-              <DialogTitle>Change site</DialogTitle>
-              <DialogDescription>
-                Pick the site where camera {cameraName} actually stood during
-                this period. Its images move along to the new site.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4 space-y-3">
-              <div>
-                <label className="text-xs text-muted-foreground">Site</label>
-                <Select
-                  value={siteId ?? ''}
-                  onChange={(e) => setSiteId(e.target.value === '' ? null : Number(e.target.value))}
-                >
-                  {(sites ?? []).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCreatingSite(true)}
-                className="text-sm text-primary hover:underline"
-              >
-                Or create a new site here
-              </button>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditItem(null)} disabled={assignMutation.isPending}>
-                Cancel
-              </Button>
-              <Button onClick={() => assignMutation.mutate(siteId!)} disabled={assignMutation.isPending || siteId == null}>
-                {assignMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Save
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {canEdit && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Fixed periods</h3>
+          <p className="text-xs text-muted-foreground">
+            Periods where someone said where the camera stood. The GPS does not
+            change them. Remove one and the camera follows its GPS again for those days.
+          </p>
+          {(fixedPeriods ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">None.</p>
+          ) : (
+            <ul className="divide-y border rounded-md">
+              {(fixedPeriods ?? []).map((p) => (
+                <li key={p.id} className="flex items-start justify-between gap-3 p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{p.site_name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {dayLabel(p.from_date)} to {p.until_date ? dayLabel(p.until_date) : 'now'}, {sourceLabel(p)}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => setRemoving(p)}>
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
-      {editItem && creatingSite && (
-        <SiteFormModal
-          open
-          onClose={() => setCreatingSite(false)}
-          projectId={pid!}
-          sites={sites ?? []}
-          defaultLat={editDep?.latitude ?? null}
-          defaultLon={editDep?.longitude ?? null}
-          onCreated={(site) => {
-            // Created at this placement's GPS: move the placement onto it, which
-            // splits it out of the site the automatic clustering had merged.
-            setCreatingSite(false);
-            assignMutation.mutate(site.id);
-          }}
+      {prefill && pid !== undefined && (
+        <SetDeploymentDialog
+          projectId={pid}
+          cameraId={camera.id}
+          cameraName={camera.name}
+          prefill={prefill}
+          onClose={() => setPrefill(null)}
         />
       )}
-    </>
+
+      <ConfirmDialog
+        open={removing !== null}
+        onClose={() => setRemoving(null)}
+        onConfirm={() => removing && remove.mutate(removing)}
+        title="Remove this fixed period?"
+        body={
+          removing ? (
+            <>
+              {removing.site_name}, {dayLabel(removing.from_date)} to{' '}
+              {removing.until_date ? dayLabel(removing.until_date) : 'now'}. For these
+              days the camera follows its GPS again, or an older fixed period. Photos
+              without GPS in these days have no site until it is set again.
+            </>
+          ) : ''
+        }
+        confirmLabel="Remove"
+        variant="destructive"
+        isPending={remove.isPending}
+      />
+    </div>
   );
 };

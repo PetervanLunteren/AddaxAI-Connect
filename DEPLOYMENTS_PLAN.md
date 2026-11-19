@@ -32,7 +32,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 1a | done, release pending | `main` |
 | 1b | done, release pending | `main` |
 | 2a | done, release with the branch | `deployments-phase-2` |
-| 2b | in progress | `deployments-phase-2` |
+| 2b | in progress, built | `deployments-phase-2` |
 | 2c | not started | `deployments-phase-2` |
 | 3a | not started | `deployments-phase-2` |
 | 3b | not started | `deployments-phase-2` |
@@ -210,6 +210,27 @@ Notes per step:
     still says deployments "keep their data but lose the site link", and
     "It did not move" still says it cannot be undone.
   - Dev stays on the branch for 2b and 2c.
+- **2b**, planned and built on 19 November 2026.
+  - Decided: the form works in whole days, the list is called "Fixed
+    periods" in the app, alerts stay as they are (a rule for the whole
+    project fires for a photo without a site and names the camera, a rule
+    limited to sites skips it). And the one branch rule, see "Main or a
+    branch": no stopgaps, so uploads are left for phase 4.
+  - Photos without GPS, or with an invalid one, are accepted. `requires_gps`
+    is gone from the camera profiles. An upload without a chosen site still
+    skips a photo without GPS until phase 4 asks for the site.
+  - Endpoints to list, set and remove fixed periods, admins only. The old
+    `PATCH /deployments/{id}` is gone: Change site is the Set deployment form
+    with the deployment's own days.
+  - Camera panel: the tab is now Deployments, with Set deployment, a note
+    when photos have no site yet, and the Fixed periods list with Remove.
+    `SetDeploymentDialog` is one component, for phase 3 to mount again.
+  - Cameras page: a column, a filter and an attention chip for photos
+    without a site, admins only.
+  - Alerts, integrations and the observations export read GPS from the
+    columns, so an accepted (0, 0) is not sent on.
+  - Texts fixed: "It did not move" says how to take it back, the site delete
+    dialog says a site in use must be merged.
 
 ## How to work on this plan
 

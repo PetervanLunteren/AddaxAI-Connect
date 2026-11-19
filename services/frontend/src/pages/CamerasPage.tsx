@@ -73,6 +73,7 @@ type CameraFilterState = {
   location: string;
   site: string;
   rejected: string;
+  unplaced: string;
 };
 
 const FILTER_SCHEMA: FilterSchema = {
@@ -84,6 +85,7 @@ const FILTER_SCHEMA: FilterSchema = {
   location: 'string',
   site: 'string',
   rejected: 'string',
+  unplaced: 'string',
   search: 'string',
 };
 
@@ -173,6 +175,7 @@ export const CamerasPage: React.FC = () => {
     location: asString(parsedFilters.location),
     site: asString(parsedFilters.site),
     rejected: asString(parsedFilters.rejected),
+    unplaced: asString(parsedFilters.unplaced),
   };
   const searchQuery = asString(parsedFilters.search);
 
@@ -185,6 +188,7 @@ export const CamerasPage: React.FC = () => {
     location: filters.location || undefined,
     site: filters.site || undefined,
     rejected: filters.rejected || undefined,
+    unplaced: filters.unplaced || undefined,
     search: searchQuery || undefined,
   };
 
@@ -208,6 +212,7 @@ export const CamerasPage: React.FC = () => {
       location: undefined,
       site: undefined,
       rejected: undefined,
+      unplaced: undefined,
       search: undefined,
     });
 
@@ -232,7 +237,7 @@ export const CamerasPage: React.FC = () => {
   const visibleColumnDefs = useMemo(
     () =>
       cameraColumnPrefs.columns.filter(
-        (c) => visibleColumnSet.has(c.id) && (c.id !== 'rejected' || showRejected),
+        (c) => visibleColumnSet.has(c.id) && ((c.id !== 'rejected' && c.id !== 'unplaced') || showRejected),
       ),
     [visibleColumnSet, showRejected],
   );
@@ -528,9 +533,20 @@ export const CamerasPage: React.FC = () => {
         { value: 'not_rejecting', label: 'Not rejecting' },
       ],
     },
+    {
+      kind: 'select',
+      key: 'unplaced',
+      label: 'Photos without site',
+      primary: false,
+      options: [
+        { value: 'yes', label: 'Has photos without site' },
+        { value: 'no', label: 'All photos have a site' },
+      ],
+    },
   ];
+  // Site-restricted viewers see neither rejections nor photos without a site.
   const filterFields = allFilterFields.filter(
-    (f) => showRejected || !('key' in f) || f.key !== 'rejected',
+    (f) => showRejected || !('key' in f) || (f.key !== 'rejected' && f.key !== 'unplaced'),
   );
 
   const handleSort = (column: ColumnId) => {
@@ -668,6 +684,14 @@ export const CamerasPage: React.FC = () => {
         filters.rejected === 'rejecting' ? c.rejecting === true : c.rejecting === false
       );
     }
+    if (filters.unplaced) {
+      // Same test as the attention chip.
+      result = result.filter((c) =>
+        filters.unplaced === 'yes'
+          ? (c.unplaced_photo_count ?? 0) > 0
+          : c.unplaced_photo_count === 0
+      );
+    }
 
     // Sort (nulls last). Non-sortable columns return null and fall through
     // to the unsorted branch below if the user somehow ends up sorting on one.
@@ -690,6 +714,7 @@ export const CamerasPage: React.FC = () => {
             case 'sim_expiry': return c.sim_expiry_date;
             case 'last_maintenance': return c.last_maintenance_date;
             case 'rejected': return c.rejected_count_recent;
+            case 'unplaced': return c.unplaced_photo_count;
             default: return null;
           }
         };
@@ -710,7 +735,7 @@ export const CamerasPage: React.FC = () => {
   const isFiltered = searchQuery.trim() !== '' ||
     !!filters.status || !!filters.tag ||
     !!filters.battery || !!filters.signal || !!filters.sd_usage ||
-    !!filters.location || !!filters.site || !!filters.rejected;
+    !!filters.location || !!filters.site || !!filters.rejected || !!filters.unplaced;
 
   // Point-in-time health readings (battery, signal, SD, temperature) keep
   // showing the last value a camera reported even after it goes silent,
@@ -843,6 +868,15 @@ export const CamerasPage: React.FC = () => {
         return camera.rejected_count_recent ? (
           <span className="text-sm font-medium" style={{ color: '#882000' }}>
             {camera.rejected_count_recent}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+      case 'unplaced':
+        // Blank at zero, like rejected files: the number is a to-do.
+        return camera.unplaced_photo_count ? (
+          <span className="text-sm font-medium" style={{ color: '#882000' }}>
+            {camera.unplaced_photo_count}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">-</span>
