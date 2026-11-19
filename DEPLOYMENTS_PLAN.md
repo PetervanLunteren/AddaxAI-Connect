@@ -29,7 +29,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 
 | Step | Status | Where |
 |---|---|---|
-| 1a | in progress | `main` |
+| 1a | done, release pending | `main` |
 | 1b | not started | `main` |
 | 2a | not started | branch for phase 2 |
 | 2b | not started | branch for phase 2 |
@@ -76,9 +76,12 @@ Notes per step:
     chosen site. Phase 2 must keep them on their deployments, since the
     rebuild has no reading for them.
   - No INSTAR photos on drenthe or spw. Their backfill is covered by the
-    local test only.
-  - Left to do before 1a is done: pwn, the largest dataset (about 72k
-    photos), if Peter wants the worst case timed.
+    local test only. Nobody uses INSTAR now, so Peter decided on 19 November
+    2026 to leave it until a project has one.
+  - No separate run on pwn, the largest dataset (about 72k photos). At 4 s
+    for 41k photos the time is no concern, and the release test restores
+    every production dataset on dev before a release anyway.
+  - Built and tested on dev. Not in a release yet.
 
 ## How to work on this plan
 
@@ -379,6 +382,38 @@ is slow.
 - Merging keeps the merged site as a hidden row and records which deployments
   and statements moved, so the merge can be reversed.
 
+### Uploaded photos without GPS
+
+Photos from an SD card often carry no GPS. They need no special handling.
+
+- Their GPS columns stay empty. The site's pin is never copied into them: that
+  would put made-up data in the raw layer, pull deployment pins towards the
+  site pin, and spoil the answer key of phase 5.
+- Their place comes from the person who uploads. Choosing a site in the upload
+  is a statement: this camera stood at this site from the first photo to the
+  last. The photos then follow the deployment that covers their capture time.
+  This is how Wildlife Insights, Agouti, TRAPPER and Camelot work for every
+  upload.
+- An upload never ends in "no site yet". That state is for live cameras. In
+  an upload the person is at the form, so the form asks:
+
+| Upload | What happens |
+|---|---|
+| No GPS in the photos | A site is required, the upload cannot start without one |
+| GPS in the photos, no site chosen | GPS decides, as today |
+| GPS in the photos and a site chosen | The chosen site wins, the GPS is still stored as readings |
+
+- The period runs from the first photo to the last by default and can be
+  changed in the form. A camera that stood quiet before its first photo gets
+  no effort for that time unless someone widens the period. Asking for setup
+  and pickup dates on every upload is what users complain about elsewhere, so
+  the dates stay optional.
+- Each upload is its own period. Today a second upload to the same site widens
+  the camera's existing deployment there, however old, so it can run straight
+  through a time the camera stood somewhere else
+  (`get_or_create_bulk_deployment`, read from the code, not tested).
+  Statements end that.
+
 ### What needs review
 
 There is no separate feed table any more. A deployment needs review when it
@@ -461,7 +496,9 @@ Nothing changes for users.
   and compares them with the `deployments` table. Run it on dev against every
   production dataset, as the release test does. Every difference gets a reason:
   a correction by a person, arrival order, a report that opened a deployment,
-  or a bug.
+  an upload to a chosen site, or a bug. A deployment set by an upload has no
+  readings, so the replay can never rebuild it. spw project 4 alone has
+  11,811 such photos.
 - Timestamps. Deployments have dates today. The build cuts on capture time, so
   add start and end timestamps and derive the dates from them. Settle the
   details here, with trap-days and the Camtrap DP export in view.
@@ -480,8 +517,10 @@ The switch. From here the app stops destroying data.
 - Carry over the past. Where the replay matches a deployment and nobody acted
   on it, it stays automatic. Where a person acted (a resolved feed entry,
   `site_source='manual'`) or the replay differs, write a statement that pins
-  the deployment as it is. Statistics before and after the update must be
-  identical on every production dataset.
+  the deployment as it is. Every deployment made by an upload to a chosen site
+  falls under this and becomes a statement with its camera, site and dates.
+  Statistics before and after the update must be identical on every
+  production dataset.
 - Ingestion and the bulk worker call the rebuild in place of the old resolver.
   The candidate in `cameras.config` and the relink of held photos go away.
 - Every correction writes a statement: "Change site" in the camera panel and
@@ -550,7 +589,9 @@ to end test in the browser, see "Deploy to dev".
 ### Phase 4: bulk upload
 
 - The review step asks for a camera (an existing one, a new one, or unknown)
-  and a site. That becomes a statement for the date range of the photos.
+  and a site. That becomes a statement for the date range of the photos. The
+  site is required when the photos have no GPS, see "Uploaded photos without
+  GPS" under the model.
 - A recognised camera with GPS only adds readings. The rebuild runs once at the
   end of the job, so an old SD card can no longer disturb the current
   deployment.
@@ -612,6 +653,10 @@ Decided on 19 November 2026, in the planning of step 1a:
 - GPS readings are two plain number columns, not a PostGIS point. Nothing
   queries readings by area, and the build function reads them in Python.
 - The backfill runs in the migration, not as a script.
+- Uploaded photos without GPS keep empty GPS columns, and the uploader's
+  chosen site is their statement. No made-up readings, no "no site yet" for
+  uploads.
+- INSTAR waits until a project uses it.
 
 Rejected, with the reason:
 
