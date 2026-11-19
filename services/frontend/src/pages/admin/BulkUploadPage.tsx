@@ -109,7 +109,6 @@ function formatRelative(iso: string | null): string {
 }
 
 function formatDateRange(start: string | null, end: string | null): string {
-  if (!start && !end) return 'no dates found';
   // Unambiguous day-month-year using the browser locale, e.g. "3 Jun 2026".
   const fmt = (iso: string) =>
     new Date(iso).toLocaleDateString(undefined, {
@@ -1218,22 +1217,24 @@ const ReviewStep: React.FC<{
             </>
           )}
         </div>
-        <div className="text-xs text-muted-foreground">
-          Date range, {formatDateRange(manifest.date_range.start, manifest.date_range.end)}
-          {timeOffset !== 0 && <>, corrected by {formatOffset(timeOffset)}</>}
-          {clockSamples.length > 0 && (
-            <>
-              {'. '}
-              <button
-                type="button"
-                onClick={() => setShowClockOffset(true)}
-                className="text-primary underline underline-offset-2 hover:text-primary/80"
-              >
-                {timeOffset === 0 ? 'Wrong dates? Correct the camera clock' : 'Change the correction'}
-              </button>
-            </>
-          )}
-        </div>
+        {manifest.date_range.start && (
+          <div className="text-xs text-muted-foreground">
+            Date range, {formatDateRange(manifest.date_range.start, manifest.date_range.end)}
+            {timeOffset !== 0 && <>, corrected by {formatOffset(timeOffset)}</>}
+            {clockSamples.length > 0 && (
+              <>
+                {'. '}
+                <button
+                  type="button"
+                  onClick={() => setShowClockOffset(true)}
+                  className="text-primary underline underline-offset-2 hover:text-primary/80"
+                >
+                  {timeOffset === 0 ? 'Wrong dates? Correct the camera clock' : 'Change the correction'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
         <ClockOffsetDialog
           open={showClockOffset}
           onClose={() => setShowClockOffset(false)}
@@ -1324,9 +1325,11 @@ const ReviewStep: React.FC<{
           {unreadableCount > 0 && (
             <>
               <span className="font-medium">
-                {unreadableCount.toLocaleString()} image{unreadableCount === 1 ? '' : 's'} cannot be read and will not be uploaded.
+                {unreadableCount.toLocaleString()} image{unreadableCount === 1 ? '' : 's'} cannot be opened and will not be uploaded.
               </span>
-              {' '}Go back to scan the folder again, or check the card reader.{' '}
+              {' '}Copy the folder to this computer and pick that copy. The browser cannot
+              {' '}read files that are only online in OneDrive, iCloud or Google Drive, or
+              {' '}that are on a network drive.{' '}
             </>
           )}
           {undatedCount > 0 && rawValidCount === 0 ? (
