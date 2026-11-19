@@ -31,7 +31,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 |---|---|---|
 | 1a | done, release pending | `main` |
 | 1b | done, release pending | `main` |
-| 2a | in progress | `deployments-phase-2` |
+| 2a | done, release with 2b and 2c | `deployments-phase-2` |
 | 2b | not started | branch for phase 2 |
 | 2c | not started | branch for phase 2 |
 | 3a | not started | `main` |
@@ -195,9 +195,21 @@ Notes per step:
   - Live photo on dev with spw data: 0.04 to 0.1 s per photo including the
     rebuild, on the busiest camera (1,664 photos). Near photos stay on the
     open deployment, two photos 2 km away make a move and a feed entry.
-  - Left to do: the corrections in the browser on dev (change site, the
-    updates panel actions, site merge, refused site delete, retire), which
-    needs Peter's login. Then 2a is done.
+  - In the browser on dev with spw data, 19 November 2026, all as intended:
+    - Change site in the camera panel: a statement, the deployment moves to
+      the chosen site with its dates and photos.
+    - "It did not move": the two deployments become one again with all
+      1,669 photos, the emptied auto site is deleted, both statements stay
+      with who made them, the newer one wins.
+    - Deleting a site in use: refused with "Cameras have stood at this site.
+      Merge it into another site instead."
+    - Site merge: the deployment, its 7 photos and its statement move to the
+      kept site, the merged site is gone.
+    - Retire: the open deployment closes on the day of the last photo.
+  - For 2b, UI text that is out of date since 2a: the site delete dialog
+    still says deployments "keep their data but lose the site link", and
+    "It did not move" still says it cannot be undone.
+  - Dev stays on the branch for 2b and 2c.
 
 ## How to work on this plan
 
