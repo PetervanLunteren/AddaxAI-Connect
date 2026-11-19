@@ -23,6 +23,10 @@ Run by scripts/update-database.sh after the migrations:
 The dry run does all of it and rolls back, so its report is exactly what
 --apply would give. --apply runs once: it sets
 server_settings.deployments_carried_over_at and does nothing the next time.
+
+The report also goes to REPORT_PATH in the api container, because
+restore.sh runs update-database.sh without output. Read it with
+`docker compose exec -T api cat /tmp/carry-over-deployments.txt`.
 """
 import argparse
 import sys
@@ -46,6 +50,8 @@ logger = get_logger("carry-over-deployments")
 
 # A site pin that moves further than this in the carry-over is listed.
 PIN_REPORT_METRES = 10.0
+
+REPORT_PATH = "/tmp/carry-over-deployments.txt"
 
 
 @dataclass(frozen=True)
@@ -269,23 +275,31 @@ def main() -> None:
 
     pinned = [r for r in results if r.pinned]
     with_exceptions = [r for r in results if r.exceptions]
-    print(f"=== {mode} ===")
-    print(f"cameras               : {len(results)}")
-    print(f"automatic             : {len(results) - len(pinned)}")
-    print(f"pinned by statements  : {len(pinned)} ({sum(r.statements for r in pinned)} statements)")
+    lines = [
+        f"=== {mode} ===",
+        f"cameras               : {len(results)}",
+        f"automatic             : {len(results) - len(pinned)}",
+        f"pinned by statements  : {len(pinned)} ({sum(r.statements for r in pinned)} statements)",
+    ]
     skipped = sum(r.skipped_without_site for r in pinned)
     if skipped:
-        print(f"deployments without site, left to GPS: {skipped}")
-    print(f"site pins moved       : {sum(1 for m, _ in pin_moves if m > 0)}, "
-          f"furthest {pin_moves[-1][0] if pin_moves else 0} m")
-    print(f"cameras with changes  : {len(with_exceptions)}")
+        lines.append(f"deployments without site, left to GPS: {skipped}")
+    lines.append(
+        f"site pins moved       : {sum(1 for m, _ in pin_moves if m > 0)}, "
+        f"furthest {pin_moves[-1][0] if pin_moves else 0} m"
+    )
+    lines.append(f"cameras with changes  : {len(with_exceptions)}")
     for r in with_exceptions:
-        print(f"  camera {r.camera_id} ({r.device_id}){' pinned' if r.pinned else ''}:")
-        for e in r.exceptions:
-            print(f"    {e}")
-    for metres, site_id in pin_moves:
-        if metres > PIN_REPORT_METRES:
-            print(f"  site {site_id} pin moved {metres} m")
+        lines.append(f"  camera {r.camera_id} ({r.device_id}){' pinned' if r.pinned else ''}:")
+        lines.extend(f"    {e}" for e in r.exceptions)
+    lines.extend(
+        f"  site {site_id} pin moved {metres} m"
+        for metres, site_id in pin_moves if metres > PIN_REPORT_METRES
+    )
+    report = "\n".join(lines)
+    print(report)
+    with open(REPORT_PATH, "w") as f:
+        f.write(report + "\n")
     logger.info(
         "Deployment carry-over", mode=mode, cameras=len(results), pinned=len(pinned),
         with_changes=len(with_exceptions),
