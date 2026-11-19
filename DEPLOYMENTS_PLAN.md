@@ -158,9 +158,46 @@ Notes per step:
     requests. Decide in 2c whether the local folder stays or CI gets PostGIS.
   - For 2b: the "It did not move" dialog still says it cannot be undone.
     That stays true until the statements list with Remove exists.
-  - Left to do: the dry run of the carry-over on dev against all five
-    datasets, to go through with Peter, then deploy the branch to dev and the
-    gate.
+  - The gate on dev, 19 November 2026, branch at `f6573985`. Every dataset
+    restored and updated with the branch, `test-update.sh` passed on all
+    five. The carry-over, one statement per old deployment by its days:
+
+    | Server | Cameras | Automatic | Pinned | Changed |
+    |---|---|---|---|---|
+    | lab | 5 | 2 | 3 | 1 |
+    | npuh | 40 | 35 | 5 | 0 |
+    | drenthe | 31 | 24 | 7 | 0 |
+    | pwn | 53 | 43 | 10 | 3 |
+    | spw | 115 | 87 | 28 | 1 |
+
+    Every change has a reason:
+    - lab, one camera: a photo of 6 June had no deployment, cut loose by the
+      old cleanup with the midnight bug. It has one again, so the camera
+      starts a day earlier.
+    - spw, one camera: 6 photos taken at the old place on the morning of a
+      move now sit on the new deployment. Old deployments knew only days, so
+      the day of a move belongs to the new one. That site's pin moved 61 m.
+    - pwn, three cameras: the test photos of 15 January in Utrecht (see the
+      notes of 1b) are now a deployment of one or two days there. Left on
+      purpose, a statement fixes it per camera once 2b has the form.
+    - pwn, one site: its pin moved 50 km to where the photos of its upload
+      say the camera stood. Deployment pins come from the photos' GPS now,
+      also for uploads to a chosen site.
+    - Site pins elsewhere moved up to 15 m: deployment pins are now the mean
+      of the photos on them.
+  - Two flaws the gate found and fixed: a joined deployment kept the pin of
+    the first part (lab, 138 m), and the carry-over's report was lost because
+    restores hide the output, so it is also written to a file in the api
+    container. Two special cases added to make numbers match were removed
+    again, see "Explainable beats identical".
+  - `api-speed` failed once on spw (8.04 s on `/api/statistics/performance`),
+    the known slow page from `TODO.md`, unrelated. It passed the next runs.
+  - Live photo on dev with spw data: 0.04 to 0.1 s per photo including the
+    rebuild, on the busiest camera (1,664 photos). Near photos stay on the
+    open deployment, two photos 2 km away make a move and a feed entry.
+  - Left to do: the corrections in the browser on dev (change site, the
+    updates panel actions, site merge, refused site delete, retire), which
+    needs Peter's login. Then 2a is done.
 
 ## How to work on this plan
 
