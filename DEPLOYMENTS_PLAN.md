@@ -30,7 +30,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | Step | Status | Where |
 |---|---|---|
 | 1a | done, release pending | `main` |
-| 1b | in progress | `main` |
+| 1b | done, release pending | `main` |
 | 2a | not started | branch for phase 2 |
 | 2b | not started | branch for phase 2 |
 | 2c | not started | branch for phase 2 |
@@ -97,8 +97,30 @@ Notes per step:
     then. A server that ran v0.6.0 before v0.6.2 has a few weeks after that
     stamp under the old rule, which shows as unexplained cameras to check by
     hand.
-  - Left to do: run the replay on dev against each production dataset and go
-    through the unexplained cameras with Peter.
+  - Replayed on dev on 19 November 2026 against every production dataset with
+    a backup. Every camera has a reason, none is unexplained. The build took
+    under a second per server, at most 0.16 s for one camera, so a full
+    rebuild per camera needs no shortcut.
+
+    | Server | Cameras | Same | Person | Upload | Report | Deleted | Older rule | Arrival order |
+    |---|---|---|---|---|---|---|---|---|
+    | lab | 5 | 2 | 3 | | | | | |
+    | npuh | 8 | 7 | | | 1 | | | |
+    | drenthe | 30 | 30 | | | | | | |
+    | spw | 115 | 85 | 2 | 10 | 2 | 1 | 15 | |
+    | pwn | 49 | 44 | | 1 | 1 | | | 3 |
+
+  - "Older rule" on spw is 14 pins 1 to 5 m off, from before the running mean,
+    and one camera split by the old rule.
+  - "Deleted" is spw camera 861943072916181: its pin averaged 114 readings,
+    62 photos are left. Added as a reason after the first run.
+  - "Arrival order" on pwn needs a decision in phase 2. Three cameras each
+    have one photo taken on 15 January 2026, 49 km from their site, that
+    arrived in late October, most likely test photos from before the field.
+    In arrival order the reading was held and dropped. In capture order it
+    comes first and opens a deployment of its own, which the next photos then
+    confirm as a move. The two-reading check guards a move, not the first
+    deployment. See the open point for phase 2.
 
 ## How to work on this plan
 
@@ -734,6 +756,10 @@ To settle at the start of the phase named.
   photo arrived. Reports no longer make deployments, so the rebuild starts
   them at the first photo. Pin the old start with a statement, or accept the
   later start.
+- Phase 2: a lone first reading far from the rest. In capture order it opens
+  a deployment of its own, which can also count months of effort at the wrong
+  place (pwn, three cameras, see the notes of 1b). Hold the first reading
+  like any far one, or leave it to statements and phase 5.
 - Phase 2: the name of the statements table and the wording in the UI.
 - Phase 2: whether a site that has deployments can be deleted, or only merged.
 - Phase 2: what alerts do for a photo that has no site yet.
