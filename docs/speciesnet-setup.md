@@ -4,7 +4,7 @@ SpeciesNet knows more than 2,000 species, and about 400 groups above them. When 
 
 Making that list by hand is hard. Every name must be spelled exactly as in SpeciesNet's own list of 3,500 names, and every row changes what the other rows catch. One row too many or too few and a fox ends up as "mammal", or a wolf alert stays silent. That is why there is the AI taxonomist, an AI assistant that makes the list with you.
 
-![Species labels in the project settings](https://github.com/user-attachments/assets/341c6179-de63-4b7e-8b18-91623ed74aff)
+![Species labels in the project settings](https://github.com/user-attachments/assets/51091c3a-c234-49a3-92e9-a20eecde4f1c)
 
 ## Make the label list
 
