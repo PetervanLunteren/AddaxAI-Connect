@@ -93,16 +93,22 @@ def read_status(redis_client) -> Optional[dict]:
         return None
 
 
-def ilm_is_stuck(current: int, budget_bytes: int,
+def ilm_is_stuck(current: int, budget_bytes: int, objects_cold: int,
                  previous: Optional[dict], now: datetime) -> bool:
     """True when tagged objects are demonstrably not reaching the cold tier.
 
-    Three things have to hold together. The disk is over budget by more than
+    Four things have to hold together. The disk is over budget by more than
     the 10% margin. A previous tick already tagged objects, so ILM has been
-    given something to move. And that tick was long enough ago that the
-    scanner has had its chance.
+    given something to move. That tick was long enough ago that the scanner
+    has had its chance. And no more objects are cold now than at that tick.
 
-    The last two conditions are the point. Tagging and measuring happen in the
+    The last one separates a broken path from a full disk. A missing rule,
+    an expired key and a remote outage all move nothing at all, while new
+    uploads fill the disk with transitions working fine. Without it, one
+    large SD-card import the day after any tagging raised the alert. It
+    asks whether anything moved, not whether it moved fast enough.
+
+    The middle two conditions are about timing. Tagging and measuring happen in the
     same tick, and the loop ticks immediately at startup, so the size read
     just before tagging says nothing yet about whether transitions work.
     Judging on it alone meant every deploy made while over budget raised an
@@ -122,7 +128,9 @@ def ilm_is_stuck(current: int, budget_bytes: int,
         return False
     if tagged_at.tzinfo is None:
         tagged_at = tagged_at.replace(tzinfo=timezone.utc)
-    return now - tagged_at >= timedelta(seconds=ILM_GRACE_SECONDS)
+    if now - tagged_at < timedelta(seconds=ILM_GRACE_SECONDS):
+        return False
+    return objects_cold <= previous.get("objects_cold", 0)
 
 
 def tick(storage, log, previous: Optional[dict] = None):
@@ -194,7 +202,8 @@ def tick(storage, log, previous: Optional[dict] = None):
     # missing rules, expired remote credentials, Wasabi outages, and any
     # other reason transitions are not happening. See ilm_is_stuck for why
     # the disk size on its own is not enough to convict.
-    if ilm_is_stuck(current, budget_bytes, previous, datetime.now(timezone.utc)):
+    if ilm_is_stuck(current, budget_bytes, result["objects_cold"], previous,
+                    datetime.now(timezone.utc)):
         result["status"] = "error"
         result["error"] = (
             f"hot disk {current / (1024 ** 3):.2f} GB exceeds "
