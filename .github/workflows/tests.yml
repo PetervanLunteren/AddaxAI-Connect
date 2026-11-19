@@ -55,10 +55,10 @@ jobs:
             reqs: ''
           - dir: tests/classification
             reqs: ''
-          # The watchdog has no requirements.txt, it pins inline in its
-          # Dockerfile. Keep these two in step with that file.
+          # The watchdog has no requirements.txt. Everything it needs comes
+          # with shared/, the same as in its image.
           - dir: tests/tier_watchdog
-            reqs: boto3==1.34.0 redis==5.0.1
+            reqs: ''
 
     name: ${{ matrix.dir }}
 

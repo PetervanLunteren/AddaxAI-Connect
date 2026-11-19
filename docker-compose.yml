@@ -429,6 +429,7 @@ services:
     restart: unless-stopped
     profiles: [full, deepfaune, speciesnet]
     environment:
+      DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
@@ -441,6 +442,8 @@ services:
     volumes:
       - ./data/minio:/data:ro
     depends_on:
+      postgres:
+        condition: service_healthy
       minio:
         condition: service_healthy
       redis:
