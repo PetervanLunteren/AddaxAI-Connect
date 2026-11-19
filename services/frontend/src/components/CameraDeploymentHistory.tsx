@@ -120,7 +120,9 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
         </Callout>
       )}
 
-      {canEdit && (
+      {/* The note above has its own button, so this one waits until all
+          photos have a site. */}
+      {canEdit && unplaced === 0 && (
         <Button size="sm" variant="outline" onClick={() => newDeployment(today(), null)}>
           <MapPinPlus className="h-4 w-4 mr-2" />
           Set deployment

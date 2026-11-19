@@ -32,7 +32,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 1a | done, release pending | `main` |
 | 1b | done, release pending | `main` |
 | 2a | done, release with the branch | `deployments-phase-2` |
-| 2b | in progress, built | `deployments-phase-2` |
+| 2b | done, release with the branch | `deployments-phase-2` |
 | 2c | not started | `deployments-phase-2` |
 | 3a | not started | `deployments-phase-2` |
 | 3b | not started | `deployments-phase-2` |
@@ -231,6 +231,25 @@ Notes per step:
     columns, so an accepted (0, 0) is not sent on.
   - Texts fixed: "It did not move" says how to take it back, the site delete
     dialog says a site in use must be merged.
+  - On dev with spw data, 19 November 2026, all as intended:
+    - Two Willfine photos without GPS through the real upload folder:
+      accepted, classified, no site, no rejection.
+    - The Cameras page chip counted the camera, the filter listed it.
+    - The camera panel note "2 photos have no site yet" opened the form
+      prefilled with their first day. Saving placed both photos.
+    - A later photo without GPS landed on that deployment by itself.
+    - A second period from a later day moved the camera, and removing it
+      gave everything back, the removed row kept with who and when.
+    - Change site on a GPS camera opened the same form with its site and
+      days.
+  - The chip found real photos without a site on spw: setup photos without
+    GPS, a day before two cameras' first deployment. They had no deployment
+    before 2b either, nobody could see it.
+  - Not tested end to end: a project-wide alert on a photo without a site,
+    because dev holds spw's real users and alert rules. The code path did
+    not change in 2b.
+  - Each fixed period shows the days it was set with. Where a newer one
+    overlaps it, the history above shows what is in force.
 
 ## How to work on this plan
 
