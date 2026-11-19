@@ -5,9 +5,45 @@ including cameras without GPS. Written 19 November 2026 after an audit of the
 code, three research rounds and a discussion with Peter. Nothing in this plan is
 built yet.
 
-Each phase starts with its own short check of this plan against the code as it
-is then. File and line references come from the audit at v0.23.0 and must be
-looked up again before use.
+File and line references come from the audit at v0.23.0 and must be looked up
+again before use.
+
+## Continue from here
+
+When Peter says he wants to continue with the deployments plan, do this:
+
+1. Read this file in full.
+2. Find the next step in the table below: the first one that is not done.
+3. Tell Peter in one or two sentences which step that is and what it covers,
+   and what was done last.
+4. If the step is "not started", start its planning session. Follow the prompt
+   under "How each step is planned" as if Peter had just pasted it, with that
+   step as the task.
+5. If the step is "planned" or "in progress", read its notes below the table
+   and carry on from there. Ask Peter if the notes are not enough.
+6. When something changes, update the table and the notes in the same session:
+   the status, the branch, the commit or release, and what the next session
+   must know. Keep the notes short.
+
+| Step | Status | Where |
+|---|---|---|
+| 1a | not started | `main` |
+| 1b | not started | `main` |
+| 2a | not started | branch for phase 2 |
+| 2b | not started | branch for phase 2 |
+| 2c | not started | branch for phase 2 |
+| 3a | not started | `main` |
+| 3b | not started | its own branch |
+| 3c | not started | `main` |
+| 4 | not started | `main` |
+| 5 | not started | `main` |
+
+A status is one of: not started, planned (Peter agreed with the step's plan),
+in progress, done (with the release it shipped in).
+
+Notes per step:
+
+- None yet.
 
 ## How to work on this plan
 
@@ -105,8 +141,28 @@ Instructions:
 * Ask me clarifying questions before beginning. Based on the conventions set out in the MD files in root and your knowledge, give your recommended solution to each questions you ask me. The minimum number of questions (in interactive mode with selectable predefined multiple choice answers, the first always being your recommended answer) to ask me is 4
 ```
 
-Start the session with: the prompt above, then "The task is step <number> of
-DEPLOYMENTS_PLAN.md. Read that file in full first."
+Peter does not paste this prompt each time. Saying that he wants to continue
+with the deployments plan is enough, see "Continue from here" at the top.
+
+## Main or a branch
+
+Servers run tagged releases and never the head of `main`, so unfinished work on
+`main` reaches nobody. The reason for a branch is releases: `main` must stay in
+a state from which an urgent bug fix can be released.
+
+- **On `main`**: steps 1a, 1b, 3a, 3c, 4 and 5. They only add things: columns,
+  tests, a script, a read-only page. Half-finished work there breaks nothing.
+- **On one branch for all of phase 2**: steps 2a, 2b and 2c. Phase 2 swaps the
+  code that decides deployments and rewrites existing data when it carries
+  over the past. For a while it cannot be released, and step 2a alone leaves
+  the app in an in-between state. The three steps make one release together.
+- **On its own branch**: step 3b. It removes the updates panel and the feed
+  table.
+
+Keep a branch short-lived and rebase it on `main` often, because `main` moves
+fast. Rehearse the merge on dev with production data first, as was done for
+`sites-migration-cleanup` in July 2026. Ask Peter before opening a branch, as
+`CONVENTIONS.md` says.
 
 ## The problem
 
