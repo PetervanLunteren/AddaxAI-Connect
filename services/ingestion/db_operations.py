@@ -642,6 +642,7 @@ def create_image_record(
     thumbnail_path: str,
     captured_at: datetime,
     gps_location: Optional[Tuple[float, float]],
+    gps_reading: Optional[Tuple[float, float]],
     exif_metadata: dict,
     origin: str = "live",
     content_hash: Optional[str] = None,
@@ -658,7 +659,12 @@ def create_image_record(
         storage_path: Path in MinIO (e.g., "WUH09/2025/12/abc-123_image.jpg")
         thumbnail_path: Path to thumbnail in MinIO (e.g., "WUH09/2025/12/abc-123_image.jpg")
         captured_at: Camera wall-clock capture datetime (naive, interpreted under ServerSettings.timezone)
-        gps_location: (latitude, longitude) or None
+        gps_location: (latitude, longitude) the site and deployment are
+            resolved from, or None
+        gps_reading: the photo's own GPS, stored as-is in gps_lat and
+            gps_lon, or None. Usually equal to gps_location; a bulk upload to
+            a chosen site passes the site's pin there and the photo's own GPS
+            here. An invalid reading is stored as empty.
         exif_metadata: Full EXIF data dictionary
         origin: 'live' for FTPS-ingested, 'bulk' for SD-card upload. Drives
             notification suppression downstream (bulk skips species_detection).
@@ -680,6 +686,8 @@ def create_image_record(
             image_uuid=image_uuid,
         )
 
+    gps_lat, gps_lon = gps_reading if is_valid_gps(gps_reading) else (None, None)
+
     with get_db_session() as session:
         image = Image(
             uuid=image_uuid,
@@ -690,6 +698,8 @@ def create_image_record(
             thumbnail_path=thumbnail_path,
             status="pending",  # Will be updated by detection worker
             image_metadata=exif_metadata,  # Store full EXIF as JSON
+            gps_lat=gps_lat,
+            gps_lon=gps_lon,
             origin=origin,
             content_hash=content_hash,
             bulk_upload_job_id=bulk_upload_job_id,
@@ -763,11 +773,9 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
         # do not poison camera.config['gps_from_report'] (which other services
         # like excessive_images.py read for the email Location field).
         report_gps = health_data.get('gps_location')
-        if is_valid_gps(report_gps):
-            lat, lon = report_gps
-            # Note: This requires PostGIS Geography type
-            # For now, store in config JSON as well
-            camera.config['gps_from_report'] = {'lat': lat, 'lon': lon}
+        report_lat, report_lon = report_gps if is_valid_gps(report_gps) else (None, None)
+        if report_lat is not None:
+            camera.config['gps_from_report'] = {'lat': report_lat, 'lon': report_lon}
         elif report_gps is not None:
             logger.warning(
                 "Daily report has invalid GPS, skipping camera location update",
@@ -795,6 +803,8 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
             existing_report.sd_utilization_percent = health_data.get('sd_utilization_percentage')
             existing_report.total_images = health_data.get('total_images')
             existing_report.sent_images = health_data.get('sent_images')
+            existing_report.gps_lat = report_lat
+            existing_report.gps_lon = report_lon
             logger.debug("Updated existing health report", camera_id=camera_id, day=report_day)
         else:
             health_report = CameraHealthReport(
@@ -806,6 +816,8 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
                 sd_utilization_percent=health_data.get('sd_utilization_percentage'),
                 total_images=health_data.get('total_images'),
                 sent_images=health_data.get('sent_images'),
+                gps_lat=report_lat,
+                gps_lon=report_lon,
             )
             session.add(health_report)
             logger.debug("Created new health report", camera_id=camera_id, day=report_day)

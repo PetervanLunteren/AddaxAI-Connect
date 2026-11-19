@@ -146,6 +146,7 @@ def send_photo(device_id: str, project_id: int, lat: float, lon: float, note: st
         thumbnail_path=thumbnail_path,
         captured_at=now_naive(),
         gps_location=(lat, lon),
+        gps_reading=(lat, lon),
         exif_metadata={"source": "dev_simulate_feed", "note": note},
     )
     print(f"  {device_id} photo at ({lat:.5f}, {lon:.5f})  [{note}] {filename}")

@@ -1050,6 +1050,8 @@ def _emit_one_image(out, counters, *, device_id, camera_index, dep_key, lat, lon
         "thumbnail_path": img_thumb_path,
         "status": "classified",
         "image_metadata": json.dumps(metadata),
+        "gps_lat": lat,
+        "gps_lon": lon,
         "origin": origin,
         "bulk_job_uuid": bulk_job_uuid,
         # AI result kept for downstream generators (observations, curation); not inserted directly.
@@ -1939,7 +1941,7 @@ def insert_images_batch(session: Session, images: list, cam_index_to_id: dict,
     the curation columns. Returns {uuid: db_id}."""
     columns = (
         "uuid, filename, camera_id, captured_at, storage_path, thumbnail_path, "
-        "status, image_metadata, origin, deployment_id, bulk_upload_job_id, "
+        "status, image_metadata, gps_lat, gps_lon, origin, deployment_id, bulk_upload_job_id, "
         "ingested_at, is_hidden, is_verified, verified_at, verified_by_user_id, "
         "verification_notes, is_liked, liked_at, liked_by_user_id, "
         "needs_review, needs_review_at, needs_review_by_user_id"
@@ -1958,7 +1960,7 @@ def insert_images_batch(session: Session, images: list, cam_index_to_id: dict,
             values_parts.append(
                 f"(:uuid{k}, :filename{k}, :camera_id{k}, :captured_at{k}, "
                 f":storage_path{k}, :thumbnail_path{k}, :status{k}, "
-                f"CAST(:metadata{k} AS jsonb), :origin{k}, :deployment_id{k}, "
+                f"CAST(:metadata{k} AS jsonb), :gps_lat{k}, :gps_lon{k}, :origin{k}, :deployment_id{k}, "
                 f":bulk_job_id{k}, "
                 f"(CAST(:captured_at{k} AS timestamp) AT TIME ZONE '{SERVER_TIMEZONE}'), "
                 f"false, :is_verified{k}, :verified_at{k}, :verified_by{k}, "
@@ -1975,6 +1977,8 @@ def insert_images_batch(session: Session, images: list, cam_index_to_id: dict,
                 f"thumbnail_path{k}": img["thumbnail_path"],
                 f"status{k}": img["status"],
                 f"metadata{k}": img["image_metadata"],
+                f"gps_lat{k}": img["gps_lat"],
+                f"gps_lon{k}": img["gps_lon"],
                 f"origin{k}": img["origin"],
                 f"deployment_id{k}": dep_key_to_id.get(img["deployment_key"]),
                 f"bulk_job_id{k}": job_uuid_to_id.get(bulk_uuid) if bulk_uuid else None,

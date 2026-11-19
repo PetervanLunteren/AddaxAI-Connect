@@ -638,6 +638,28 @@ check all use corrected time too. Offset arithmetic runs on the naive wall
 clock, never through the browser's timezone, or a summer time switch moves
 the result an hour. There is no correction after import.
 
+## GPS readings
+
+Every photo and every daily report keeps the camera's own GPS reading in
+`gps_lat` and `gps_lon` (`images` and `camera_health_reports`). A reading is
+written once and never changed. It is empty when the camera sent no GPS or an
+invalid one: out of range, or exactly (0, 0), the rule of `is_valid_gps` in
+`services/ingestion/utils.py`.
+
+- `create_image_record` takes two GPS arguments. `gps_location` is what the
+  site and deployment are resolved from, `gps_reading` is what is stored. They
+  differ for a bulk upload to a chosen site: there `gps_location` is the
+  site's pin and `gps_reading` is the photo's own EXIF GPS, which may be empty.
+- `update_camera_health` stores the reading on the report row of that day.
+  A second report on the same day overwrites it, like the other health values.
+- `image_metadata` keeps the raw EXIF as before. Read GPS from the columns,
+  not from the JSON.
+
+Migration `20261119_gps_readings` filled the columns for older photos, from
+`image_metadata['gps_decimal']` and, for INSTAR, from the position in
+`image_metadata['relative_path']`. Daily reports kept no GPS before, so older
+report rows stay empty.
+
 ## SpeciesNet labels
 
 A SpeciesNet project has its own label list, its taxonomy mapping: rows of `latin` (a SpeciesNet taxon) and `common` (the label users

@@ -28,6 +28,13 @@ class Image(Base):
     status = Column(String(50), nullable=False, default="pending", index=True)
     image_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
 
+    # The camera's own GPS reading for this photo, written once and never
+    # changed. Empty when the photo carried no GPS or an invalid one (see
+    # is_valid_gps). For a bulk upload to a chosen site it is still the
+    # photo's own GPS, never the site's pin. See "GPS readings" in DEVELOPERS.md.
+    gps_lat = Column(Float, nullable=True)
+    gps_lon = Column(Float, nullable=True)
+
     # When the photo was replaced by the privacy placeholder (aware UTC), see
     # shared/privacy.py. Null means the real photo is in storage. The row,
     # its detections and its timestamps stay, so counts, alerts and camera
@@ -353,6 +360,11 @@ class CameraHealthReport(Base):
     # Image counts from SD card
     total_images = Column(Integer, nullable=True)     # Images on SD card
     sent_images = Column(Integer, nullable=True)      # Images already transmitted
+
+    # The GPS reading in this report, empty when it had none or an invalid one.
+    # See "GPS readings" in DEVELOPERS.md.
+    gps_lat = Column(Float, nullable=True)
+    gps_lon = Column(Float, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

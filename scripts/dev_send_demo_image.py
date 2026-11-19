@@ -116,6 +116,7 @@ def send_one(local_path: str, device_id: str, gps, note: str) -> str:
         thumbnail_path=thumbnail_path,
         captured_at=now_naive(),
         gps_location=gps,
+        gps_reading=gps,
         exif_metadata={"source": "dev_send_demo_image", "note": note,
                        "width": width, "height": height},
     )

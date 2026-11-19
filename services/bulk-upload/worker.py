@@ -289,6 +289,9 @@ def _process_file(
             thumbnail_path=thumbnail_path,
             captured_at=captured_at,
             gps_location=record_gps,
+            # The photo's own reading, also in Mode B where record_gps is the
+            # chosen site's pin and not a reading.
+            gps_reading=exif.get("gps_decimal"),
             exif_metadata=exif,
             origin="bulk",
             content_hash=content_hash,
