@@ -20,6 +20,7 @@ from shared.logger import get_logger
 from shared.models import (
     DetectionAlertRule,
     Deployment,
+    DeploymentStatement,
     ProjectMembership,
     Site,
     TheftWatchRule,
@@ -28,7 +29,8 @@ from shared.models import (
 )
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
-from utils.deployment_edits import recompute_site_location
+from shared.geo import RECOMPUTE_SITE_LOCATION_SQL
+from utils.deployment_edits import rebuild, site_is_used
 from utils.site_scope import site_in_scope
 from utils.tags import normalize_tags, rename_tag_in_list, tag_length_error
 
@@ -627,22 +629,36 @@ async def merge_site(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Merge this site into target_site_id: move every deployment to the target,
-    then delete this site. Returns the target site.
+    Merge this site into target_site_id: move every deployment and statement
+    to the target, then delete this site. Returns the target site. A camera
+    whose deployments now sit back to back at the target gets one deployment
+    there, through the rebuild.
     """
     if body.target_site_id == site_id:
         raise HTTPException(status_code=400, detail="Cannot merge a site into itself")
     source = await _site_in_project(db, project_id, site_id)
     target = await _site_in_project(db, project_id, body.target_site_id)
 
+    camera_ids = (
+        await db.execute(
+            select(Deployment.camera_id).where(Deployment.site_id == source.id)
+            .union(select(DeploymentStatement.camera_id).where(DeploymentStatement.site_id == source.id))
+        )
+    ).scalars().all()
     await db.execute(
         update(Deployment).where(Deployment.site_id == source.id).values(site_id=target.id)
     )
+    # Removed statements too: the site row can only go when nothing points at it.
+    await db.execute(
+        update(DeploymentStatement).where(DeploymentStatement.site_id == source.id)
+        .values(site_id=target.id)
+    )
     await _remove_site_from_scopes(db, project_id, source.id, replacement_id=target.id)
     await db.delete(source)
-    # The target absorbed the source's deployments, so recompute its pin.
     await db.flush()
-    await recompute_site_location(db, target.id)
+    await rebuild(db, camera_ids)
+    # The target absorbed the source's deployments, so recompute its pin.
+    await db.execute(text(RECOMPUTE_SITE_LOCATION_SQL), {"site_id": target.id})
     await db.commit()
     logger.info(
         "Merged site",
@@ -661,11 +677,17 @@ async def delete_site(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Delete a site. Its deployments keep their rows but lose the site link
-    (deployments.site_id is set to NULL by the foreign key). Rules and viewer
-    scopes that referenced the site are cleaned in the same transaction.
+    Delete a site that no deployment or statement uses. A site in use is
+    refused: its history would lose its place. Merge it into another site, or
+    move its cameras first. Rules and viewer scopes that referenced the site
+    are cleaned in the same transaction.
     """
     site = await _site_in_project(db, project_id, site_id)
+    if await site_is_used(db, site_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cameras have stood at this site. Merge it into another site instead.",
+        )
     await _remove_site_from_scopes(db, project_id, site_id)
     await db.delete(site)
     await db.commit()

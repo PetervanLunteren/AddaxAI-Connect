@@ -56,6 +56,7 @@ class StoredRow:
     lat: float
     lon: float
     reading_count: int
+    site_source: str = "auto"
 
     @property
     def start_date(self):
@@ -205,9 +206,10 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
         """), {"id": camera_id})
     ]
     stored = [
-        StoredRow(r.id, r.deployment_number, r.site_id, r.start_at, r.end_at, r.lat, r.lon, r.gps_reading_count)
+        StoredRow(r.id, r.deployment_number, r.site_id, r.start_at, r.end_at, r.lat, r.lon,
+                  r.gps_reading_count, r.site_source)
         for r in session.execute(text("""
-            SELECT id, deployment_number, site_id, start_at, end_at, gps_reading_count,
+            SELECT id, deployment_number, site_id, start_at, end_at, gps_reading_count, site_source,
                    ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lon
             FROM deployments WHERE camera_id = :id ORDER BY deployment_number
         """), {"id": camera_id})
@@ -240,6 +242,8 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
         b = p.built
         lat, lon = (b.lat, b.lon) if b.lat is not None else _site_pin(session, p.site_id)
         values = {
+            # 'manual' marks a deployment a statement made, 'auto' one the GPS made.
+            "source": "manual" if b.statement_id is not None else "auto",
             "site_id": p.site_id,
             "start_at": b.start_at, "end_at": b.end_at,
             "start_date": b.start_date, "end_date": b.end_date,
@@ -255,19 +259,16 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
                     :camera_id, :number, :site_id, :source,
                     :start_at, :end_at, :start_date, :end_date, ST_GeogFromText(:wkt), :n
                 ) RETURNING id
-            """), {
-                **values, "camera_id": camera_id, "number": next_number,
-                "source": "manual" if b.statement_id is not None else "auto",
-            }).scalar_one()
+            """), {**values, "camera_id": camera_id, "number": next_number}).scalar_one()
             next_number += 1
             created.append(p.row_id)
             touched_sites.add(p.site_id)
             if announce and b.statement_id is None and camera.project_id is not None:
                 _announce(session, camera.project_id, camera_id, p, planned[index - 1] if index else None)
-        elif _differs(old, p, lat, lon):
+        elif _differs(old, p, lat, lon, values["source"]):
             session.execute(text("""
                 UPDATE deployments
-                SET site_id = :site_id, start_at = :start_at, end_at = :end_at,
+                SET site_id = :site_id, site_source = :source, start_at = :start_at, end_at = :end_at,
                     start_date = :start_date, end_date = :end_date,
                     location = ST_GeogFromText(:wkt), gps_reading_count = :n
                 WHERE id = :id
@@ -310,19 +311,19 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
 
 def _closed_at(retired_at: Optional[datetime], photos: Sequence[Photo]) -> Optional[datetime]:
     """Where a retired camera's history ends: the end of the day of its last
-    photo, so the project stops counting trap days for a camera that left."""
+    photo, so the project stops counting trap days for a camera that left. A
+    camera that never sent a photo ends on the day it was retired."""
     if retired_at is None:
         return None
-    if not photos:
-        return retired_at.replace(tzinfo=None)
-    last = max(p.taken_at for p in photos)
-    return datetime.combine(last.date() + timedelta(days=1), datetime.min.time())
+    last = max(p.taken_at for p in photos).date() if photos else retired_at.date()
+    return datetime.combine(last + timedelta(days=1), datetime.min.time())
 
 
-def _differs(old: StoredRow, p: Planned, lat: float, lon: float) -> bool:
+def _differs(old: StoredRow, p: Planned, lat: float, lon: float, source: str) -> bool:
     b = p.built
     return (
         old.site_id != p.site_id
+        or old.site_source != source
         or old.start_at != b.start_at
         or old.end_at != b.end_at
         or old.reading_count != b.reading_count

@@ -14,7 +14,7 @@ The rules the cleanup must hold:
 - rows that never referenced the site are untouched
 
 Run against real model instances, so a dropped column fails here instead of
-on a production server (same rationale as test_cleanup_empty_deployments).
+on a production server.
 """
 from __future__ import annotations
 

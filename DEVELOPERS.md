@@ -266,7 +266,7 @@ addaxai-connect/
 │   │   │   ├── camera_reference_images.py # Reference images per camera
 │   │   │   ├── service.py             # Service visits (the log) and planned service tasks
 │   │   │   ├── sites.py               # Site CRUD
-│   │   │   ├── deployments.py         # Deployment list and escape-hatch reassign
+│   │   │   ├── deployments.py         # Deployment list and change site
 │   │   │   ├── feed.py                # Camera updates feed (list, resolve, seen)
 │   │   │   ├── images.py              # Image queries
 │   │   │   ├── image_admin.py         # Image admin operations
@@ -295,7 +295,7 @@ addaxai-connect/
 │   │   └── utils/                     # API utilities
 │   │       ├── activity_analysis.py   # Activity pattern analysis
 │   │       ├── camera_recency.py      # Per-camera last-capture / last-arrival lookups
-│   │       ├── deployment_edits.py    # Reassign/recompute/merge plumbing (deployments + feed)
+│   │       ├── deployment_edits.py    # Statements and rebuilds for the routers
 │   │       ├── feed.py                # Feed candidate-site helper
 │   │       ├── detection_filtering.py # Detection confidence and class filtering
 │   │       ├── occupancy_model.py     # Naive occupancy estimation
@@ -348,7 +348,8 @@ addaxai-connect/
 │       ├── device.py                  # The one rule for cpu vs cuda in the ML workers
 │       ├── taxonomy.py                # SpeciesNet label mapping (walk-up, fallback label, scientific names)
 │       ├── geo.py                     # GPS and spatial helpers
-│       ├── deployments.py             # Site and deployment grouping logic
+│       ├── deployment_build.py        # Deployments from readings and statements, no database
+│       ├── deployment_rebuild.py      # rebuild_camera, the only writer of deployments
 │       ├── independence_filter.py     # Independent-detection (capture event) filtering
 │       ├── classification_threshold.py # Per-project classification thresholds
 │       └── templates/                 # Shared email templates (base + per-notification)
@@ -362,11 +363,8 @@ addaxai-connect/
 │   ├── reset_two_factor.py            # Switch two-factor login off for an account, from the server
 │   ├── populate_demo_data.py          # Generate demo dataset
 │   ├── shift_demo_dates.py            # Shift demo dates for freshness
-│   ├── backfill_deployment_periods.py # Backfill camera deployment data
-│   ├── backfill_sites.py              # Backfill sites from camera positions
 │   ├── backfill_camera_tags_to_sites.py # Migrate legacy camera tags to sites
-│   ├── merge_contiguous_deployments.py # Merge adjacent deployments
-│   ├── cleanup_empty_deployments.py   # Remove deployments with no images
+│   ├── carry_over_deployments.py      # Carry pre-phase-2 deployments over to statements, once
 │   ├── remove_live_twins.py           # Remove bulk copies of photos already sent over 4G (dry run first)
 │   ├── regenerate_thumbnails.py       # Rebuild image thumbnails
 │   ├── rehydrate_cold_to_hot.py       # Pull cold-tier objects back to local storage
@@ -646,10 +644,8 @@ written once and never changed. It is empty when the camera sent no GPS or an
 invalid one: out of range, or exactly (0, 0), the rule of `is_valid_gps` in
 `services/ingestion/utils.py`.
 
-- `create_image_record` takes two GPS arguments. `gps_location` is what the
-  site and deployment are resolved from, `gps_reading` is what is stored. They
-  differ for a bulk upload to a chosen site: there `gps_location` is the
-  site's pin and `gps_reading` is the photo's own EXIF GPS, which may be empty.
+- `create_image_record` stores `gps_reading` as it is, also for a bulk upload
+  to a chosen site: that is the photo's own EXIF GPS, never the site's pin.
 - `update_camera_health` stores the reading on the report row of that day.
   A second report on the same day overwrites it, like the other health values.
 - `image_metadata` keeps the raw EXIF as before. Read GPS from the columns,
@@ -659,6 +655,48 @@ Migration `20261119_gps_readings` filled the columns for older photos, from
 `image_metadata['gps_decimal']` and, for INSTAR, from the position in
 `image_metadata['relative_path']`. Daily reports kept no GPS before, so older
 report rows stay empty.
+
+## Deployments, statements and the rebuild
+
+Three layers, see `DEPLOYMENTS_PLAN.md` for the model:
+
+1. **Readings**: the GPS of every photo (above). Daily reports store theirs
+   but are not readings: only photos make deployments.
+2. **Statements** (`deployment_statements`): "this camera stood at this site
+   from this moment to this moment", by a person, by an upload to a chosen
+   site, or carried over from before phase 2. Never edited. A newer one wins
+   where two overlap, and taking one back sets `removed_at`.
+3. **Deployments**: the result, per camera.
+
+The rules:
+
+- **Only `rebuild_camera` (`shared/shared/deployment_rebuild.py`) writes
+  `deployments` and `images.deployment_id`.** Everything else writes a
+  statement or a photo and then rebuilds the camera. It runs in the caller's
+  transaction and takes an advisory lock per camera, so two rebuilds of one
+  camera never cross. The API calls it through `utils/deployment_edits.py`,
+  which runs it on the request's session with `run_sync`.
+- The build itself is `build_deployments` (`shared/shared/deployment_build.py`),
+  without database access and tested in `tests/shared`. Without statements it
+  is the 250 m rule with two far readings to confirm a move.
+- A statement with an end is exactly that period. Without an end it fixes the
+  past up to the camera's newest photo when it was made, and the GPS rule
+  carries on after that, so a correction never locks a camera.
+- Rows keep their id and number across rebuilds where they can: a built
+  deployment keeps the row most of its photos were on. Numbers are never
+  reshuffled, so they need not follow time after an old SD card.
+- `deployments.start_at` and `end_at` are the period as camera clock, naive.
+  `start_date` and `end_date` follow from them and are what effort and the
+  exports read: the day of a move belongs to the new deployment.
+- A live photo is stored and rebuilt in one transaction. A bulk job rebuilds
+  once, when it ends.
+- `scripts/carry_over_deployments.py` ran once per server in the update to
+  phase 2. Cameras whose stored history the readings give back stay
+  automatic, every other camera got `carried_over` statements, and the
+  result was checked against what was stored before.
+
+The rebuild's database code is tested against PostGIS in a local test folder,
+not in CI. See the notes of step 2a in `DEPLOYMENTS_PLAN.md`.
 
 ## SpeciesNet labels
 

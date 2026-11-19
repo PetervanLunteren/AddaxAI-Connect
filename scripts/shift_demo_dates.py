@@ -262,12 +262,14 @@ def shift_dates(session: Session, project_id: int) -> None:
         {"project": PROJECT_NAME, "offset": temp_offset, "delta": delta},
     )
 
-    # 4) deployments.start_date and end_date (NULL end_date = active, stays)
+    # 4) deployments, dates and times (NULL end = active, stays)
     session.execute(
         text(f"""
             UPDATE deployments
             SET start_date = start_date + :delta,
-                end_date = end_date + :delta
+                end_date = end_date + :delta,
+                start_at = start_at + make_interval(days => :delta),
+                end_at = end_at + make_interval(days => :delta)
             WHERE camera_id IN ({demo_cameras})
         """),
         {"project": PROJECT_NAME, "delta": delta},

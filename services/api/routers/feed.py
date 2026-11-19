@@ -42,7 +42,9 @@ from shared.logger import get_logger
 from shared.models import Deployment, FeedEvent, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
-from utils.deployment_edits import reassign_deployment_site
+from utils.deployment_edits import (
+    previous_deployment, site_is_used, state, state_deployment_at_site,
+)
 from utils.feed import nearby_sites
 from utils.site_scope import site_in_scope
 
@@ -345,8 +347,9 @@ class ResolveFeedEventRequest(BaseModel):
 
 
 class ResolveFeedEventResponse(BaseModel):
-    # How many deployments the action merged away (not_moved folds the split
-    # deployment back into its predecessor, so usually 1 there; 0 elsewhere).
+    # How many deployments fewer the camera has after the action ("it did not
+    # move" folds the move back into the deployment before it, so usually 1
+    # there; 0 elsewhere).
     merged: int = 0
 
 
@@ -363,25 +366,27 @@ async def _site_in_project(db: AsyncSession, project_id: int, site_id: int) -> S
     return site
 
 
-async def _drop_site_if_event_orphaned_it(db: AsyncSession, event: FeedEvent) -> None:
+async def _drop_site_if_event_orphaned_it(db: AsyncSession, event: FeedEvent, keep: int) -> None:
     """
     Delete the site this event auto-created when the correction just emptied
     it. Undoing a move (or picking a different site) would otherwise leave the
     auto-created site behind with zero cameras, exactly the phantom-site
     debris the feed exists to prevent. Only fires for the site this event
-    made (site_created) and only when no deployment points at it anymore.
-    Call after the reassign and before event.site_id is overwritten.
+    made (site_created), never for `keep`, the site the correction chose, and
+    only when no deployment or statement points at it anymore. Call after the
+    statement and before event.site_id is overwritten.
     """
-    if not event.site_created or event.site_id is None:
+    if not event.site_created or event.site_id is None or event.site_id == keep:
         return
-    remaining = (
-        await db.execute(
-            select(func.count(Deployment.id)).where(Deployment.site_id == event.site_id)
-        )
-    ).scalar_one()
-    if remaining == 0:
+    if not await site_is_used(db, event.site_id):
         await db.execute(delete(Site).where(Site.id == event.site_id))
         logger.info("Deleted orphaned auto-created site", site_id=event.site_id)
+
+
+async def _deployment_count(db: AsyncSession, camera_id: int) -> int:
+    return (
+        await db.execute(select(func.count(Deployment.id)).where(Deployment.camera_id == camera_id))
+    ).scalar_one()
 
 
 async def _deployment_or_conflict(db: AsyncSession, event: FeedEvent) -> Deployment:
@@ -433,7 +438,7 @@ async def resolve_event(
             status_code=status.HTTP_404_NOT_FOUND, detail="Feed entry not found",
         )
 
-    merged = 0
+    before = await _deployment_count(db, event.camera_id)
     if request.action == 'rename_site':
         if event.site_id is None:
             raise HTTPException(
@@ -456,8 +461,8 @@ async def resolve_event(
             )
         deployment = await _deployment_or_conflict(db, event)
         await _site_in_project(db, project_id, request.site_id)
-        merged = await reassign_deployment_site(db, deployment, request.site_id)
-        await _drop_site_if_event_orphaned_it(db, event)
+        await state_deployment_at_site(db, deployment, request.site_id, user.id)
+        await _drop_site_if_event_orphaned_it(db, event, keep=request.site_id)
         event.site_id = request.site_id
 
     elif request.action == 'new_site':
@@ -490,7 +495,8 @@ async def resolve_event(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Another site in this project already has that name",
             )
-        merged = await reassign_deployment_site(db, deployment, site.id)
+        await state_deployment_at_site(db, deployment, site.id, user.id)
+        await _drop_site_if_event_orphaned_it(db, event, keep=site.id)
         event.site_id = site.id
 
     elif request.action == 'confirmed':
@@ -506,12 +512,22 @@ async def resolve_event(
             )
         deployment = await _deployment_or_conflict(db, event)
         await _site_in_project(db, project_id, event.from_site_id)
-        # Putting the deployment back on its previous site makes it contiguous
-        # with its predecessor, so the merge folds it (and its images) back.
-        merged = await reassign_deployment_site(db, deployment, event.from_site_id)
-        await _drop_site_if_event_orphaned_it(db, event)
+        before_move = await previous_deployment(db, deployment)
+        if before_move is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="The deployment before this move is gone, the entry is out of date",
+            )
+        # One statement over both periods: the camera stood at its previous
+        # site all along. The rebuild folds the two deployments into one.
+        await state(
+            db, deployment.camera_id, event.from_site_id,
+            before_move.start_at, deployment.end_at, user.id,
+        )
+        await _drop_site_if_event_orphaned_it(db, event, keep=event.from_site_id)
         event.site_id = event.from_site_id
 
+    merged = max(0, before - await _deployment_count(db, event.camera_id))
     event.resolved_action = request.action
     event.resolved_at = func.now()
     event.resolved_by_user_id = user.id

@@ -85,7 +85,7 @@ class TestCurationDelete:
         assert "replace_with_placeholder(" in src
         assert "shown_categories(" in src
         assert src.index("replace_with_placeholder(") < src.index("privacy_removed_at = now")
-        for forbidden in ("db.delete(", "sql_delete(", "cleanup_empty_deployments("):
+        for forbidden in ("db.delete(", "sql_delete(", "rebuild_after_delete("):
             assert forbidden not in src
 
     def test_endpoint_skips_rows_replaced_before(self):

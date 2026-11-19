@@ -38,31 +38,14 @@ echo "✅ Database initialized! Checking tables..."
 docker exec addaxai-postgres psql -U addaxai -d addaxai_connect -c '\dt'
 
 echo ""
-echo "Backfilling deployment periods from image GPS data..."
-docker compose exec -T api python /app/scripts/backfill_deployment_periods.py
-
-echo ""
-echo "Backfilling sites from deployments and linking images to deployments..."
-# Must run after the deployment backfill, since sites are clustered from
-# deployment rows. Idempotent: deployments that already have a site are left
-# untouched, so this is safe on every update.
-docker compose exec -T api python /app/scripts/backfill_sites.py
-
-echo ""
-echo "Cleaning up empty deployment debris..."
-# Removes closed, zero-image deployments left by the pre-fix ingestion bug
-# (daily reports with GPS but no photo opened a deployment that closed before
-# any image landed). Conservative: only deletes deployments nothing references,
-# so a healthy server finds nothing to remove. Runs last, after sites are built.
-docker compose exec -T api python /app/scripts/cleanup_empty_deployments.py
-
-echo ""
-echo "Merging contiguous same-site deployments left by old GPS splits..."
-# Collapses a camera's adjacent same-site deployments that have no real gap (the
-# (0,0) split also cut one real placement into a before/after pair). Conservative
-# and idempotent: a genuine remove-and-redeploy has a multi-day gap and is never
-# merged, so a healthy server merges nothing.
-docker compose exec -T api python /app/scripts/merge_contiguous_deployments.py
+echo "Carrying deployments over to statements (once per server)..."
+# Since phase 2 deployments are rebuilt from photo GPS plus statements. History
+# that does not follow from the GPS alone (hand corrections, uploads to a site,
+# older rules) becomes statements, so no deployment changes. Runs once: it
+# records the run in server_settings and does nothing on later updates. The
+# four scripts that used to reshape deployments here are gone; they would undo
+# what the rebuild makes.
+docker compose exec -T api python /app/scripts/carry_over_deployments.py --apply
 
 echo ""
 echo "Moving legacy camera tags onto their sites..."

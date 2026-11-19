@@ -2123,9 +2123,10 @@ def insert_deployments(session: Session, deployments: list, cam_index_to_id: dic
             text("""
                 INSERT INTO deployments (
                     camera_id, deployment_number, site_id, site_source,
-                    start_date, end_date, location
+                    start_at, end_at, start_date, end_date, location
                 ) VALUES (
                     :camera_id, :num, :site_id, :site_source,
+                    CAST(:start AS timestamp), CAST(CAST(:end AS date) + 1 AS timestamp),
                     :start, :end, ST_GeogFromText(:loc)
                 ) RETURNING id
             """),

@@ -25,6 +25,7 @@ from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKE
 from shared.logger import get_logger
 from shared.camera_status import camera_status as _camera_status, is_rejecting
 from utils.camera_recency import fetch_camera_recency
+from utils.deployment_edits import rebuild
 from utils.camera_rejections import RecentRejections, fetch_recent_rejections, REJECTED_RECENT_DAYS
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags, tag_length_error
@@ -711,10 +712,9 @@ async def bulk_delete(
     await _assert_no_live_bulk_jobs(db, cameras)
 
     if request.keep_data:
-        today = await _server_today(db)
         deleted_tasks = 0
         for camera in cameras:
-            deleted_tasks += await _retire_camera(db, camera, today)
+            deleted_tasks += await _retire_camera(db, camera)
         await db.commit()
         return BulkDeleteResponse(
             deleted_cameras=0,
@@ -1285,42 +1285,23 @@ class ImageRef(NamedTuple):
     thumbnail_path: Optional[str]
 
 
-async def _server_today(db: AsyncSession) -> date:
-    from routers.admin import get_server_timezone
-    return datetime.now(ZoneInfo(await get_server_timezone(db))).date()
-
-
-async def _retire_camera(db: AsyncSession, camera: Camera, today: date) -> int:
+async def _retire_camera(db: AsyncSession, camera: Camera) -> int:
     """
     Take a camera out of service and keep everything it recorded.
 
     Stamps retired_at, which frees the device id (partial unique index) and
-    turns the camera's status to retired everywhere. Closes the open
-    placement at the camera's last photo, so the old project stops counting
-    trap days for a camera that left; a placement is never closed before it
-    started, and a camera that never sent a photo closes today. Deletes the
+    turns the camera's status to retired everywhere. The rebuild then closes
+    the open deployment at the day of the camera's last photo, so the old
+    project stops counting trap days for a camera that left; a camera that
+    never sent a photo closes on the day it was retired. Deletes the
     open service tasks, they are work on a camera nobody services here any
     more; the visit history stays. Returns how many tasks went.
 
     Does not commit, the caller owns the transaction, same as the cascade.
     """
     camera.retired_at = datetime.now(timezone.utc)
-
-    open_deployment = (
-        await db.execute(
-            select(Deployment).where(
-                Deployment.camera_id == camera.id, Deployment.end_date.is_(None),
-            )
-        )
-    ).scalar_one_or_none()
-    if open_deployment is not None:
-        last_capture = (
-            await db.execute(
-                select(func.max(Image.captured_at)).where(Image.camera_id == camera.id)
-            )
-        ).scalar_one_or_none()
-        end = last_capture.date() if last_capture is not None else today
-        open_deployment.end_date = max(end, open_deployment.start_date)
+    await db.flush()
+    await rebuild(db, [camera.id])
 
     result = await db.execute(
         sql_delete(CameraServiceTask).where(CameraServiceTask.camera_id == camera.id)
@@ -1471,7 +1452,7 @@ async def delete_camera(
 
     await _assert_no_live_bulk_jobs(db, [camera])
     if keep_data:
-        await _retire_camera(db, camera, await _server_today(db))
+        await _retire_camera(db, camera)
         await db.commit()
         return
     _, image_refs = await _delete_camera_cascade(db, camera)

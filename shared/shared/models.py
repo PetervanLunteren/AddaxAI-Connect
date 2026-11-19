@@ -293,9 +293,10 @@ class Deployment(Base):
     """
     Deployment: one camera at one place for a time range.
 
-    Renamed from CameraDeploymentPeriod. A new deployment is created when:
-    - Camera GPS moves more than SITE_THRESHOLD_METERS from previous location
-    - First image/report received for a camera
+    The result of the GPS readings of the camera's photos plus the statements
+    people made (DeploymentStatement). Only rebuild_camera in
+    shared/deployment_rebuild.py writes these rows; everything else writes a
+    photo or a statement and rebuilds.
 
     Used for:
     - Effort-corrected detection rate calculations (trap-days)
@@ -313,9 +314,8 @@ class Deployment(Base):
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
-    # 'auto' = site assigned by GPS clustering; 'manual' = a human assigned it.
-    # A label only (drives the GPS-guessed vs human-confirmed badge and filter
-    # on the Deployments page); it does not change ingestion behavior.
+    # 'manual' = a statement made this deployment, 'auto' = the GPS did. A
+    # label only, kept by the rebuild; nothing decides on it.
     site_source = Column(String(16), nullable=False, server_default='auto')
     # The period is [start_at, end_at), camera clock, naive, like
     # images.captured_at. end_at NULL = the camera still stands there. The two

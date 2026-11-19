@@ -20,7 +20,7 @@ from shared.logger import get_logger
 from shared.models import Camera, Deployment, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
-from utils.deployment_edits import reassign_deployment_site
+from utils.deployment_edits import state_deployment_at_site
 from utils.site_scope import site_in_scope
 
 logger = get_logger("api.deployments")
@@ -107,16 +107,15 @@ async def list_deployments(
 
 
 class UpdateDeploymentRequest(BaseModel):
-    # Reassign the deployment to a site. Send null to unassign. Omit to leave
-    # unchanged. Setting it (incl. null) marks the deployment site_source='manual'
-    # to record it was human-confirmed. Presence is read via model_fields_set.
+    # The site this deployment's period was at. Written as a statement, so the
+    # rebuild keeps it there whatever the GPS says. Omit to leave unchanged.
     site_id: Optional[int] = None
 
 
 class UpdateDeploymentResponse(BaseModel):
-    # How many deployments the reassignment merged away. The edited deployment
-    # itself may be the one merged into a neighbour, so we do not echo it back;
-    # the frontend invalidates and refetches the list regardless.
+    # How many deployments fewer the camera has afterwards: a deployment put
+    # on the site of its neighbour joins it. The edited deployment may be the
+    # one that joined, so we do not echo it back; the frontend refetches.
     merged: int = 0
 
 
@@ -146,26 +145,27 @@ async def update_deployment(
 
     deployment: Deployment = row[0]
 
-    # site_id is meaningful even when null (unassign), so act on its presence in
-    # the request, not on its value. Any human assignment marks the deployment
-    # site_source='manual' to record it was human-confirmed.
     merged = 0
-    if 'site_id' in request.model_fields_set:
-        if request.site_id is not None:
-            site = (
-                await db.execute(
-                    select(Site).where(
-                        Site.id == request.site_id, Site.project_id == project_id
-                    )
-                )
-            ).scalar_one_or_none()
-            if site is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND, detail="Site not found",
-                )
-        # The merge inside can delete the edited deployment itself, which is
-        # why we no longer refresh and return it.
-        merged = await reassign_deployment_site(db, deployment, request.site_id)
+    if 'site_id' in request.model_fields_set and request.site_id is None:
+        # A deployment is always somewhere. To say a camera was not at a
+        # site, put it at the right one.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A site is required",
+        )
+    if request.site_id is not None:
+        site = (
+            await db.execute(
+                select(Site).where(Site.id == request.site_id, Site.project_id == project_id)
+            )
+        ).scalar_one_or_none()
+        if site is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Site not found",
+            )
+        count = select(func.count(Deployment.id)).where(Deployment.camera_id == deployment.camera_id)
+        before = (await db.execute(count)).scalar_one()
+        await state_deployment_at_site(db, deployment, request.site_id, user.id)
+        merged = max(0, before - (await db.execute(count)).scalar_one())
 
     await db.commit()
     return UpdateDeploymentResponse(merged=merged)
