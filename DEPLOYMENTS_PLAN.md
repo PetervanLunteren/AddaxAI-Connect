@@ -21,13 +21,15 @@ When Peter says he wants to continue with the deployments plan, do this:
    step as the task.
 5. If the step is "planned" or "in progress", read its notes below the table
    and carry on from there. Ask Peter if the notes are not enough.
-6. When something changes, update the table and the notes in the same session:
+6. When the step is built, deploy it to dev and test it end to end, see
+   "Deploy to dev". A step is not done before that.
+7. When something changes, update the table and the notes in the same session:
    the status, the branch, the commit or release, and what the next session
    must know. Keep the notes short.
 
 | Step | Status | Where |
 |---|---|---|
-| 1a | not started | `main` |
+| 1a | in progress | `main` |
 | 1b | not started | `main` |
 | 2a | not started | branch for phase 2 |
 | 2b | not started | branch for phase 2 |
@@ -43,7 +45,26 @@ in progress, done (with the release it shipped in).
 
 Notes per step:
 
-- None yet.
+- **1a**, planned and built on 19 November 2026.
+  - GPS columns `gps_lat` and `gps_lon` on `images` and
+    `camera_health_reports`, filled by ingestion and the bulk worker. Migration
+    `20261119_gps_readings` adds them and backfills old photos. See "GPS
+    readings" in `DEVELOPERS.md`.
+  - The behaviour tests are not in the repo. They live in
+    `~/Documents/Repos/AddaxAI-Connect-deployment-tests/` on Peter's Mac, run
+    with `./run.sh` there (needs OrbStack), against a throwaway PostGIS. Not in
+    CI, so run them before and after any change to the deployment code. Delete
+    the folder when phase 2 is merged. Its README lists what they cover.
+  - Three tests pin behaviour that looks wrong, as today's baseline: two
+    photos of one burst confirm a move (phase 5), "New site" in the updates
+    panel leaves the emptied auto site behind, and a site merge leaves two
+    adjacent deployments of one camera apart.
+  - The test on an old SD card confirms the audit: photos with GPS from
+    elsewhere, imported without a chosen site, become the camera's current
+    deployment, and the live one is closed on its own start day.
+  - Left to do before 1a is done: time the migration on dev against the
+    largest production dataset, and compare per project the photos with GPS
+    in the JSON against the photos with the columns filled.
 
 ## How to work on this plan
 
@@ -144,6 +165,25 @@ Instructions:
 Peter does not paste this prompt each time. Saying that he wants to continue
 with the deployments plan is enough, see "Continue from here" at the top.
 
+## Deploy to dev
+
+Every step that changes code ends on the dev server, with the prompt below.
+Ask Peter for the go first: nothing goes to dev without it, also when the step
+is otherwise finished. Once he gives the go, follow the prompt as if he had
+pasted it.
+
+```
+Read conventions.md, commit, ssh into test server with "ssh dev", pull, restart whatever you need to, deploy, and perform e2e tests
+```
+
+- Code is baked into the images, so rebuild every service the step touched
+  before running anything on dev, and run the migrations when there is one.
+- Dev holds restored production data. Test on that data, and say per check
+  what was tested and what it showed.
+- A step on a branch (phase 2, step 3b): check out that branch on dev for the
+  test and put dev back on `main` afterwards, unless Peter says otherwise.
+- After the push, watch CI (`gh run watch`) before calling the step green.
+
 ## Main or a branch
 
 Servers run tagged releases and never the head of `main`, so unfinished work on
@@ -194,10 +234,15 @@ is a deployment.
   `services/api/routers/feed.py`, `services/api/routers/sites.py`). Auto-made
   sites are deleted with their names.
 - **GPS per photo cannot be queried.** It sits in `images.image_metadata` JSON
-  as `gps_decimal`. For INSTAR it only survives in the stored path. GPS from
-  daily reports is not kept, only the latest fix in `cameras.config`.
+  as `gps_decimal`. For INSTAR it sits in `image_metadata['relative_path']`
+  (and in the stored path). GPS from daily reports is not kept, only the
+  latest fix in `cameras.config['gps_from_report']`. Step 1a moved both into
+  columns.
 - **A deployment can only come from GPS.** All three camera profiles set
   `requires_gps=True`. No endpoint creates a deployment or edits its dates.
+  A daily report can open a camera's first deployment, dated with the
+  server's date of that day and not with the report's own date. A bulk
+  upload to a chosen site makes one without GPS.
 - **The move check counts photos, not events.** Two photos near the same far
   spot confirm a move (`RELOCATION_CONFIRMATIONS = 2`). There is no check on
   time between them, so two photos of one burst can confirm a move.
@@ -211,7 +256,7 @@ is a deployment.
   upload to a site.
 - **Bulk upload side effects.** A recognised camera on an old SD card runs
   through the live rule, so old GPS can move the camera's current deployment.
-  This was read from the code and not confirmed at runtime.
+  Confirmed by a test in step 1a.
 - **No tests** on the deployment rule, the reassign and merge, the feed
   actions, the site merge or the bulk deployment helper.
 
@@ -388,8 +433,10 @@ Nothing changes for users.
   `scripts/dev_simulate_feed.py` are the starting list.
 - Migration: GPS columns on `images` and on `camera_health_reports`. Ingestion
   and the bulk worker fill them from now on.
-- Backfill script for old photos, from `image_metadata['gps_decimal']` and from
-  the INSTAR path. Report GPS has no history to backfill.
+- Backfill of old photos in the same migration, from
+  `image_metadata['gps_decimal']` and from the INSTAR path. Not a separate
+  script: phase 2 needs every old reading, so no server may skip it. Report
+  GPS has no history to backfill.
 - The build function in `shared/` with its own tests. It reproduces today's
   rule exactly, including the two-reading check and the mean pin.
 - A replay script that builds deployments from the stored readings per camera
@@ -403,6 +450,9 @@ Nothing changes for users.
 
 Done when the replay explains every difference on every production dataset and
 the numbers on dev are unchanged.
+
+Steps 1a and 1b each end with a deploy to dev and an end to end test, see
+"Deploy to dev".
 
 ### Phase 2: statements and cameras without GPS
 
@@ -439,6 +489,10 @@ Done when a camera without GPS can be registered, placed and moved from a desk,
 and every correction of the past can be made and removed again. The SPARROW
 profile is separate work that needs this phase.
 
+Steps 2a, 2b and 2c each end with a deploy of the phase 2 branch to dev and an
+end to end test, see "Deploy to dev". Step 2a also rehearses carrying over the
+past on the restored production data there.
+
 ### Phase 3: the Deployments page
 
 - A new page in the sidebar between Cameras and Service. Read only for viewers,
@@ -472,6 +526,9 @@ profile is separate work that needs this phase.
 Done when a project admin can answer "where was this camera, and why does the
 app think so" on one page, and fix it there.
 
+Steps 3a, 3b (from its branch) and 3c each end with a deploy to dev and an end
+to end test in the browser, see "Deploy to dev".
+
 ### Phase 4: bulk upload
 
 - The review step asks for a camera (an existing one, a new one, or unknown)
@@ -483,6 +540,9 @@ app think so" on one page, and fix it there.
 - An "Upload images" button on a site, as in the Écrins fork.
 - Check with Théo Lechémia (issue #81) before building. He offered pull
   requests for the same three changes.
+
+Ends with a deploy to dev and an end to end test with a real SD card upload,
+see "Deploy to dev".
 
 ### Phase 5: a better move check
 
@@ -505,6 +565,9 @@ green.
 - Keep one threshold. Do not add a second radius or a setting per project
   unless the replay shows the need.
 
+The replays run on dev against the production datasets. A rule that is
+accepted ends with a deploy to dev and an end to end test, see "Deploy to dev".
+
 ## Decided and rejected
 
 Decided on 19 November 2026:
@@ -520,6 +583,17 @@ Decided on 19 November 2026:
 - A person's decision fixes a period. It does not lock the camera.
 - The move rule stays as it is until phase 5.
 - Bulk upload asks for a camera and a site.
+
+Decided on 19 November 2026, in the planning of step 1a:
+
+- The behaviour tests run against a real PostGIS, because the deployment
+  logic lives in SQL and fakes would prove nothing. They stay outside the repo
+  until phase 2 is merged, then they are deleted. No CI job, no new packages.
+- The tests assert on the resulting rows, not on the functions, so they keep
+  working when phase 2 replaces the code.
+- GPS readings are two plain number columns, not a PostGIS point. Nothing
+  queries readings by area, and the build function reads them in Python.
+- The backfill runs in the migration, not as a script.
 
 Rejected, with the reason:
 
