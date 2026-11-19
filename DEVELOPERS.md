@@ -717,9 +717,11 @@ setting, and the current list can be downloaded as the same two-column CSV.
   class; unlike `restrict_to_taxa_list` it allows no parents of its own. Never
   `ensemble.combine()`, that combines one label per whole image.
 - **Fallback.** One label, `UNKNOWN_ANIMAL` ("unknown animal"), for a
-  prediction that matches no row and for no SpeciesNet output. Not "animal",
-  which is MegaDetector's category. `/api/species/available` adds it to the
-  project's list so rules can target it.
+  prediction that matches no row. Not "animal", which is MegaDetector's
+  category. `/api/species/available` adds it to the project's list so rules
+  can target it. A classifier result without a top-5 is not this case: it
+  fails the image (`read_top5`), because with the pinned speciesnet it only
+  means a failure or a changed package (issue #98).
 - **No mapping, no label.** The worker reads the project's mapping right
   before classifying, after the early returns, and fails the image when it
   is missing. There are no startup waits, so a fresh server is healthy

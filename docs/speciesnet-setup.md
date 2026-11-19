@@ -45,4 +45,4 @@ Say your file holds `vulpes vulpes` as red fox, `canidae` as unknown canid and `
 | canine family | `canidae` | unknown canid |
 | northern raccoon | `mammalia` | mammal |
 
-A row catches everything at its level and below it, never above. When no row matches, the label is "unknown animal". That label also covers the rare detections where SpeciesNet gave no answer at all.
+A row catches everything at its level and below it, never above. When no row matches, the label is "unknown animal".

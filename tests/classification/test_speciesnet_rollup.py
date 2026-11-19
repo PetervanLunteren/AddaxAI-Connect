@@ -4,8 +4,9 @@ vendored taxonomy.
 speciesnet_model.py imports speciesnet and the database, so these tests cut
 the functions out of the source with ast and run them against a stand-in for
 the speciesnet rollup. What they pin: the rollup runs without a geofence,
-the project's label CSV is what narrows the labels to a place, and a
-vendored taxonomy that is not the model's own stops the worker.
+the project's label CSV is what narrows the labels to a place, a classifier
+result without a top-5 stops the image, and a vendored taxonomy that is not
+the model's own stops the worker.
 """
 import ast
 import os
@@ -25,7 +26,7 @@ from shared.classification_models import (
 _CLASSIFIER = os.path.abspath(os.path.join(
     os.path.dirname(__file__), "..", "..", "services", "classification", "speciesnet_model.py",
 ))
-FUNCTIONS = ("roll_up", "check_vendored_taxonomy")
+FUNCTIONS = ("roll_up", "read_top5", "check_vendored_taxonomy")
 CONSTANTS = ("ROLLUP_TARGET_CONFIDENCE", "ROLLUP_LEVELS")
 
 CLASSES = ["fox-label", "jackal-label", "wolf-label", "dog-label", "cat-label"]
@@ -83,6 +84,25 @@ def test_rollup_uses_the_reference_levels_and_threshold():
 def test_no_rollup_level_keeps_the_top1():
     ns, _ = _load(rollup_result=None)
     assert ns["roll_up"](CLASSES, SCORES, ENSEMBLE) == ("fox-label", 0.5)
+
+
+def test_a_top5_is_read_from_the_result():
+    ns, _ = _load()
+    result = {"filepath": "a.jpg", "classifications": {"classes": CLASSES, "scores": SCORES}}
+    assert ns["read_top5"](result) == (CLASSES, SCORES)
+
+
+@pytest.mark.parametrize("result, named", [
+    # speciesnet 5.0.6, issue #98: every animal was stored as unknown animal.
+    ({"filepath": "a.jpg", "classifications_list": [{"classes": CLASSES, "scores": SCORES}]},
+     "classifications_list"),
+    ({"filepath": "a.jpg", "failures": ["CLASSIFIER"]}, "failures"),
+    ({"filepath": "a.jpg", "classifications": {"classes": [], "scores": []}}, "classifications"),
+])
+def test_a_result_without_a_top5_stops_the_image(result, named):
+    ns, _ = _load()
+    with pytest.raises(RuntimeError, match=f"no classes, got .*{named}"):
+        ns["read_top5"](result)
 
 
 def test_nothing_is_geofenced():

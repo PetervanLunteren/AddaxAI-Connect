@@ -27,7 +27,7 @@ from speciesnet.geofence_utils import roll_up_labels_to_first_matching_level
 
 from shared.classification_models import ClassificationModel, speciesnet_taxa, taxon_names
 from shared.logger import get_logger
-from shared.taxonomy import UNKNOWN_ANIMAL, apply_taxonomy_walkup
+from shared.taxonomy import apply_taxonomy_walkup
 from db_operations import get_project_taxonomy_map
 from records import Classification, DetectionInfo, ProjectConfig
 
@@ -63,6 +63,21 @@ def roll_up(classes: List[str], scores: List[float], ensemble: Any) -> tuple[str
         return label, score
 
     return classes[0], scores[0]
+
+
+def read_top5(result: dict[str, Any]) -> tuple[List[str], List[float]]:
+    """Classes and scores of the classifier's top-5 for one detection.
+
+    The pinned speciesnet answers every preprocessed image with a top-5.
+    Anything else is a failure or a changed package (5.0.6 moved it to
+    classifications_list, issue #98), never an animal the model does not
+    know, so it stops the image.
+    """
+    top5 = result.get("classifications") or {}
+    classes, scores = top5.get("classes"), top5.get("scores")
+    if not classes or not scores:
+        raise RuntimeError(f"SpeciesNet returned no classes, got {sorted(result)}")
+    return classes, scores
 
 
 def run_classification(
@@ -136,40 +151,27 @@ def run_classification(
             preprocessed = classifier.preprocess(pil_image, bboxes=[bbox])
             result = classifier.predict(image_path, preprocessed)
 
-            # Extract top-1 prediction from raw classifier
-            classifications_data = result.get("classifications", {}) if result else {}
-            classes = classifications_data.get("classes", [])
-            scores = classifications_data.get("scores", [])
+            classes, scores = read_top5(result)
+            raw_score = scores[0]
 
-            if classes and scores:
-                raw_score = scores[0]
-
-                label_for_taxonomy, score_for_taxonomy = roll_up(classes, scores, ensemble)
-                if label_for_taxonomy != classes[0]:
-                    logger.debug(
-                        "Rollup applied",
-                        detection_id=detection.detection_id,
-                        raw_label=classes[0],
-                        label=label_for_taxonomy,
-                    )
-
-                species = apply_taxonomy_walkup(label_for_taxonomy, taxonomy_map)
-
-                classification = Classification(
+            label_for_taxonomy, score_for_taxonomy = roll_up(classes, scores, ensemble)
+            if label_for_taxonomy != classes[0]:
+                logger.debug(
+                    "Rollup applied",
                     detection_id=detection.detection_id,
-                    species=species,
-                    confidence=score_for_taxonomy,
-                    raw_prediction=label_for_taxonomy,
-                    raw_confidence=raw_score
+                    raw_label=classes[0],
+                    label=label_for_taxonomy,
                 )
-            else:
-                classification = Classification(
-                    detection_id=detection.detection_id,
-                    species=UNKNOWN_ANIMAL,
-                    confidence=0.0,
-                    raw_prediction=None,
-                    raw_confidence=None
-                )
+
+            species = apply_taxonomy_walkup(label_for_taxonomy, taxonomy_map)
+
+            classification = Classification(
+                detection_id=detection.detection_id,
+                species=species,
+                confidence=score_for_taxonomy,
+                raw_prediction=label_for_taxonomy,
+                raw_confidence=raw_score
+            )
 
             classifications.append(classification)
 
