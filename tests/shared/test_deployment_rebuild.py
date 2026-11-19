@@ -87,6 +87,16 @@ def test_different_sites_or_no_site_never_join():
     assert len(join_same_site([plan(built(1, 5, [1])), plan(built(5, None, [2]))])) == 2
 
 
+def test_a_joined_pin_is_the_mean_of_all_readings():
+    """lab: one stray photo 120 m off joined 1,460 photos at the site. The pin
+    must stay with the many, not with the one."""
+    one = BuiltDeployment(at(1), at(5), 52.0, 5.0, 1, [1], 7)
+    many = BuiltDeployment(at(5), None, 53.0, 5.0, 9, [2], 7)
+    [joined] = join_same_site([plan(one, 10, 7), plan(many, 11, 7)])
+    assert joined.built.reading_count == 10
+    assert abs(joined.built.lat - 52.9) < 1e-9
+
+
 def test_a_join_takes_the_later_row_when_the_earlier_is_new():
     [one] = join_same_site([plan(built(1, 5, [1]), None, 7), plan(built(5, None, [2]), 11, 7)])
     assert one.row_id == 11

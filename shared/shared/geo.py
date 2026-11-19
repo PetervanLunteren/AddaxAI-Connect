@@ -90,6 +90,25 @@ def next_mean_pin(
     return lat + (new_lat - lat) / n, mean_lon, n
 
 
+def combine_pins(
+    lat_a: float, lon_a: float, count_a: int, lat_b: float, lon_b: float, count_b: int,
+) -> tuple[float, float, int]:
+    """The mean of two pins that each average count readings: the pin of all
+    their readings together. For two deployments that become one. Longitudes
+    are unwrapped as in next_mean_pin."""
+    n = count_a + count_b
+    if lon_b - lon_a > 180:
+        lon_b -= 360
+    elif lon_a - lon_b > 180:
+        lon_b += 360
+    lon = (lon_a * count_a + lon_b * count_b) / n
+    if lon > 180:
+        lon -= 360
+    elif lon < -180:
+        lon += 360
+    return (lat_a * count_a + lat_b * count_b) / n, lon, n
+
+
 # A site's pin is the centroid of its deployments' locations. Run this after a
 # site's deployment membership changes (a deployment is created at, reassigned
 # to, merged into, or removed from it), and after a deployment's own pin moved

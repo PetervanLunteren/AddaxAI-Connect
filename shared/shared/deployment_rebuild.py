@@ -21,7 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .deployment_build import BuiltDeployment, Reading, Statement, build_deployments
-from .geo import RECOMPUTE_SITE_LOCATION_SQL, SITE_THRESHOLD_METERS, calculate_gps_distance
+from .geo import RECOMPUTE_SITE_LOCATION_SQL, SITE_THRESHOLD_METERS, calculate_gps_distance, combine_pins
 from .logger import get_logger
 
 logger = get_logger("deployment-rebuild")
@@ -114,7 +114,8 @@ def match_rows(built: Sequence[BuiltDeployment], stored: Sequence[StoredRow],
 
 def join_same_site(planned: Sequence[Planned]) -> list[Planned]:
     """Two deployments in a row at the same site become one. The earlier one
-    carries on: its row, its start and its pin stay."""
+    carries on with its row and its start. Its pin becomes the mean of the
+    readings of both."""
     joined: list[Planned] = []
     for p in planned:
         last = joined[-1] if joined else None
@@ -125,14 +126,14 @@ def join_same_site(planned: Sequence[Planned]) -> list[Planned]:
             and last.built.end_date is not None
             and p.built.start_date <= last.built.end_date + timedelta(days=SAME_SITE_GAP_DAYS)
         ):
-            has_pin = last.built.lat is not None
+            a, b = last.built, p.built
+            if a.lat is None or b.lat is None:
+                lat, lon, n = (a.lat, a.lon, a.reading_count) if b.lat is None else (b.lat, b.lon, b.reading_count)
+            else:
+                lat, lon, n = combine_pins(a.lat, a.lon, a.reading_count, b.lat, b.lon, b.reading_count)
             last.built = replace(
-                last.built,
-                end_at=p.built.end_at,
-                lat=last.built.lat if has_pin else p.built.lat,
-                lon=last.built.lon if has_pin else p.built.lon,
-                reading_count=last.built.reading_count if has_pin else p.built.reading_count,
-                image_ids=last.built.image_ids + p.built.image_ids,
+                a, end_at=b.end_at, lat=lat, lon=lon, reading_count=n,
+                image_ids=a.image_ids + b.image_ids,
             )
             if last.row_id is None:
                 last.row_id = p.row_id

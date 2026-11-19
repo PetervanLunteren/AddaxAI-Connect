@@ -64,3 +64,14 @@ def test_antimeridian_wrap_west_to_east():
 def test_result_longitude_stays_in_range():
     lat, lon, n = next_mean_pin(-17.0, 179.999, 1, -17.0, -179.997)
     assert -180.0 <= lon <= 180.0
+
+
+def test_combine_pins_weighs_by_reading_count():
+    from shared.geo import combine_pins
+    assert combine_pins(52.0, 5.0, 1, 53.0, 6.0, 3) == (52.75, 5.75, 4)
+
+
+def test_combine_pins_across_the_antimeridian():
+    from shared.geo import combine_pins
+    lat, lon, n = combine_pins(0.0, 179.9, 1, 0.0, -179.9, 1)
+    assert n == 2 and abs(abs(lon) - 180.0) < 1e-9
