@@ -1130,10 +1130,11 @@ const ReviewStep: React.FC<{
   const unreadableCount = manifest.by_status.corrupt ?? 0;
   const undatedCount = manifest.by_status.missing_exif_datetime ?? 0;
   const validCount = Math.max(0, rawValidCount - duplicateCount);
-  // Photos the analysis will skip because the camera needs a location.
-  // They still upload; the worker decides, this only says so in advance.
+  // Photos the analysis will skip: without a chosen site a photo needs its
+  // own location. They still upload; the worker decides, this only says so
+  // in advance.
   const noLocationCount = useMemo(() => {
-    if (profile?.mode !== 'profile' || !profile.requires_gps) return 0;
+    if (profile?.mode !== 'profile') return 0;
     const excluded = new Set(excludedPaths);
     return entries.filter(
       (e) => e.status === 'valid' && !e.has_gps && !excluded.has(e.relative_path),

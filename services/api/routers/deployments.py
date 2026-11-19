@@ -1,13 +1,12 @@
 """
 Deployment endpoints.
 
-A deployment is one camera at one site for a time range, with no free-text
-metadata. Deployments are created by ingestion and corrected via the camera
-updates feed; this router serves the project-wide list, the single PATCH used
-by the camera-slideout escape hatch, and the thumbnail sample. Assigning a
-site sets site_source='manual', which records that a human chose the site
-rather than GPS. site_source has no effect on ingestion.
+A deployment is one camera at one site for a time range. Deployments are
+rebuilt from photo GPS plus fixed periods (statements, see
+shared/deployment_rebuild.py). This router serves the project-wide list, the
+fixed periods of a camera (list, set, remove) and the thumbnail sample.
 """
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -17,10 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.models import Camera, Deployment, Image, Site, User
+from shared.models import Camera, Deployment, DeploymentStatement, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
-from utils.deployment_edits import state_deployment_at_site
+from utils.deployment_edits import rebuild, state
 from utils.site_scope import site_in_scope
 
 logger = get_logger("api.deployments")
@@ -106,69 +105,160 @@ async def list_deployments(
     ]
 
 
-class UpdateDeploymentRequest(BaseModel):
-    # The site this deployment's period was at. Written as a statement, so the
-    # rebuild keeps it there whatever the GPS says. Omit to leave unchanged.
-    site_id: Optional[int] = None
+class StatementItem(BaseModel):
+    """One fixed period: a decision about where the camera stood."""
+    id: int
+    site_id: int
+    site_name: str
+    from_date: str
+    # The last day, or None when the camera is still there.
+    until_date: Optional[str] = None
+    # 'person', 'upload' or 'carried_over'.
+    source: str
+    created_by: Optional[str] = None
+    created_at: str
 
 
-class UpdateDeploymentResponse(BaseModel):
-    # How many deployments fewer the camera has afterwards: a deployment put
-    # on the site of its neighbour joins it. The edited deployment may be the
-    # one that joined, so we do not echo it back; the frontend refetches.
+class SetDeploymentRequest(BaseModel):
+    camera_id: int
+    site_id: int
+    from_date: date
+    # The last day the camera stood there. None means it still stands there.
+    until_date: Optional[date] = None
+
+
+class SetDeploymentResponse(BaseModel):
+    # How many deployments fewer the camera has afterwards: periods at the
+    # same site back to back become one.
     merged: int = 0
 
 
-@router.patch("/{deployment_id}", response_model=UpdateDeploymentResponse)
-async def update_deployment(
+def period_of_days(from_date: date, until_date: Optional[date]) -> tuple[datetime, Optional[datetime]]:
+    """Days as a period of camera clock time: from the start of the first day
+    to the start of the day after the last. The same rule as uploads and the
+    carry-over, so a day belongs to one deployment."""
+    from_at = datetime.combine(from_date, time.min)
+    until_at = datetime.combine(until_date + timedelta(days=1), time.min) if until_date else None
+    return from_at, until_at
+
+
+async def _camera_in_project(db: AsyncSession, project_id: int, camera_id: int) -> Camera:
+    camera = (
+        await db.execute(select(Camera).where(Camera.id == camera_id, Camera.project_id == project_id))
+    ).scalar_one_or_none()
+    if camera is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera not found")
+    return camera
+
+
+async def _deployment_count(db: AsyncSession, camera_id: int) -> int:
+    return (
+        await db.execute(select(func.count(Deployment.id)).where(Deployment.camera_id == camera_id))
+    ).scalar_one()
+
+
+@router.get("/statements", response_model=List[StatementItem])
+async def list_statements(
     project_id: int,
-    deployment_id: int,
-    request: UpdateDeploymentRequest,
+    camera_id: int = Query(...),
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """The camera's fixed periods that are in force, newest first."""
+    await _camera_in_project(db, project_id, camera_id)
+    rows = (
+        await db.execute(
+            select(DeploymentStatement, Site.name, User.email)
+            .join(Site, Site.id == DeploymentStatement.site_id)
+            .outerjoin(User, User.id == DeploymentStatement.created_by_user_id)
+            .where(
+                DeploymentStatement.camera_id == camera_id,
+                DeploymentStatement.removed_at.is_(None),
+            )
+            .order_by(DeploymentStatement.id.desc())
+        )
+    ).all()
+    return [
+        StatementItem(
+            id=st.id,
+            site_id=st.site_id,
+            site_name=site_name,
+            from_date=st.from_at.date().isoformat(),
+            until_date=(st.until_at - timedelta(days=1)).date().isoformat() if st.until_at else None,
+            source=st.source,
+            created_by=email,
+            created_at=st.created_at.isoformat(),
+        )
+        for st, site_name, email in rows
+    ]
+
+
+@router.post("/statements", response_model=SetDeploymentResponse)
+async def set_deployment(
+    project_id: int,
+    request: SetDeploymentRequest,
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
     """
-    Reassign a deployment's site. The deployment must belong to a camera in
-    `project_id`; a mismatch returns 404 so existence does not leak.
+    Set where a camera stood: at this site from this day, until this day or
+    still. Written as a statement, so the GPS does not change that period.
+    Change site on a deployment, placing a camera without GPS and correcting
+    the past all go through here.
     """
+    await _camera_in_project(db, project_id, request.camera_id)
+    site = (
+        await db.execute(select(Site).where(Site.id == request.site_id, Site.project_id == project_id))
+    ).scalar_one_or_none()
+    if site is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
+    if request.until_date is not None and request.until_date < request.from_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The last day cannot be before the first day",
+        )
+
+    from_at, until_at = period_of_days(request.from_date, request.until_date)
+    before = await _deployment_count(db, request.camera_id)
+    await state(db, request.camera_id, request.site_id, from_at, until_at, user.id)
+    merged = max(0, before - await _deployment_count(db, request.camera_id))
+    await db.commit()
+    logger.info(
+        "Set deployment", project_id=project_id, camera_id=request.camera_id,
+        site_id=request.site_id, from_date=str(request.from_date), until_date=str(request.until_date),
+    )
+    return SetDeploymentResponse(merged=merged)
+
+
+@router.delete("/statements/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_statement(
+    project_id: int,
+    statement_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """Take a fixed period back. The row stays, marked removed with who and
+    when, and the camera is rebuilt: what the GPS or an older period says for
+    that time shows again."""
     row = (
         await db.execute(
-            select(Deployment, Camera.project_id)
-            .join(Camera, Camera.id == Deployment.camera_id)
-            .where(Deployment.id == deployment_id)
-        )
-    ).first()
-    if row is None or row[1] != project_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found",
-        )
-
-    deployment: Deployment = row[0]
-
-    merged = 0
-    if 'site_id' in request.model_fields_set and request.site_id is None:
-        # A deployment is always somewhere. To say a camera was not at a
-        # site, put it at the right one.
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A site is required",
-        )
-    if request.site_id is not None:
-        site = (
-            await db.execute(
-                select(Site).where(Site.id == request.site_id, Site.project_id == project_id)
+            select(DeploymentStatement)
+            .join(Camera, Camera.id == DeploymentStatement.camera_id)
+            .where(
+                DeploymentStatement.id == statement_id,
+                Camera.project_id == project_id,
+                DeploymentStatement.removed_at.is_(None),
             )
-        ).scalar_one_or_none()
-        if site is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Site not found",
-            )
-        count = select(func.count(Deployment.id)).where(Deployment.camera_id == deployment.camera_id)
-        before = (await db.execute(count)).scalar_one()
-        await state_deployment_at_site(db, deployment, request.site_id, user.id)
-        merged = max(0, before - (await db.execute(count)).scalar_one())
-
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixed period not found")
+    row.removed_at = datetime.now(timezone.utc)
+    row.removed_by_user_id = user.id
+    await db.flush()
+    await rebuild(db, [row.camera_id])
     await db.commit()
-    return UpdateDeploymentResponse(merged=merged)
+    logger.info("Removed fixed period", project_id=project_id, statement_id=statement_id)
 
 
 class DeploymentThumbnails(BaseModel):

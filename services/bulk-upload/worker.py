@@ -239,7 +239,9 @@ def _process_file(
                     gps=image_gps,
                 )
                 return {"outcome": "skipped", "reason": "invalid_gps"}
-            if not image_gps and profile.requires_gps:
+            if not image_gps:
+                # Without a chosen site, a photo without GPS would have no
+                # site. Phase 4 of DEPLOYMENTS_PLAN.md asks for the site then.
                 logger.warning(
                     "Skipping bulk upload entry, no GPS",
                     entry=name,

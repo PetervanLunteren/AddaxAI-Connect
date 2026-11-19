@@ -65,17 +65,18 @@ def tier_bulk_raw_cold(image_uuid: str) -> None:
 
 
 def event_location_and_timestamp(image_record, fallback_timestamp):
-    """Where and when for a species_detection event, from the photo's own EXIF.
+    """Where and when for a species_detection event.
 
-    GPS comes from the photo (gps_decimal in its metadata), never from the
-    camera row. The timestamp is DateTimeOriginal, or the queue message's
-    timestamp when the photo carries none.
+    GPS is the photo's own reading (images.gps_lat and gps_lon), never the
+    camera row, and never the raw EXIF: an invalid reading such as (0, 0) is
+    stored as empty there, so it is not sent on. The timestamp is
+    DateTimeOriginal, or the queue message's timestamp when the photo carries
+    none.
     """
     metadata = image_record.image_metadata or {}
     location = None
-    gps_decimal = metadata.get('gps_decimal')
-    if gps_decimal and len(gps_decimal) == 2:
-        location = {"lat": gps_decimal[0], "lon": gps_decimal[1]}
+    if image_record.gps_lat is not None:
+        location = {"lat": image_record.gps_lat, "lon": image_record.gps_lon}
     timestamp = metadata.get('DateTimeOriginal') or fallback_timestamp
     return location, timestamp
 

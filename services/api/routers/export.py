@@ -788,11 +788,10 @@ def _build_observation_rows(
         camera_name = camera_names.get(image.camera_id, "")
         site_id, site_name = sites_by_deployment.get(image.deployment_id, ("", ""))
 
-        # Extract GPS from image EXIF metadata
+        # The photo's own GPS reading, empty when it had none or an invalid one.
         lat, lon = "", ""
-        gps = image.image_metadata.get("gps_decimal") if image.image_metadata else None
-        if gps and len(gps) == 2:
-            lat, lon = gps[0], gps[1]
+        if image.gps_lat is not None:
+            lat, lon = image.gps_lat, image.gps_lon
 
         is_verified = "TRUE" if image.is_verified else "FALSE"
         has_observations = False

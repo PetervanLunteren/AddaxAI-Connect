@@ -38,7 +38,6 @@ class CameraProfile:
         path_pattern: Regex to match the relative upload path (path profiles only)
         parse_path: Function returning {device_id, datetime, gps} from the relative path (path profiles only)
         requires_datetime: Whether DateTimeOriginal is mandatory
-        requires_gps: Whether GPS coordinates are mandatory
         resends_broken_uploads: Whether the camera sends a photo again after
             an upload broke. Ingestion then holds an incomplete photo for a
             few minutes and keeps the best copy (services/ingestion/resend_hold.py).
@@ -51,7 +50,6 @@ class CameraProfile:
     path_pattern: Optional[str] = None
     parse_path: Optional[Callable[[str], dict]] = None
     requires_datetime: bool = True
-    requires_gps: bool = False
     resends_broken_uploads: bool = False
 
     def __post_init__(self) -> None:
@@ -236,7 +234,6 @@ WILLFINE_2025_PROFILE = CameraProfile(
     model_pattern=r"4\.0T CG",
     get_camera_id=extract_willfine_2025_camera_id,
     requires_datetime=True,
-    requires_gps=True,
     # Measured on a weak mobile link (Namibia, Nov 2026): after a broken
     # upload the camera sends the whole photo again within about two minutes.
     # See "Broken uploads that the camera sends again" in DEVELOPERS.md.
@@ -249,7 +246,6 @@ SWIFT_ENDURO_PROFILE = CameraProfile(
     model_pattern=r"4\.0PCG-R",
     get_camera_id=extract_swift_enduro_camera_id,
     requires_datetime=True,
-    requires_gps=True,
 )
 
 INSTAR_PROFILE = CameraProfile(
@@ -257,7 +253,6 @@ INSTAR_PROFILE = CameraProfile(
     path_pattern=INSTAR_PATH_RE.pattern,
     parse_path=parse_instar_path,
     requires_datetime=True,
-    requires_gps=True,
 )
 
 # Registry of all supported camera profiles.

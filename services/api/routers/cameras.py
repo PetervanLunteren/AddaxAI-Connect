@@ -27,6 +27,7 @@ from shared.camera_status import camera_status as _camera_status, is_rejecting
 from utils.camera_recency import fetch_camera_recency
 from utils.deployment_edits import rebuild
 from utils.camera_rejections import RecentRejections, fetch_recent_rejections, REJECTED_RECENT_DAYS
+from utils.camera_unplaced import UnplacedPhotos, fetch_unplaced
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags, tag_length_error
 
@@ -70,6 +71,12 @@ class CameraResponse(BaseModel):
     # filter, so a camera that rejected a photo before its GPS fix and then
     # recovered stops warning at once. None exactly when the count is None.
     rejecting: Optional[bool] = None
+    # Photos no deployment covers yet, with their first and last day (camera
+    # clock, YYYY-MM-DD) to prefill the Set deployment form. None for
+    # site-restricted viewers, who cannot see these photos.
+    unplaced_photo_count: Optional[int] = None
+    unplaced_first_day: Optional[str] = None
+    unplaced_last_day: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -189,6 +196,7 @@ def camera_to_response(
     last_maintenance_date: Optional[date] = None,
     rejections_visible: bool = False,
     recent_rejections: Optional[RecentRejections] = None,
+    unplaced: Optional[UnplacedPhotos] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape.
 
@@ -198,7 +206,9 @@ def camera_to_response(
     `rejections_visible` is False for site-restricted viewers, who see no
     rejections anywhere: the count and the rejecting flag then stay None.
     `recent_rejections` is the camera's entry from `fetch_recent_rejections`,
-    None when it has none in the window.
+    None when it has none in the window. `unplaced` is its entry from
+    `fetch_unplaced`; like rejections it is only shown when
+    `rejections_visible`, since restricted viewers cannot see those photos.
     """
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
@@ -213,6 +223,9 @@ def camera_to_response(
             recent_rejections.last_rejected_at if recent_rejections else None,
             last_image_arrival,
         )
+    unplaced_photo_count = (unplaced.count if unplaced else 0) if rejections_visible else None
+    unplaced_first_day = unplaced.first_day.isoformat() if rejections_visible and unplaced else None
+    unplaced_last_day = unplaced.last_day.isoformat() if rejections_visible and unplaced else None
 
     return CameraResponse(
         current_site=current_site,
@@ -237,6 +250,9 @@ def camera_to_response(
         last_maintenance_date=last_maintenance_date.isoformat() if last_maintenance_date else None,
         rejected_count_recent=rejected_count_recent,
         rejecting=rejecting,
+        unplaced_photo_count=unplaced_photo_count,
+        unplaced_first_day=unplaced_first_day,
+        unplaced_last_day=unplaced_last_day,
     )
 
 
@@ -255,8 +271,10 @@ async def camera_detail_response(
     """
     recency = await fetch_camera_recency(db, [camera.id])
     recent_rejections = None
+    unplaced = None
     if site_scope is None:
         recent_rejections = (await fetch_recent_rejections(db, [camera.id])).get(camera.id)
+        unplaced = (await fetch_unplaced(db, [camera.id])).get(camera.id)
 
     last_maintenance_date = (await db.execute(
         select(func.max(CameraMaintenanceEvent.event_date))
@@ -292,6 +310,7 @@ async def camera_detail_response(
         last_maintenance_date=last_maintenance_date,
         rejections_visible=site_scope is None,
         recent_rejections=recent_rejections,
+        unplaced=unplaced,
     )
 
 
@@ -343,8 +362,10 @@ async def list_cameras(
     # Restricted viewers see no rejections at all (a rejection has no site),
     # so their count stays None and the UI hides it.
     recent_rejections: dict[int, RecentRejections] = {}
+    unplaced: dict[int, UnplacedPhotos] = {}
     if site_scope is None:
         recent_rejections = await fetch_recent_rejections(db, camera_ids)
+        unplaced = await fetch_unplaced(db, camera_ids)
     last_maintenance_map: dict[int, date] = {}
     if camera_ids:
         maintenance_rows = await db.execute(
@@ -389,6 +410,7 @@ async def list_cameras(
             last_maintenance_date=last_maintenance_map.get(camera.id),
             rejections_visible=site_scope is None,
             recent_rejections=recent_rejections.get(camera.id),
+            unplaced=unplaced.get(camera.id),
         )
         for camera in cameras
     ]
