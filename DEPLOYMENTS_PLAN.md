@@ -30,7 +30,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | Step | Status | Where |
 |---|---|---|
 | 1a | done, release pending | `main` |
-| 1b | not started | `main` |
+| 1b | in progress | `main` |
 | 2a | not started | branch for phase 2 |
 | 2b | not started | branch for phase 2 |
 | 2c | not started | branch for phase 2 |
@@ -82,6 +82,23 @@ Notes per step:
     for 41k photos the time is no concern, and the release test restores
     every production dataset on dev before a release anyway.
   - Built and tested on dev. Not in a release yet.
+- **1b**, planned and built on 19 November 2026.
+  - `build_deployments` in `shared/shared/deployment_build.py`, tests in
+    `tests/shared/test_deployment_build.py`. It keeps every quirk of today's
+    rule on purpose. Nothing in the app calls it yet.
+  - The local test folder proves it equals the live resolver: each scenario
+    goes through the real resolver on PostGIS and the stored rows must match
+    the build in arrival order (`test_build_equals_live_rule.py`, including a
+    long random walk with noise, outliers and late photos).
+  - `scripts/replay_deployments.py` compares the build with the stored rows
+    for a whole server and gives each differing camera a reason. Read only.
+    The cutoff for "older rule" is the most common `ingested_at`, the stamp
+    migration `20260616_rejections_feed` put on every photo that existed
+    then. A server that ran v0.6.0 before v0.6.2 has a few weeks after that
+    stamp under the old rule, which shows as unexplained cameras to check by
+    hand.
+  - Left to do: run the replay on dev against each production dataset and go
+    through the unexplained cameras with Peter.
 
 ## How to work on this plan
 
@@ -334,8 +351,10 @@ images of tomorrow.
 
 ### Three layers of data
 
-1. **Raw readings.** The GPS of every photo and every daily report, in real
-   columns. Written once, never changed.
+1. **Raw readings.** The GPS of every photo, in real columns. Written once,
+   never changed. Daily reports store their GPS too, but they are not
+   readings: not every camera type sends reports, so only photos make
+   deployments.
 2. **Statements by people.** One row per decision: camera, site, from, until,
    who, when. Rows are never edited. A newer statement wins over an older one
    where they overlap. Removing a statement shows what is underneath. This
@@ -347,10 +366,19 @@ images of tomorrow.
 ### How one camera's deployments are built
 
 One function in `shared/`, without database access, takes the camera's readings
-in capture order and its statements, and returns the deployments.
+in capture order and its statements, and returns the deployments. Since step 1b
+it exists without statements: `build_deployments` in
+`shared/shared/deployment_build.py`.
 
 - It walks the readings with today's rule: 250 m from the deployment's own pin,
   two readings to confirm a move, the move dated back to the first far reading.
+- It walks them in the order it is given. Phase 2 gives capture order. The
+  replay of step 1b also gives arrival order, which reproduces what live
+  ingestion stored.
+- Each deployment has an exact start and end time, and the end of one is the
+  start of the next. The dates follow from the times with today's rule: the
+  day of a move belongs to the new deployment, so every day counts once for
+  trap-days. The time columns come in step 2a.
 - A move is measured against the camera's own earlier readings, never against
   the pin of the site. The site is a label on the deployment. So a person can
   assign a period to a site 400 m away without the next photo causing a move.
@@ -499,9 +527,10 @@ Nothing changes for users.
   an upload to a chosen site, or a bug. A deployment set by an upload has no
   readings, so the replay can never rebuild it. spw project 4 alone has
   11,811 such photos.
-- Timestamps. Deployments have dates today. The build cuts on capture time, so
-  add start and end timestamps and derive the dates from them. Settle the
-  details here, with trap-days and the Camtrap DP export in view.
+- Timestamps. Deployments have dates today. The build cuts on capture time and
+  returns start and end times, with the dates derived by today's rule, so
+  trap-days do not change. Settled in step 1b. The columns are added in step
+  2a, when the rebuild fills them, not before.
 
 Done when the replay explains every difference on every production dataset and
 the numbers on dev are unchanged.
@@ -658,6 +687,18 @@ Decided on 19 November 2026, in the planning of step 1a:
   uploads.
 - INSTAR waits until a project uses it.
 
+Decided on 19 November 2026, in the planning of step 1b:
+
+- Deployments get exact start and end times, the end of one being the start
+  of the next. The dates are derived with today's rule. The columns come in
+  step 2a.
+- Daily reports do not make deployments. Only photos do. Not every camera
+  type sends reports, and more types are coming.
+- The replay labels each difference with a reason and counts them. Only what
+  stays unexplained is looked at by hand.
+- The replay builds in both orders: arrival order to prove the function, and
+  capture order to show what phase 2 changes.
+
 Rejected, with the reason:
 
 - **Locking a camera after a correction.** It needs a flag, accept and dismiss,
@@ -689,10 +730,10 @@ Later ideas, left out on purpose:
 
 To settle at the start of the phase named.
 
-- Phase 1: the exact form of the timestamps on deployments, and what a move in
-  the middle of a day means for trap-days.
-- Phase 1: whether a daily report may still open a first deployment, as it
-  does today.
+- Phase 2: what happens to deployments that a daily report opened before any
+  photo arrived. Reports no longer make deployments, so the rebuild starts
+  them at the first photo. Pin the old start with a statement, or accept the
+  later start.
 - Phase 2: the name of the statements table and the wording in the UI.
 - Phase 2: whether a site that has deployments can be deleted, or only merged.
 - Phase 2: what alerts do for a photo that has no site yet.
