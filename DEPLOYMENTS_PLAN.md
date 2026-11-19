@@ -31,14 +31,14 @@ When Peter says he wants to continue with the deployments plan, do this:
 |---|---|---|
 | 1a | done, release pending | `main` |
 | 1b | done, release pending | `main` |
-| 2a | done, release with 2b and 2c | `deployments-phase-2` |
-| 2b | not started | branch for phase 2 |
-| 2c | not started | branch for phase 2 |
-| 3a | not started | `main` |
-| 3b | not started | its own branch |
-| 3c | not started | `main` |
-| 4 | not started | `main` |
-| 5 | not started | `main` |
+| 2a | done, release with the branch | `deployments-phase-2` |
+| 2b | in progress | `deployments-phase-2` |
+| 2c | not started | `deployments-phase-2` |
+| 3a | not started | `deployments-phase-2` |
+| 3b | not started | `deployments-phase-2` |
+| 3c | not started | `deployments-phase-2` |
+| 4 | not started | `deployments-phase-2` |
+| 5 | not started | after the release |
 
 A status is one of: not started, planned (Peter agreed with the step's plan),
 in progress, done (with the release it shipped in).
@@ -54,7 +54,7 @@ Notes per step:
     `~/Documents/Repos/AddaxAI-Connect-deployment-tests/` on Peter's Mac, run
     with `./run.sh` there (needs OrbStack), against a throwaway PostGIS. Not in
     CI, so run them before and after any change to the deployment code. Delete
-    the folder when phase 2 is merged. Its README lists what they cover.
+    the folder when the branch is merged. Its README lists what they cover.
   - Three tests pin behaviour that looks wrong, as today's baseline: two
     photos of one burst confirm a move (phase 5), "New site" in the updates
     panel leaves the emptied auto site behind, and a site merge leaves two
@@ -334,29 +334,31 @@ Read conventions.md, commit, ssh into test server with "ssh dev", pull, restart 
   before running anything on dev, and run the migrations when there is one.
 - Dev holds restored production data. Test on that data, and say per check
   what was tested and what it showed.
-- A step on a branch (phase 2, step 3b): check out that branch on dev for the
-  test and put dev back on `main` afterwards, unless Peter says otherwise.
+- Dev stays on `deployments-phase-2` until the branch is merged, see "Main or
+  a branch".
 - After the push, watch CI (`gh run watch`) before calling the step green.
 
 ## Main or a branch
 
-Servers run tagged releases and never the head of `main`, so unfinished work on
-`main` reaches nobody. The reason for a branch is releases: `main` must stay in
-a state from which an urgent bug fix can be released.
+Decided by Peter on 19 November 2026: **the whole feature is built on one
+branch, `deployments-phase-2`, from step 2a to step 4, and released in one
+go.** The name says phase 2 because that is where it started.
 
-- **On `main`**: steps 1a, 1b, 3a, 3c, 4 and 5. They only add things: columns,
-  tests, a script, a read-only page. Half-finished work there breaks nothing.
-- **On one branch for all of phase 2**: steps 2a, 2b and 2c. Phase 2 swaps the
-  code that decides deployments and rewrites existing data when it carries
-  over the past. For a while it cannot be released, and step 2a alone leaves
-  the app in an in-between state. The three steps make one release together.
-- **On its own branch**: step 3b. It removes the updates panel and the feed
-  table.
+- Work on `main` goes on next to it. Merge `main` into the branch often, so
+  the two do not drift apart.
+- Dev stays on the branch while the feature is built.
+- Steps 1a and 1b are on `main`. They change nothing users see and can be
+  released any time before the branch.
+- Step 5, the better move check, comes after the release. It needs the
+  statements people write in real use as its answer key.
+- Before the release the gate of step 2a is run again on the finished
+  branch, against every production dataset.
+- The local test folder stays until the branch is merged.
 
-Keep a branch short-lived and rebase it on `main` often, because `main` moves
-fast. Rehearse the merge on dev with production data first, as was done for
-`sites-migration-cleanup` in July 2026. Ask Peter before opening a branch, as
-`CONVENTIONS.md` says.
+What follows for every decision: **no stopgaps.** Nothing is built only to
+cover the time until a later step, because no user ever sees that time. When
+a later step on this branch does a thing properly, the earlier step leaves it
+alone. Do not ask Peter what should happen "until then".
 
 ## The problem
 
@@ -693,7 +695,7 @@ Done when a camera without GPS can be registered, placed and moved from a desk,
 and every correction of the past can be made and removed again. The SPARROW
 profile is separate work that needs this phase.
 
-Steps 2a, 2b and 2c each end with a deploy of the phase 2 branch to dev and an
+Steps 2a, 2b and 2c each end with a deploy of the branch to dev and an
 end to end test, see "Deploy to dev". Step 2a also rehearses carrying over the
 past on the restored production data there.
 
@@ -730,7 +732,7 @@ past on the restored production data there.
 Done when a project admin can answer "where was this camera, and why does the
 app think so" on one page, and fix it there.
 
-Steps 3a, 3b (from its branch) and 3c each end with a deploy to dev and an end
+Steps 3a, 3b and 3c each end with a deploy to dev and an end
 to end test in the browser, see "Deploy to dev".
 
 ### Phase 4: bulk upload
@@ -794,7 +796,7 @@ Decided on 19 November 2026, in the planning of step 1a:
 
 - The behaviour tests run against a real PostGIS, because the deployment
   logic lives in SQL and fakes would prove nothing. They stay outside the repo
-  until phase 2 is merged, then they are deleted. No CI job, no new packages.
+  until the branch is merged, then they are deleted. No CI job, no new packages.
 - The tests assert on the resulting rows, not on the functions, so they keep
   working when phase 2 replaces the code.
 - GPS readings are two plain number columns, not a PostGIS point. Nothing
