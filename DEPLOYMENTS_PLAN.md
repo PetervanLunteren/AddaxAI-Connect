@@ -34,7 +34,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 2a | done, release with the branch | `deployments-phase-2` |
 | 2b | done, release with the branch | `deployments-phase-2` |
 | 2c | done, release with the branch | `deployments-phase-2` |
-| 3a | in progress | `deployments-phase-2` |
+| 3a | done, release with the branch | `deployments-phase-2` |
 | 3b | not started | `deployments-phase-2` |
 | 3c | not started | `deployments-phase-2` |
 | 4 | not started | `deployments-phase-2` |
@@ -305,7 +305,7 @@ Notes per step:
   - The timeline: bars stop at the last photo, the Utrecht test photo of
     January is its own short row.
 
-- **3a**, planned and built on 20 November 2026, not yet deployed to dev.
+- **3a**, planned, built and tested on dev on 20 November 2026.
   - Decided: "needs review" is built in 3b, all of it. The reason for a cut
     is worked out on request, never stored. Details show in a card under the
     map, nothing is dimmed. Bars have one colour with the site name on them,
@@ -321,8 +321,25 @@ Notes per step:
     parts, links from the camera and site panels, the sidebar item.
   - Tests: `tests/shared/test_deployment_build.py` (the move reason),
     `tests/db_api/test_deployments_page.py`.
-  - Still to do: before and after screenshots of the Insights timeline,
-    deploy to dev, end to end in the browser.
+  - On dev with pwn data, 20 November 2026 (branch at the commit after
+    `7f274ba4`):
+    - Every deployment of both projects gets a reason (project 1: 7 first,
+      8 fixed, 4 moved; project 2: 36 first, 2 fixed). The list takes
+      0.2 s, the slowest camera 0.45 s. The three moves of November read
+      "2 photos in a row were 2.3 km from where it stood before".
+    - The Insights timeline looks the same as before the shared module.
+    - In the browser: filters, drag to zoom, rows per camera and per site
+      (lanes where cameras overlap), a click on a bar (card, dots of both
+      places, pin, ring, fit), the selection in the link, the link from
+      the camera panel, tablet width, map tiles.
+    - Two bugs found and fixed there: bars that started before a zoomed
+      range ran over the row labels, and the map fitted to the pin before
+      the GPS arrived, so the earlier place of a move was out of view.
+  - Not tested in the browser: the phone width (Chrome does not go below
+    820 px and the app refuses to be framed) and a viewer, who has no page
+    (no viewer account on dev, by rule). Both are covered by the code: the
+    route sits in `RequireProjectAdmin`, the phone layout switches at
+    768 px.
 
 ## How to work on this plan
 
