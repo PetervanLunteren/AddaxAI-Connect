@@ -10,14 +10,19 @@ arrive in capture order, except where a scenario says they arrive late.
 Run inside the ingestion container on a DEV server:
 
     docker compose exec -T ingestion python /app/scripts/dev_deployment_scenarios.py
+    docker compose exec -T ingestion python /app/scripts/dev_deployment_scenarios.py --only S01
 
-The project is called "Deployment scenarios". The script refuses to run when
-it exists already: delete it in the app first (Projects, the project's menu),
-then run again. A restore of a production backup wipes it as well. The
-sites lie on a made-up grid on the Veluwe, far from any real project.
+Without --only every scenario is added; with it only the cameras whose name
+starts with that text, so a walkthrough can add one story at a time. The
+project "Deployment scenarios" and its sites are made on the first run and
+reused after that. A camera that is already in the project is refused. To
+start over, delete the project in the app; a restore of a production
+backup wipes it as well. The sites lie on a made-up grid on the Veluwe, far
+from any real project.
 
 Refuses to run on anything but a development server (ENVIRONMENT).
 """
+import argparse
 import math
 import os
 import random
@@ -188,21 +193,30 @@ def draw(photo: Photo) -> str:
 
 
 def make_project(devices: list[str]) -> tuple[int, dict[str, int]]:
-    """The project, its named sites and one camera per scenario."""
+    """The project with its named sites (made once, reused after that) and
+    one new camera per scenario asked for."""
     with get_db_session() as session:
-        if session.execute(text("SELECT 1 FROM projects WHERE name = :n"), {"n": PROJECT_NAME}).first():
-            sys.exit(f"Project {PROJECT_NAME!r} exists. Delete it in the app first, then run again.")
-        model = session.execute(text("SELECT classification_model FROM projects ORDER BY id LIMIT 1")).scalar()
         project_id = session.execute(
-            text("INSERT INTO projects (name, description, classification_model) VALUES (:n, :d, :m) RETURNING id"),
-            {"n": PROJECT_NAME, "d": "Made-up cameras for testing the camera updates check. Dev only.",
-             "m": model or "EUR-DF-v1-4"},
-        ).scalar_one()
-        for name, (lat, lon) in SITES.items():
-            session.execute(text("""
-                INSERT INTO sites (uuid, project_id, name, location, created_at)
-                VALUES (:u, :p, :n, ST_GeogFromText(:wkt), now())
-            """), {"u": str(uuid_module.uuid4()), "p": project_id, "n": name, "wkt": f"POINT({lon} {lat})"})
+            text("SELECT id FROM projects WHERE name = :n"), {"n": PROJECT_NAME},
+        ).scalar()
+        if project_id is None:
+            model = session.execute(text("SELECT classification_model FROM projects ORDER BY id LIMIT 1")).scalar()
+            project_id = session.execute(
+                text("INSERT INTO projects (name, description, classification_model) VALUES (:n, :d, :m) RETURNING id"),
+                {"n": PROJECT_NAME, "d": "Made-up cameras for testing the camera updates check. Dev only.",
+                 "m": model or "EUR-DF-v1-4"},
+            ).scalar_one()
+            for name, (lat, lon) in SITES.items():
+                session.execute(text("""
+                    INSERT INTO sites (uuid, project_id, name, location, created_at)
+                    VALUES (:u, :p, :n, ST_GeogFromText(:wkt), now())
+                """), {"u": str(uuid_module.uuid4()), "p": project_id, "n": name, "wkt": f"POINT({lon} {lat})"})
+        taken = set(session.execute(
+            text("SELECT device_id FROM cameras WHERE project_id = :p AND device_id = ANY(:d)"),
+            {"p": project_id, "d": devices},
+        ).scalars())
+        if taken:
+            sys.exit(f"Already in the project: {', '.join(sorted(taken))}. Delete the project to start over.")
         cameras = {}
         for device in devices:
             cameras[device] = session.execute(text("""
@@ -234,14 +248,18 @@ def send(photo: Photo, camera_id: int, queue: RedisQueue) -> None:
 def main() -> None:
     if not is_development():
         sys.exit("Refusing to run: this is not a development server (ENVIRONMENT).")
-    stories = scenarios(date.today())
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--only", help="Only the cameras whose name starts with this, e.g. S01")
+    args = ap.parse_args()
+    stories = {k: v for k, v in scenarios(date.today()).items() if not args.only or k.startswith(args.only)}
+    if not stories:
+        sys.exit(f"No scenario starts with {args.only!r}.")
     photos = [p for ps in stories.values() for p in ps]
     # On-time photos in capture order, then the late ones.
     photos.sort(key=lambda p: (p.late, p.taken))
 
     project_id, cameras = make_project(list(stories))
-    print(f"Project {project_id} {PROJECT_NAME!r}: {len(SITES)} sites, {len(cameras)} cameras, "
-          f"{len(photos)} photos to send")
+    print(f"Project {project_id} {PROJECT_NAME!r}: adding {', '.join(cameras)}, {len(photos)} photos")
     queue = RedisQueue(QUEUE_IMAGE_INGESTED)
     for n, photo in enumerate(photos, start=1):
         send(photo, cameras[photo.device], queue)
