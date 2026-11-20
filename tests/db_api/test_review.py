@@ -1,18 +1,23 @@
 """
-Step 3b: the To check list of the Deployments page.
+Step 3b: the Camera updates page.
 
-To check = a deployment the GPS made that nobody checked yet, plus each
-camera with photos without a site. Checking records who looked and when; it
-fixes nothing. The badge count (SQL) and the list (built in the browser from
-the deployments list) must say the same.
+An entry is a deployment the GPS made. A person may say it is right, which
+records who looked and when and fixes nothing. Few entries need a person:
+photos without a site, a place the app named itself, and a move that came
+back within a week. The badge counts those in SQL, the page marks them in
+the browser from the deployments list, and the two must say the same.
 """
+from datetime import datetime
+
 import pytest
 
 from deployment_db import (
     HOME, at, deployments, make_camera, make_image, make_project, make_site,
     make_statement, offset, rows, to_check,
+    execute,
 )
-from routers.deployments import CheckedRequest, list_deployments, set_checked, to_check_count
+from routers.deployments import CheckedRequest, attention_count, list_deployments, set_checked
+from shared.geo import is_auto_site_name
 
 pytestmark = pytest.mark.asyncio
 
@@ -27,9 +32,25 @@ def rebuild(camera_id):
 
 
 def list_rule(overview) -> int:
-    """The rule of components/deployments/review-items.ts."""
-    gps = [d for d in overview.deployments if d.site_source == "auto" and d.checked_at is None]
-    return len(gps) + len(overview.unplaced)
+    """needsYou in components/deployments/update-items.ts, in Python."""
+    by_camera = {}
+    for d in overview.deployments:
+        by_camera.setdefault(d.camera_id, []).append(d)
+    count = len(overview.unplaced)
+    for deps in by_camera.values():
+        deps.sort(key=lambda d: d.start_at)
+        for i, d in enumerate(deps):
+            if d.site_source != "auto" or d.checked_at is not None:
+                continue
+            before = deps[i - 1] if i and deps[i - 1].end_at == d.start_at else None
+            after = deps[i + 1] if i + 1 < len(deps) and deps[i + 1].start_at == d.end_at else None
+            short_trip = (
+                before is not None and after is not None and after.site_id == before.site_id
+                and (datetime.fromisoformat(d.end_at) - datetime.fromisoformat(d.start_at)).days <= 7
+            )
+            if is_auto_site_name(d.site_name) or short_trip:
+                count += 1
+    return count
 
 
 @pytest.fixture
@@ -55,11 +76,41 @@ def project_with_news():
     return project, mover, fixed, lost
 
 
-async def test_gps_deployments_and_photos_without_a_site_are_to_check(session, admin, project_with_news):
+async def test_what_needs_a_person(session, admin, project_with_news):
+    """The mover's first place got the app's own name, and so did the place
+    it moved to: two entries. The camera without GPS is the third. The fixed
+    camera is a person's word and needs nobody."""
     project, mover, fixed, lost = project_with_news
     assert len(to_check(mover)) == 2
-    assert to_check(fixed) == []  # a person's word needs no check
-    assert (await to_check_count(project, session, admin)).count == 3  # two moves, one camera without a site
+    assert to_check(fixed) == []
+    assert (await attention_count(project, session, admin)).count == 3
+
+
+async def test_a_named_place_needs_nobody(session, admin, project_with_news):
+    project, mover, *_ = project_with_news
+    execute("UPDATE sites SET name = 'Home' WHERE id = :s", s=deployments(mover)[0]["site_id"])
+    execute("UPDATE sites SET name = 'Far' WHERE id = :s", s=deployments(mover)[1]["site_id"])
+    # The entries are still there and unanswered, but only the photos
+    # without a site need a person.
+    assert len(to_check(mover)) == 2
+    assert (await attention_count(project, session, admin)).count == 1
+
+
+async def test_a_move_that_came_back_within_a_week_needs_a_person(session, admin):
+    project = make_project()
+    home = make_site(project, "Home", HOME)
+    far = make_site(project, "Far", FAR)
+    cam = make_camera("TRIP", project)
+    for day, point in [(1, HOME), (2, HOME), (10, FAR), (10, FAR), (11, HOME), (12, HOME)]:
+        make_image(cam, None, at(day, hour=6 + len(rows("SELECT 1 FROM images"))), point)
+    rebuild(cam)
+    first, trip, back = deployments(cam)
+    assert (first["site_id"], trip["site_id"], back["site_id"]) == (home, far, home)
+
+    # Only the trip out is marked, not the start and not the way back.
+    assert (await attention_count(project, session, admin)).count == 1
+    await set_checked(project, CheckedRequest(deployment_ids=[trip["id"]], checked=True), session, admin)
+    assert (await attention_count(project, session, admin)).count == 0
 
 
 async def test_checking_and_undoing(session, admin, project_with_news):
@@ -108,4 +159,41 @@ async def test_the_badge_count_equals_the_list(session, admin, project_with_news
         if checked:
             await set_checked(project, CheckedRequest(deployment_ids=checked, checked=True), session, admin)
         overview = await list_deployments(project, session, admin, None)
-        assert list_rule(overview) == (await to_check_count(project, session, admin)).count
+        count = (await attention_count(project, session, admin)).count
+        assert list_rule(overview) == count
+    assert count == 2  # the place it moved to, and the camera without a site
+
+
+# Sites from a CSV
+
+
+class Upload:
+    """What the route reads of an uploaded file."""
+    def __init__(self, text: str, filename: str = "sites.csv"):
+        self.filename, self._text = filename, text
+
+    async def read(self) -> bytes:
+        return self._text.encode("utf-8")
+
+
+async def test_sites_from_a_csv(session, admin):
+    from routers.sites import import_sites_csv
+    project = make_project()
+    make_site(project, "Pond", HOME)
+    csv_text = (
+        "Name;Latitude;Longitude;Notes\n"
+        "Ridge;53.27;5.19;on the dike\n"
+        "Pond;53.26;5.18;\n"           # the name is taken
+        "ridge;53.28;5.20;\n"          # the name is taken by the row above
+        "Marsh;north;5.21;\n"          # not a number
+        "Heath;95;5.22;\n"             # out of range
+        ";53.2;5.2;\n"                 # no name
+    )
+    result = await import_sites_csv(project, Upload(csv_text), admin, session)
+
+    assert (result.success_count, result.failed_count) == (1, 5)
+    assert [r.success for r in result.results] == [True, False, False, False, False, False]
+    assert result.results[1].row_number == 3 and "already exists" in result.results[1].error
+    [ridge] = rows("SELECT name, notes, ST_Y(location::geometry) AS lat FROM sites WHERE name = 'Ridge'")
+    assert ridge["notes"] == "on the dike" and abs(ridge["lat"] - 53.27) < 1e-9
+    assert len(rows("SELECT 1 FROM sites")) == 2

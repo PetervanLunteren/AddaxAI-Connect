@@ -14,7 +14,6 @@ import { Loader2, MapPinPlus } from 'lucide-react';
 import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { DeploymentJourney, type JourneyItem } from './DeploymentJourney';
-import { DeploymentsPageLink } from './deployments/DeploymentsPageLink';
 import { FixedPeriodsList, dayLabel } from './deployments/FixedPeriodsList';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
@@ -74,7 +73,7 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
               variant="outline"
               onClick={() => newDeployment(camera.unplaced_first_day!, null)}
             >
-              Set deployment
+              Set site
             </Button>
           }
         >
@@ -88,11 +87,9 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
       {canEdit && unplaced === 0 && (
         <Button size="sm" variant="outline" onClick={() => newDeployment(today(), null)}>
           <MapPinPlus className="h-4 w-4 mr-2" />
-          Set deployment
+          Set site
         </Button>
       )}
-
-      {canEdit && <DeploymentsPageLink projectId={pid} filter="cameras" id={camera.id} />}
 
       <DeploymentJourney
         mode="camera"

@@ -6,7 +6,7 @@
  * Four decimals, a comma and a space. Change one and change both.
  *
  * The two halves live together on purpose: the site form prefills such a
- * name and the Deployments page recognises one (an auto-named site gets
+ * name and the Camera updates page recognises one (an auto-named site gets
  * "Name this site", and the server removes it once a correction empties
  * it). If the writer and the reader drift, both stop working.
  */

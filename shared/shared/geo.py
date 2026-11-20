@@ -36,7 +36,8 @@ RELOCATION_CONFIRMATIONS = 2
 # names it. A site that still carries it was named by nobody, so the app may
 # remove it once nothing uses it (utils/deployment_edits.py). The front end
 # has the same pattern in utils/site-names.ts.
-_AUTO_SITE_NAME = re.compile(r"^Site at -?\d+\.\d+, -?\d+\.\d+$")
+AUTO_SITE_NAME_PATTERN = r"^Site at -?\d+\.\d+, -?\d+\.\d+$"  # also valid as a Postgres regex
+_AUTO_SITE_NAME = re.compile(AUTO_SITE_NAME_PATTERN)
 
 
 def auto_site_name(lat: float, lon: float) -> str:

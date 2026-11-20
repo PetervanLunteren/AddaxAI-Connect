@@ -9,7 +9,7 @@ camera, and each scenario starts from real photos and a real rebuild. Three
 outcomes changed on purpose and say so: a correction removes the unnamed
 site it emptied, a site merge joins back to back deployments, and a site in
 use cannot be deleted. Since step 3b the camera updates panel is gone: its
-answers live on the Deployments page (routers/deployments.py).
+answers live on the Camera updates page (routers/deployments.py).
 """
 from datetime import timedelta
 

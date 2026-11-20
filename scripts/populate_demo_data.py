@@ -2147,7 +2147,7 @@ def insert_deployments(session: Session, deployments: list, cam_index_to_id: dic
 def mark_first_placements_checked(session: Session, deployments: list, dep_key_to_id: dict) -> None:
     """Every camera's first placement counts as checked a day after it
     started, as if someone looked. Relocations stay to check, so the
-    Deployments page shows open entries."""
+    Camera updates page shows open entries."""
     for dep in deployments:
         if dep["deployment_number"] != 1:
             continue

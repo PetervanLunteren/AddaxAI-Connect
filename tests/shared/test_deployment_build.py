@@ -271,7 +271,7 @@ def test_closed_at_never_ends_before_the_start():
     assert dep.end_at == dep.start_at
 
 
-# Why the GPS rule cut, for the Deployments page.
+# Why the GPS rule cut, for the Camera updates page.
 
 
 def test_a_move_keeps_how_far_how_many_and_when():

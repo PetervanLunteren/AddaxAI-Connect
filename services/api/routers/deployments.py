@@ -4,7 +4,7 @@ Deployment endpoints.
 A deployment is one camera at one site for a time range. Deployments are
 rebuilt from photo GPS plus fixed periods (statements, see
 shared/deployment_rebuild.py). This router serves the project-wide list and a
-camera's GPS with the reason for each cut (the Deployments page), the fixed
+camera's GPS with the reason for each cut (the Camera updates page), the fixed
 periods of a camera (list, set, remove) and the thumbnail sample.
 """
 from datetime import date, datetime, time, timedelta, timezone
@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.deployment_rebuild import build_history, load_history
-from shared.geo import SITE_THRESHOLD_METERS
+from shared.geo import AUTO_SITE_NAME_PATTERN, SITE_THRESHOLD_METERS
 from shared.logger import get_logger
 from shared.models import Camera, Deployment, DeploymentStatement, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
@@ -61,8 +61,8 @@ class DeploymentListItem(BaseModel):
     site_source: str = 'auto'
     # Runs of days with photos, for the marks on the bars.
     photo_days: List[DaySpan] = []
-    # When a person checked it on the Deployments page, NULL = still to check
-    # (only shown for deployments the GPS made). checked_by is their email.
+    # When a person said this entry is right on the Camera updates page,
+    # NULL = nobody answered. checked_by is their email.
     checked_at: Optional[str] = None
     checked_by: Optional[str] = None
 
@@ -94,7 +94,7 @@ async def list_deployments(
     """
     Every deployment in the project, oldest first, with the days it has
     photos, and the photo days of each camera that have no deployment. The
-    Deployments page filters this in the browser. Site-restricted viewers
+    Camera updates page filters this in the browser. Site-restricted viewers
     only see deployments at their sites; deployments without a site fail the
     scope test, fail closed.
     """
@@ -424,10 +424,11 @@ async def remove_statement(
     logger.info("Removed fixed period", project_id=project_id, statement_id=statement_id)
 
 
-# Checking what the GPS did (the "To check" list on the Deployments page).
-# To check = a deployment the GPS made that nobody checked yet, plus each
-# camera with photos that have no site. Checking only records that a person
-# looked; it fixes nothing. A correction writes a fixed period instead.
+# Camera updates: what the app noticed (a camera started somewhere, a camera
+# moved), shown on the Camera updates page. A person may say an entry is
+# right, which only records that they looked; it fixes nothing. Saying it is
+# wrong writes a fixed period instead. Nobody has to answer: an entry that is
+# never answered just gets older.
 
 
 class CheckedRequest(BaseModel):
@@ -446,7 +447,7 @@ async def set_checked(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """Mark deployments as checked, or back to check (Undo)."""
+    """Record that a person said these entries are right, or take that back."""
     result = await db.execute(
         text("""
             UPDATE deployments d
@@ -464,31 +465,48 @@ async def set_checked(
     return CheckedResponse(updated=result.rowcount)
 
 
-# The same rule as the list in the browser (components/deployments/
-# review-items.ts): GPS deployments not checked, plus cameras with photos
-# without a site. Hidden photos do not count, as in the list.
-TO_CHECK_COUNT_SQL = """
+# What needs a person, for the sidebar badge. The same rule as the list in
+# the browser (needsYou in components/deployments/update-items.ts), and
+# tests/db_api/test_review.py holds the two together:
+# - a camera with photos without a site (hidden photos do not count)
+# - an entry nobody answered whose site still has the name the app gave it
+# - an entry nobody answered for a move that came back to the site it left
+#   within SHORT_TRIP_DAYS, the mark of a false move
+SHORT_TRIP_DAYS = 7
+ATTENTION_COUNT_SQL = f"""
     SELECT
-      (SELECT count(*) FROM deployments d JOIN cameras c ON c.id = d.camera_id
-        WHERE c.project_id = :project_id AND d.site_source = 'auto' AND d.checked_at IS NULL)
-    + (SELECT count(DISTINCT i.camera_id) FROM images i JOIN cameras c ON c.id = i.camera_id
+      (SELECT count(DISTINCT i.camera_id) FROM images i JOIN cameras c ON c.id = i.camera_id
         WHERE c.project_id = :project_id AND i.deployment_id IS NULL AND NOT i.is_hidden)
+    + (SELECT count(*) FROM deployments d
+        JOIN cameras c ON c.id = d.camera_id
+        LEFT JOIN sites s ON s.id = d.site_id
+        WHERE c.project_id = :project_id AND d.site_source = 'auto' AND d.checked_at IS NULL
+          AND (
+            s.name ~ '{AUTO_SITE_NAME_PATTERN}'
+            OR EXISTS (
+              SELECT 1 FROM deployments before_it, deployments after_it
+              WHERE before_it.camera_id = d.camera_id AND before_it.end_at = d.start_at
+                AND after_it.camera_id = d.camera_id AND after_it.start_at = d.end_at
+                AND after_it.site_id = before_it.site_id
+                AND d.end_at - d.start_at <= interval '{SHORT_TRIP_DAYS} days'
+            )
+          ))
 """
 
 
-class ToCheckCount(BaseModel):
+class AttentionCount(BaseModel):
     count: int
 
 
-@router.get("/to-check-count", response_model=ToCheckCount)
-async def to_check_count(
+@router.get("/attention-count", response_model=AttentionCount)
+async def attention_count(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """How many entries the To check list has, for the sidebar badge."""
-    count = (await db.execute(text(TO_CHECK_COUNT_SQL), {"project_id": project_id})).scalar_one()
-    return ToCheckCount(count=count)
+    """How many camera updates need a person, for the sidebar badge."""
+    count = (await db.execute(text(ATTENTION_COUNT_SQL), {"project_id": project_id})).scalar_one()
+    return AttentionCount(count=count)
 
 
 @router.post("/{deployment_id}/not-moved", response_model=SetDeploymentResponse)

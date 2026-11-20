@@ -12,11 +12,22 @@ import { Link, useParams } from 'react-router-dom';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  ChevronDown,
   MapPin,
   Loader2,
   Map as MapIcon,
+  Plus,
   Table as TableIcon,
+  Upload,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/DropdownMenu';
+import { SiteFormModal } from '../components/sites/SiteFormModal';
+import { SiteImportDialog } from '../components/sites/SiteImportDialog';
 import { Card, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -143,6 +154,7 @@ export const SitesPage: React.FC = () => {
   const pid = Number(projectId);
   const { selectedProject, isProjectAdmin, isServerAdmin } = useProject();
   const canEdit = isProjectAdmin || isServerAdmin;
+  const [adding, setAdding] = useState<'single' | 'csv' | null>(null);
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -515,7 +527,7 @@ export const SitesPage: React.FC = () => {
     switch (id) {
       case 'name':
         // A site that still needs a name stays visible here after its entry
-        // on the Deployments page was checked.
+        // on the Camera updates page was checked.
         return (
           <span className="inline-flex items-center gap-2">
             {site.name}
@@ -597,7 +609,35 @@ export const SitesPage: React.FC = () => {
             Physical places that group camera deployments
           </p>
         </div>
+        {canEdit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="whitespace-nowrap self-start">
+                <Plus className="h-4 w-4 mr-2" />
+                Add site
+                <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setAdding('single')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add a single site
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdding('csv')}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import from CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+
+      {adding === 'single' && (
+        <SiteFormModal open onClose={() => setAdding(null)} projectId={pid} sites={sites ?? []} />
+      )}
+      {adding === 'csv' && (
+        <SiteImportDialog projectId={pid} onClose={() => setAdding(null)} />
+      )}
 
       {/* Filter bar (drives both table and map views) */}
       {hasSites && (
@@ -716,7 +756,7 @@ export const SitesPage: React.FC = () => {
             <MapPin className="h-8 w-8 mx-auto mb-3 opacity-50" />
             <p>
               No sites yet. Sites are created automatically as cameras report
-              their location, or you can add one.
+              their location, or you can add them with Add site.
             </p>
           </CardContent>
         </Card>

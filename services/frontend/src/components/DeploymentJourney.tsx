@@ -9,7 +9,7 @@
  *   camera that was placed here)
  *
  * Site assignment is automatic and corrections normally happen on the
- * Deployments page. For late corrections, camera mode can pass
+ * Camera updates page. For late corrections, camera mode can pass
  * onChangeSite (admin only), which puts a small action on each step.
  */
 import React from 'react';
@@ -32,8 +32,6 @@ interface Props {
   emptyText: string;
   // Escape hatch: when given, each step shows a "change site" action.
   onChangeSite?: (item: JourneyItem) => void;
-  // When given, a tap on a step selects it (the Deployments page on a phone).
-  onSelect?: (item: JourneyItem) => void;
 }
 
 function fmtDate(s: string | null): string {
@@ -79,7 +77,7 @@ function mergeConsecutive(items: JourneyItem[]): JourneyItem[] {
   return merged;
 }
 
-export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onChangeSite, onSelect }) => {
+export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onChangeSite }) => {
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground py-6 text-center">{emptyText}</p>;
   }
@@ -98,10 +96,7 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onC
       {steps.map((it) => (
         <li key={it.id} className="relative ml-5 pb-4 last:pb-0">
           <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
-          <div
-            className={`rounded-md border p-3 text-sm${onSelect ? ' cursor-pointer hover:bg-accent' : ''}`}
-            onClick={onSelect ? () => onSelect(it) : undefined}
-          >
+          <div className="rounded-md border p-3 text-sm">
             <div className="flex items-center gap-2 min-w-0">
               <Icon className="h-4 w-4 text-primary shrink-0" />
               <span className="truncate font-medium flex-1">{it.title ?? fallback}</span>

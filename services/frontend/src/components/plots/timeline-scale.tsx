@@ -1,8 +1,7 @@
 /**
- * The time axis shared by the two timelines: the Insights timeline (rows per
- * site, photo activity) and the Deployments page (one bar per deployment).
- * Dates, month ticks, the chart width, drag to zoom, the axis, the drag
- * overlay and the tooltip live here once, so the two charts never drift.
+ * The time axis of the Insights timeline: dates, month ticks, the chart
+ * width, drag to zoom, the axis, the drag overlay and the tooltip, apart
+ * from the chart that draws the rows.
  *
  * Days are YYYY-MM-DD strings read as UTC midnight, so a day never shifts
  * with the browser's timezone. A day fills the width from its start to the

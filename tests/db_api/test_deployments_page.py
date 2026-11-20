@@ -1,5 +1,5 @@
 """
-Step 3a: what the Deployments page reads.
+Step 3a: what the Camera updates page reads.
 
 The list gives every deployment with its photo days, and the photo days that
 have no deployment. The readings of one camera come with the reason each

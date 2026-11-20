@@ -1,23 +1,23 @@
 /**
- * The "To check" list of the Deployments page: what the app noticed and
- * nobody looked at yet. New cameras, moves and photos without a site,
- * newest first, grouped by day. Replaces the camera updates panel.
+ * The list of the Camera updates page: what the app noticed, newest first,
+ * by week. A camera started somewhere, a camera moved, or photos have no
+ * site. The visual successor of the camera updates panel.
  *
- * The answers per entry:
- * - Correct: records that a person looked. It fixes nothing, the GPS can
- *   still change the deployment later.
- * - Name this site: for a site the app made and named by its coordinates.
- * - Change site (Set site for photos without a site): the page puts the map
- *   in pick mode, the existing Set deployment form does the rest.
- * - It did not move: the camera stood at the site before the move all
- *   along. Written as a fixed period over both deployments.
+ * Per entry two answers, and nobody has to give one:
+ * - Right: records that a person looked. It changes nothing.
+ * - Wrong: asks what happened. Either the camera stands at another site
+ *   (the page lets the user click it on the map, then the Set site form
+ *   opens), or it did not move (one fixed period at the site before).
+ * Two entries ask for information instead: a place the app named itself
+ * gets Name this site, photos without a site get Set site.
  *
- * The entries come from review-items.ts. This component only shows them
+ * Entries that need a person carry a mark and count for the sidebar badge.
+ * The entries come from update-items.ts. This component only shows them
  * and sends the answers.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Loader2, MapPin, Pencil, Undo2 } from 'lucide-react';
+import { Check, Loader2, MapPin, Pencil, Undo2, X } from 'lucide-react';
 import { deploymentsApi } from '../../api/deployments';
 import { sitesApi } from '../../api/sites';
 import { isAutoSiteName } from '../../utils/site-names';
@@ -27,16 +27,15 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
 import { useToast } from '../ui/Toaster';
 import { dayLabel } from './FixedPeriodsList';
-import { metresLabel, type ReviewItem } from './review-items';
+import { metresLabel, weekOf, type UpdateItem } from './update-items';
 
 interface Props {
   projectId: number;
-  items: ReviewItem[]; // already filtered
-  showAll: boolean;
-  onShowAll: (all: boolean) => void;
+  items: UpdateItem[]; // already filtered
   selectedId: number | null; // the selected deployment
-  onSelect: (item: ReviewItem | null) => void;
-  onChangeSite: (item: ReviewItem) => void;
+  onSelect: (item: UpdateItem | null) => void;
+  // The camera stands at another site: the page lets the user pick it.
+  onOtherSite: (item: UpdateItem) => void;
 }
 
 function errMsg(err: unknown): string {
@@ -47,14 +46,14 @@ function errMsg(err: unknown): string {
 const placeName = (name: string | null | undefined) =>
   !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
 
-function headline(it: ReviewItem): string {
+function headline(it: UpdateItem): string {
   if (it.kind === 'unplaced') return 'has photos without a site';
   const site = placeName(it.deployment?.site_name);
   if (it.kind === 'started') return `started sending ${site === 'a new place' ? 'from a new place' : `at ${site}`}`;
   return `moved from ${placeName(it.previous?.site_name)} to ${site}`;
 }
 
-function context(it: ReviewItem): string {
+function context(it: UpdateItem): string {
   if (it.kind === 'unplaced') {
     const days = it.unplaced!.photo_days;
     return `From ${dayLabel(days[0].start)} to ${dayLabel(days[days.length - 1].end)}. This camera sent no GPS on these days.`;
@@ -73,14 +72,13 @@ function context(it: ReviewItem): string {
   return parts.filter(Boolean).join(', ');
 }
 
-export const DeploymentsReview: React.FC<Props> = ({
-  projectId, items, showAll, onShowAll, selectedId, onSelect, onChangeSite,
-}) => {
+export const CameraUpdatesList: React.FC<Props> = ({ projectId, items, selectedId, onSelect, onOtherSite }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [naming, setNaming] = useState<ReviewItem | null>(null);
-  const [notMoving, setNotMoving] = useState<ReviewItem | null>(null);
-  const [checkingAll, setCheckingAll] = useState(false);
+  const [naming, setNaming] = useState<UpdateItem | null>(null);
+  const [wrong, setWrong] = useState<UpdateItem | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
+  const [showEarlier, setShowEarlier] = useState(false);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
@@ -90,24 +88,20 @@ export const DeploymentsReview: React.FC<Props> = ({
     queryClient.invalidateQueries({ queryKey: ['cameras'] });
   };
 
-  const check = useMutation({
-    mutationFn: ({ ids, checked }: { ids: number[]; checked: boolean }) =>
-      deploymentsApi.setChecked(projectId, ids, checked),
-    onSuccess: (_, { ids, checked }) => {
+  const answer = useMutation({
+    mutationFn: ({ ids, right }: { ids: number[]; right: boolean }) =>
+      deploymentsApi.setChecked(projectId, ids, right),
+    onSuccess: (_, { ids }) => {
       refresh();
-      setCheckingAll(false);
-      if (ids.length > 1) toast.success(`${ids.length} entries checked`);
-      else if (!checked) toast.success('Back on the list');
+      setMarkingAll(false);
+      if (ids.length > 1) toast.success(`${ids.length} updates marked as right`);
     },
     onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
   });
 
   const rename = useMutation({
-    mutationFn: async ({ it, name }: { it: ReviewItem; name: string }) => {
-      await sitesApi.update(projectId, it.deployment!.site_id!, { name });
-      // Naming the site is looking at it, so the entry is checked too.
-      await deploymentsApi.setChecked(projectId, [it.deployment!.id], true);
-    },
+    mutationFn: ({ it, name }: { it: UpdateItem; name: string }) =>
+      sitesApi.update(projectId, it.deployment!.site_id!, { name }),
     onSuccess: () => {
       refresh();
       setNaming(null);
@@ -117,80 +111,77 @@ export const DeploymentsReview: React.FC<Props> = ({
   });
 
   const notMoved = useMutation({
-    mutationFn: (it: ReviewItem) => deploymentsApi.notMoved(projectId, it.deployment!.id),
+    mutationFn: (it: UpdateItem) => deploymentsApi.notMoved(projectId, it.deployment!.id),
     onSuccess: () => {
       refresh();
-      setNotMoving(null);
+      setWrong(null);
       onSelect(null);
       toast.success('The move is taken back');
     },
     onError: (error) => toast.error(`Could not take the move back. ${errMsg(error)}`),
   });
 
-  const open = items.filter((it) => !it.checked);
-  const checkable = open.filter((it) => it.deployment);
-  const shown = showAll ? items : open;
+  const open = items.filter((it) => it.deployment && !it.answered);
+  const needYou = items.filter((it) => it.needsYou).length;
+  // Older entries stay out of the way, except the ones that need a person.
+  const earlier = items.filter((it) => weekOf(it.day) === 'Earlier' && !it.needsYou);
+  const shown = showEarlier ? items : items.filter((it) => !earlier.includes(it));
 
-  const groups: { day: string; items: ReviewItem[] }[] = [];
+  const groups: { week: string; items: UpdateItem[] }[] = [];
   for (const it of shown) {
+    const week = weekOf(it.day);
     const last = groups[groups.length - 1];
-    if (last && last.day === it.day) last.items.push(it);
-    else groups.push({ day: it.day, items: [it] });
+    if (last && last.week === week) last.items.push(it);
+    else groups.push({ week, items: [it] });
   }
+  const busy = answer.isPending || rename.isPending || notMoved.isPending;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-md border p-0.5 text-sm">
-          {[false, true].map((all) => (
-            <button
-              key={String(all)}
-              type="button"
-              onClick={() => onShowAll(all)}
-              className={`px-3 py-1 rounded ${showAll === all ? 'bg-accent font-medium' : 'text-muted-foreground'}`}
-            >
-              {all ? 'All' : `To check (${open.length})`}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-muted-foreground">
+          {needYou === 0 ? 'Nothing needs you.' : `${needYou} ${needYou === 1 ? 'update needs' : 'updates need'} you.`}
+        </span>
         <span className="flex-1" />
-        {checkable.length > 1 && (
-          <Button size="sm" variant="outline" onClick={() => setCheckingAll(true)}>
+        {open.length > 1 && (
+          <Button size="sm" variant="outline" onClick={() => setMarkingAll(true)}>
             <Check className="h-4 w-4 mr-1.5" />
-            Mark all as checked
+            Mark all as right
           </Button>
         )}
       </div>
 
-      {shown.length === 0 && (
+      {items.length === 0 && (
         <p className="text-sm text-muted-foreground py-8 text-center">
-          {showAll
-            ? 'Nothing the app noticed matches the filters.'
-            : 'Nothing to check. New cameras, moves and photos without a site show up here.'}
+          No camera updates. New cameras, moves and photos without a site show up here.
         </p>
       )}
 
       {groups.map((g) => (
-        <div key={g.day} className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {g.day ? dayLabel(g.day) : ''}
-          </h3>
+        <div key={g.week} className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.week}</h3>
           {g.items.map((it) => (
             <Entry
               key={it.key}
               it={it}
               projectId={projectId}
               selected={it.deployment !== undefined && it.deployment.id === selectedId}
-              busy={check.isPending || rename.isPending || notMoved.isPending}
+              busy={busy}
               onSelect={() => onSelect(it.deployment && it.deployment.id === selectedId ? null : it)}
-              onCheck={(checked) => check.mutate({ ids: [it.deployment!.id], checked })}
+              onAnswer={(right) => answer.mutate({ ids: [it.deployment!.id], right })}
+              onWrong={() => setWrong(it)}
               onName={() => setNaming(it)}
-              onChangeSite={() => onChangeSite(it)}
-              onNotMoved={() => setNotMoving(it)}
+              onSetSite={() => onOtherSite(it)}
             />
           ))}
         </div>
       ))}
+
+      {earlier.length > 0 && (
+        <Button variant="ghost" size="sm" onClick={() => setShowEarlier(!showEarlier)}>
+          {showEarlier ? 'Hide earlier updates' : `Show ${earlier.length} earlier ${earlier.length === 1 ? 'update' : 'updates'}`}
+        </Button>
+      )}
 
       {naming && (
         <NameSiteDialog
@@ -201,48 +192,43 @@ export const DeploymentsReview: React.FC<Props> = ({
         />
       )}
 
-      <ConfirmDialog
-        open={notMoving !== null}
-        onClose={() => setNotMoving(null)}
-        onConfirm={() => notMoving && notMoved.mutate(notMoving)}
-        title="Did the camera stay where it was?"
-        body={notMoving ? (
-          <>
-            Camera {notMoving.cameraLabel} then stood at {placeName(notMoving.previous?.site_name)} the
-            whole time, from {dayLabel(notMoving.previous!.start_at.slice(0, 10))} to{' '}
-            {notMoving.deployment!.end_date ? dayLabel(notMoving.deployment!.end_date) : 'now'}. The two
-            deployments become one. You can take this back under Fixed periods.
-          </>
-        ) : ''}
-        confirmLabel="Yes, it did not move"
-        isPending={notMoved.isPending}
-        focusCancel
-      />
+      {wrong && (
+        <WrongDialog
+          it={wrong}
+          isPending={notMoved.isPending}
+          onClose={() => setWrong(null)}
+          onOtherSite={() => {
+            setWrong(null);
+            onOtherSite(wrong);
+          }}
+          onNotMoved={() => notMoved.mutate(wrong)}
+        />
+      )}
 
       <ConfirmDialog
-        open={checkingAll}
-        onClose={() => setCheckingAll(false)}
-        onConfirm={() => check.mutate({ ids: checkable.map((it) => it.deployment!.id), checked: true })}
-        title={`Mark ${checkable.length} entries as checked?`}
-        body="Every new camera and move in view counts as checked. Photos without a site stay on the list until they have one."
-        confirmLabel="Mark all as checked"
-        isPending={check.isPending}
+        open={markingAll}
+        onClose={() => setMarkingAll(false)}
+        onConfirm={() => answer.mutate({ ids: open.map((it) => it.deployment!.id), right: true })}
+        title={`Mark ${open.length} updates as right?`}
+        body="Every new camera and move in view counts as right. Photos without a site stay until they have one."
+        confirmLabel="Mark all as right"
+        isPending={answer.isPending}
       />
     </div>
   );
 };
 
 const Entry: React.FC<{
-  it: ReviewItem;
+  it: UpdateItem;
   projectId: number;
   selected: boolean;
   busy: boolean;
   onSelect: () => void;
-  onCheck: (checked: boolean) => void;
+  onAnswer: (right: boolean) => void;
+  onWrong: () => void;
   onName: () => void;
-  onChangeSite: () => void;
-  onNotMoved: () => void;
-}> = ({ it, projectId, selected, busy, onSelect, onCheck, onName, onChangeSite, onNotMoved }) => {
+  onSetSite: () => void;
+}> = ({ it, projectId, selected, busy, onSelect, onAnswer, onWrong, onName, onSetSite }) => {
   const d = it.deployment;
   const { data: thumbs } = useQuery({
     queryKey: ['deployment-thumbnails', projectId, d?.id],
@@ -263,7 +249,7 @@ const Entry: React.FC<{
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSelect())}
       className={`rounded-md border p-3 text-sm cursor-pointer transition-colors ${
         selected ? 'border-primary ring-1 ring-primary' : 'hover:bg-accent/50'
-      } ${it.checked ? 'opacity-60' : ''}`}
+      } ${it.answered ? 'opacity-60' : ''} ${it.needsYou ? 'border-l-4 border-l-[#ff8945]' : ''}`}
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="font-semibold tabular-nums">{it.cameraLabel}</span>
@@ -273,14 +259,9 @@ const Entry: React.FC<{
         )}
       </div>
       <p className="text-xs text-muted-foreground mt-0.5">{context(it)}</p>
-      {it.returnOfShortTrip && !it.checked && (
+      {it.answered && d?.checked_at && (
         <p className="text-xs text-muted-foreground mt-0.5">
-          Back where it was. If the trip itself was wrong, answer It did not move on the trip out.
-        </p>
-      )}
-      {it.checked && d?.checked_at && (
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Checked {dayLabel(d.checked_at.slice(0, 10))}{d.checked_by ? ` by ${d.checked_by}` : ''}
+          Right, said {d.checked_by ?? 'someone'} on {dayLabel(d.checked_at.slice(0, 10))}
         </p>
       )}
 
@@ -290,7 +271,7 @@ const Entry: React.FC<{
             <AuthenticatedImage
               key={u}
               src={`/api/images/${u}/thumbnail`}
-              alt="Photo from this deployment"
+              alt="Photo from this camera at this place"
               className="w-full h-16 object-cover rounded border"
             />
           ))}
@@ -299,40 +280,90 @@ const Entry: React.FC<{
 
       <div className="mt-2 flex flex-wrap gap-1.5">
         {it.kind === 'unplaced' ? (
-          <Button size="sm" variant="outline" onClick={stop(onChangeSite)} disabled={busy}>
+          <Button size="sm" onClick={stop(onSetSite)} disabled={busy}>
             <MapPin className="h-3.5 w-3.5 mr-1.5" />
             Set site
           </Button>
-        ) : it.checked ? (
-          <Button size="sm" variant="ghost" onClick={stop(() => onCheck(false))} disabled={busy}>
+        ) : it.answered ? (
+          <Button size="sm" variant="ghost" onClick={stop(() => onAnswer(false))} disabled={busy}>
             <Undo2 className="h-3.5 w-3.5 mr-1.5" />
             Undo
           </Button>
         ) : (
           <>
-            <Button size="sm" onClick={stop(() => onCheck(true))} disabled={busy}>
+            <Button size="sm" variant="outline" onClick={stop(() => onAnswer(true))} disabled={busy}>
               <Check className="h-3.5 w-3.5 mr-1.5" />
-              Correct
+              Right
+            </Button>
+            <Button size="sm" variant="outline" onClick={stop(onWrong)} disabled={busy}>
+              <X className="h-3.5 w-3.5 mr-1.5" />
+              Wrong
             </Button>
             {unnamed && (
-              <Button size="sm" variant="outline" onClick={stop(onName)} disabled={busy}>
+              <Button size="sm" onClick={stop(onName)} disabled={busy}>
                 <Pencil className="h-3.5 w-3.5 mr-1.5" />
                 Name this site
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={stop(onChangeSite)} disabled={busy}>
-              <MapPin className="h-3.5 w-3.5 mr-1.5" />
-              Change site
-            </Button>
-            {it.kind === 'moved' && !it.returnOfShortTrip && (
-              <Button size="sm" variant="outline" onClick={stop(onNotMoved)} disabled={busy}>
-                It did not move
               </Button>
             )}
           </>
         )}
       </div>
     </div>
+  );
+};
+
+/** Wrong: what happened instead. The camera stands at another site, or, for
+ * a move, it never moved. */
+const WrongDialog: React.FC<{
+  it: UpdateItem;
+  isPending: boolean;
+  onClose: () => void;
+  onOtherSite: () => void;
+  onNotMoved: () => void;
+}> = ({ it, isPending, onClose, onOtherSite, onNotMoved }) => {
+  const d = it.deployment!;
+  // The way back of a short trip is not offered "it did not move": that
+  // would leave the camera at the place of the trip. The trip out has it.
+  const canNotMove = it.kind === 'moved' && !it.returnOfShortTrip;
+  const choice = 'w-full text-left rounded-md border p-3 hover:bg-accent/50 disabled:opacity-50';
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle>What happened?</DialogTitle>
+          <DialogDescription>
+            Camera {it.cameraLabel} {headline(it)} on {dayLabel(d.start_at.slice(0, 10))}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-2">
+          <button type="button" className={choice} onClick={onOtherSite} disabled={isPending}>
+            <div className="font-medium text-sm">It stands at another site</div>
+            <div className="text-xs text-muted-foreground">Click the right site on the map, then check the days.</div>
+          </button>
+          {canNotMove && (
+            <button type="button" className={choice} onClick={onNotMoved} disabled={isPending}>
+              <div className="font-medium text-sm">It did not move</div>
+              <div className="text-xs text-muted-foreground">
+                It stood at {placeName(it.previous?.site_name)} the whole time, from{' '}
+                {dayLabel(it.previous!.start_at.slice(0, 10))} to {d.end_date ? dayLabel(d.end_date) : 'now'}.
+                You can undo this in the camera panel.
+              </div>
+            </button>
+          )}
+          {it.returnOfShortTrip && (
+            <p className="text-xs text-muted-foreground">
+              This is the way back of a short trip. If the trip itself never happened, choose Wrong on the trip out.
+            </p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
+            {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Cancel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -359,7 +390,7 @@ const NameSiteDialog: React.FC<{
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>Name this site</DialogTitle>
-            <DialogDescription>Give the site a real name. The entry counts as checked.</DialogDescription>
+            <DialogDescription>Give the site a real name.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <label className="text-xs text-muted-foreground" htmlFor="name-site-input">Site name</label>

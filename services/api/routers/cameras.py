@@ -4,8 +4,6 @@ Camera endpoints for viewing camera trap devices and their health status.
 from typing import List, NamedTuple, Optional
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-import csv
-import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text, delete as sql_delete
@@ -24,6 +22,7 @@ from auth.project_access import (
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
 from shared.camera_status import camera_status as _camera_status, is_rejecting
+from utils.csv_upload import read_csv_upload
 from utils.camera_recency import fetch_camera_recency
 from utils.deployment_edits import rebuild
 from utils.camera_rejections import RecentRejections, fetch_recent_rejections, REJECTED_RECENT_DAYS
@@ -1510,58 +1509,7 @@ async def import_cameras_csv(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Project admin access required for project {project_id}",
         )
-    # Verify file is CSV
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File must be a CSV file",
-        )
-
-    # Read CSV content
-    try:
-        content = await file.read()
-        csv_text = content.decode('utf-8-sig')  # utf-8-sig automatically removes BOM if present
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to read CSV file: {str(e)}",
-        )
-
-    # Auto-detect delimiter (comma or semicolon)
-    try:
-        sniffer = csv.Sniffer()
-        sample = csv_text[:1024]  # Use first 1024 chars for detection
-        delimiter = sniffer.sniff(sample).delimiter
-    except Exception:
-        # Default to comma if detection fails
-        delimiter = ','
-
-    # Parse CSV
-    try:
-        csv_reader = csv.DictReader(io.StringIO(csv_text), delimiter=delimiter)
-        rows = list(csv_reader)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to parse CSV: {str(e)}",
-        )
-
-    if not rows:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="CSV file is empty",
-        )
-
-    # Validate required headers
-    actual_headers = set(rows[0].keys())
-
-    required_headers = {'CameraID'}
-    missing_headers = required_headers - actual_headers
-    if missing_headers:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required CSV headers: {', '.join(sorted(missing_headers))}",
-        )
+    rows = await read_csv_upload(file, required_headers={'CameraID'})
 
     # Verify project exists
     result = await db.execute(

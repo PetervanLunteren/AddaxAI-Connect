@@ -35,8 +35,8 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 2b | done, release with the branch | `deployments-phase-2` |
 | 2c | done, release with the branch | `deployments-phase-2` |
 | 3a | done, release with the branch | `deployments-phase-2` |
-| 3b | part 1 done, part 2 (add site on the map) next | `deployments-phase-2` |
-| 3c | not started | `deployments-phase-2` |
+| 3b | simplified version built, deploy to dev next | `deployments-phase-2` |
+| 3c | dropped, see the notes of 3b | |
 | 4 | not started | `deployments-phase-2` |
 | docs | not started | `deployments-phase-2` |
 | 5 | not started | after the release |
@@ -369,6 +369,34 @@ Notes per step:
     Updates button on the Cameras page, History shows the corrections as
     fixed bars. Two map bugs found and fixed: arrow heads under the pins,
     and no refit after the selection cleared.
+
+  - **Simplified on 20 November 2026, after an audit.** Peter: it felt
+    like an administration website, while the app should be automatic
+    first and only let people fix its mistakes. What went wrong: the page
+    asked a person to approve everything the app did, the storage words
+    (fixed period, automatic, checked) were on the screens, the same fix
+    could be made in three places, and the history timeline of 3a answered
+    a question nobody had. Every planning round added, none removed.
+  - What it is now: one page, **Camera updates**, a map next to one list
+    by week. Per update Right or Wrong, and nobody has to answer. Wrong
+    asks what happened: it stands at another site (click it on the map),
+    or it did not move. A place the app named gets Name this site, photos
+    without a site get Set site. The badge counts only what needs a
+    person: photos without a site, an unnamed place, a move that came back
+    within a week.
+  - Removed: the History tab and its timeline, the To check and All
+    switch, the detail card extras, the links from the camera and site
+    panels, the words "fixed period" and "Set deployment" on the screens
+    (the camera panel says "Set by people" with Undo, the form is "Set
+    site").
+  - Sites are added on the Sites page: Add site, single or from a CSV
+    (Name, Latitude, Longitude, Notes). No add mode on the map, no pin
+    column: a pin a person placed stays until a GPS camera lands there,
+    then it follows the readings.
+  - Step 3c (moving a pin, a merge that can be reversed) is dropped until
+    someone asks for it.
+  - A rule for the rest of this plan: before adding a screen, a button or
+    a word, ask what the user must never have to do, and what can go.
 
 ## How to work on this plan
 

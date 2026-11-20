@@ -1,11 +1,11 @@
 /**
- * Set deployment: say where a camera stood, from one day until another, or
+ * Set site: say where a camera stood, from one day until another, or
  * until now.
  *
  * The one form for every way to place a camera: placing a camera without
  * GPS, changing the site of a deployment the GPS made, and correcting the
  * past. It writes a fixed period on the server. The GPS does not change that
- * period, and the period can be taken back under Fixed periods.
+ * period, and it can be undone under "Set by people" in the camera panel.
  *
  * Whole days on purpose: a day belongs to one deployment, the day of a move
  * to the new one, the same rule as everywhere in the app. The caller prefills
@@ -81,10 +81,10 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
       queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
-      toast.success('Deployment set');
+      toast.success('Site set');
       onClose();
     },
-    onError: (error) => toast.error(`Could not set the deployment. ${errMsg(error)}`),
+    onError: (error) => toast.error(`Could not set the site. ${errMsg(error)}`),
   });
 
   const untilBeforeFrom = untilDate !== '' && fromDate !== '' && untilDate < fromDate;
@@ -95,10 +95,10 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
       <Dialog open onOpenChange={(o) => !o && onClose()}>
         <DialogContent onClose={onClose}>
           <DialogHeader>
-            <DialogTitle>Set deployment</DialogTitle>
+            <DialogTitle>Set site</DialogTitle>
             <DialogDescription>
               Where camera {cameraName} stood. The photos of these days move to
-              this site, and the GPS does not change it afterwards.
+              this site. You can undo this in the camera panel.
             </DialogDescription>
           </DialogHeader>
           <form

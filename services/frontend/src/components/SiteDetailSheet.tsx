@@ -5,7 +5,7 @@
  * - Overview: editable key fields (name, habitat, notes) inline for admins,
  *   then a read-only card with coordinates and aggregate counts.
  * - History: a read-only journey of which cameras stood here over time.
- *   Corrections happen on the Deployments page or in the camera slideout.
+ *   Corrections happen on the Camera updates page or in the camera slideout.
  *
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
@@ -44,7 +44,6 @@ import {
 } from '../utils/camera-colors';
 import { TagInput, type TagManagement } from './TagInput';
 import { DeploymentJourney } from './DeploymentJourney';
-import { DeploymentsPageLink } from './deployments/DeploymentsPageLink';
 import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
 import { useToast } from './ui/Toaster';
 import { ServiceSummaryRows } from './service/ServiceSummaryRows';
@@ -474,33 +473,30 @@ export const SiteDetailSheet: React.FC<Props> = ({
               )
             ) : (
               // History tab: a read-only journey of which cameras stood here
-              // over time. Corrections happen on the Deployments page,
+              // over time. Corrections happen on the Camera updates page,
               // or from the camera slideout's history for old placements.
-              <div className="space-y-4">
-                {canEdit && <DeploymentsPageLink projectId={projectId} filter="sites" id={detail.id} />}
-                <DeploymentJourney
-                  mode="site"
-                  items={(detail.deployments ?? []).map((d) => {
-                    // An open placement (no end date) keeps reading "to now" even
-                    // after its camera goes silent. Detect that and end the row at
-                    // the last image instead, so a stolen camera does not look
-                    // like it is still standing here.
-                    const cam = (cameras ?? []).find(
-                      (c) => (c.device_id ?? c.name) === d.camera_name
-                    );
-                    const inactive = d.end_date == null && cam != null && cam.status !== 'active';
-                    return {
-                      id: d.id,
-                      title: d.camera_name,
-                      startDate: d.start_date,
-                      endDate: inactive ? cam!.last_image_timestamp : d.end_date,
-                      imageCount: d.image_count,
-                      inactive,
-                    };
-                  })}
-                  emptyText="No camera has stood at this site yet."
-                />
-              </div>
+              <DeploymentJourney
+                mode="site"
+                items={(detail.deployments ?? []).map((d) => {
+                  // An open placement (no end date) keeps reading "to now" even
+                  // after its camera goes silent. Detect that and end the row at
+                  // the last image instead, so a stolen camera does not look
+                  // like it is still standing here.
+                  const cam = (cameras ?? []).find(
+                    (c) => (c.device_id ?? c.name) === d.camera_name
+                  );
+                  const inactive = d.end_date == null && cam != null && cam.status !== 'active';
+                  return {
+                    id: d.id,
+                    title: d.camera_name,
+                    startDate: d.start_date,
+                    endDate: inactive ? cam!.last_image_timestamp : d.end_date,
+                    imageCount: d.image_count,
+                    inactive,
+                  };
+                })}
+                emptyText="No camera has stood at this site yet."
+              />
             )}
           </SheetBody>
         </SheetContent>

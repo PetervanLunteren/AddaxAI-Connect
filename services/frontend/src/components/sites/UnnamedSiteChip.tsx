@@ -2,7 +2,7 @@
  * "Unnamed" marker for a site that still carries its placeholder name.
  *
  * One chip, used on the Sites page, so the naming to-do stays visible after
- * its entry on the Deployments page was checked. Renders nothing for a
+ * its update was answered. Renders nothing for a
  * real name.
  */
 import React from 'react';

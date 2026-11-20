@@ -725,42 +725,42 @@ Three readers' rules, each in one place (step 2c):
   report, the timeline and the Camtrap DP `deploymentEnd`.
   `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
 
-The Deployments page (step 3a, project admins only) reads two endpoints:
+**Camera updates** (step 3b, project admins only) is the page where people
+see what the app noticed and say when it got one wrong. It replaced the
+camera updates panel and its `feed_events` table. The deployments are the
+one record.
 
-- `GET /api/projects/{id}/deployments`: every deployment with its exact
-  times and its runs of days with photos, plus the photo days of each camera
-  that no deployment covers. Filtered in the browser.
-- `GET .../deployments/cameras/{camera_id}/readings`: the camera's GPS,
-  grouped per deployment and spot, and why each deployment starts where it
-  does (`first`, `moved` with distance, count and date, or `fixed`). The
-  reason is never stored: the endpoint runs `build_history` again on what
-  `load_history` reads, the same two calls the rebuild makes, and matches a
-  built deployment to its row by `start_at`.
-
-**To check** (step 3b) replaced the camera updates panel and its
-`feed_events` table. One rule, on the deployments themselves:
-
-- A deployment the GPS made (`site_source = 'auto'`) with `checked_at` NULL
-  is to check, and so is each camera with photos without a site. The
-  rebuild makes new rows unchecked and keeps the mark on rows it keeps.
-- Correct (`PUT .../deployments/checked`) only records who looked and when.
-  It fixes nothing: the GPS can still change the deployment.
-- Change site writes a fixed period through `POST .../statements`. It did
-  not move (`POST .../deployments/{id}/not-moved`) writes one fixed period
-  over the deployment before the move and this one, at the old site.
+- An update is a deployment the GPS made (`site_source = 'auto'`): a camera
+  started somewhere, or it moved. Photos without a site are listed too.
+- Nobody has to answer. Right (`PUT .../deployments/checked`) only records
+  who looked and when in `checked_at` and `checked_by_user_id`. It fixes
+  nothing: the GPS can still change the deployment.
+- Wrong is one of two things. The camera stands at another site: a fixed
+  period through `POST .../statements`. Or it did not move
+  (`POST .../deployments/{id}/not-moved`): one fixed period over the
+  deployment before the move and this one, at the old site.
+- Few updates need a person, and only those count for the sidebar badge:
+  photos without a site, a place that still has the name the app gave it,
+  and a move that came back within a week. The page marks them in the
+  browser (`needsYou` in `components/deployments/update-items.ts`), the
+  badge counts the same rule in SQL (`ATTENTION_COUNT_SQL` in
+  `routers/deployments.py`), and `tests/db_api/test_review.py` holds the
+  two together.
 - A correction deletes a site it emptied when that site still has the name
   the app gave it (`drop_unnamed_sites_left_empty` in
   `utils/deployment_edits.py`, `is_auto_site_name` in `shared/geo.py`). A
   site a person named is never deleted by the app.
-- The list is built in the browser (`components/deployments/review-items.ts`);
-  the sidebar badge counts the same rule in SQL (`TO_CHECK_COUNT_SQL` in
-  `routers/deployments.py`). `tests/db_api/test_review.py` holds the two
-  together.
-- The carry-over marks the rows it makes as checked: old history is no news.
-
-Its timeline shares the axis, scale, drag to zoom and tooltip with the
-Insights timeline through `components/plots/timeline-scale.tsx`, and its
-site pins with the Sites map through `components/sites/SiteMarkersLayer.tsx`.
+- The page reads `GET .../deployments` (every deployment, with its days
+  with photos and the photo days without a deployment) and, for a selected
+  update, `GET .../deployments/cameras/{camera_id}/readings`: the camera's
+  GPS and why each deployment starts where it does. The reason is never
+  stored: the endpoint runs `build_history` again on what `load_history`
+  reads, the same two calls the rebuild makes.
+- The screens never say "fixed period" or "statement". The camera panel
+  lists them as "Set by people", each with Undo.
+- Sites are added on the Sites page, one at a time or from a CSV
+  (`POST .../sites/import-csv`). `utils/csv_upload.py` reads the file for
+  this import and the camera import.
 
 `scripts/populate_demo_data.py` is the one place that writes deployments
 without the rebuild, for generated demo data.

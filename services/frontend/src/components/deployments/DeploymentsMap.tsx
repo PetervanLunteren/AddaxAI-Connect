@@ -1,8 +1,8 @@
 /**
- * The map of the Deployments page.
+ * The map of the Camera updates page.
  *
  * It shows every site of the project, the ones outside the current view
- * faded, and the moves of the To check list as arrows. A click on a site is
+ * faded, and the moves of the updates list as arrows. A click on a site is
  * passed up (it filters, or picks the site for Change site). In pick mode a
  * click on an empty spot is passed up too, to make a new site there.
  *

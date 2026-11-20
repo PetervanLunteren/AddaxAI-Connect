@@ -184,7 +184,7 @@ def site(site_id: int):
 
 
 def to_check(camera_id: int) -> list:
-    """The camera's deployments that are on the To check list: made by the
+    """The camera's deployments that are updates nobody answered: made by the
     GPS and not checked yet, in time order."""
     return rows(
         """SELECT id, site_id FROM deployments

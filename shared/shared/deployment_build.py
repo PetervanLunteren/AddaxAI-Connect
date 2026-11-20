@@ -74,7 +74,7 @@ class BuiltDeployment:
     image_ids: list[int] = field(default_factory=list)
     site_id: Optional[int] = None  # set when a statement made this deployment
     statement_id: Optional[int] = None
-    move: Optional[Move] = None  # set when the GPS rule cut here, for the "why" on the Deployments page
+    move: Optional[Move] = None  # set when the GPS rule cut here, for the "why" on the Camera updates page
 
     @property
     def start_date(self) -> date:

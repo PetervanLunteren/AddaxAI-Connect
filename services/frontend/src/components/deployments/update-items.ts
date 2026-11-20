@@ -1,31 +1,36 @@
 /**
- * The entries of the "To check" list on the Deployments page, worked out
- * from the deployments list the page already loads. Plain functions, no
- * React.
+ * The entries of the Camera updates page, worked out from the deployments
+ * list the page loads. Plain functions, no React.
  *
- * To check = a deployment the GPS made (site_source 'auto') that nobody
- * checked yet, plus each camera with photos without a site. The server
- * counts the same rule for the sidebar badge (TO_CHECK_COUNT_SQL in
- * routers/deployments.py); a test holds the two together.
- *
- * An entry is one of three kinds:
- * - started: the camera's first deployment, or the first after a gap
+ * An entry is something the app noticed:
+ * - started: a camera's first deployment, or the first after a gap
  * - moved: a deployment that starts where the camera's previous one ends
  * - unplaced: photos of a camera that no deployment covers
+ * Only deployments the GPS made are entries. One a person set is their own
+ * word and is not news.
+ *
+ * Nobody has to answer an entry. A few need a person (needsYou): photos
+ * without a site, a place that still has the name the app gave it, and a
+ * move that came back within a week. The server counts the same rule for
+ * the sidebar badge (ATTENTION_COUNT_SQL in routers/deployments.py); a test
+ * holds the two together.
  */
 import type { DeploymentListItem, DeploymentsOverview, UnplacedPhotos } from '../../api/deployments';
+import { isAutoSiteName } from '../../utils/site-names';
 
 // A move that comes back to the site it left within this many days is
-// marked "Back within a week". A hint for the eye, it changes no data.
+// marked "Back within a week": the usual shape of a false move. It changes
+// no data. The same number as SHORT_TRIP_DAYS in routers/deployments.py.
 const SHORT_TRIP_DAYS = 7;
 
-export interface ReviewItem {
+export interface UpdateItem {
   key: string;
   kind: 'started' | 'moved' | 'unplaced';
   cameraId: number;
   cameraLabel: string;
   day: string; // YYYY-MM-DD, the first day of the entry
-  checked: boolean;
+  answered: boolean; // a person said it is right
+  needsYou: boolean;
   deployment?: DeploymentListItem;
   previous?: DeploymentListItem; // the deployment it moved from
   distanceM?: number; // from the previous pin to this one
@@ -36,7 +41,7 @@ export interface ReviewItem {
   unplaced?: UnplacedPhotos;
 }
 
-export interface ReviewFilters {
+export interface UpdateFilters {
   cameraIds: Set<number> | null;
   siteIds: Set<number> | null;
   from: string | null;
@@ -55,15 +60,15 @@ export function metresBetween(a: DeploymentListItem, b: DeploymentListItem): num
 
 const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
 
-/** Every entry, checked or not, newest first. */
-export function reviewItems(overview: DeploymentsOverview): ReviewItem[] {
+/** Every entry, answered or not, newest first. */
+export function updateItems(overview: DeploymentsOverview): UpdateItem[] {
   const byCamera = new Map<number, DeploymentListItem[]>();
   for (const d of overview.deployments) {
     const list = byCamera.get(d.camera_id) ?? [];
     list.push(d);
     byCamera.set(d.camera_id, list);
   }
-  const items: ReviewItem[] = [];
+  const items: UpdateItem[] = [];
   for (const list of byCamera.values()) {
     list.sort((a, b) => a.start_at.localeCompare(b.start_at));
     list.forEach((d, i) => {
@@ -83,7 +88,8 @@ export function reviewItems(overview: DeploymentsOverview): ReviewItem[] {
         cameraId: d.camera_id,
         cameraLabel: d.camera_label ?? `Camera ${d.camera_id}`,
         day: d.start_at.slice(0, 10),
-        checked: d.checked_at !== null,
+        answered: d.checked_at !== null,
+        needsYou: d.checked_at === null && (isAutoSiteName(d.site_name) || shortTrip),
         deployment: d,
         previous,
         distanceM: previous ? metresBetween(previous, d) : undefined,
@@ -99,7 +105,8 @@ export function reviewItems(overview: DeploymentsOverview): ReviewItem[] {
       cameraId: u.camera_id,
       cameraLabel: u.camera_label,
       day: u.photo_days[0]?.start ?? '',
-      checked: false, // done once the photos have a site
+      answered: false,
+      needsYou: true, // until the photos have a site
       unplaced: u,
     });
   }
@@ -107,7 +114,7 @@ export function reviewItems(overview: DeploymentsOverview): ReviewItem[] {
 }
 
 /** The entries the filter bar lets through. */
-export function filterItems(items: ReviewItem[], f: ReviewFilters): ReviewItem[] {
+export function filterItems(items: UpdateItem[], f: UpdateFilters): UpdateItem[] {
   return items.filter((it) =>
     (f.cameraIds === null || f.cameraIds.has(it.cameraId)) &&
     (f.siteIds === null ||
@@ -118,3 +125,11 @@ export function filterItems(items: ReviewItem[], f: ReviewFilters): ReviewItem[]
 }
 
 export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+
+/** "This week", "Last week" or "Earlier", by the Monday that starts the week. */
+export function weekOf(day: string, today: Date = new Date()): 'This week' | 'Last week' | 'Earlier' {
+  const monday = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  const age = (monday.getTime() - Date.parse(day)) / 86_400_000;
+  return age <= 0 ? 'This week' : age <= 7 ? 'Last week' : 'Earlier';
+}

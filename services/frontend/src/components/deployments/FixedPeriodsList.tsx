@@ -1,11 +1,10 @@
 /**
- * The fixed periods of one camera, with who set them and Remove on each.
- * Shared by the camera panel and the Deployments page, admins only (the
- * endpoint is).
+ * What people said about where one camera stood, with who and when, and
+ * Undo on each. In the camera panel, admins only (the endpoint is).
  *
- * A fixed period is a person's word about where the camera stood. The GPS
- * does not change those days. Removing one gives them back to the GPS, or
- * to an older fixed period.
+ * In the code this is a fixed period (a statement): the GPS does not change
+ * those days. Undo gives them back to the GPS, or to what a person said
+ * before. The screens never say "fixed period", only who set which site.
  */
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -44,19 +43,19 @@ export const FixedPeriodsList: React.FC<{ projectId: number; cameraId: number }>
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
       queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
       setRemoving(null);
-      toast.success('Fixed period removed');
+      toast.success('Undone');
     },
     onError: (error: any) => {
-      toast.error(`Could not remove the fixed period. ${error.response?.data?.detail || error.message || ''}`);
+      toast.error(`Could not undo this. ${error.response?.data?.detail || error.message || ''}`);
     },
   });
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-medium">Fixed periods</h3>
+      <h3 className="text-sm font-medium">Set by people</h3>
       <p className="text-xs text-muted-foreground">
-        Periods where someone said where the camera stood. The GPS does not
-        change them. Remove one and the camera follows its GPS again for those days.
+        Days for which someone said where the camera stood. Undo one and the
+        camera follows its GPS again for those days.
       </p>
       {(fixedPeriods ?? []).length === 0 ? (
         <p className="text-sm text-muted-foreground">None.</p>
@@ -71,7 +70,7 @@ export const FixedPeriodsList: React.FC<{ projectId: number; cameraId: number }>
                 </div>
               </div>
               <Button size="sm" variant="ghost" onClick={() => setRemoving(p)}>
-                Remove
+                Undo
               </Button>
             </li>
           ))}
@@ -82,18 +81,18 @@ export const FixedPeriodsList: React.FC<{ projectId: number; cameraId: number }>
         open={removing !== null}
         onClose={() => setRemoving(null)}
         onConfirm={() => removing && remove.mutate(removing)}
-        title="Remove this fixed period?"
+        title="Undo this?"
         body={
           removing ? (
             <>
               {removing.site_name}, {dayLabel(removing.from_date)} to{' '}
               {removing.until_date ? dayLabel(removing.until_date) : 'now'}. For these
-              days the camera follows its GPS again, or an older fixed period. Photos
+              days the camera follows its GPS again, or what someone said before. Photos
               without GPS in these days have no site until it is set again.
             </>
           ) : ''
         }
-        confirmLabel="Remove"
+        confirmLabel="Undo"
         variant="destructive"
         isPending={remove.isPending}
       />

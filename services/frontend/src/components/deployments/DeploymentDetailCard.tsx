@@ -1,30 +1,27 @@
 /**
- * What the Deployments page says about the selected deployment: where and
- * when, how many photos, and in words why it starts where it does. Below
- * that Set deployment and the camera's fixed periods with Remove, the same
- * list as in the camera panel.
+ * The small card under the map of the Camera updates page, for the selected
+ * update: where and when, how many photos, and in one line why the app
+ * decided so.
  */
 import { Link } from 'react-router-dom';
-import { Camera as CameraIcon, MapPinPlus, X } from 'lucide-react';
+import { Camera as CameraIcon, X } from 'lucide-react';
 import type { DeploymentListItem, DeploymentStart } from '../../api/deployments';
 import { formatDateTime } from '../../utils/datetime';
 import { Button } from '../ui/Button';
-import { FixedPeriodsList, dayLabel } from './FixedPeriodsList';
-import { metresLabel as metres } from './review-items';
+import { dayLabel } from './FixedPeriodsList';
+import { metresLabel as metres } from './update-items';
 
-/** The reason in words. */
+/** The reason in one line. */
 function startReason(start: DeploymentStart | undefined, thresholdM: number): string | null {
   if (!start) return null;
-  if (start.kind === 'fixed') {
-    return 'A fixed period starts here: someone said where the camera stood, so the GPS does not change it.';
-  }
+  if (start.kind === 'fixed') return 'A person set this site.';
   if (start.kind === 'moved' && start.distance_m !== null && start.readings !== null && start.first_at) {
     return (
-      `The camera moved. ${start.readings} photos in a row were ${metres(start.distance_m)} from where it ` +
-      `stood before, more than ${metres(thresholdM)}. The first was taken ${formatDateTime(start.first_at)}.`
+      `${start.readings} photos in a row were ${metres(start.distance_m)} from where the camera stood before ` +
+      `(more than ${metres(thresholdM)} counts as a move). The first was taken ${formatDateTime(start.first_at)}.`
     );
   }
-  return 'Starts at the first photo here. There was no earlier place to compare with.';
+  return 'The first photos of this camera here.';
 }
 
 interface Props {
@@ -32,11 +29,10 @@ interface Props {
   deployment: DeploymentListItem;
   start: DeploymentStart | undefined;
   thresholdM: number | undefined;
-  onSetDeployment: () => void;
   onClose: () => void;
 }
 
-export function DeploymentDetailCard({ projectId, deployment: d, start, thresholdM, onSetDeployment, onClose }: Props) {
+export function DeploymentDetailCard({ projectId, deployment: d, start, thresholdM, onClose }: Props) {
   const reason = thresholdM !== undefined ? startReason(start, thresholdM) : null;
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 text-sm">
@@ -57,23 +53,7 @@ export function DeploymentDetailCard({ projectId, deployment: d, start, threshol
         {d.end_date === null && d.last_photo_at && `, last photo ${dayLabel(d.last_photo_at.slice(0, 10))}`}
       </div>
 
-      <div>
-        <div className="font-medium">{d.site_source === 'manual' ? 'Fixed' : 'Automatic, from the GPS'}</div>
-        {reason ? <p className="text-muted-foreground mt-0.5">{reason}</p> : <p className="text-muted-foreground mt-0.5">Loading...</p>}
-        {thresholdM !== undefined && d.latitude !== null && (
-          <p className="text-xs text-muted-foreground mt-1">
-            On the map, the dashed ring is {metres(thresholdM)} around the pin. Photos inside it count as the
-            same place.
-          </p>
-        )}
-      </div>
-
-      <Button size="sm" variant="outline" onClick={onSetDeployment}>
-        <MapPinPlus className="h-4 w-4 mr-2" />
-        Set deployment
-      </Button>
-
-      <FixedPeriodsList projectId={projectId} cameraId={d.camera_id} />
+      <p className="text-muted-foreground">{reason ?? 'Loading...'}</p>
 
       <Link
         to={`/projects/${projectId}/cameras?camera=${d.camera_id}`}

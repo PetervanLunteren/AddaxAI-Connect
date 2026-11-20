@@ -67,6 +67,13 @@ export interface UpdateSiteRequest {
   tags?: string[] | null;
 }
 
+// What happened to each row of an imported sites CSV.
+export interface SiteImportResponse {
+  success_count: number;
+  failed_count: number;
+  results: { row_number: number; name: string; success: boolean; error: string | null; site_id: number | null }[];
+}
+
 const base = (projectId: number) => `/api/projects/${projectId}/sites`;
 
 export const sitesApi = {
@@ -80,6 +87,14 @@ export const sitesApi = {
   },
   create: async (projectId: number, body: CreateSiteRequest): Promise<SiteDetail> => {
     const { data } = await apiClient.post(base(projectId), body);
+    return data;
+  },
+  importCsv: async (projectId: number, file: File): Promise<SiteImportResponse> => {
+    const form = new FormData();
+    form.append('file', file);
+    const { data } = await apiClient.post(`${base(projectId)}/import-csv`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return data;
   },
   update: async (

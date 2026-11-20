@@ -27,8 +27,7 @@ export interface DeploymentListItem {
   site_source: string;
   // Runs of days with photos, both ends included.
   photo_days: DaySpan[];
-  // When a person checked it on the Deployments page, null = still to check.
-  // Only deployments the GPS made (site_source 'auto') are ever to check.
+  // When a person said this update is right, null = nobody answered.
   checked_at: string | null;
   checked_by: string | null; // email
 }
@@ -110,8 +109,9 @@ export const deploymentsApi = {
   setChecked: async (projectId: number, deploymentIds: number[], checked: boolean): Promise<void> => {
     await apiClient.put(`${base(projectId)}/checked`, { deployment_ids: deploymentIds, checked });
   },
-  toCheckCount: async (projectId: number): Promise<number> => {
-    const { data } = await apiClient.get(`${base(projectId)}/to-check-count`);
+  // How many camera updates need a person, for the sidebar badge.
+  attentionCount: async (projectId: number): Promise<number> => {
+    const { data } = await apiClient.get(`${base(projectId)}/attention-count`);
     return data.count;
   },
   // The GPS saw a move that did not happen: back to the site before it.
