@@ -119,6 +119,24 @@
       font-size: 16px !important;
     }
   }
+  /* iOS Safari draws a date field as a grey pill with its own minimum
+     width, so it looks unlike the other fields and pokes out of narrow
+     forms. Only on iOS (the only engine with -webkit-touch-callout), so
+     desktop browsers keep their calendar button. */
+  @supports (-webkit-touch-callout: none) {
+    input[type='date'] {
+      -webkit-appearance: none;
+      appearance: none;
+      display: block;
+      min-width: 0;
+      min-height: 2.5rem;
+      background-color: hsl(var(--background));
+      color: hsl(var(--foreground));
+    }
+    input[type='date']::-webkit-date-and-time-value {
+      text-align: left;
+    }
+  }
 }
 
 code {

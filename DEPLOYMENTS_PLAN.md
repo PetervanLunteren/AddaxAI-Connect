@@ -476,6 +476,11 @@ Notes per step:
        was too much text. Fixed at once: the list is "Corrections", one
        line of help, rows "Fen from 1 Aug 2026" over "by <email>, 20 Nov
        2026". Not "Pond to Fen": what the app had before is not stored.
+    3. Slide-outs: the camera panel's five tabs wrapped to two rows, and the
+       SIM expiry date field was a grey, too wide pill on iPhone. Fixed at
+       once: sheets are max-w-xl, tabs scroll sideways instead of wrapping
+       (TabStrip), and date fields on iOS look like the other fields
+       (index.css, iOS only).
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not
