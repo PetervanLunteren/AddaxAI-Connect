@@ -106,6 +106,7 @@ import {
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
 import { CheckUpdatesModal } from '../components/deployments/CheckUpdatesModal';
+import { StatusPill } from '../components/ui/StatusPill';
 import { checkQueue, updateItems } from '../components/deployments/update-items';
 import { deploymentsApi } from '../api/deployments';
 import { sitesApi } from '../api/sites';
@@ -230,7 +231,8 @@ export const CamerasPage: React.FC = () => {
   });
 
   // Camera updates to check (moves, photos without a site), admins only.
-  // The check itself is CheckUpdatesModal; its chip sits with the others.
+  // The check itself is CheckUpdatesModal, opened from a header button that
+  // is always there, so people find it also when nothing waits.
   const { data: deploymentsOverview } = useQuery({
     queryKey: ['deployments', currentProject?.id, 'overview'],
     queryFn: () => deploymentsApi.list(currentProject!.id),
@@ -246,6 +248,7 @@ export const CamerasPage: React.FC = () => {
     [deploymentsOverview],
   );
   const updatesToCheck = checkQueue(cameraUpdates);
+  const updatesUrgent = updatesToCheck.some((it) => it.needsYou);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
 
   // Site-restricted viewers get null counts (they see no rejections at
@@ -956,7 +959,19 @@ export const CamerasPage: React.FC = () => {
             Monitor camera health, battery levels, and connectivity status
           </p>
         </div>
-        <div className="flex gap-2 self-start">
+        <div className="flex flex-wrap gap-2 self-start">
+          {canAdminCurrentProject && (
+            <Button variant="outline" className="whitespace-nowrap" onClick={() => setCheckingUpdates(true)}>
+              Camera updates
+              {/* Amber when one needs a person, the same rule as the
+                  sidebar badge; grey for ordinary moves. */}
+              {updatesToCheck.length > 0 && (
+                <StatusPill tone={updatesUrgent ? 'warning' : 'muted'} className="ml-2 tabular-nums">
+                  {updatesToCheck.length}
+                </StatusPill>
+              )}
+            </Button>
+          )}
           {canAdminCurrentProject && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -987,11 +1002,6 @@ export const CamerasPage: React.FC = () => {
       <CameraAttentionBar
         cameras={cameras}
         onSelect={onFilterChange}
-        updates={canAdminCurrentProject ? {
-          count: updatesToCheck.length,
-          urgent: updatesToCheck.some((it) => it.needsYou),
-          onOpen: () => setCheckingUpdates(true),
-        } : undefined}
       />
       {checkingUpdates && currentProject && (
         <CheckUpdatesModal

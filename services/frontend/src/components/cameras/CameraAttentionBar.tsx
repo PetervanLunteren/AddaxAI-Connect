@@ -15,6 +15,9 @@
  * which works because the camera filters live in the URL. The dashboard also
  * passes the overdue service task count, a chip that links to the Service
  * page instead.
+ *
+ * Camera updates are not here: they are a desk task with their own button
+ * in the Cameras page header, not a problem in the field.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -39,10 +42,6 @@ interface AttentionItem {
   patch: Record<string, string>;
   /** A link elsewhere instead of a camera filter. */
   to?: string;
-  /** An action instead of a filter or a link. */
-  onClick?: () => void;
-  /** Worth a look but nothing needs you: drawn quietly. */
-  quiet?: boolean;
 }
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
@@ -55,9 +54,6 @@ interface CameraAttentionBarProps {
   projectId?: number;
   /** Open service tasks past their due date, dashboard only. */
   overdueServiceTasks?: number;
-  /** Camera updates to check, Cameras page only, admins only. `urgent` when
-   *  one needs a person (a likely false move, photos without a site). */
-  updates?: { count: number; urgent: boolean; onOpen: () => void };
 }
 
 export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
@@ -65,7 +61,6 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
   onSelect,
   projectId,
   overdueServiceTasks = 0,
-  updates,
 }) => {
   if (!cameras || cameras.length === 0) return null;
 
@@ -116,13 +111,6 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       patch: { unplaced: 'yes' },
     },
     {
-      count: updates?.count ?? 0,
-      label: `${updates?.count} camera ${plural(updates?.count ?? 0, 'update', 'updates')} to check`,
-      patch: {},
-      onClick: updates?.onOpen,
-      quiet: !updates?.urgent,
-    },
-    {
       count: overdueServiceTasks,
       label: `${overdueServiceTasks} overdue service ${plural(overdueServiceTasks, 'task', 'tasks')}`,
       patch: {},
@@ -132,29 +120,17 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
 
   const items = candidates.filter((item) => item.count > 0);
   if (items.length === 0) return null;
-  const needsAttention = items.some((item) => !item.quiet);
 
   return (
     <Card>
       <CardContent className="p-3">
         <div className="flex flex-wrap items-center gap-2">
-          {needsAttention && (
-            <span className="mr-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Needs attention
-            </span>
-          )}
+          <span className="mr-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            Needs attention
+          </span>
           {items.map((item) =>
-            item.onClick ? (
-              <Button
-                key={item.label}
-                variant={item.quiet ? 'ghost' : 'outline'}
-                size="sm"
-                onClick={item.onClick}
-              >
-                {item.label}
-              </Button>
-            ) : onSelect && !item.to ? (
+            onSelect && !item.to ? (
               <Button
                 key={item.label}
                 variant="outline"

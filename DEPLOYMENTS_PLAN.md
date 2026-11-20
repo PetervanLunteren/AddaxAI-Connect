@@ -481,6 +481,14 @@ Notes per step:
        once: sheets are max-w-xl, tabs scroll sideways instead of wrapping
        (TabStrip), and date fields on iOS look like the other fields
        (index.css, iOS only).
+    4. S02: should camera updates get a tab or a history page, so people
+       can reach them when nothing waits? Decided no (YAGNI, it would bring
+       back the page removed in round 4). But the chip had two looks
+       (outlined with "Needs attention", or a lone ghost button). Fixed at
+       once: a fixed Camera updates button in the Cameras page header for
+       admins, always there, with a count that is amber when something
+       needs a person and grey for ordinary moves. The attention strip is
+       back to field problems only.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

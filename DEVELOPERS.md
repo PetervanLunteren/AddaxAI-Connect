@@ -728,8 +728,10 @@ Three readers' rules, each in one place (step 2c):
 **Camera updates** (step 3b, project admins only) is how people see what
 the app noticed and say when it got one wrong. It replaced the camera
 updates panel and its `feed_events` table; the deployments are the one
-record. There is no page: the check opens from a chip on the Cameras page
-(`CameraAttentionBar`, "N camera updates to check").
+record. There is no page: the check opens from the Camera updates button
+in the Cameras page header. Admins always see it, also when nothing waits;
+its count is amber when an update needs a person (the sidebar badge rule)
+and grey for ordinary moves.
 
 - An update is a deployment the GPS made (`site_source = 'auto'`): a camera
   started somewhere, or it moved. Photos without a site are updates too.
