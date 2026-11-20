@@ -35,7 +35,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 2b | done, release with the branch | `deployments-phase-2` |
 | 2c | done, release with the branch | `deployments-phase-2` |
 | 3a | done, release with the branch | `deployments-phase-2` |
-| 3b | not started | `deployments-phase-2` |
+| 3b | part 1 done, part 2 (add site on the map) next | `deployments-phase-2` |
 | 3c | not started | `deployments-phase-2` |
 | 4 | not started | `deployments-phase-2` |
 | docs | not started | `deployments-phase-2` |
@@ -340,6 +340,35 @@ Notes per step:
     (no viewer account on dev, by rule). Both are covered by the code: the
     route sits in `RequireProjectAdmin`, the phone layout switches at
     768 px.
+
+- **3b**, planned on 20 November 2026 after mock-ups of four ways to show
+  moves (a polished timeline, a moves review, a date slider, video
+  playback). Peter chose the moves review, grown into the one place for
+  everything the camera updates panel did. Playback stays rejected: cameras
+  jump, they do not travel, and animation is for presenting, not checking.
+  - Decided: "Correct" stores who checked and when on the deployment
+    (`checked_at`, `checked_by_user_id`) and fixes nothing; only a
+    correction writes a fixed period, which always looks back. Change site
+    is a click on the map, then the Set deployment form. Two tabs, To check
+    and History. Built in two parts: the review list (part 1), then adding
+    sites on the map with hand-placed pins that stay (part 2, which takes
+    the add-site part of 3c).
+  - Part 1 built and deployed on 20 November 2026 (`56aeccbb`, fix
+    `bfcb0e6a`). The feed table, router, panel and Updates button are gone,
+    the badge moved to Deployments. Migration `20261121_deployment_checked`
+    keeps open feed entries to check and reviewed ones with who and when;
+    tested on a throwaway database. A correction removes a site it emptied
+    when nobody named it.
+  - On dev with the "Deployment scenarios" project: 19 to check after the
+    migration (18 open feed entries and S06). S12's move, which the old
+    feed never listed, is on the list. Tested in the browser: Correct and
+    Undo (S02), It did not move on S03's trip out (one bar at Meadow, the
+    unnamed site gone, badge 19 to 16), Set site by a click on Meadow
+    (S06), Change site to Fen from 1 October (S11), Name this site on a new
+    camera at a new place, Mark all as checked (empty list, badge gone), no
+    Updates button on the Cameras page, History shows the corrections as
+    fixed bars. Two map bugs found and fixed: arrow heads under the pins,
+    and no refit after the selection cleared.
 
 ## How to work on this plan
 
