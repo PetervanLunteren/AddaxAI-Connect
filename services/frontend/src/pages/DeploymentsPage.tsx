@@ -203,7 +203,7 @@ export const DeploymentsPage: React.FC = () => {
   } else if (wide) {
     content = (
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <div className="space-y-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
           {map}
           {card}
         </div>

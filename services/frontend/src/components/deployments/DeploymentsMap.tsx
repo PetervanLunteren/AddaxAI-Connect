@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo } from 'react';
 import { Circle, CircleMarker, MapContainer, Tooltip, useMap } from 'react-leaflet';
-import { latLngBounds } from 'leaflet';
+import { latLng, latLngBounds, type LatLngBounds } from 'leaflet';
 import type { CameraReadings, DeploymentListItem } from '../../api/deployments';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { FitBounds } from '../map/FitBounds';
@@ -29,15 +29,18 @@ interface Props {
   height: number;
 }
 
-/** Fit to the selected camera's dots, once per selection. */
-function FitToSelection({ selectionKey, points }: { selectionKey: number; points: [number, number][] }) {
+/**
+ * Fit to all the camera's dots and the ring around the pin, once per
+ * selection and only when the GPS has arrived, so the earlier place of a
+ * move is in view. A user who zooms afterwards is not thrown back.
+ */
+function FitToSelection({ selectionKey, bounds }: { selectionKey: number; bounds: LatLngBounds | null }) {
   const map = useMap();
+  const ready = bounds !== null;
   useEffect(() => {
-    if (points.length === 0) return;
-    map.fitBounds(latLngBounds(points), { padding: [40, 40], maxZoom: 17, animate: false });
-    // Only a new selection refits, so a user who zoomed is not thrown back.
+    if (bounds) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 17, animate: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectionKey, points.length > 0, map]);
+  }, [selectionKey, ready, map]);
   return null;
 }
 
@@ -65,6 +68,11 @@ export function DeploymentsMap({ sites, selected, readings, onSiteClick, height 
 
   const pin: [number, number] | null =
     selected && selected.latitude != null && selected.longitude != null ? [selected.latitude, selected.longitude] : null;
+  let fitBounds: LatLngBounds | null = null;
+  if (selected && readings) {
+    fitBounds = pin ? latLng(pin).toBounds(readings.threshold_m * 2) : null;
+    if (dotPoints.length) fitBounds = fitBounds ? fitBounds.extend(latLngBounds(dotPoints)) : latLngBounds(dotPoints);
+  }
 
   return (
     <MapContainer
@@ -121,7 +129,7 @@ export function DeploymentsMap({ sites, selected, readings, onSiteClick, height 
           </CircleMarker>
         </>
       )}
-      {selected && <FitToSelection selectionKey={selected.id} points={dotPoints.length ? dotPoints : pin ? [pin] : []} />}
+      {selected && <FitToSelection selectionKey={selected.id} bounds={fitBounds} />}
       <FullscreenControl />
     </MapContainer>
   );
