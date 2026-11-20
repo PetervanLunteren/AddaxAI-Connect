@@ -45,7 +45,7 @@ interface Props {
   onSiteClick: (siteId: number) => void;
   // Pick mode: a click on an empty spot gives its coordinates.
   onSpotClick?: (lat: number, lon: number) => void;
-  height: number;
+  height: number | string; // px, or a CSS length such as min(65vh, 640px)
 }
 
 const headCache = new Map<string, L.DivIcon>();

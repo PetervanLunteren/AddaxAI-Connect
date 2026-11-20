@@ -729,9 +729,11 @@ Three readers' rules, each in one place (step 2c):
 the app noticed and say when it got one wrong. It replaced the camera
 updates panel and its `feed_events` table; the deployments are the one
 record. There is no page: the check opens from the Camera updates button
-in the Cameras page header. Admins always see it, also when nothing waits;
-its count is amber when an update needs a person (the sidebar badge rule)
-and grey for ordinary moves.
+in the Cameras page header. Admins always see it, also when nothing waits.
+It shows a count only for updates that need a person (the sidebar badge
+rule); ordinary moves wait inside the check without asking. The check
+uses the frame of image verification (`REVIEW_WINDOW_CLASS`,
+`PopoverLink` for the shortcuts): the map left, one card right.
 
 - An update is a deployment the GPS made (`site_source = 'auto'`): a camera
   started somewhere, or it moved. Photos without a site are updates too.

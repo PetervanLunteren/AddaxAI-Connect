@@ -1,34 +1,41 @@
 /**
- * Check camera updates, one at a time, the way images are verified.
+ * Check camera updates, one at a time, in the same window as image
+ * verification: the evidence big on the left, one card with the answer on
+ * the right, the shortcuts behind a link.
  *
  * The queue is fixed when the check opens (checkQueue in update-items.ts),
  * so an answered update does not jump away under the user. Per update:
  * - the map of this camera: the arrow of the move, both places, the GPS of
- *   its photos and the ring of the move rule
- * - one sentence, the last photo at the old place next to the first at the
- *   new one, and one line of reason
+ *   its photos and the ring of the move rule (which is why the card does
+ *   not explain the rule in words)
+ * - the card: camera, "Pond → Ridge", day and distance, and the last photo
+ *   at the old place next to the first at the new one. On a real camera
+ *   the two photos settle most checks: same view, so it did not move.
  * - Right (Enter) records that a person looked and goes on. Wrong (W) asks
  *   what happened: it did not move, or it stands at another site, which
  *   puts the map in pick mode; the Set site form does the rest. Photos
  *   without a site only get Set site.
- * "This one and the moves after it are right" ends a long check after the
- * flagged moves. The arrows step back and forward without answering, Esc
- * closes. The end shows a short summary.
+ * "Right, and the next N too" ends a long check after the flagged moves.
+ * The arrows step back and forward without answering, Esc closes. The end
+ * shows a short summary.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, Loader2, MapPin, Undo2, X } from 'lucide-react';
-import { deploymentsApi, type DeploymentPhoto, type DeploymentStart } from '../../api/deployments';
+import { deploymentsApi, type DeploymentPhoto } from '../../api/deployments';
 import { formatDateTime } from '../../utils/datetime';
 import { AuthenticatedImage } from '../AuthenticatedImage';
 import { Button } from '../ui/Button';
+import { Card, CardContent } from '../ui/Card';
 import { Dialog } from '../ui/Dialog';
+import { PopoverLink, ShortcutRow } from '../ui/PopoverLink';
+import { REVIEW_WINDOW_CLASS } from '../ui/review-window';
 import { useToast } from '../ui/Toaster';
 import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './SetDeploymentDialog';
 import {
-  checkQueue, context, dayLabel, headline, metresLabel, placeName, type UpdateItem,
+  checkQueue, dayLabel, placeName, route, whenLabel, type UpdateItem,
 } from './update-items';
 
 interface Props {
@@ -39,24 +46,12 @@ interface Props {
   onClose: () => void;
 }
 
-const MAP_HEIGHT = 460;
+// Tall like the photo in image verification, but never taller than the screen.
+const MAP_HEIGHT = 'min(65vh, 640px)';
 
 function errMsg(err: unknown): string {
   const e = err as { response?: { data?: { detail?: string } }; message?: string };
   return e?.response?.data?.detail || e?.message || 'Unknown error';
-}
-
-/** Why the app decided so, in one line. */
-function reason(start: DeploymentStart | undefined, thresholdM: number | undefined): string | null {
-  if (!start || thresholdM === undefined) return null;
-  if (start.kind === 'moved' && start.distance_m !== null && start.readings !== null && start.first_at) {
-    return (
-      `${start.readings} photos in a row were ${metresLabel(start.distance_m)} from where the camera stood before ` +
-      `(more than ${metresLabel(thresholdM)} counts as a move). The first was taken ${formatDateTime(start.first_at)}.`
-    );
-  }
-  if (start.kind === 'fixed') return 'A person set this site.';
-  return 'The first photos of this camera here.';
 }
 
 export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, startKey, onClose }) => {
@@ -74,6 +69,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
   const [wrongOpen, setWrongOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<{ prefill: SetDeploymentPrefill; newSite: boolean } | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const index = current ? queue.indexOf(current) : -1;
   const it = items.find((i) => i.key === current) ?? null;
@@ -222,129 +218,144 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
   const rightCount = Object.values(answers).filter((a) => a === 'right').length;
   const wrongCount = Object.values(answers).filter((a) => a === 'wrong').length;
   const skipped = queue.filter((key) => !answers[key] && !gone(key)).length;
-  const myAnswer = answer;
+
+  // Previous, next, position and close, as in the image verification panel.
+  const header = (
+    <div className="flex items-center gap-0.5">
+      <Button variant="ghost" size="icon" onClick={() => goTo(index - 1)} disabled={done || index <= 0} title="Previous (←)">
+        <ChevronLeft className="h-5 w-5" />
+      </Button>
+      <Button variant="ghost" size="icon" onClick={next} disabled={done} title="Next (→)">
+        <ChevronRight className="h-5 w-5" />
+      </Button>
+      <span className="flex-1 ml-1 text-sm text-muted-foreground tabular-nums">
+        {!done && queue.length > 0 && `${index + 1} of ${queue.length}`}
+      </span>
+      <Button variant="ghost" size="icon" onClick={onClose} title="Close (Esc)">
+        <X className="h-5 w-5" />
+      </Button>
+    </div>
+  );
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <div
-        className="fixed left-1/2 top-[calc(50%_+_env(safe-area-inset-top)/2)] -translate-x-1/2 -translate-y-1/2 w-[calc(100vw-1rem)] sm:w-full sm:max-w-6xl max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] sm:max-h-[90vh] overflow-y-auto bg-background rounded-lg border shadow-lg p-3 sm:p-6"
-        role="dialog"
-        aria-label="Check camera updates"
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <h2 className="text-lg font-semibold flex-1">Check camera updates</h2>
-          {!done && queue.length > 0 && (
-            <span className="text-sm text-muted-foreground tabular-nums">{index + 1} of {queue.length}</span>
-          )}
-          <Button size="sm" variant="ghost" onClick={() => goTo(index - 1)} disabled={done || index <= 0} aria-label="Previous">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={next} disabled={done} aria-label="Next">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onClose} aria-label="Close">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
+      <div className={`${REVIEW_WINDOW_CLASS} overflow-y-auto overflow-x-hidden`} role="dialog" aria-label="Camera updates">
         {done ? (
-          <div className="py-16 text-center space-y-3">
-            <Check className="h-10 w-10 mx-auto text-primary" />
-            <p className="text-lg font-medium">
-              {queue.length === 0 ? 'Nothing to check.' : 'All checked.'}
-            </p>
-            {queue.length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                {rightCount} right, {wrongCount} wrong, {skipped} skipped.
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button variant="ghost" size="icon" onClick={onClose} title="Close (Esc)">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="pb-16 text-center space-y-3">
+              <Check className="h-10 w-10 mx-auto text-primary" />
+              <p className="text-lg font-medium">
+                {queue.length === 0 ? 'Nothing to check' : 'All checked'}
               </p>
-            )}
-            <Button onClick={onClose}>Close</Button>
+              {queue.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {rightCount} right, {wrongCount} wrong, {skipped} skipped
+                </p>
+              )}
+              <Button onClick={onClose}>Close</Button>
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-4 md:grid md:grid-cols-3 md:gap-6">
-            <div className="md:col-span-2 space-y-2">
-              {picking && (
-                <div className="flex items-center justify-between gap-2 rounded-md border bg-accent/50 px-3 py-2 text-sm">
-                  <span>Click the site where camera {it?.cameraLabel} stood, or an empty spot to make a new site there.</span>
-                  <Button size="sm" variant="outline" onClick={() => setPicking(false)}>Cancel</Button>
-                </div>
-              )}
-              <DeploymentsMap
-                key={current ?? 'none'}
-                sites={sites}
-                activeSiteIds={picking || !d ? null : active}
-                arrows={picking ? [] : arrows}
-                selected={picking ? null : d ?? null}
-                readings={readings}
-                onSiteClick={(siteId) => picking && picked(siteId, null, null)}
-                onSpotClick={picking ? (lat, lon) => picked(null, lat, lon) : undefined}
-                height={MAP_HEIGHT}
-              />
-            </div>
-
-            <div className="space-y-4 text-sm min-w-0">
-              {!it ? (
-                <p className="text-muted-foreground">
-                  {myAnswer === 'wrong'
-                    ? 'Corrected. This update is gone, the camera follows what you said.'
-                    : 'This update no longer exists.'}
-                </p>
-              ) : (
-                <>
-                  <div>
-                    <p className="text-base">
-                      <span className="font-semibold">{it.cameraLabel}</span> {headline(it)}
-                      {d && <> on {dayLabel(d.start_at.slice(0, 10))}</>}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">{context(it)}</p>
-                    {it.shortTrip && (
-                      <p className="mt-2 inline-block px-2 py-0.5 rounded-full text-xs bg-[#ff8945]/20">
-                        Back within a week, often a sign of a false move
-                      </p>
-                    )}
+          <>
+            <div className="flex flex-col gap-4 md:grid md:grid-cols-3 md:gap-6">
+              <div className="md:col-span-2 min-w-0 space-y-2">
+                {picking && (
+                  <div className="flex items-center justify-between gap-2 rounded-md border bg-accent/50 px-3 py-2 text-sm">
+                    <span>Click the site where {it?.cameraLabel} stood, or an empty spot for a new site</span>
+                    <Button size="sm" variant="outline" onClick={() => setPicking(false)}>Cancel</Button>
                   </div>
+                )}
+                <DeploymentsMap
+                  key={current ?? 'none'}
+                  sites={sites}
+                  activeSiteIds={picking || !d ? null : active}
+                  arrows={picking ? [] : arrows}
+                  selected={picking ? null : d ?? null}
+                  readings={readings}
+                  onSiteClick={(siteId) => picking && picked(siteId, null, null)}
+                  onSpotClick={picking ? (lat, lon) => picked(null, lat, lon) : undefined}
+                  height={MAP_HEIGHT}
+                />
+              </div>
 
-                  {d && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        ...(p ? [{ photo: before?.[0], label: `Last at ${placeName(p.site_name)}` }] : []),
-                        ...(after ?? []).map((photo, i) => ({
-                          photo, label: i === 0 ? `First at ${placeName(d.site_name)}` : 'Next photo',
-                        })),
-                      ].map(({ photo, label }) => (
-                        <Photo key={label} photo={photo} label={label} />
-                      ))}
-                    </div>
-                  )}
+              <div className="space-y-4 min-w-0">
+                {header}
+                <Card>
+                  <CardContent className="pt-4 pb-3 space-y-3 text-sm">
+                    {!it ? (
+                      <p className="text-muted-foreground text-center py-4">
+                        {answer === 'wrong' ? 'Corrected' : 'This update no longer exists'}
+                      </p>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="font-medium">{it.cameraLabel}</div>
+                          <div className="text-base mt-1">{route(it)}</div>
+                          <div className="text-muted-foreground">{whenLabel(it)}</div>
+                          {it.shortTrip && (
+                            <span className="mt-2 inline-block px-2 py-0.5 rounded-full text-xs bg-[#ff8945]/20">
+                              Back within a week
+                            </span>
+                          )}
+                        </div>
 
-                  {d && <p className="text-xs text-muted-foreground">{reason(readings?.starts.find((s) => s.deployment_id === d.id), readings?.threshold_m) ?? ''}</p>}
+                        {d && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {p && <Photo projectId={projectId} photo={before?.[0]} label={`Last at ${placeName(p.site_name)}`} />}
+                            {(after ?? []).map((photo, i) => (
+                              <Photo key={photo.uuid} projectId={projectId} photo={photo} label={i === 0 ? `First at ${placeName(d.site_name)}` : 'Next photo'} />
+                            ))}
+                          </div>
+                        )}
 
-                  {it.returnOfShortTrip && !it.answered && (
-                    <p className="text-xs text-muted-foreground">
-                      This is the way back of a short trip. If the trip never happened, answer Wrong on the trip out.
-                    </p>
-                  )}
+                        {it.returnOfShortTrip && !it.answered && (
+                          <p className="text-xs text-muted-foreground">
+                            The way back of a short trip. If the trip never happened, answer Wrong on the trip out.
+                          </p>
+                        )}
 
-                  <Answers
-                    it={it}
-                    myAnswer={myAnswer}
-                    busy={busy}
-                    wrongOpen={wrongOpen}
-                    onRight={() => right.mutate(true)}
-                    onUndo={() => right.mutate(false)}
-                    onWrong={() => setWrongOpen(true)}
-                    onNotMoved={() => notMoved.mutate()}
-                    onOtherSite={startPicking}
-                    onAllRight={restIds.length > 0 && it.kind === 'moved' ? () => allRight.mutate() : undefined}
-                    restCount={restIds.length}
-                    onNext={next}
-                  />
-                </>
-              )}
+                        <Answers
+                          it={it}
+                          myAnswer={answer}
+                          busy={busy}
+                          wrongOpen={wrongOpen}
+                          onRight={() => right.mutate(true)}
+                          onUndo={() => right.mutate(false)}
+                          onWrong={() => setWrongOpen(true)}
+                          onNotMoved={() => notMoved.mutate()}
+                          onOtherSite={startPicking}
+                          onAllRight={restIds.length > 0 && it.kind === 'moved' ? () => allRight.mutate() : undefined}
+                          restCount={restIds.length}
+                          onNext={next}
+                        />
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-          </div>
-        )}
 
+            {/* Hidden on touch screens, where there is no keyboard. */}
+            <div className="flex justify-end mt-2">
+              <PopoverLink
+                label="Show shortcuts"
+                open={showShortcuts}
+                onToggle={() => setShowShortcuts(!showShortcuts)}
+                className="hidden sm:block"
+              >
+                <ShortcutRow keys="Enter">Right + next</ShortcutRow>
+                <ShortcutRow keys="W">Wrong</ShortcutRow>
+                <ShortcutRow keys="← →">Navigate</ShortcutRow>
+                <ShortcutRow keys="Esc">Close</ShortcutRow>
+              </PopoverLink>
+            </div>
+          </>
+        )}
       </div>
 
       {editing && it && (
@@ -362,23 +373,23 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
   );
 };
 
-const Photo: React.FC<{ photo: DeploymentPhoto | undefined; label: string }> = ({ photo, label }) => (
-  <figure className="space-y-1">
-    {photo ? (
+/**
+ * A small photo, no caption: what and when show on hover. A click opens it
+ * in image verification in a new tab, so the check keeps its place.
+ */
+const Photo: React.FC<{ projectId: number; photo: DeploymentPhoto | undefined; label: string }> = ({ projectId, photo, label }) => {
+  if (!photo) return <div className="w-full aspect-[4/3] rounded border bg-muted" title={label} />;
+  const title = `${label}, ${formatDateTime(photo.captured_at)}`;
+  return (
+    <a href={`/projects/${projectId}/images?image=${photo.uuid}`} target="_blank" rel="noopener noreferrer" title={title}>
       <AuthenticatedImage
         src={`/api/images/${photo.uuid}/thumbnail`}
-        alt={label}
-        className="w-full aspect-[4/3] object-cover rounded border"
+        alt={title}
+        className="w-full aspect-[4/3] object-cover rounded border hover:opacity-90"
       />
-    ) : (
-      <div className="w-full aspect-[4/3] rounded border bg-muted" />
-    )}
-    <figcaption className="text-xs text-muted-foreground">
-      {label}
-      {photo && <>, {formatDateTime(photo.captured_at)}</>}
-    </figcaption>
-  </figure>
-);
+    </a>
+  );
+};
 
 const Answers: React.FC<{
   it: UpdateItem;
@@ -395,9 +406,12 @@ const Answers: React.FC<{
   onNext: () => void;
 }> = ({ it, myAnswer, busy, wrongOpen, onRight, onUndo, onWrong, onNotMoved, onOtherSite, onAllRight, restCount, onNext }) => {
   const d = it.deployment;
+  // The muted line under the buttons, as "Verified by" under Verify.
+  const status = (text: string) => <p className="text-muted-foreground text-center">{text}</p>;
+
   if (it.kind === 'unplaced') {
     return (
-      <Button onClick={onOtherSite} disabled={busy}>
+      <Button className="w-full" onClick={onOtherSite} disabled={busy}>
         <MapPin className="h-4 w-4 mr-2" />
         Set site
       </Button>
@@ -405,67 +419,63 @@ const Answers: React.FC<{
   }
   if (it.answered || myAnswer) {
     return (
-      <div className="space-y-2">
-        <p className="text-muted-foreground">
-          {it.answered
-            ? `Right, said ${d?.checked_by ?? 'someone'}${d?.checked_at ? ` on ${dayLabel(d.checked_at.slice(0, 10))}` : ''}.`
-            : 'Corrected.'}
-        </p>
-        <div className="flex gap-2">
-          {it.answered && (
-            <Button size="sm" variant="ghost" onClick={onUndo} disabled={busy}>
-              <Undo2 className="h-4 w-4 mr-1.5" />
-              Undo
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={onNext}>
-            Next
-            <ChevronRight className="h-4 w-4 ml-1" />
+      <div className="space-y-3">
+        {it.answered && (
+          <Button variant="outline" className="w-full" onClick={onUndo} disabled={busy}>
+            <Undo2 className="h-4 w-4 mr-2" />
+            Undo
           </Button>
-        </div>
+        )}
+        <Button variant="outline" className="w-full" onClick={onNext}>
+          Next
+          <ChevronRight className="h-4 w-4 ml-1" />
+        </Button>
+        {status(it.answered
+          ? `Checked by ${d?.checked_by ?? 'someone'}${d?.checked_at ? `, ${dayLabel(d.checked_at.slice(0, 10))}` : ''}`
+          : 'Corrected')}
       </div>
     );
   }
-  const canNotMove = it.kind === 'moved' && !it.returnOfShortTrip;
-  const choice = 'w-full text-left rounded-md border p-3 hover:bg-accent/50 disabled:opacity-50';
+  if (wrongOpen) {
+    const canNotMove = it.kind === 'moved' && !it.returnOfShortTrip;
+    return (
+      <div className="space-y-3">
+        {canNotMove && (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={onNotMoved}
+            disabled={busy}
+            title={`It stood at ${placeName(it.previous?.site_name)} the whole time`}
+          >
+            It did not move
+          </Button>
+        )}
+        <Button variant="outline" className="w-full" onClick={onOtherSite} disabled={busy}>
+          <MapPin className="h-4 w-4 mr-2" />
+          It stands at another site
+        </Button>
+        {status('What happened?')}
+      </div>
+    );
+  }
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={onRight} disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-          Right
-          <kbd className="ml-2 text-[10px] opacity-70">Enter</kbd>
-        </Button>
-        <Button variant="outline" onClick={onWrong} disabled={busy}>
-          <X className="h-4 w-4 mr-2" />
-          Wrong
-          <kbd className="ml-2 text-[10px] opacity-70">W</kbd>
-        </Button>
-      </div>
+      <Button className="w-full" onClick={onRight} disabled={busy}>
+        {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+        Right
+      </Button>
+      <Button variant="outline" className="w-full" onClick={onWrong} disabled={busy}>
+        <X className="h-4 w-4 mr-2" />
+        Wrong
+      </Button>
       {onAllRight && (
-        <Button variant="ghost" size="sm" onClick={onAllRight} disabled={busy}>
+        <Button variant="ghost" size="sm" className="w-full" onClick={onAllRight} disabled={busy}>
           <CheckCheck className="h-4 w-4 mr-2" />
-          This one and the {restCount} {restCount === 1 ? 'move' : 'moves'} after it are right
+          Right, and the next {restCount} too
         </Button>
       )}
-      {wrongOpen && (
-        <div className="space-y-2">
-          <p className="font-medium">What happened?</p>
-          {canNotMove && (
-            <button type="button" className={choice} onClick={onNotMoved} disabled={busy}>
-              <div className="font-medium">It did not move</div>
-              <div className="text-xs text-muted-foreground">
-                It stood at {placeName(it.previous?.site_name)} the whole time, from{' '}
-                {dayLabel(it.previous!.start_at.slice(0, 10))} to {d!.end_date ? dayLabel(d!.end_date) : 'now'}.
-              </div>
-            </button>
-          )}
-          <button type="button" className={choice} onClick={onOtherSite} disabled={busy}>
-            <div className="font-medium">It stands at another site</div>
-            <div className="text-xs text-muted-foreground">Click the right site on the map, then check the days.</div>
-          </button>
-        </div>
-      )}
+      {status('Not checked yet')}
     </div>
   );
 };

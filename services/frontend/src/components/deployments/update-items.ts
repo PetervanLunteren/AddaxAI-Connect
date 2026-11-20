@@ -42,13 +42,6 @@ export interface UpdateItem {
   unplaced?: UnplacedPhotos;
 }
 
-export interface UpdateFilters {
-  cameraIds: Set<number> | null;
-  siteIds: Set<number> | null;
-  from: string | null;
-  to: string | null;
-}
-
 export function metresBetween(a: DeploymentListItem, b: DeploymentListItem): number | undefined {
   if (a.latitude === null || a.longitude === null || b.latitude === null || b.longitude === null) return undefined;
   const rad = Math.PI / 180;
@@ -114,17 +107,6 @@ export function updateItems(overview: DeploymentsOverview): UpdateItem[] {
   return items.sort((a, b) => b.day.localeCompare(a.day) || a.cameraLabel.localeCompare(b.cameraLabel));
 }
 
-/** The entries the filter bar lets through. */
-export function filterItems(items: UpdateItem[], f: UpdateFilters): UpdateItem[] {
-  return items.filter((it) =>
-    (f.cameraIds === null || f.cameraIds.has(it.cameraId)) &&
-    (f.siteIds === null ||
-      [it.deployment?.site_id, it.previous?.site_id].some((s) => s != null && f.siteIds!.has(s))) &&
-    (f.from === null || it.day >= f.from) &&
-    (f.to === null || it.day <= f.to),
-  );
-}
-
 export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 /**
@@ -139,7 +121,7 @@ export function checkQueue(items: UpdateItem[]): UpdateItem[] {
   return [...inCheck.filter((it) => it.needsYou), ...inCheck.filter((it) => !it.needsYou)];
 }
 
-// Words for an update, shared by the log and the check.
+// Words for an update in the check.
 
 // Plain day labels from YYYY-MM-DD, never shifted by the browser's timezone.
 export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
@@ -147,29 +129,20 @@ export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
 export const placeName = (name: string | null | undefined) =>
   !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
 
-/** "moved from Pond to Ridge", without the camera. */
-export function headline(it: UpdateItem): string {
-  if (it.kind === 'unplaced') return 'has photos without a site';
+/** Where the camera went, short: "Pond → Ridge". */
+export function route(it: UpdateItem): string {
+  if (it.kind === 'unplaced') return 'Photos without a site';
   const site = placeName(it.deployment?.site_name);
-  if (it.kind === 'started') return `started sending ${site === 'a new place' ? 'from a new place' : `at ${site}`}`;
-  return `moved from ${placeName(it.previous?.site_name)} to ${site}`;
+  if (it.kind === 'started') return `Started at ${site}`;
+  return `${placeName(it.previous?.site_name)} → ${site}`;
 }
 
-/** The facts under the headline: distance and the photos around the move. */
-export function context(it: UpdateItem): string {
+/** When, and how far for a move: "1 Sep 2026 · 1.5 km". */
+export function whenLabel(it: UpdateItem): string {
   if (it.kind === 'unplaced') {
     const days = it.unplaced!.photo_days;
-    return `From ${dayLabel(days[0].start)} to ${dayLabel(days[days.length - 1].end)}. This camera sent no GPS on these days.`;
+    return `${dayLabel(days[0].start)} to ${dayLabel(days[days.length - 1].end)}`;
   }
-  const d = it.deployment!;
-  if (it.kind === 'started') {
-    return isAutoSiteName(d.site_name) ? 'No site within 250 m, so the app made one.' : 'A site you already have.';
-  }
-  const p = it.previous!;
-  const parts = [
-    it.distanceM !== undefined ? metresLabel(it.distanceM) : null,
-    p.last_photo_at ? `last photo at ${placeName(p.site_name)} ${dayLabel(p.last_photo_at.slice(0, 10))}` : null,
-    `first at ${placeName(d.site_name)} ${dayLabel(d.start_at.slice(0, 10))}`,
-  ];
-  return parts.filter(Boolean).join(', ');
+  const day = dayLabel(it.deployment!.start_at.slice(0, 10));
+  return it.distanceM !== undefined ? `${day} · ${metresLabel(it.distanceM)}` : day;
 }

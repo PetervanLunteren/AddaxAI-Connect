@@ -247,8 +247,10 @@ export const CamerasPage: React.FC = () => {
     () => (deploymentsOverview ? updateItems(deploymentsOverview) : []),
     [deploymentsOverview],
   );
-  const updatesToCheck = checkQueue(cameraUpdates);
-  const updatesUrgent = updatesToCheck.some((it) => it.needsYou);
+  // Findable, not asking: the button shows a count only for updates that
+  // need a person, the same rule as the sidebar badge. Ordinary moves wait
+  // inside the check without a number on the button.
+  const updatesNeedingYou = checkQueue(cameraUpdates).filter((it) => it.needsYou).length;
   const [checkingUpdates, setCheckingUpdates] = useState(false);
 
   // Site-restricted viewers get null counts (they see no rejections at
@@ -963,11 +965,9 @@ export const CamerasPage: React.FC = () => {
           {canAdminCurrentProject && (
             <Button variant="outline" className="whitespace-nowrap" onClick={() => setCheckingUpdates(true)}>
               Camera updates
-              {/* Amber when one needs a person, the same rule as the
-                  sidebar badge; grey for ordinary moves. */}
-              {updatesToCheck.length > 0 && (
-                <StatusPill tone={updatesUrgent ? 'warning' : 'muted'} className="ml-2 tabular-nums">
-                  {updatesToCheck.length}
+              {updatesNeedingYou > 0 && (
+                <StatusPill tone="warning" className="ml-2 tabular-nums">
+                  {updatesNeedingYou}
                 </StatusPill>
               )}
             </Button>

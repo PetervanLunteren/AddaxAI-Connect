@@ -489,6 +489,15 @@ Notes per step:
        admins, always there, with a count that is amber when something
        needs a person and grey for ordinary moves. The attention strip is
        back to field problems only.
+    5. S02, the check window read like a report (title, long sentences, a
+       paragraph with the rule) and the button counted ordinary moves.
+       Fixed at once: the check uses the image verification frame (shared
+       `REVIEW_WINDOW_CLASS` and `PopoverLink`), a big map left, one card
+       right with camera, "Pond → Ridge", day and distance, two small
+       photos without captions (kept: on a real camera they settle a false
+       move at a glance; a click opens the photo), Right and Wrong full
+       width, a status line, shortcuts behind a link. The button counts
+       only what needs a person; ordinary moves are findable, not asking.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not
