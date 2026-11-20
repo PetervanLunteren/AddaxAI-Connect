@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
+from shared.deployment_queries import current_deployments, site_on
 from shared.models import Camera, Deployment, Image, Site
 
 
@@ -81,42 +82,20 @@ def cameras_at_sites_clause(site_id_list: List[int]):
 def cameras_current_site_clause(site_id_list: List[int]):
     """Restrict cameras to those whose current site is in the given sites.
 
-    Current site means the latest deployment (highest deployment_number),
-    the same rule the camera list uses for its current_site column. A
-    camera with no deployments, or whose latest deployment has no site,
-    does not match.
+    Current site is the one rule of shared/deployment_queries.py, the same
+    the camera list shows. A camera with no deployments, or whose current
+    deployment has no site, does not match.
     """
-    latest = (
-        select(Deployment.camera_id, Deployment.site_id)
-        .distinct(Deployment.camera_id)
-        .order_by(Deployment.camera_id, Deployment.deployment_number.desc())
-        .subquery()
-    )
+    current = current_deployments()
     return Camera.id.in_(
-        select(latest.c.camera_id).where(latest.c.site_id.in_(site_id_list))
+        select(current.c.camera_id).where(current.c.site_id.in_(site_id_list))
     )
 
 
 def site_of_camera(camera_id_col, on_date_col=None):
-    """Correlated scalar subquery: the site a camera stood at.
-
-    Without a date it is the current site (latest deployment), the rule of
-    cameras_current_site_clause. With a date it is the newest deployment
-    that started on or before that day. The end date is ignored on purpose:
-    a bulk-upload deployment ends at its last imported photo, while the
-    camera stays at the site and is serviced there later. NULL before the
-    first deployment, or when it has no site, so a scope filter on the
-    result fails closed.
-    """
-    query = select(Deployment.site_id).where(Deployment.camera_id == camera_id_col)
-    if on_date_col is not None:
-        query = query.where(Deployment.start_date <= on_date_col)
-    return (
-        query.order_by(Deployment.deployment_number.desc())
-        .limit(1)
-        .correlate_except(Deployment)
-        .scalar_subquery()
-    )
+    """Correlated scalar subquery: the site a camera stood at, now or on a
+    day. See site_on in shared/deployment_queries.py."""
+    return site_on(camera_id_col, on_date_col)
 
 
 def validate_membership_site_ids(

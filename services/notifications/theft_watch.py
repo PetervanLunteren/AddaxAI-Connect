@@ -38,6 +38,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import select, text
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL, current_deployments
 
 from shared.logger import get_logger
 from shared.database import get_sync_session
@@ -326,11 +327,10 @@ def handle_person_event(event: Dict[str, Any]) -> None:
             select(Image.thumbnail_path).where(Image.id == image_id)
         ).scalar_one_or_none()
 
+        current = current_deployments()
         deployment = db.execute(
-            select(Deployment.id, Deployment.start_date)
-            .where(Deployment.camera_id == camera_id)
-            .order_by(Deployment.end_date.is_(None).desc(), Deployment.start_date.desc())
-            .limit(1)
+            select(current.c.deployment_id.label("id"), current.c.start_date)
+            .where(current.c.camera_id == camera_id)
         ).first()
         today = datetime.now(timezone.utc).date()
         if deployment is None or in_warmup(deployment.start_date, today):
@@ -818,19 +818,16 @@ def _load_watch_states(
     if not states:
         return states
 
-    # Current (active, else latest) deployment with its site and pin,
-    # same resolution as get_camera_site_label
+    # Current deployment with its site and pin (shared/deployment_queries.py)
     for row in db.execute(
-        text("""
-            SELECT DISTINCT ON (d.camera_id)
-                   d.camera_id, d.start_date, d.site_id, s.name AS site_name,
+        text(f"""
+            SELECT cur.camera_id, cur.start_date, cur.site_id, s.name AS site_name,
                    ST_Y(s.location::geometry) AS lat,
                    ST_X(s.location::geometry) AS lon
-            FROM deployments d
-            JOIN cameras c ON c.id = d.camera_id
-            LEFT JOIN sites s ON s.id = d.site_id
+            FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+            JOIN cameras c ON c.id = cur.camera_id
+            LEFT JOIN sites s ON s.id = cur.site_id
             WHERE c.project_id = :project_id
-            ORDER BY d.camera_id, (d.end_date IS NULL) DESC, d.start_date DESC
         """),
         {"project_id": project_id},
     ).all():

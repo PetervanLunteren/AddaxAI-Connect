@@ -708,8 +708,30 @@ The rules:
   automatic, every other camera got `carried_over` statements, and the
   result was checked against what was stored before.
 
-The rebuild's database code is tested against PostGIS in a local test folder,
-not in CI. See the notes of step 2a in `DEPLOYMENTS_PLAN.md`.
+Three readers' rules, each in one place (step 2c):
+
+- **Current site** of a camera: the deployment that started last, also when
+  it has ended, so a retired camera keeps its last site. Never the highest
+  `deployment_number`, which does not follow time. One rule in
+  `shared/shared/deployment_queries.py`, as SQL text
+  (`CURRENT_DEPLOYMENTS_SQL`) and as an expression (`current_deployments`,
+  `site_on`), for every API route and worker.
+- **Which deployment a photo belongs to**: `images.deployment_id`, the link
+  the rebuild made. Never match photos by camera and date. An independent
+  event belongs to the deployment of its first photo. Daily reports and
+  maintenance visits are no photos and keep matching by time.
+- **Effort** (trap-days): `shared/shared/effort.py`. A camera counts at a site
+  from its first photo there to its last photo there, a closed fixed period
+  as the person said. Daily reports do not count. Every reader uses it: the
+  map, the spatial export, the effort chart, occupancy, the scheduled species
+  report, the timeline and the Camtrap DP `deploymentEnd`.
+  `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
+
+`scripts/populate_demo_data.py` is the one place that writes deployments
+without the rebuild, for generated demo data.
+
+The rebuild and the routes that write statements are tested against a real
+PostGIS in `tests/db_ingestion` and `tests/db_api`, see "Running tests".
 
 ## SpeciesNet labels
 
@@ -1369,6 +1391,13 @@ pytest tests/ingestion/test_daily_report_parser.py -v
 
 # Skip ML-dependent tests (used in CI)
 pytest tests/ -m "not ml"
+
+# The database tests, against a throwaway PostGIS (needs Docker)
+bash scripts/test-db.sh
+PYTHON=/path/to/python bash scripts/test-db.sh -k fixed
 ```
-</content>
-</invoke>
+
+The database tests (`tests/db_ingestion`, `tests/db_api`) refuse any database
+but the throwaway one, because every test empties the tables. CI runs them in
+the `db` job of `.github/workflows/tests.yml` with the same PostGIS image as
+production.

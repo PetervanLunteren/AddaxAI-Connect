@@ -323,6 +323,9 @@ class Deployment(Base):
     # shared/deployment_build.py) and are what effort and exports read.
     start_at = Column(DateTime(timezone=False), nullable=False)
     end_at = Column(DateTime(timezone=False), nullable=True)
+    # Capture time of the newest photo on the deployment, NULL without photos.
+    # Ends the effort of an open deployment, see shared/effort.py.
+    last_photo_at = Column(DateTime(timezone=False), nullable=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment
     location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)

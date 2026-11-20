@@ -28,6 +28,7 @@ from utils.camera_recency import fetch_camera_recency
 from utils.deployment_edits import rebuild
 from utils.camera_rejections import RecentRejections, fetch_recent_rejections, REJECTED_RECENT_DAYS
 from utils.camera_unplaced import UnplacedPhotos, fetch_unplaced
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags, tag_length_error
 
@@ -151,16 +152,11 @@ def _localize(dt: Optional[datetime], tz: ZoneInfo) -> Optional[str]:
 
 
 async def _current_site_id(db: AsyncSession, camera_id: int) -> Optional[int]:
-    """Site of the camera's latest deployment, None when it has no
-    deployments or the latest one has no site."""
+    """The camera's current site (shared/deployment_queries.py), None when it
+    has no deployments or the current one has no site."""
     row = (
         await db.execute(
-            text("""
-                SELECT d.site_id FROM deployments d
-                WHERE d.camera_id = :cam
-                ORDER BY d.deployment_number DESC
-                LIMIT 1
-            """),
+            text(f"SELECT site_id FROM ({CURRENT_DEPLOYMENTS_SQL}) cur WHERE cur.camera_id = :cam"),
             {"cam": camera_id},
         )
     ).first()
@@ -282,13 +278,11 @@ async def camera_detail_response(
     )).scalar_one_or_none()
 
     site_row = (await db.execute(
-        text("""
+        text(f"""
             SELECT s.id AS site_id, s.name AS site_name
-            FROM deployments d
-            LEFT JOIN sites s ON s.id = d.site_id
-            WHERE d.camera_id = :cam
-            ORDER BY d.deployment_number DESC
-            LIMIT 1
+            FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+            LEFT JOIN sites s ON s.id = cur.site_id
+            WHERE cur.camera_id = :cam
         """),
         {"cam": camera.id},
     )).mappings().first()
@@ -375,17 +369,15 @@ async def list_cameras(
         )
         last_maintenance_map = {cam_id: d for cam_id, d in maintenance_rows.all()}
 
-    # Each camera's current site = the site of its most recent deployment.
+    # Each camera's current site, see shared/deployment_queries.py.
     current_site_map: dict[int, dict] = {}
     if camera_ids:
         site_rows = await db.execute(
-            text("""
-                SELECT DISTINCT ON (d.camera_id) d.camera_id,
-                       s.id AS site_id, s.name AS site_name
-                FROM deployments d
-                LEFT JOIN sites s ON s.id = d.site_id
-                WHERE d.camera_id = ANY(:cam_ids)
-                ORDER BY d.camera_id, d.deployment_number DESC
+            text(f"""
+                SELECT cur.camera_id, s.id AS site_id, s.name AS site_name
+                FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+                LEFT JOIN sites s ON s.id = cur.site_id
+                WHERE cur.camera_id = ANY(:cam_ids)
             """),
             {"cam_ids": camera_ids},
         )
@@ -945,7 +937,7 @@ async def get_camera_deployments(
                 LEFT JOIN images i ON i.deployment_id = d.id
                 WHERE d.camera_id = :camera_id{scope_sql}
                 GROUP BY d.id, s.name
-                ORDER BY d.deployment_number
+                ORDER BY d.start_at, d.id
             """),
             params,
         )

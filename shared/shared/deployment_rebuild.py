@@ -298,6 +298,18 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
         )
         touched_sites.update(s.site_id for s in gone)
 
+    # The newest photo per deployment, which ends the effort of an open one
+    # (shared/effort.py). Only rows whose value changes are written.
+    session.execute(text("""
+        UPDATE deployments d
+        SET last_photo_at = m.last
+        FROM (
+            SELECT d2.id, (SELECT max(i.captured_at) FROM images i WHERE i.deployment_id = d2.id) AS last
+            FROM deployments d2 WHERE d2.camera_id = :camera_id
+        ) m
+        WHERE d.id = m.id AND d.last_photo_at IS DISTINCT FROM m.last
+    """), {"camera_id": camera_id})
+
     session.flush()
     for site_id in touched_sites - {None}:
         session.execute(text(RECOMPUTE_SITE_LOCATION_SQL), {"site_id": site_id})

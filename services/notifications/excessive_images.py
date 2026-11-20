@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import text, select
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
 
 from shared.logger import get_logger
 from shared.database import get_sync_session
@@ -251,16 +252,15 @@ def _get_cameras_over_threshold(
     # cannot list `c.config` directly in GROUP BY because it is a `json`
     # column and `json` has no equality operator in PostgreSQL.
     result = db.execute(
-        text("""
+        text(f"""
             SELECT c.id, c.device_id, c.notes, COUNT(*) as image_count,
                    MIN(i.captured_at) as first_image,
                    MAX(i.captured_at) as last_image,
                    (c.config->'gps_from_report'->>'lat')::float as lat,
                    (c.config->'gps_from_report'->>'lon')::float as lon,
-                   (SELECT s.name FROM deployments d JOIN sites s ON s.id = d.site_id
-                    WHERE d.camera_id = c.id
-                    ORDER BY (d.end_date IS NULL) DESC, d.start_date DESC
-                    LIMIT 1) as site_name
+                   (SELECT s.name FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+                    JOIN sites s ON s.id = cur.site_id
+                    WHERE cur.camera_id = c.id) as site_name
             FROM images i
             JOIN cameras c ON i.camera_id = c.id
             WHERE c.project_id = :project_id

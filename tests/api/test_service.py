@@ -175,7 +175,7 @@ class TestSiteScope:
     def test_visit_site_is_the_newest_deployment_started_by_the_visit_date(self):
         sql = _sql(_visits_query(1, None))
         assert "deployments.start_date <= camera_maintenance_events.event_date" in sql
-        assert "ORDER BY deployments.deployment_number DESC" in sql
+        assert "ORDER BY deployments.start_at DESC, deployments.id DESC" in sql
 
     def test_visit_site_ignores_the_end_date(self):
         # A bulk-upload deployment ends at its last photo; a card swap after
@@ -185,7 +185,7 @@ class TestSiteScope:
     def test_task_site_is_the_current_site(self):
         sql = _sql(_tasks_query(1, None))
         assert "deployments.start_date" not in sql
-        assert "ORDER BY deployments.deployment_number DESC" in sql
+        assert "ORDER BY deployments.start_at DESC, deployments.id DESC" in sql
 
     def test_unrestricted_has_no_site_filter(self):
         assert "sites.id IN" not in _sql(_visits_query(1, None))

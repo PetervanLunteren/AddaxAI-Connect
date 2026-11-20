@@ -33,11 +33,12 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 1b | done, release pending | `main` |
 | 2a | done, release with the branch | `deployments-phase-2` |
 | 2b | done, release with the branch | `deployments-phase-2` |
-| 2c | not started | `deployments-phase-2` |
+| 2c | in progress, built | `deployments-phase-2` |
 | 3a | not started | `deployments-phase-2` |
 | 3b | not started | `deployments-phase-2` |
 | 3c | not started | `deployments-phase-2` |
 | 4 | not started | `deployments-phase-2` |
+| docs | not started | `deployments-phase-2` |
 | 5 | not started | after the release |
 
 A status is one of: not started, planned (Peter agreed with the step's plan),
@@ -250,6 +251,29 @@ Notes per step:
     not change in 2b.
   - Each fixed period shows the days it was set with. Where a newer one
     overlaps it, the history above shows what is in force.
+- **2c**, planned and built on 20 November 2026.
+  - Decided: the current site is the deployment that started last, also when
+    it has ended. Effort is photos only at both ends: a camera counts at a
+    site from its first photo there to its last photo there, a closed fixed
+    period as the person said, daily reports do not count. User docs are
+    written once at the end of the branch. Tests that guard code that stays
+    move into the repo.
+  - Current site: `shared/shared/deployment_queries.py`, used by the camera
+    list and detail, viewer scope, service, camera alerts, integrations,
+    theft watch and the excessive images alert. Deployment lists sort by
+    time.
+  - Photos belong to their deployment through `images.deployment_id`
+    everywhere: the map, the spatial export, independent events, the
+    Camtrap DP export and the timeline. The Camtrap DP export writes exact
+    deployment times.
+  - Effort: `shared/shared/effort.py`, `deployments.last_photo_at`
+    (migration `20261120_deployment_last_photo`). The map now clips effort
+    to its date filter. The timeline counts photo days per deployment, no
+    report days.
+  - Tests: `tests/db_ingestion` and `tests/db_api` in the repo, run with
+    `scripts/test-db.sh` and in the `db` job of CI. The tests of the GPS
+    backfill and the carry-over stay in the local folder, deleted when the
+    branch is merged.
 
 ## How to work on this plan
 
@@ -792,6 +816,26 @@ to end test in the browser, see "Deploy to dev".
 Ends with a deploy to dev and an end to end test with a real SD card upload,
 see "Deploy to dev".
 
+### Last step: user docs
+
+Written once, with `/docs-partner`, when the screens are final. Pages and
+sentences that are out of date, found in the code read of step 2c:
+
+- `docs/sites-and-deployments.md`: GPS on every photo, "nothing to do by
+  hand", "placements", "It did not move" as the one action that cannot be
+  undone, a site can be deleted, the Placements tab.
+- `docs/camera-requirements.md`: GPS listed as required, photos without GPS
+  rejected.
+- `docs/upload-sd-card.md`: the reason a photo is skipped without location
+  (phase 4 changes this again).
+- `docs/setup-guide.md`: a site is made from the camera GPS, "placement".
+- `docs/cameras/willfine-4-0t-cg.md`, `docs/cameras/swift-enduro-4-0pcg-r.md`:
+  GPS required, a photo without it is rejected.
+- `docs/operations.md`: missing GPS as a rejection reason.
+- `docs/architecture.md`: deployments made from GPS only.
+- New: cameras without GPS, Set deployment, Fixed periods, photos without a
+  site, how effort is counted.
+
 ### Phase 5: a better move check
 
 This phase must not be dropped. It starts when phases 1 to 3 are live and
@@ -898,9 +942,6 @@ To settle at the start of the phase named.
   a deployment of its own, which can also count months of effort at the wrong
   place (pwn, three cameras, see the notes of 1b). Hold the first reading
   like any far one, or leave it to statements and phase 5.
-- Phase 2: the name of the statements table and the wording in the UI.
-- Phase 2: whether a site that has deployments can be deleted, or only merged.
-- Phase 2: what alerts do for a photo that has no site yet.
 - Phase 3: whether viewers see the "needs review" state.
 - Phase 3: how the Insights timeline and the new page share code, or become
   one.

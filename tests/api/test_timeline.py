@@ -19,58 +19,7 @@ _api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "serv
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from utils.timeline import (  # noqa: E402
-    _effective_cdp_end,
-    _filter_days_to_cdp,
-    get_deployment_timeline,
-)
-
-
-class TestEffectiveCdpEnd:
-    def test_closed_cdp_uses_configured_end(self):
-        out = _effective_cdp_end(
-            configured_end=date(2024, 3, 31),
-            start_date=date(2024, 1, 1),
-            signal_days_in_cdp=[date(2024, 1, 5), date(2024, 1, 6)],
-        )
-        assert out == date(2024, 3, 31)
-
-    def test_open_cdp_with_signals_uses_last_signal(self):
-        out = _effective_cdp_end(
-            configured_end=None,
-            start_date=date(2024, 1, 1),
-            signal_days_in_cdp=[date(2024, 1, 5), date(2024, 1, 20)],
-        )
-        assert out == date(2024, 1, 20)
-
-    def test_open_cdp_no_signals_falls_back_to_start(self):
-        out = _effective_cdp_end(
-            configured_end=None,
-            start_date=date(2024, 1, 1),
-            signal_days_in_cdp=[],
-        )
-        assert out == date(2024, 1, 1)
-
-
-class TestFilterDaysToCdp:
-    def test_empty_days(self):
-        assert _filter_days_to_cdp([], date(2024, 1, 1), date(2024, 12, 31)) == []
-
-    def test_keeps_only_in_range(self):
-        days = [
-            date(2023, 12, 31),
-            date(2024, 1, 1),
-            date(2024, 6, 15),
-            date(2024, 12, 31),
-            date(2025, 1, 1),
-        ]
-        out = _filter_days_to_cdp(days, date(2024, 1, 1), date(2024, 12, 31))
-        assert out == [date(2024, 1, 1), date(2024, 6, 15), date(2024, 12, 31)]
-
-    def test_open_cdp_keeps_everything_after_start(self):
-        days = [date(2024, 1, 1), date(2025, 1, 1), date(2030, 1, 1)]
-        out = _filter_days_to_cdp(days, date(2024, 1, 1), cdp_end=None)
-        assert out == days
+from utils.timeline import get_deployment_timeline  # noqa: E402
 
 
 class _FakeResult:
