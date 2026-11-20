@@ -3,7 +3,8 @@
  * verification: the evidence big on the left, one card with the answer on
  * the right, the shortcuts behind a link.
  *
- * The queue is fixed when the check opens (checkQueue in update-items.ts),
+ * It shows one group of the Camera updates menu (updateGroup in
+ * update-items.ts). The queue is fixed when the check opens,
  * so an answered update does not jump away under the user. Per update:
  * - the map of this camera: the arrow of the move, both places, the GPS of
  *   its photos and the ring of the move rule (which is why the card does
@@ -35,14 +36,14 @@ import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './SetDeploymentDialog';
 import {
-  checkQueue, dayLabel, placeName, route, whenLabel, type UpdateItem,
+  dayLabel, placeName, route, updateGroup, whenLabel, type UpdateGroup, type UpdateItem,
 } from './update-items';
 
 interface Props {
   projectId: number;
   items: UpdateItem[]; // every update in view, kept fresh by the page
   sites: SitePin[];
-  startKey: string | null; // open at this update, else at the first in the queue
+  group: UpdateGroup;
   onClose: () => void;
 }
 
@@ -54,15 +55,12 @@ function errMsg(err: unknown): string {
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
 
-export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, startKey, onClose }) => {
+export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, group, onClose }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const [queue] = useState<string[]>(() => {
-    const keys = checkQueue(items).map((it) => it.key);
-    return startKey && !keys.includes(startKey) ? [startKey, ...keys] : keys;
-  });
-  const [current, setCurrent] = useState<string | null>(startKey ?? queue[0] ?? null);
+  const [queue] = useState<string[]>(() => updateGroup(items, group).map((it) => it.key));
+  const [current, setCurrent] = useState<string | null>(queue[0] ?? null);
   const [done, setDone] = useState(queue.length === 0);
   // What was answered in this check, by update, for going back and the summary.
   const [answers, setAnswers] = useState<Record<string, 'right' | 'wrong'>>({});
@@ -250,7 +248,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
             <div className="pb-16 text-center space-y-3">
               <Check className="h-10 w-10 mx-auto text-primary" />
               <p className="text-lg font-medium">
-                {queue.length === 0 ? 'Nothing to check' : 'All checked'}
+                {queue.length === 0 ? 'Nothing here' : 'Done'}
               </p>
               {queue.length > 0 && (
                 <p className="text-sm text-muted-foreground">

@@ -110,15 +110,31 @@ export function updateItems(overview: DeploymentsOverview): UpdateItem[] {
 export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 /**
- * The updates of a check, in the order it shows them: every move nobody
- * answered and every camera with photos without a site. The ones that need
- * a person come first, then the newest. A camera that started somewhere is
- * not asked about: naming a new place is an optional action in the site's
- * panel, not a to-do.
+ * The three groups of the Camera updates menu; each opens the check with
+ * its own updates, newest first.
+ * - needsYou: photos without a site, and moves back within a week. The
+ *   count on the button and the sidebar badge (ATTENTION_COUNT_SQL).
+ * - notChecked: ordinary moves nobody answered. Findable, not asking.
+ * - checked: moves a person said were right, to go back in time.
+ * A camera that started somewhere is in none: naming a new place is an
+ * optional action in the site's panel, not a to-do. A move corrected with
+ * Wrong is no longer the app's, so it is under Corrections in the camera
+ * panel instead.
  */
-export function checkQueue(items: UpdateItem[]): UpdateItem[] {
-  const inCheck = items.filter((it) => !it.answered && it.kind !== 'started');
-  return [...inCheck.filter((it) => it.needsYou), ...inCheck.filter((it) => !it.needsYou)];
+export type UpdateGroup = 'needsYou' | 'notChecked' | 'checked';
+
+export const UPDATE_GROUPS: { key: UpdateGroup; label: string }[] = [
+  { key: 'needsYou', label: 'Needs you' },
+  { key: 'notChecked', label: 'Not checked yet' },
+  { key: 'checked', label: 'Checked' },
+];
+
+export function updateGroup(items: UpdateItem[], group: UpdateGroup): UpdateItem[] {
+  return items.filter((it) => {
+    if (it.kind === 'started') return false;
+    if (group === 'checked') return it.answered;
+    return !it.answered && it.needsYou === (group === 'needsYou');
+  });
 }
 
 // Words for an update in the check.

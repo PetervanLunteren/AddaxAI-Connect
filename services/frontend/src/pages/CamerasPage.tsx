@@ -107,7 +107,7 @@ import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
 import { CheckUpdatesModal } from '../components/deployments/CheckUpdatesModal';
 import { StatusPill } from '../components/ui/StatusPill';
-import { checkQueue, updateItems } from '../components/deployments/update-items';
+import { UPDATE_GROUPS, updateGroup, updateItems, type UpdateGroup } from '../components/deployments/update-items';
 import { deploymentsApi } from '../api/deployments';
 import { sitesApi } from '../api/sites';
 import { useToast } from '../components/ui/Toaster';
@@ -247,11 +247,14 @@ export const CamerasPage: React.FC = () => {
     () => (deploymentsOverview ? updateItems(deploymentsOverview) : []),
     [deploymentsOverview],
   );
-  // Findable, not asking: the button shows a count only for updates that
-  // need a person, the same rule as the sidebar badge. Ordinary moves wait
-  // inside the check without a number on the button.
-  const updatesNeedingYou = checkQueue(cameraUpdates).filter((it) => it.needsYou).length;
-  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  // A menu of three groups, each opening the check. Findable, not asking:
+  // the button shows a count only for the updates that need a person, the
+  // same rule as the sidebar badge.
+  const updateCounts = useMemo(
+    () => Object.fromEntries(UPDATE_GROUPS.map((g) => [g.key, updateGroup(cameraUpdates, g.key).length])) as Record<UpdateGroup, number>,
+    [cameraUpdates],
+  );
+  const [checkingUpdates, setCheckingUpdates] = useState<UpdateGroup | null>(null);
 
   // Site-restricted viewers get null counts (they see no rejections at
   // all). Then the column would be a row of dashes and the filter could
@@ -963,14 +966,32 @@ export const CamerasPage: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-2 self-start">
           {canAdminCurrentProject && (
-            <Button variant="outline" className="whitespace-nowrap" onClick={() => setCheckingUpdates(true)}>
-              Camera updates
-              {updatesNeedingYou > 0 && (
-                <StatusPill tone="warning" className="ml-2 tabular-nums">
-                  {updatesNeedingYou}
-                </StatusPill>
-              )}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="whitespace-nowrap">
+                  Camera updates
+                  {updateCounts.needsYou > 0 && (
+                    <StatusPill tone="warning" className="ml-2 tabular-nums">
+                      {updateCounts.needsYou}
+                    </StatusPill>
+                  )}
+                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {UPDATE_GROUPS.map((g) => (
+                  <DropdownMenuItem
+                    key={g.key}
+                    onClick={() => setCheckingUpdates(g.key)}
+                    disabled={updateCounts[g.key] === 0}
+                    className="justify-between gap-4"
+                  >
+                    {g.label}
+                    <span className="tabular-nums text-muted-foreground">{updateCounts[g.key]}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {canAdminCurrentProject && (
             <DropdownMenu>
@@ -1003,13 +1024,13 @@ export const CamerasPage: React.FC = () => {
         cameras={cameras}
         onSelect={onFilterChange}
       />
-      {checkingUpdates && currentProject && (
+      {checkingUpdates !== null && currentProject && (
         <CheckUpdatesModal
           projectId={currentProject.id}
           items={cameraUpdates}
           sites={projectSites ?? []}
-          startKey={null}
-          onClose={() => setCheckingUpdates(false)}
+          group={checkingUpdates}
+          onClose={() => setCheckingUpdates(null)}
         />
       )}
 

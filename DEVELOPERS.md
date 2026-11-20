@@ -728,10 +728,11 @@ Three readers' rules, each in one place (step 2c):
 **Camera updates** (step 3b, project admins only) is how people see what
 the app noticed and say when it got one wrong. It replaced the camera
 updates panel and its `feed_events` table; the deployments are the one
-record. There is no page: the check opens from the Camera updates button
-in the Cameras page header. Admins always see it, also when nothing waits.
-It shows a count only for updates that need a person (the sidebar badge
-rule); ordinary moves wait inside the check without asking. The check
+record. There is no page: the Camera updates menu in the Cameras page
+header (admins, always there) lists three groups, Needs you, Not checked
+yet and Checked (`updateGroup` in `update-items.ts`), and each opens the
+check with that group. The button counts only Needs you (the sidebar badge
+rule); ordinary moves wait without asking, and Checked is the way back. The check
 uses the frame of image verification (`REVIEW_WINDOW_CLASS`,
 `PopoverLink` for the shortcuts): the map left, one card right.
 
@@ -740,9 +741,7 @@ uses the frame of image verification (`REVIEW_WINDOW_CLASS`,
 - The check (`components/deployments/CheckUpdatesModal.tsx`) shows one at a
   time like image verification: Enter is Right and next, W is Wrong, the
   arrows step, Esc closes, and one button marks the rest of the moves
-  right. Its queue (`checkQueue` in `update-items.ts`) is every move nobody
-  answered and every camera with photos without a site, the ones that need
-  a person first. It shows the last photo before a move next to the first
+  right. Its queue is the group picked in the menu, newest first. It shows the last photo before a move next to the first
   after it (`GET .../deployments/{id}/thumbnails?order=last|first`).
 - Nobody has to answer. Right (`PUT .../deployments/checked`) only records
   who looked and when in `checked_at` and `checked_by_user_id`. It fixes

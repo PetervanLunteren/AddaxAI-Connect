@@ -498,6 +498,11 @@ Notes per step:
        move at a glance; a click opens the photo), Right and Wrong full
        width, a status line, shortcuts behind a link. The button counts
        only what needs a person; ordinary moves are findable, not asking.
+    6. S02: going back to earlier decisions. Fixed at once: the Camera
+       updates button is a menu with Needs you, Not checked yet and Checked,
+       each with its count and opening the check with that group; empty
+       groups show greyed. Also the review window got a set width, so the
+       map no longer keeps a narrow first size when the photos load.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not
