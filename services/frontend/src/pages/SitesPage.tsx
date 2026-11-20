@@ -514,9 +514,8 @@ export const SitesPage: React.FC = () => {
   const renderSiteCell = (id: SiteColumnId, site: SiteListItem): React.ReactNode => {
     switch (id) {
       case 'name':
-        // The chip is the same nudge the camera updates feed shows, so a
-        // site that still needs a name is visible here after its feed entry
-        // has scrolled off.
+        // A site that still needs a name stays visible here after its entry
+        // on the Deployments page was checked.
         return (
           <span className="inline-flex items-center gap-2">
             {site.name}

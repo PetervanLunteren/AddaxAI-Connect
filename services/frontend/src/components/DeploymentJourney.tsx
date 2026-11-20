@@ -8,8 +8,8 @@
  * - site mode answers "which cameras stood here over time?" (each step is a
  *   camera that was placed here)
  *
- * Site assignment is automatic and corrections normally happen from the
- * camera updates panel. For late corrections, camera mode can pass
+ * Site assignment is automatic and corrections normally happen on the
+ * Deployments page. For late corrections, camera mode can pass
  * onChangeSite (admin only), which puts a small action on each step.
  */
 import React from 'react';

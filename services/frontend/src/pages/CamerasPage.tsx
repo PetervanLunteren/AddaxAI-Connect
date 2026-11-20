@@ -15,7 +15,6 @@ import {
   CheckCircle,
   XCircle,
   ChevronDown,
-  Route,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -107,8 +106,6 @@ import {
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
 import { useToast } from '../components/ui/Toaster';
-import { CameraUpdatesSheet } from '../components/CameraUpdatesSheet';
-import { feedApi } from '../api/feed';
 import { cameraColumnPrefs, type ColumnId } from '../components/cameras/columnDefs';
 import { formatRelative } from '../utils/datetime';
 import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
@@ -126,8 +123,6 @@ export const CamerasPage: React.FC = () => {
   // Side panel state
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
-  // Camera updates slideout (the feed of automatic site decisions).
-  const [showUpdates, setShowUpdates] = useState(false);
   // Single-camera delete requested from the detail sheet (server admins).
   const [cameraToDelete, setCameraToDelete] = useState<{ id: number; name: string } | null>(null);
 
@@ -268,14 +263,6 @@ export const CamerasPage: React.FC = () => {
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameras, searchParams]);
-
-  // Open camera updates for the header button, admins only (a to-do count).
-  // Shares the query key with the sidebar badge, so both update together.
-  const { data: openUpdates } = useQuery({
-    queryKey: ['feed-open', currentProject?.id],
-    queryFn: () => feedApi.openCount(currentProject!.id),
-    enabled: !!currentProject && canAdminCurrentProject,
-  });
 
   // Create camera mutation
   const createMutation = useMutation({
@@ -947,18 +934,6 @@ export const CamerasPage: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-2 self-start">
-          <Button variant="outline" className="whitespace-nowrap" onClick={() => setShowUpdates(true)}>
-            <Route className="h-4 w-4 mr-2" />
-            Updates
-            {(openUpdates ?? 0) > 0 && (
-              <span
-                className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-                style={{ backgroundColor: '#71b7ba', color: 'white' }}
-              >
-                {openUpdates}
-              </span>
-            )}
-          </Button>
           {canAdminCurrentProject && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1140,16 +1115,6 @@ export const CamerasPage: React.FC = () => {
         <div className="flex items-center justify-center py-8">
           <p className="text-muted-foreground">No cameras registered yet.</p>
         </div>
-      )}
-
-      {/* Camera updates feed (automatic site decisions, with corrections) */}
-      {currentProject && (
-        <CameraUpdatesSheet
-          open={showUpdates}
-          onClose={() => setShowUpdates(false)}
-          projectId={currentProject.id}
-          canEdit={canAdminCurrentProject}
-        />
       )}
 
       {/* Camera Detail Side Panel */}

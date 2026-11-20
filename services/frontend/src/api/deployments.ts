@@ -27,6 +27,10 @@ export interface DeploymentListItem {
   site_source: string;
   // Runs of days with photos, both ends included.
   photo_days: DaySpan[];
+  // When a person checked it on the Deployments page, null = still to check.
+  // Only deployments the GPS made (site_source 'auto') are ever to check.
+  checked_at: string | null;
+  checked_by: string | null; // email
 }
 
 export interface DaySpan {
@@ -101,6 +105,18 @@ const base = (projectId: number) => `/api/projects/${projectId}/deployments`;
 export const deploymentsApi = {
   list: async (projectId: number): Promise<DeploymentsOverview> => {
     const { data } = await apiClient.get(base(projectId));
+    return data;
+  },
+  setChecked: async (projectId: number, deploymentIds: number[], checked: boolean): Promise<void> => {
+    await apiClient.put(`${base(projectId)}/checked`, { deployment_ids: deploymentIds, checked });
+  },
+  toCheckCount: async (projectId: number): Promise<number> => {
+    const { data } = await apiClient.get(`${base(projectId)}/to-check-count`);
+    return data.count;
+  },
+  // The GPS saw a move that did not happen: back to the site before it.
+  notMoved: async (projectId: number, deploymentId: number): Promise<SetDeploymentResponse> => {
+    const { data } = await apiClient.post(`${base(projectId)}/${deploymentId}/not-moved`);
     return data;
   },
   readings: async (projectId: number, cameraId: number): Promise<CameraReadings> => {

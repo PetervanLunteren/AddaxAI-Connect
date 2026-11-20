@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 import db_operations as ingest
 from deployment_db import (
-    DAY, HOME, at, camera_config, close, deployments, feed, image_deployment,
+    DAY, HOME, at, camera_config, close, deployments, image_deployment, to_check,
     make_camera, make_project, make_site, offset, rows, sites,
 )
 
@@ -70,7 +70,6 @@ def test_a_report_keeps_its_health_data_and_reading_but_makes_no_deployment():
     report("REP01", HOME, at(1))
 
     assert deployments(cam) == []
-    assert feed(cam) == []
     assert camera_config(cam)["gps_from_report"] == {"lat": HOME[0], "lon": HOME[1]}
     [health] = rows("SELECT * FROM camera_health_reports WHERE camera_id = :c", c=cam)
     assert health["reported_at"] == at(1)
@@ -118,8 +117,8 @@ def test_an_upload_without_gps_to_a_site_is_a_deployment_at_that_site():
     # The live deployment is untouched and still open.
     assert current["end_date"] is None and current["start_date"] == DAY + timedelta(days=19)
     assert [image_deployment(u) for u in live] == [current["id"], current["id"]]
-    # An upload is no news in the updates panel.
-    assert [e["event_type"] for e in feed(cam)] == ["camera_first_seen"]
+    # An upload is a person's word, so only the live deployment is to check.
+    assert [d["id"] for d in to_check(cam)] == [current["id"]]
     [statement] = rows("SELECT * FROM deployment_statements WHERE camera_id = :c", c=cam)
     assert statement["source"] == "upload"
     assert (statement["from_at"], statement["until_at"]) == (at(1, hour=0), at(6, hour=0))

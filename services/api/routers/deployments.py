@@ -22,7 +22,7 @@ from shared.logger import get_logger
 from shared.models import Camera, Deployment, DeploymentStatement, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
-from utils.deployment_edits import rebuild, state
+from utils.deployment_edits import drop_unnamed_sites_left_empty, previous_deployment, rebuild, state
 from utils.site_scope import site_in_scope
 from utils.timeline_activity import daily_camera_counts, split_into_segments
 
@@ -61,6 +61,10 @@ class DeploymentListItem(BaseModel):
     site_source: str = 'auto'
     # Runs of days with photos, for the marks on the bars.
     photo_days: List[DaySpan] = []
+    # When a person checked it on the Deployments page, NULL = still to check
+    # (only shown for deployments the GPS made). checked_by is their email.
+    checked_at: Optional[str] = None
+    checked_by: Optional[str] = None
 
 
 class UnplacedPhotos(BaseModel):
@@ -107,11 +111,12 @@ async def list_deployments(
                        ST_Y(d.location::geometry) AS lat,
                        ST_X(d.location::geometry) AS lon,
                        d.start_date, d.end_date, d.start_at, d.end_at, d.last_photo_at,
-                       d.site_source,
+                       d.site_source, d.checked_at, u.email AS checked_by,
                        (SELECT count(*) FROM images i WHERE i.deployment_id = d.id) AS image_count
                 FROM deployments d
                 JOIN cameras c ON c.id = d.camera_id
                 LEFT JOIN sites s ON s.id = d.site_id
+                LEFT JOIN users u ON u.id = d.checked_by_user_id
                 WHERE c.project_id = :project_id{scope_sql}
                 ORDER BY d.start_at, d.id
             """),
@@ -157,6 +162,8 @@ async def list_deployments(
                 image_count=r["image_count"],
                 site_source=r["site_source"],
                 photo_days=_spans(days_by_deployment.get(r["id"], [])),
+                checked_at=r["checked_at"].isoformat() if r["checked_at"] else None,
+                checked_by=r["checked_by"],
             )
             for r in rows
         ],
@@ -287,6 +294,24 @@ async def _camera_in_project(db: AsyncSession, project_id: int, camera_id: int) 
     return camera
 
 
+async def _camera_site_ids(db: AsyncSession, camera_id: int) -> set[Optional[int]]:
+    return set((
+        await db.execute(select(Deployment.site_id).where(Deployment.camera_id == camera_id))
+    ).scalars())
+
+
+async def _deployment_in_project(db: AsyncSession, project_id: int, deployment_id: int) -> Deployment:
+    deployment = (
+        await db.execute(
+            select(Deployment).join(Camera, Camera.id == Deployment.camera_id)
+            .where(Deployment.id == deployment_id, Camera.project_id == project_id)
+        )
+    ).scalar_one_or_none()
+    if deployment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
+    return deployment
+
+
 async def _deployment_count(db: AsyncSession, camera_id: int) -> int:
     return (
         await db.execute(select(func.count(Deployment.id)).where(Deployment.camera_id == camera_id))
@@ -356,7 +381,9 @@ async def set_deployment(
 
     from_at, until_at = period_of_days(request.from_date, request.until_date)
     before = await _deployment_count(db, request.camera_id)
+    sites_before = await _camera_site_ids(db, request.camera_id)
     await state(db, request.camera_id, request.site_id, from_at, until_at, user.id)
+    await drop_unnamed_sites_left_empty(db, sites_before)
     merged = max(0, before - await _deployment_count(db, request.camera_id))
     await db.commit()
     logger.info(
@@ -395,6 +422,103 @@ async def remove_statement(
     await rebuild(db, [row.camera_id])
     await db.commit()
     logger.info("Removed fixed period", project_id=project_id, statement_id=statement_id)
+
+
+# Checking what the GPS did (the "To check" list on the Deployments page).
+# To check = a deployment the GPS made that nobody checked yet, plus each
+# camera with photos that have no site. Checking only records that a person
+# looked; it fixes nothing. A correction writes a fixed period instead.
+
+
+class CheckedRequest(BaseModel):
+    deployment_ids: List[int]
+    checked: bool
+
+
+class CheckedResponse(BaseModel):
+    updated: int
+
+
+@router.put("/checked", response_model=CheckedResponse)
+async def set_checked(
+    project_id: int,
+    request: CheckedRequest,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """Mark deployments as checked, or back to check (Undo)."""
+    result = await db.execute(
+        text("""
+            UPDATE deployments d
+            SET checked_at = CASE WHEN :checked THEN now() END,
+                checked_by_user_id = CASE WHEN :checked THEN CAST(:user_id AS integer) END
+            FROM cameras c
+            WHERE c.id = d.camera_id AND c.project_id = :project_id AND d.id = ANY(:ids)
+        """),
+        {"checked": request.checked, "user_id": user.id, "project_id": project_id,
+         "ids": request.deployment_ids},
+    )
+    await db.commit()
+    logger.info("Set deployments checked", project_id=project_id, checked=request.checked,
+                count=result.rowcount)
+    return CheckedResponse(updated=result.rowcount)
+
+
+# The same rule as the list in the browser (components/deployments/
+# review-items.ts): GPS deployments not checked, plus cameras with photos
+# without a site. Hidden photos do not count, as in the list.
+TO_CHECK_COUNT_SQL = """
+    SELECT
+      (SELECT count(*) FROM deployments d JOIN cameras c ON c.id = d.camera_id
+        WHERE c.project_id = :project_id AND d.site_source = 'auto' AND d.checked_at IS NULL)
+    + (SELECT count(DISTINCT i.camera_id) FROM images i JOIN cameras c ON c.id = i.camera_id
+        WHERE c.project_id = :project_id AND i.deployment_id IS NULL AND NOT i.is_hidden)
+"""
+
+
+class ToCheckCount(BaseModel):
+    count: int
+
+
+@router.get("/to-check-count", response_model=ToCheckCount)
+async def to_check_count(
+    project_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """How many entries the To check list has, for the sidebar badge."""
+    count = (await db.execute(text(TO_CHECK_COUNT_SQL), {"project_id": project_id})).scalar_one()
+    return ToCheckCount(count=count)
+
+
+@router.post("/{deployment_id}/not-moved", response_model=SetDeploymentResponse)
+async def not_moved(
+    project_id: int,
+    deployment_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """
+    The GPS saw a move that did not happen. One fixed period over both
+    deployments, at the site before the move: the camera stood there all
+    along. The rebuild folds the two into one, and a site the app made for
+    the false place goes when nothing else uses it.
+    """
+    deployment = await _deployment_in_project(db, project_id, deployment_id)
+    before_move = await previous_deployment(db, deployment)
+    if before_move is None or before_move.site_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="There is no deployment right before this one, so there is no move to take back",
+        )
+    before = await _deployment_count(db, deployment.camera_id)
+    false_site = deployment.site_id
+    await state(db, deployment.camera_id, before_move.site_id, before_move.start_at, deployment.end_at, user.id)
+    await drop_unnamed_sites_left_empty(db, [false_site])
+    merged = max(0, before - await _deployment_count(db, deployment.camera_id))
+    await db.commit()
+    logger.info("It did not move", project_id=project_id, deployment_id=deployment_id)
+    return SetDeploymentResponse(merged=merged)
 
 
 class DeploymentThumbnails(BaseModel):

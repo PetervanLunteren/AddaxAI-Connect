@@ -40,8 +40,8 @@ from shared.database import engine  # noqa: E402
 @pytest.fixture(autouse=True)
 def empty_tables():
     """Every test starts from an empty project space. CASCADE takes every
-    table that points at these (deployments, statements, images, feed
-    entries, health reports, memberships). server_settings stays, as the
+    table that points at these (deployments, statements, images, health
+    reports, memberships). server_settings stays, as the
     migrations made it."""
     with engine.begin() as conn:
         conn.execute(text("TRUNCATE projects, cameras, users, sites RESTART IDENTITY CASCADE"))
@@ -153,19 +153,6 @@ def make_image(camera_id: int, deployment_id: Optional[int], captured_at: dateti
     return image_uuid
 
 
-def make_feed_event(
-    project_id: int, camera_id: int, event_type: str, deployment_id: int,
-    site_id: Optional[int], site_created: bool, from_site_id: Optional[int] = None,
-) -> int:
-    return execute(
-        """INSERT INTO feed_events
-             (project_id, camera_id, event_type, deployment_id, site_id, site_created, from_site_id)
-           VALUES (:p, :c, :t, :d, :s, :sc, :f) RETURNING id""",
-        p=project_id, c=camera_id, t=event_type, d=deployment_id, s=site_id,
-        sc=site_created, f=from_site_id,
-    )
-
-
 def deployments(camera_id: int) -> list:
     """The camera's deployments in time order, with the pin as lat and lon.
     Numbers are given once and never reshuffled, so after an old SD card
@@ -196,8 +183,15 @@ def site(site_id: int):
     return found[0] if found else None
 
 
-def feed(camera_id: int) -> list:
-    return rows("SELECT * FROM feed_events WHERE camera_id = :c ORDER BY id", c=camera_id)
+def to_check(camera_id: int) -> list:
+    """The camera's deployments that are on the To check list: made by the
+    GPS and not checked yet, in time order."""
+    return rows(
+        """SELECT id, site_id FROM deployments
+           WHERE camera_id = :c AND site_source = 'auto' AND checked_at IS NULL
+           ORDER BY start_at""",
+        c=camera_id,
+    )
 
 
 def image_deployment(image_uuid: str) -> Optional[int]:

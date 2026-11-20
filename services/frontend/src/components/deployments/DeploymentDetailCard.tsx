@@ -1,19 +1,16 @@
 /**
  * What the Deployments page says about the selected deployment: where and
  * when, how many photos, and in words why it starts where it does. Below
- * that the camera's fixed periods with who set them. Read only: changes are
- * made in the camera panel, which the link opens.
+ * that Set deployment and the camera's fixed periods with Remove, the same
+ * list as in the camera panel.
  */
 import { Link } from 'react-router-dom';
-import { Camera as CameraIcon, X } from 'lucide-react';
-import type { DeploymentListItem, DeploymentStart, FixedPeriod } from '../../api/deployments';
-import { formatDate, formatDateTime } from '../../utils/datetime';
+import { Camera as CameraIcon, MapPinPlus, X } from 'lucide-react';
+import type { DeploymentListItem, DeploymentStart } from '../../api/deployments';
+import { formatDateTime } from '../../utils/datetime';
 import { Button } from '../ui/Button';
-
-// Plain day labels from YYYY-MM-DD, never shifted by the browser's timezone.
-const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
-
-const metres = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+import { FixedPeriodsList, dayLabel } from './FixedPeriodsList';
+import { metresLabel as metres } from './review-items';
 
 /** The reason in words. */
 function startReason(start: DeploymentStart | undefined, thresholdM: number): string | null {
@@ -30,23 +27,16 @@ function startReason(start: DeploymentStart | undefined, thresholdM: number): st
   return 'Starts at the first photo here. There was no earlier place to compare with.';
 }
 
-function periodSource(p: FixedPeriod): string {
-  if (p.source === 'upload') return 'set by an upload';
-  if (p.source === 'carried_over') return 'kept from before the update';
-  const when = dayLabel(p.created_at.slice(0, 10));
-  return p.created_by ? `set by ${p.created_by} on ${when}` : `set on ${when}`;
-}
-
 interface Props {
   projectId: number;
   deployment: DeploymentListItem;
   start: DeploymentStart | undefined;
   thresholdM: number | undefined;
-  fixedPeriods: FixedPeriod[] | undefined;
+  onSetDeployment: () => void;
   onClose: () => void;
 }
 
-export function DeploymentDetailCard({ projectId, deployment: d, start, thresholdM, fixedPeriods, onClose }: Props) {
+export function DeploymentDetailCard({ projectId, deployment: d, start, thresholdM, onSetDeployment, onClose }: Props) {
   const reason = thresholdM !== undefined ? startReason(start, thresholdM) : null;
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 text-sm">
@@ -78,26 +68,19 @@ export function DeploymentDetailCard({ projectId, deployment: d, start, threshol
         )}
       </div>
 
-      {(fixedPeriods ?? []).length > 0 && (
-        <div>
-          <div className="font-medium">Fixed periods of this camera</div>
-          <ul className="mt-1 space-y-1">
-            {(fixedPeriods ?? []).map((p) => (
-              <li key={p.id} className="text-muted-foreground">
-                {p.site_name}, {dayLabel(p.from_date)} to {p.until_date ? dayLabel(p.until_date) : 'now'},{' '}
-                {periodSource(p)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <Button size="sm" variant="outline" onClick={onSetDeployment}>
+        <MapPinPlus className="h-4 w-4 mr-2" />
+        Set deployment
+      </Button>
+
+      <FixedPeriodsList projectId={projectId} cameraId={d.camera_id} />
 
       <Link
         to={`/projects/${projectId}/cameras?camera=${d.camera_id}`}
         className="inline-flex items-center gap-1.5 text-primary hover:underline"
       >
         <CameraIcon className="h-4 w-4" />
-        Open the camera to change its deployments
+        Open the camera
       </Link>
     </div>
   );

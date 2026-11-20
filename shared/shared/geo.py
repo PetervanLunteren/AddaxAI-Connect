@@ -2,6 +2,7 @@
 Shared geographic constants and helpers for the spatial model.
 """
 import math
+import re
 
 # The single distance threshold that drives sites and deployments.
 #
@@ -30,6 +31,21 @@ SITE_THRESHOLD_METERS = 250.0
 # case; the cost is that a real move sending only one reading before the camera
 # dies attaches to the old deployment. See build_deployments in deployment_build.py.
 RELOCATION_CONFIRMATIONS = 2
+
+# The placeholder name of a site the app made for a new place, until a person
+# names it. A site that still carries it was named by nobody, so the app may
+# remove it once nothing uses it (utils/deployment_edits.py). The front end
+# has the same pattern in utils/site-names.ts.
+_AUTO_SITE_NAME = re.compile(r"^Site at -?\d+\.\d+, -?\d+\.\d+$")
+
+
+def auto_site_name(lat: float, lon: float) -> str:
+    return f"Site at {lat:.4f}, {lon:.4f}"
+
+
+def is_auto_site_name(name: str) -> bool:
+    return bool(_AUTO_SITE_NAME.match(name or ""))
+
 
 def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """

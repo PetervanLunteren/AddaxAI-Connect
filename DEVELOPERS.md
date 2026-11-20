@@ -38,7 +38,7 @@ project-wide.
 
 The rules for a restricted viewer:
 - Hard hide: out-of-scope sites do not exist for them anywhere (site
-  lists, cameras, images, statistics, exports, feed, image bytes).
+  lists, cameras, images, statistics, exports, image bytes).
   Totals mean totals over their sites.
 - Fail closed: data without a resolved site (images with no deployment,
   rejections, inventory cameras) is invisible to them.
@@ -267,7 +267,6 @@ addaxai-connect/
 │   │   │   ├── service.py             # Service visits (the log) and planned service tasks
 │   │   │   ├── sites.py               # Site CRUD
 │   │   │   ├── deployments.py         # Deployment list and change site
-│   │   │   ├── feed.py                # Camera updates feed (list, resolve, seen)
 │   │   │   ├── images.py              # Image queries
 │   │   │   ├── image_admin.py         # Image admin operations
 │   │   │   ├── bulk_upload.py         # Bulk-upload job management
@@ -296,7 +295,6 @@ addaxai-connect/
 │   │       ├── activity_analysis.py   # Activity pattern analysis
 │   │       ├── camera_recency.py      # Per-camera last-capture / last-arrival lookups
 │   │       ├── deployment_edits.py    # Statements and rebuilds for the routers
-│   │       ├── feed.py                # Feed candidate-site helper
 │   │       ├── detection_filtering.py # Detection confidence and class filtering
 │   │       ├── occupancy_model.py     # Naive occupancy estimation
 │   │       ├── preferred_counts.py    # Preferred per-image counts
@@ -738,6 +736,27 @@ The Deployments page (step 3a, project admins only) reads two endpoints:
   reason is never stored: the endpoint runs `build_history` again on what
   `load_history` reads, the same two calls the rebuild makes, and matches a
   built deployment to its row by `start_at`.
+
+**To check** (step 3b) replaced the camera updates panel and its
+`feed_events` table. One rule, on the deployments themselves:
+
+- A deployment the GPS made (`site_source = 'auto'`) with `checked_at` NULL
+  is to check, and so is each camera with photos without a site. The
+  rebuild makes new rows unchecked and keeps the mark on rows it keeps.
+- Correct (`PUT .../deployments/checked`) only records who looked and when.
+  It fixes nothing: the GPS can still change the deployment.
+- Change site writes a fixed period through `POST .../statements`. It did
+  not move (`POST .../deployments/{id}/not-moved`) writes one fixed period
+  over the deployment before the move and this one, at the old site.
+- A correction deletes a site it emptied when that site still has the name
+  the app gave it (`drop_unnamed_sites_left_empty` in
+  `utils/deployment_edits.py`, `is_auto_site_name` in `shared/geo.py`). A
+  site a person named is never deleted by the app.
+- The list is built in the browser (`components/deployments/review-items.ts`);
+  the sidebar badge counts the same rule in SQL (`TO_CHECK_COUNT_SQL` in
+  `routers/deployments.py`). `tests/db_api/test_review.py` holds the two
+  together.
+- The carry-over marks the rows it makes as checked: old history is no news.
 
 Its timeline shares the axis, scale, drag to zoom and tooltip with the
 Insights timeline through `components/plots/timeline-scale.tsx`, and its

@@ -334,6 +334,11 @@ class Deployment(Base):
     # next_mean_pin), so it converges on the true spot instead of staying
     # anchored on the first fix. Starts at 1 (the creation reading).
     gps_reading_count = Column(Integer, nullable=False, server_default='1')
+    # When and by whom a person checked a deployment the GPS made, on the
+    # Deployments page. NULL = still to check. Checking fixes nothing: the GPS
+    # can still change the deployment later. Only a fixed period does that.
+    checked_at = Column(DateTime(timezone=True), nullable=True)
+    checked_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
@@ -988,52 +993,6 @@ class Rejection(Base):
     rejected_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
-
-
-class FeedEvent(Base):
-    """
-    One entry in a project's camera updates feed.
-
-    Written by ingestion when a deployment is created: a camera sent its first
-    image (camera_first_seen), or a confirmed relocation opened a new
-    deployment (camera_moved). Entries report what the system already did;
-    they never block ingestion. Each entry has one shared state: needs review
-    (resolved_action NULL) or reviewed. A project admin reviews it by
-    correcting it (rename the site, pick another site, split off a new site,
-    undo a move) or by confirming it as is; that stamps the resolved_*
-    columns for everyone. No personal read state on purpose.
-    """
-    __tablename__ = "feed_events"
-
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
-    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
-    event_type = Column(String(30), nullable=False)  # 'camera_first_seen' | 'camera_moved'
-    # The deployment the event created and the site it was put on. SET NULL
-    # so entries survive later merges and site deletions (they then render
-    # read-only where an action needs the missing row).
-    deployment_id = Column(Integer, ForeignKey("deployments.id", ondelete="SET NULL"), nullable=True)
-    site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True)
-    # Where the camera stood before a move. NULL for camera_first_seen.
-    from_site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True)
-    distance_m = Column(Float, nullable=True)  # move distance; NULL for camera_first_seen
-    # Whether the site was auto-created for this deployment (vs an existing
-    # site reused). Drives the entry copy, and the "new site" action only
-    # shows when the site already existed.
-    site_created = Column(Boolean, nullable=False, server_default='false')
-    # The site's name when the event happened, frozen. The live name can be
-    # renamed later; the entry must keep saying what the site was called at
-    # the time ("automatically named Site at 53.2460, 5.2620").
-    original_site_name = Column(String(255), nullable=True)
-    # Server wall-clock (aware UTC), the feed sort key and unseen-badge cutoff.
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
-    # Which action a human took on this entry, if any. Re-resolving is allowed
-    # (a user can change their mind); the last action wins.
-    # 'rename_site' | 'set_site' | 'new_site' | 'not_moved' | 'confirmed'
-    # ('confirmed' = nothing to change, closes the entry without side effects)
-    resolved_action = Column(String(20), nullable=True)
-    resolved_at = Column(DateTime(timezone=True), nullable=True)
-    resolved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
 
 class TelegramConfig(Base):

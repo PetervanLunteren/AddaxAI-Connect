@@ -205,7 +205,15 @@ def carry_over_camera(session: Session, camera_id: int, device_id: str,
             result.statements += 1
         result.skipped_without_site = sum(1 for s in stored if s.site_id is None)
 
-    rebuild_camera(session, camera_id, announce=False)
+    unchecked_before = set(session.execute(text(
+        "SELECT id FROM deployments WHERE camera_id = :c AND checked_at IS NULL"), {"c": camera_id}).scalars())
+    rebuild_camera(session, camera_id)
+    # Rows the carry-over makes are old history, not news: they count as
+    # checked. Rows that were still to check before stay that way.
+    session.execute(text("""
+        UPDATE deployments SET checked_at = now()
+        WHERE camera_id = :c AND checked_at IS NULL AND NOT (id = ANY(:keep))
+    """), {"c": camera_id, "keep": list(unchecked_before)})
 
     after_stored, after_photos = load(session, camera_id)
     result.exceptions = gate(

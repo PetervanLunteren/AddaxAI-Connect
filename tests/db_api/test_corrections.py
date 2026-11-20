@@ -1,14 +1,15 @@
 """
 How people correct deployments and sites: change the site of a deployment,
-the five actions of the camera updates panel, and site merge and delete. The
-routes are called directly with a real session.
+"It did not move", and site merge and delete. The routes are called directly
+with a real session.
 
 Written in step 1a against code that deleted deployment rows to correct
 them. Since step 2a every correction writes a statement and rebuilds the
 camera, and each scenario starts from real photos and a real rebuild. Three
-outcomes changed on purpose and say so: New site removes the auto site it
-emptied, a site merge joins back to back deployments, and a site in use
-cannot be deleted.
+outcomes changed on purpose and say so: a correction removes the unnamed
+site it emptied, a site merge joins back to back deployments, and a site in
+use cannot be deleted. Since step 3b the camera updates panel is gone: its
+answers live on the Deployments page (routers/deployments.py).
 """
 from datetime import timedelta
 
@@ -16,11 +17,10 @@ import pytest
 from fastapi import HTTPException
 
 from deployment_db import (
-    DAY, HOME, at, close, deployments, execute, feed, image_deployment, make_camera,
+    DAY, HOME, at, close, deployments, execute, image_deployment, make_camera,
     make_image, make_project, make_site, make_user, offset, rows, scalar, site,
 )
-from routers.deployments import SetDeploymentRequest, set_deployment
-from routers.feed import ResolveFeedEventRequest, resolve_event, review_all
+from routers.deployments import SetDeploymentRequest, not_moved, set_deployment
 from routers.sites import MergeSiteRequest, delete_site, merge_site
 
 pytestmark = pytest.mark.asyncio
@@ -45,22 +45,15 @@ def history(camera_id: int, photos: list) -> list[str]:
 @pytest.fixture
 def moved_camera():
     """A camera at site Home on days 2 and 3, then 1.5 km east on days 10 and
-    11: the app saw a move and made an auto site there, with a feed entry."""
+    11: the app saw a move and made an unnamed site there."""
     project = make_project()
     cam = make_camera("CAM01", project)
     home = make_site(project, "Home", HOME)
     images = history(cam, [(HOME, at(2)), (HOME, at(3)), (FAR, at(10)), (FAR, at(11))])
     first, second = deployments(cam)
-    event = feed(cam)[-1]
-    assert event["event_type"] == "camera_moved" and event["site_created"]
+    assert site(second["site_id"])["name"].startswith("Site at ")
     return dict(project=project, cam=cam, home=home, far=second["site_id"],
-                first=first["id"], second=second["id"], images=images, event=event["id"])
-
-
-async def resolve(session, admin, m, **request):
-    return await resolve_event(
-        m["project"], m["event"], ResolveFeedEventRequest(**request), session, admin,
-    )
+                first=first["id"], second=second["id"], images=images)
 
 
 async def change_site(session, admin, project, deployment_id, site_id):
@@ -73,10 +66,6 @@ async def change_site(session, admin, project, deployment_id, site_id):
                              from_date=dep["start_date"], until_date=dep["end_date"]),
         session, admin,
     )
-
-
-def event_row(event_id):
-    return rows("SELECT * FROM feed_events WHERE id = :e", e=event_id)[0]
 
 
 def statements(camera_id):
@@ -193,12 +182,12 @@ async def test_a_chain_of_three_folds_into_one(session, admin):
     assert dep["id"] == first["id"] and dep["end_date"] is None
 
 
-# The camera updates panel
+# It did not move, and the unnamed site a correction empties
 
 
-async def test_it_did_not_move_folds_back_and_removes_the_auto_site(session, admin, moved_camera):
+async def test_it_did_not_move_folds_back_and_removes_the_unnamed_site(session, admin, moved_camera):
     m = moved_camera
-    result = await resolve(session, admin, m, action="not_moved")
+    result = await not_moved(m["project"], m["second"], session, admin)
 
     assert result.merged == 1
     [dep] = deployments(m["cam"])
@@ -206,84 +195,41 @@ async def test_it_did_not_move_folds_back_and_removes_the_auto_site(session, adm
     for image in m["images"]:
         assert image_deployment(image) == m["first"]
     assert site(m["far"]) is None
-    event = event_row(m["event"])
-    assert event["resolved_action"] == "not_moved"
-    assert event["site_id"] == m["home"]
-    assert event["resolved_by_user_id"] == admin.id
-    # The moved deployment is gone, so the link is gone.
-    assert event["deployment_id"] is None
     [statement] = statements(m["cam"])
     assert statement["from_at"] == at(2) and statement["site_id"] == m["home"]
+    assert statement["created_by_user_id"] == admin.id
 
 
-async def test_it_did_not_move_twice_is_out_of_date(session, admin, moved_camera):
+async def test_it_did_not_move_twice_finds_no_deployment(session, admin, moved_camera):
     m = moved_camera
-    await resolve(session, admin, m, action="not_moved")
+    await not_moved(m["project"], m["second"], session, admin)
     with pytest.raises(HTTPException) as err:
-        await resolve(session, admin, m, action="not_moved")
+        await not_moved(m["project"], m["second"], session, admin)
+    assert err.value.status_code == 404
+
+
+async def test_it_did_not_move_needs_a_deployment_before(session, admin, moved_camera):
+    m = moved_camera
+    with pytest.raises(HTTPException) as err:
+        await not_moved(m["project"], m["first"], session, admin)
     assert err.value.status_code == 409
 
 
-async def test_set_site_moves_the_deployment_and_removes_the_auto_site(session, admin, moved_camera):
+async def test_change_site_removes_the_unnamed_site_it_emptied(session, admin, moved_camera):
     m = moved_camera
     other = make_site(m["project"], "Other", offset(FAR, east_m=50))
-    result = await resolve(session, admin, m, action="set_site", site_id=other)
+    await change_site(session, admin, m["project"], m["second"], other)
 
-    assert result.merged == 0
     assert deployments(m["cam"])[1]["site_id"] == other
     assert site(m["far"]) is None
-    assert event_row(m["event"])["site_id"] == other
 
 
-async def test_new_site_also_removes_the_auto_site_it_emptied(session, admin, moved_camera):
-    """Changed in 2a. Before, new_site left the emptied auto site behind,
-    unlike set_site and not_moved."""
+async def test_a_site_somebody_named_is_never_removed(session, admin, moved_camera):
     m = moved_camera
-    await resolve(session, admin, m, action="new_site", name="Ridge")
-
-    second = deployments(m["cam"])[1]
-    ridge = site(second["site_id"])
-    assert ridge["name"] == "Ridge"
-    assert close(ridge["lon"], FAR[1])
-    assert second["site_source"] == "manual"
-    assert site(m["far"]) is None
-
-
-async def test_new_site_with_a_name_in_use_is_refused(session, admin, moved_camera):
-    m = moved_camera
-    with pytest.raises(HTTPException) as err:
-        await resolve(session, admin, m, action="new_site", name="Home")
-    assert err.value.status_code == 409
-
-
-async def test_rename_site_renames_only(session, admin, moved_camera):
-    m = moved_camera
-    await resolve(session, admin, m, action="rename_site", name="Ridge")
+    execute("UPDATE sites SET name = 'Ridge' WHERE id = :s", s=m["far"])
+    await not_moved(m["project"], m["second"], session, admin)
 
     assert site(m["far"])["name"] == "Ridge"
-    assert len(deployments(m["cam"])) == 2
-    assert event_row(m["event"])["resolved_action"] == "rename_site"
-    assert statements(m["cam"]) == []
-
-
-async def test_confirmed_changes_nothing_but_the_entry(session, admin, moved_camera):
-    m = moved_camera
-    before = deployments(m["cam"])
-    await resolve(session, admin, m, action="confirmed")
-
-    assert deployments(m["cam"]) == before
-    assert event_row(m["event"])["resolved_action"] == "confirmed"
-
-
-async def test_review_all_confirms_every_open_entry(session, admin, moved_camera):
-    m = moved_camera
-    other_cam = make_camera("CAM02", m["project"])
-    history(other_cam, [(offset(HOME, north_m=20), at(1))])
-
-    result = await review_all(m["project"], session, admin, None)
-
-    assert result.reviewed == 3  # two entries of CAM01, one of CAM02
-    assert scalar("SELECT count(*) FROM feed_events WHERE resolved_action IS NULL") == 0
 
 
 # Site merge and delete

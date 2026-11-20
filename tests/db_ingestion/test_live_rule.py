@@ -13,7 +13,7 @@ import pytest
 
 import db_operations as ingest
 from deployment_db import (
-    DAY, HOME, at, close, deployments, feed, image_deployment,
+    DAY, HOME, at, close, deployments, image_deployment, to_check,
     make_camera, make_deployment, make_project, offset, rows, sites,
 )
 
@@ -57,10 +57,8 @@ def test_first_photo_opens_a_deployment_on_a_new_site(project, camera):
     assert image_deployment(image) == dep["id"]
     assert rows("SELECT gps_lat, gps_lon FROM images WHERE uuid = :u", u=image)[0] == \
         {"gps_lat": HOME[0], "gps_lon": HOME[1]}
-    [event] = feed(camera)
-    assert event["event_type"] == "camera_first_seen"
-    assert event["site_created"] is True and event["from_site_id"] is None
-    assert event["deployment_id"] == dep["id"]
+    # The GPS made it, so it waits on the To check list.
+    assert [d["id"] for d in to_check(camera)] == [dep["id"]]
 
 
 def test_readings_in_range_stay_on_one_deployment_and_the_pin_is_their_mean(project, camera):
@@ -75,7 +73,7 @@ def test_readings_in_range_stay_on_one_deployment_and_the_pin_is_their_mean(proj
     # The site pin is the centroid of its deployments, here the one pin.
     [s] = sites(project)
     assert close(s["lat"], dep["lat"]) and close(s["lon"], dep["lon"])
-    assert len(feed(camera)) == 1
+    assert len(to_check(camera)) == 1
 
 
 def test_an_older_photo_arriving_late_moves_the_start_back(camera):
@@ -97,7 +95,7 @@ def test_one_far_reading_is_held_and_dropped_when_the_camera_reads_home_again(ca
     assert image_deployment(noise) == dep["id"]
     assert dep["readings"] == 2
     assert close(dep["lat"], HOME[0]) and close(dep["lon"], HOME[1])
-    assert len(feed(camera)) == 1
+    assert len(to_check(camera)) == 1
 
 
 def test_two_far_readings_confirm_a_move_dated_back_to_the_first(project, camera):
@@ -121,11 +119,7 @@ def test_two_far_readings_confirm_a_move_dated_back_to_the_first(project, camera
     assert first["end_at"] == second["start_at"] == at(10)
     assert len(sites(project)) == 2
 
-    moved = feed(camera)[-1]
-    assert moved["event_type"] == "camera_moved"
-    assert moved["from_site_id"] == first["site_id"]
-    assert moved["site_id"] == second["site_id"] and moved["site_created"] is True
-    assert 1490 < moved["distance_m"] < 1520
+    assert [d["id"] for d in to_check(camera)] == [first["id"], second["id"]]
 
 
 def test_two_far_readings_of_one_burst_also_confirm_a_move(camera):
@@ -167,8 +161,7 @@ def test_cameras_close_together_share_one_site(project):
     for i, cam in enumerate(cameras):
         [dep] = deployments(cam)
         assert dep["site_id"] == s["id"]
-        [event] = feed(cam)
-        assert event["site_created"] is (i == 0)
+        assert [d["id"] for d in to_check(cam)] == [dep["id"]]
 
 
 def test_rotating_cameras_land_on_the_existing_sites(project):
@@ -194,7 +187,6 @@ def test_rotating_cameras_land_on_the_existing_sites(project):
     back = [deployments(cam)[-1] for cam in cameras]
     assert [d["number"] for d in back] == [3, 3, 3]
     assert [d["site_id"] for d in back] == [station_sites[1], station_sites[2], station_sites[0]]
-    assert [feed(cam)[-1]["site_created"] for cam in cameras] == [False, False, False]
 
 
 def test_a_camera_without_project_gets_a_deployment_without_site():
@@ -203,7 +195,6 @@ def test_a_camera_without_project_gets_a_deployment_without_site():
 
     [dep] = deployments(cam)
     assert dep["site_id"] is None
-    assert feed(cam) == []
 
 
 def test_a_camera_that_joins_a_project_gets_a_site_on_its_next_photo(project):
@@ -219,7 +210,6 @@ def test_a_camera_that_joins_a_project_gets_a_site_on_its_next_photo(project):
     [dep] = deployments(cam)
     [s] = sites(project)
     assert dep["id"] == before["id"] and dep["site_id"] == s["id"]
-    assert feed(cam) == []
 
 
 @pytest.mark.parametrize("gps", [(0.0, 0.0), (91.0, 5.0), (53.0, 181.0)])
@@ -255,11 +245,11 @@ def test_a_rebuild_without_news_changes_nothing(project, camera):
     photo(camera, HOME, at(1))
     photo(camera, FAR_FOR_TESTS, at(5))
     photo(camera, FAR_FOR_TESTS, at(6))
-    before = (deployments(camera), sites(project), feed(camera))
+    before = (deployments(camera), sites(project), to_check(camera))
     with get_db_session() as session:
         result = rebuild_camera(session, camera)
     assert (result.created, result.deleted) == ((), 0)
-    assert (deployments(camera), sites(project), feed(camera)) == before
+    assert (deployments(camera), sites(project), to_check(camera)) == before
 
 
 FAR_FOR_TESTS = offset(HOME, east_m=1500)

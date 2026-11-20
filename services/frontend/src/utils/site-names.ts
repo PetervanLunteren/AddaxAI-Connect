@@ -1,15 +1,14 @@
 /**
  * The placeholder name a site gets when nobody named it yet.
  *
- * Ingestion writes it when it auto-creates a site
- * (`services/ingestion/db_operations.py`, `_resolve_site`), and
- * `scripts/backfill_sites.py` uses the same format. Four decimals, a comma
- * and a space. Change one and change all of them.
+ * The rebuild writes it when it makes a site for a new place
+ * (`auto_site_name` and `is_auto_site_name` in `shared/shared/geo.py`).
+ * Four decimals, a comma and a space. Change one and change both.
  *
- * The two halves live together on purpose: the feed both writes such a name
- * (the "new site" dialog prefills it) and recognises one (an auto-named site
- * gets the "name this site" nudge). If the writer and the reader drift, the
- * nudge stops appearing on exactly the sites that need it.
+ * The two halves live together on purpose: the site form prefills such a
+ * name and the Deployments page recognises one (an auto-named site gets
+ * "Name this site", and the server removes it once a correction empties
+ * it). If the writer and the reader drift, both stop working.
  */
 
 // The placeholder for a spot, e.g. "Site at 52.8747, 6.8522".

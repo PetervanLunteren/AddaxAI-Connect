@@ -21,7 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .deployment_build import BuiltDeployment, Reading, Statement, build_deployments
-from .geo import RECOMPUTE_SITE_LOCATION_SQL, SITE_THRESHOLD_METERS, calculate_gps_distance, combine_pins
+from .geo import RECOMPUTE_SITE_LOCATION_SQL, SITE_THRESHOLD_METERS, auto_site_name, combine_pins
 from .logger import get_logger
 
 logger = get_logger("deployment-rebuild")
@@ -166,14 +166,15 @@ def link_photos(deployments: Sequence[BuiltDeployment], photos: Sequence[Photo])
 # The database
 
 
-def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> RebuildResult:
+def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
     """
     Bring the deployments of one camera in line with its readings and
     statements. Does not commit: the caller's transaction decides, so a photo
     and the rebuild it causes are saved together or not at all.
 
-    announce=False skips the camera updates feed entries for new deployments.
-    The carry-over uses it, so old history does not show up as news.
+    A new deployment row starts unchecked (checked_at NULL). If the GPS made
+    it, it shows on the Deployments page under "To check" until a person
+    looks at it. A kept row keeps its mark.
 
     Raises:
         ValueError: unknown camera.
@@ -246,8 +247,6 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
             next_number += 1
             created.append(p.row_id)
             touched_sites.add(p.site_id)
-            if announce and b.statement_id is None and camera.project_id is not None:
-                _announce(session, camera.project_id, camera_id, p, planned[index - 1] if index else None)
         elif _differs(old, p, lat, lon, values["source"]):
             session.execute(text("""
                 UPDATE deployments
@@ -389,37 +388,7 @@ def _nearest_or_new_site(session: Session, project_id: int, lat: float, lon: flo
         RETURNING id
     """), {
         "uuid": str(uuid.uuid4()), "project_id": project_id,
-        "name": f"Site at {lat:.4f}, {lon:.4f}", "wkt": wkt,
+        "name": auto_site_name(lat, lon), "wkt": wkt,
     }).scalar_one()
     logger.info("Auto-created site", site_id=site_id, project_id=project_id)
     return site_id, True
-
-
-def _announce(session: Session, project_id: int, camera_id: int, new: Planned,
-              previous: Optional[Planned]) -> None:
-    """One camera updates feed entry for a deployment GPS just made. It moved
-    when it starts where the previous one ends, else the camera appeared."""
-    moved = previous is not None and previous.built.end_at == new.built.start_at
-    distance = None
-    if moved and previous.built.lat is not None:
-        distance = round(calculate_gps_distance(
-            previous.built.lat, previous.built.lon, new.built.lat, new.built.lon,
-        ), 1)
-    site_name = session.execute(
-        text("SELECT name FROM sites WHERE id = :id"), {"id": new.site_id},
-    ).scalar()
-    session.execute(text("""
-        INSERT INTO feed_events (
-            project_id, camera_id, event_type, deployment_id, site_id,
-            site_created, original_site_name, from_site_id, distance_m
-        ) VALUES (
-            :project_id, :camera_id, :event_type, :deployment_id, :site_id,
-            :site_created, :site_name, :from_site_id, :distance_m
-        )
-    """), {
-        "project_id": project_id, "camera_id": camera_id,
-        "event_type": "camera_moved" if moved else "camera_first_seen",
-        "deployment_id": new.row_id, "site_id": new.site_id,
-        "site_created": new.site_created, "site_name": site_name,
-        "from_site_id": previous.site_id if moved else None, "distance_m": distance,
-    })

@@ -1,9 +1,9 @@
 /**
  * "Unnamed" marker for a site that still carries its placeholder name.
  *
- * One chip, used on the camera updates feed and on the Sites page, so the
- * naming to-do looks the same wherever the site shows up and survives after
- * its feed entry has aged out. Renders nothing for a real name.
+ * One chip, used on the Sites page, so the naming to-do stays visible after
+ * its entry on the Deployments page was checked. Renders nothing for a
+ * real name.
  */
 import React from 'react';
 import { isAutoSiteName } from '../../utils/site-names';

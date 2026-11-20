@@ -1,6 +1,6 @@
 """
 How the API changes deployments: it writes a statement and rebuilds the
-camera. Shared by the deployments, feed, sites, cameras and image routers, so
+camera. Shared by the deployments, sites, cameras and image routers, so
 every correction goes the same way.
 
 Nothing here deletes or edits a deployment row. shared/deployment_rebuild.py
@@ -15,7 +15,11 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.deployment_rebuild import rebuild_camera
-from shared.models import Deployment, DeploymentStatement, Image
+from shared.geo import is_auto_site_name
+from shared.logger import get_logger
+from shared.models import Deployment, DeploymentStatement, Image, Site
+
+logger = get_logger("api.deployment_edits")
 
 
 async def rebuild(db: AsyncSession, camera_ids: Iterable[int]) -> None:
@@ -58,14 +62,6 @@ async def state(
     await rebuild(db, [camera_id])
 
 
-async def state_deployment_at_site(
-    db: AsyncSession, deployment: Deployment, site_id: int, user_id: Optional[int],
-) -> None:
-    """The period of this deployment was at this site. Change site in the
-    camera panel, and Set site and New site in the updates panel."""
-    await state(db, deployment.camera_id, site_id, deployment.start_at, deployment.end_at, user_id)
-
-
 async def previous_deployment(db: AsyncSession, deployment: Deployment) -> Optional[Deployment]:
     """The deployment of the same camera that ends where this one starts."""
     return (
@@ -89,3 +85,17 @@ async def site_is_used(db: AsyncSession, site_id: int) -> bool:
             {"id": site_id},
         )
     ).scalar())
+
+
+async def drop_unnamed_sites_left_empty(db: AsyncSession, site_ids: Iterable[Optional[int]]) -> None:
+    """After a correction, delete each of these sites that nothing uses any
+    more and that still has the name the app gave it. Nobody named it, so
+    it was only the app's guess for a place that turned out wrong (a false
+    move, a camera put on the wrong site). A site a person named is never
+    deleted by the app."""
+    for site_id in {s for s in site_ids if s is not None}:
+        site = await db.get(Site, site_id)
+        if site is not None and is_auto_site_name(site.name) and not await site_is_used(db, site_id):
+            await db.delete(site)
+            logger.info("Deleted an unnamed site nothing uses any more", site_id=site_id)
+    await db.flush()

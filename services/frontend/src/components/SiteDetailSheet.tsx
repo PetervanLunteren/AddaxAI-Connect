@@ -5,7 +5,7 @@
  * - Overview: editable key fields (name, habitat, notes) inline for admins,
  *   then a read-only card with coordinates and aggregate counts.
  * - History: a read-only journey of which cameras stood here over time.
- *   Corrections happen from the camera updates panel or the camera slideout.
+ *   Corrections happen on the Deployments page or in the camera slideout.
  *
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
@@ -474,7 +474,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
               )
             ) : (
               // History tab: a read-only journey of which cameras stood here
-              // over time. Corrections happen from the camera updates panel,
+              // over time. Corrections happen on the Deployments page,
               // or from the camera slideout's history for old placements.
               <div className="space-y-4">
                 {canEdit && <DeploymentsPageLink projectId={projectId} filter="sites" id={detail.id} />}

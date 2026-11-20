@@ -34,7 +34,6 @@ from sqlalchemy.orm import Session
 
 from shared.classification_models import DEEPFAUNE_ID
 from shared.config import get_settings
-from shared.geo import calculate_gps_distance
 from shared.storage import (
     BUCKET_PROJECT_DOCUMENTS, BUCKET_RAW_IMAGES, BUCKET_THUMBNAILS, StorageClient,
 )
@@ -2145,57 +2144,17 @@ def insert_deployments(session: Session, deployments: list, cam_index_to_id: dic
     return key_to_id
 
 
-def insert_feed_events(session: Session, deployments: list, cam_index_to_id: dict,
-                       site_key_to_id: dict, dep_key_to_id: dict, project_id: int) -> None:
-    """Seed the camera updates feed, mirroring what live ingestion writes.
-
-    One camera_first_seen per camera's first placement, resolved a day later
-    as a rename (the demo sites carry real names, so someone named them). One
-    camera_moved per relocation, left unresolved so the panel shows open
-    entries.
-    """
-    first_by_camera = {
-        dep["camera_index"]: dep for dep in deployments if dep["deployment_number"] == 1
-    }
+def mark_first_placements_checked(session: Session, deployments: list, dep_key_to_id: dict) -> None:
+    """Every camera's first placement counts as checked a day after it
+    started, as if someone looked. Relocations stay to check, so the
+    Deployments page shows open entries."""
     for dep in deployments:
-        created = datetime.combine(dep["start_date"], time(9, 12), tzinfo=timezone.utc)
-        if dep["deployment_number"] == 1:
-            event_type = "camera_first_seen"
-            from_site_id = None
-            distance_m = None
-            resolved_action = "rename_site"
-            resolved_at = created + timedelta(days=1)
-        else:
-            prev = first_by_camera[dep["camera_index"]]
-            event_type = "camera_moved"
-            from_site_id = site_key_to_id[prev["site_key"]]
-            distance_m = round(
-                calculate_gps_distance(prev["lat"], prev["lon"], dep["lat"], dep["lon"]), 1
-            )
-            resolved_action = None
-            resolved_at = None
+        if dep["deployment_number"] != 1:
+            continue
+        checked = datetime.combine(dep["start_date"], time(9, 12), tzinfo=timezone.utc) + timedelta(days=1)
         session.execute(
-            text("""
-                INSERT INTO feed_events (
-                    project_id, camera_id, event_type, deployment_id, site_id,
-                    from_site_id, distance_m, created_at, resolved_action, resolved_at
-                ) VALUES (
-                    :pid, :camera_id, :event_type, :dep_id, :site_id,
-                    :from_site_id, :distance_m, :created_at, :resolved_action, :resolved_at
-                )
-            """),
-            {
-                "pid": project_id,
-                "camera_id": cam_index_to_id[dep["camera_index"]],
-                "event_type": event_type,
-                "dep_id": dep_key_to_id[dep["key"]],
-                "site_id": site_key_to_id[dep["site_key"]],
-                "from_site_id": from_site_id,
-                "distance_m": distance_m,
-                "created_at": created,
-                "resolved_action": resolved_action,
-                "resolved_at": resolved_at,
-            },
+            text("UPDATE deployments SET checked_at = :at WHERE id = :id"),
+            {"at": checked, "id": dep_key_to_id[dep["key"]]},
         )
     session.flush()
 
@@ -2656,8 +2615,7 @@ def main():
         site_key_to_id = insert_sites(session, sites, project_id)
         cam_index_to_id = insert_cameras(session, cameras, project_id, species_image_info)
         dep_key_to_id = insert_deployments(session, deployments, cam_index_to_id, site_key_to_id)
-        insert_feed_events(session, deployments, cam_index_to_id, site_key_to_id,
-                           dep_key_to_id, project_id)
+        mark_first_placements_checked(session, deployments, dep_key_to_id)
         job_uuid_to_id = insert_bulk_jobs(session, [bulk_job], project_id, cam_index_to_id)
         device_to_cam_id = {cam["device_id"]: cam_index_to_id[cam["index"]] for cam in cameras}
         session.commit()

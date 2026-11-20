@@ -37,6 +37,9 @@ interface Props {
   cameraName: string;
   prefill: SetDeploymentPrefill;
   onClose: () => void;
+  // Open on "create a new site" at the prefilled spot: a click on an empty
+  // spot of the Deployments map.
+  newSite?: boolean;
 }
 
 function errMsg(err: unknown): string {
@@ -44,13 +47,13 @@ function errMsg(err: unknown): string {
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
 
-export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, cameraName, prefill, onClose }) => {
+export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, cameraName, prefill, onClose, newSite = false }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [siteId, setSiteId] = useState<number | null>(prefill.siteId);
   const [fromDate, setFromDate] = useState(prefill.fromDate);
   const [untilDate, setUntilDate] = useState(prefill.untilDate ?? '');
-  const [creatingSite, setCreatingSite] = useState(false);
+  const [creatingSite, setCreatingSite] = useState(newSite);
 
   useEffect(() => {
     setSiteId(prefill.siteId);
@@ -78,7 +81,6 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
       queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['feed', projectId] });
       toast.success('Deployment set');
       onClose();
     },

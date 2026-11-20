@@ -71,7 +71,7 @@ def prune_to_target_size(session: Session, project_id: int) -> bool:
     Deletion order is forced by the foreign keys: classifications, detections
     and images have NO ACTION, so they have to go by hand and in that order,
     before the cameras they hang off. Health reports, deployments, maintenance
-    events and feed entries do cascade from cameras. A camera a bulk-upload job
+    events do cascade from cameras. A camera a bulk-upload job
     points at is kept whatever else happens, because that foreign key does not
     cascade either.
     """
@@ -126,18 +126,6 @@ def prune_to_target_size(session: Session, project_id: int) -> bool:
     print(f"Pruning to {TARGET_SITES} sites: removing {len(doomed)} camera(s)...")
     params = {"ids": list(doomed)}
 
-    # Feed entries that point only at a doomed site would survive the camera
-    # cascade with a dangling reference, so they go first.
-    session.execute(
-        text("""
-            DELETE FROM feed_events
-            WHERE site_id IN (
-                SELECT d.site_id FROM deployments d
-                WHERE d.camera_id = ANY(:ids) AND d.site_id IS NOT NULL
-            )
-        """),
-        params,
-    )
     session.execute(
         text("""
             DELETE FROM classifications WHERE detection_id IN (
@@ -153,7 +141,7 @@ def prune_to_target_size(session: Session, project_id: int) -> bool:
     )
     # human_observations cascade from images, images do not cascade from cameras.
     session.execute(text("DELETE FROM images WHERE camera_id = ANY(:ids)"), params)
-    # Takes health reports, deployments, maintenance events and feed entries with it.
+    # Takes health reports, deployments and maintenance events with it.
     session.execute(text("DELETE FROM cameras WHERE id = ANY(:ids)"), params)
     # Any site that left with nothing deployed at it.
     session.execute(text("DELETE FROM sites WHERE NOT EXISTS (SELECT 1 FROM deployments d WHERE d.site_id = sites.id)"))
@@ -348,13 +336,13 @@ def shift_dates(session: Session, project_id: int) -> None:
         {"delta": delta, "pid": project_id},
     )
 
-    # 11) camera updates feed.
+    # 11) when deployments were checked.
     session.execute(
         text("""
-            UPDATE feed_events
-            SET created_at  = created_at  + (:delta * INTERVAL '1 day'),
-                resolved_at = resolved_at + (:delta * INTERVAL '1 day')
-            WHERE project_id = :pid
+            UPDATE deployments d
+            SET checked_at = checked_at + (:delta * INTERVAL '1 day')
+            FROM cameras c
+            WHERE c.id = d.camera_id AND c.project_id = :pid AND d.checked_at IS NOT NULL
         """),
         {"delta": delta, "pid": project_id},
     )

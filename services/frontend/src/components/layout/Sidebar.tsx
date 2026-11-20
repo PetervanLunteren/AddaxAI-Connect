@@ -41,7 +41,7 @@ import { cn } from '../../lib/utils';
 import { LastUpdate } from '../LastUpdate';
 import { InstallAppButton } from '../InstallApp';
 import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
-import { feedApi } from '../../api/feed';
+import { deploymentsApi } from '../../api/deployments';
 import { serviceApi, serviceKeys } from '../../api/service';
 
 interface SidebarProps {
@@ -103,12 +103,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // immediate query invalidation, so they never wait.
   const numericProjectId = projectId ? Number(projectId) : undefined;
 
-  // Open camera updates for the badge: a to-do count, so admins only (a
-  // viewer cannot act on it). Events are rare (a camera appearing or
-  // moving), so a slow poll is enough; resolving an entry invalidates it.
-  const { data: openUpdates } = useQuery({
-    queryKey: ['feed-open', numericProjectId],
-    queryFn: () => feedApi.openCount(numericProjectId!),
+  // What the app noticed and nobody checked yet, for the Deployments badge:
+  // a to-do count, so admins only (the page is). Rare events, so a slow
+  // poll is enough; every answer on the page invalidates it.
+  const { data: toCheck } = useQuery({
+    queryKey: ['deployments', numericProjectId, 'to-check-count'],
+    queryFn: () => deploymentsApi.toCheckCount(numericProjectId!),
     enabled: numericProjectId !== undefined && isProjectAdmin,
     refetchInterval: 300000,
   });
@@ -123,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   });
 
   const navBadges: Record<string, number | undefined> = {
-    Cameras: openUpdates,
+    Deployments: toCheck,
     Service: serviceTasks?.length,
   };
 
@@ -244,9 +244,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
                 </div>
-                {/* Admin to-do counts: unseen camera updates (the feed opens
-                    from the Updates button on the Cameras page) and open
-                    service tasks. Visible from anywhere without a nav slot. */}
+                {/* Admin to-do counts: what is to check on the Deployments
+                    page and open service tasks. */}
                 {(navBadges[item.label] ?? 0) > 0 && (
                   <span
                     className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"

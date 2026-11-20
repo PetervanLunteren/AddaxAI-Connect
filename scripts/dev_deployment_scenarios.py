@@ -4,8 +4,7 @@ story, for end to end tests of the Deployments page (DEPLOYMENTS_PLAN.md,
 phase 3 onwards).
 
 Every photo goes through the real live path: stored in MinIO, written with
-create_image_record (which rebuilds the camera's deployments and writes the
-camera updates feed) and queued for detection and classification. Photos
+create_image_record (which rebuilds the camera's deployments) and queued for detection and classification. Photos
 arrive in capture order, except where a scenario says they arrive late.
 
 Run inside the ingestion container on a DEV server:

@@ -1,16 +1,20 @@
 /**
  * The map of the Deployments page.
  *
- * Without a selection it shows the sites of the rows in view; a click on a
- * site filters the timeline to it. With a deployment selected it also shows
+ * It shows every site of the project, the ones outside the current view
+ * faded, and the moves of the To check list as arrows. A click on a site is
+ * passed up (it filters, or picks the site for Change site). In pick mode a
+ * click on an empty spot is passed up too, to make a new site there.
+ *
+ * With a deployment selected it also shows
  * where the photos of that camera were taken: the dots of the selected
  * deployment strong, the camera's other dots faded, the pin of the
  * deployment and the ring of the move rule around it. The map fits to the
  * camera's dots each time the selection changes.
  */
-import { useEffect, useMemo } from 'react';
-import { Circle, CircleMarker, MapContainer, Tooltip, useMap } from 'react-leaflet';
-import { latLng, latLngBounds, type LatLngBounds } from 'leaflet';
+import { Fragment, useEffect, useMemo } from 'react';
+import { Circle, CircleMarker, MapContainer, Marker, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import L, { latLng, latLngBounds, type LatLngBounds } from 'leaflet';
 import type { CameraReadings, DeploymentListItem } from '../../api/deployments';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { FitBounds } from '../map/FitBounds';
@@ -19,14 +23,62 @@ import { SiteMarkersLayer, type SitePin } from '../sites/SiteMarkersLayer';
 import 'leaflet/dist/leaflet.css';
 
 const TEAL = '#0f6064';
+const ORANGE = '#ff8945';
 const FADED = '#6b7280';
+
+/** A move drawn as an arrow from the old pin to the new one. */
+export interface MapArrow {
+  key: string;
+  from: [number, number];
+  to: [number, number];
+  warn: boolean; // orange: the out leg of a trip that came back within a week
+  strong: boolean; // the selected entry, or every arrow when none is selected
+  label: string;
+}
 
 interface Props {
   sites: SitePin[];
+  // Sites outside this set are drawn faded. Null = none faded.
+  activeSiteIds?: Set<number> | null;
+  arrows?: MapArrow[];
   selected: DeploymentListItem | null;
   readings: CameraReadings | undefined;
   onSiteClick: (siteId: number) => void;
+  // Pick mode: a click on an empty spot gives its coordinates.
+  onSpotClick?: (lat: number, lon: number) => void;
   height: number;
+}
+
+const headCache = new Map<string, L.DivIcon>();
+/** An arrow head that points along the compass bearing, in degrees. */
+function arrowHead(bearing: number, color: string): L.DivIcon {
+  const key = `${Math.round(bearing)}-${color}`;
+  let icon = headCache.get(key);
+  if (!icon) {
+    icon = L.divIcon({
+      className: '',
+      html: `<div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;
+        border-bottom:14px solid ${color};transform:rotate(${bearing}deg);transform-origin:7px 7px"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    });
+    headCache.set(key, icon);
+  }
+  return icon;
+}
+
+function bearing([lat1, lon1]: [number, number], [lat2, lon2]: [number, number]): number {
+  const dx = (lon2 - lon1) * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180));
+  return (Math.atan2(dx, lat2 - lat1) * 180) / Math.PI;
+}
+
+function SpotClicks({ onSpotClick }: { onSpotClick: (lat: number, lon: number) => void }) {
+  const map = useMapEvents({ click: (e) => onSpotClick(e.latlng.lat, e.latlng.lng) });
+  useEffect(() => {
+    map.getContainer().style.cursor = 'crosshair';
+    return () => { map.getContainer().style.cursor = ''; };
+  }, [map]);
+  return null;
 }
 
 /**
@@ -44,7 +96,9 @@ function FitToSelection({ selectionKey, bounds }: { selectionKey: number; bounds
   return null;
 }
 
-export function DeploymentsMap({ sites, selected, readings, onSiteClick, height }: Props) {
+export function DeploymentsMap({
+  sites, activeSiteIds = null, arrows = [], selected, readings, onSiteClick, onSpotClick, height,
+}: Props) {
   const placed = useMemo(() => sites.filter((s) => s.latitude != null && s.longitude != null), [sites]);
   const sitePoints = useMemo<[number, number][]>(
     () => placed.map((s) => [s.latitude as number, s.longitude as number]),
@@ -89,8 +143,19 @@ export function DeploymentsMap({ sites, selected, readings, onSiteClick, height 
       <SiteMarkersLayer
         sites={placed}
         onSiteClick={onSiteClick}
-        isFaded={(s) => selected !== null && s.id !== selected.site_id}
+        isFaded={(s) => (selected !== null ? s.id !== selected.site_id : activeSiteIds !== null && !activeSiteIds.has(s.id))}
       />
+      {arrows.map((a) => {
+        const color = a.warn ? ORANGE : TEAL;
+        return (
+          <Fragment key={a.key}>
+            <Polyline positions={[a.from, a.to]} pathOptions={{ color, weight: a.strong ? 4 : 2.5, opacity: a.strong ? 0.95 : 0.3 }}>
+              <Tooltip sticky>{a.label}</Tooltip>
+            </Polyline>
+            <Marker position={a.to} icon={arrowHead(bearing(a.from, a.to), color)} opacity={a.strong ? 1 : 0.35} interactive={false} />
+          </Fragment>
+        );
+      })}
       {ordered.map((d) => {
         const strong = d.deployment_id === selected?.id;
         return (
@@ -130,6 +195,7 @@ export function DeploymentsMap({ sites, selected, readings, onSiteClick, height 
         </>
       )}
       {selected && <FitToSelection selectionKey={selected.id} bounds={fitBounds} />}
+      {onSpotClick && <SpotClicks onSpotClick={onSpotClick} />}
       <FullscreenControl />
     </MapContainer>
   );
