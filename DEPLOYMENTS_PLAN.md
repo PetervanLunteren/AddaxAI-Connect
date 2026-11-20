@@ -33,7 +33,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 1b | done, release pending | `main` |
 | 2a | done, release with the branch | `deployments-phase-2` |
 | 2b | done, release with the branch | `deployments-phase-2` |
-| 2c | in progress, built | `deployments-phase-2` |
+| 2c | done, release with the branch | `deployments-phase-2` |
 | 3a | not started | `deployments-phase-2` |
 | 3b | not started | `deployments-phase-2` |
 | 3c | not started | `deployments-phase-2` |
@@ -274,6 +274,36 @@ Notes per step:
     `scripts/test-db.sh` and in the `db` job of CI. The tests of the GPS
     backfill and the carry-over stay in the local folder, deleted when the
     branch is merged.
+  - On dev, 20 November 2026, spw and pwn restored fresh with the branch.
+    `test-update.sh` passed on spw. On pwn only the log check failed: two
+    errors while the restore loaded the old database, before its
+    migrations, from a browser that was open, and one failed login. Every
+    update with a new column has that minute.
+  - Effort before and after, all sites per project:
+
+    | Server, project | Deployments | Old trap-days | New | Change |
+    |---|---|---|---|---|
+    | spw 1 | 97 | 9,424 | 9,254 | -1.8 % |
+    | spw 2 | 8 | 301 | 293 | -2.7 % |
+    | spw 3 | 5 | 152 | 122 | -19.7 % |
+    | spw 4 | 10 | 339 | 339 | 0 |
+    | pwn 1 | 19 | 2,498 | 1,819 | -27.2 % |
+    | pwn 2 | 38 | 2,774 | 2,525 | -9.0 % |
+
+    The largest drops are cameras that went silent: four pwn cameras whose
+    last photo was on 9 or 10 June counted every day since, about 160 days
+    each, and now stop at their last photo.
+  - Photos matched by date against the link: 17 photos on spw and pwn were
+    on two deployments at once by date (a move day), 6 on another
+    deployment than the link. With the link each photo counts once.
+  - The map with a date filter (October) gives at most 31 days per site, and
+    a site whose camera went silent in June 0 days.
+  - The Camtrap DP export: every classified photo with a deployment is in
+    media.csv (42,720 and 46,180), none points at an unknown deployment, and
+    deployment times are exact with the right summer and winter offset.
+    Starts at midnight are the carried-over periods.
+  - The timeline: bars stop at the last photo, the Utrecht test photo of
+    January is its own short row.
 
 ## How to work on this plan
 
