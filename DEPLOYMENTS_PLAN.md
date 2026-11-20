@@ -35,7 +35,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 2b | done, release with the branch | `deployments-phase-2` |
 | 2c | done, release with the branch | `deployments-phase-2` |
 | 3a | done, release with the branch | `deployments-phase-2` |
-| 3b | simplified version built, deploy to dev next | `deployments-phase-2` |
+| 3b | done, release with the branch | `deployments-phase-2` |
 | 3c | dropped, see the notes of 3b | |
 | 4 | not started | `deployments-phase-2` |
 | docs | not started | `deployments-phase-2` |
@@ -397,6 +397,17 @@ Notes per step:
     someone asks for it.
   - A rule for the rest of this plan: before adding a screen, a button or
     a word, ask what the user must never have to do, and what can go.
+  - Deployed and tested on dev on 20 November 2026 (`e984f1e3`), on a
+    fresh "Deployment scenarios" project: 2 updates needed a person (S06
+    photos without a site, S03 back within a week), 17 more were optional.
+    Wrong on S03, It did not move: the badge went to 1. Right on S02: greyed
+    with who and when, Undo shown. Wrong on S11, another site: Fen clicked
+    on the map, first day set to 1 October. Set site on S06 by clicking an
+    empty spot: Add site opened at that spot, Willow pool created, the
+    camera placed there. Then "Nothing needs you" and no badge. Sites page:
+    Add site with both choices, a CSV with 4 rows gave 2 added and 2 clear
+    reasons (name in use, a comma as decimal sign). The camera CSV import,
+    now on the shared reader, still works.
 
 ## How to work on this plan
 
