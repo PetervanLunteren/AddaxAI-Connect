@@ -83,10 +83,13 @@ export function DeploymentsTimeline({ rows, from, to, selectedId, onSelect, onZo
     .flatMap((r) => r.lanes.flat())
     .find((b) => b.id === selectedId)?.cameraId;
 
-  // From the start of the first day to the start of the day after the last.
+  // From the start of the first day to the start of the day after the last,
+  // clipped to the plot: a bar that began before a zoomed range starts at
+  // its left edge, never over the row labels.
   const span = (start: string, end: string) => {
-    const x = xToPx(parseDate(start));
-    return { x, w: Math.max(1, xToPx(parseDate(end) + MS_PER_DAY) - x) };
+    const x = Math.max(plotLeft, xToPx(parseDate(start)));
+    const right = Math.min(plotLeft + plotWidth, xToPx(parseDate(end) + MS_PER_DAY));
+    return { x, w: Math.max(1, right - x) };
   };
 
   const drawBar = (bar: Bar, laneTop: number) => {
