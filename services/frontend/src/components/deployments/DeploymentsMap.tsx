@@ -185,7 +185,8 @@ export function DeploymentsMap({
       <SiteMarkersLayer
         sites={placed}
         onSiteClick={onSiteClick}
-        isFaded={(s) => (selected !== null ? s.id !== selected.site_id : activeSiteIds !== null && !activeSiteIds.has(s.id))}
+        // Both ends of the move stay bright; without a set, the selected site.
+        isFaded={(s) => (activeSiteIds !== null ? !activeSiteIds.has(s.id) : selected !== null && s.id !== selected.site_id)}
       />
       {arrows.map((a) => (
         <Fragment key={a.key}>
