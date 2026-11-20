@@ -406,6 +406,19 @@ Notes per step:
     after it, Right (Enter) or Wrong (W), then the next. Decided: in the
     check are moves, starts at a new place and photos without a site; a
     start at a site you have is not asked about.
+  - Deployed and tested on dev on 20 November 2026 (`9f71d421`, fix
+    `9665e76e`), on a fresh scenario project: "8 updates to check, 2 need
+    you", the check opened at 1 of 8 with S06 and S03 first. Arrow right
+    stepped on. W and It did not move on S03 went to the next by itself.
+    W, another site on S11: Fen clicked on the check's map, first day 1
+    October, saved, next. Enter marked the rest right; the end screen
+    counted them. A log line opened the check at that update with its
+    answer and Undo; Esc closed. Set site on S06 by a click on Meadow.
+    One fix found there: an update that disappears during a check (the way
+    back of a trip taken back) is now stepped over and not counted as
+    skipped. The test photos showed blurred because detection had not
+    reached them yet: the app blurs a photo fully until it is checked for
+    people. Real photos are processed and show sharp.
   - Deployed and tested on dev on 20 November 2026 (`e984f1e3`), on a
     fresh "Deployment scenarios" project: 2 updates needed a person (S06
     photos without a site, S03 back within a week), 17 more were optional.
