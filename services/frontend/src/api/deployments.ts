@@ -68,6 +68,11 @@ export interface DeploymentStart {
   first_at: string | null;
 }
 
+export interface DeploymentPhoto {
+  uuid: string;
+  captured_at: string; // camera clock
+}
+
 export interface CameraReadings {
   threshold_m: number;
   dots: ReadingDot[];
@@ -136,14 +141,16 @@ export const deploymentsApi = {
   removeFixedPeriod: async (projectId: number, statementId: number): Promise<void> => {
     await apiClient.delete(`${base(projectId)}/statements/${statementId}`);
   },
-  thumbnails: async (
+  // A few photos of a deployment: a random sample, the first or the last.
+  photos: async (
     projectId: number,
     deploymentId: number,
-    limit = 6,
-  ): Promise<string[]> => {
+    order: 'random' | 'first' | 'last',
+    limit = 1,
+  ): Promise<DeploymentPhoto[]> => {
     const { data } = await apiClient.get(`${base(projectId)}/${deploymentId}/thumbnails`, {
-      params: { limit },
+      params: { limit, order },
     });
-    return data.uuids as string[];
+    return data.photos;
   },
 };

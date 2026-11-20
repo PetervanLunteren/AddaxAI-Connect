@@ -38,8 +38,10 @@ interface Props {
   prefill: SetDeploymentPrefill;
   onClose: () => void;
   // Open on "create a new site" at the prefilled spot: a click on an empty
-  // spot of the Deployments map.
+  // spot of the map in the camera updates check.
   newSite?: boolean;
+  // Called after a successful save, before onClose.
+  onSaved?: () => void;
 }
 
 function errMsg(err: unknown): string {
@@ -47,7 +49,7 @@ function errMsg(err: unknown): string {
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
 
-export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, cameraName, prefill, onClose, newSite = false }) => {
+export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, cameraName, prefill, onClose, newSite = false, onSaved }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [siteId, setSiteId] = useState<number | null>(prefill.siteId);
@@ -82,6 +84,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
       queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
       toast.success('Site set');
+      onSaved?.();
       onClose();
     },
     onError: (error) => toast.error(`Could not set the site. ${errMsg(error)}`),

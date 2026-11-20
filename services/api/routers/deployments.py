@@ -8,7 +8,7 @@ camera's GPS with the reason for each cut (the Camera updates page), the fixed
 periods of a camera (list, set, remove) and the thumbnail sample.
 """
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -539,8 +539,13 @@ async def not_moved(
     return SetDeploymentResponse(merged=merged)
 
 
+class DeploymentPhoto(BaseModel):
+    uuid: str
+    captured_at: str  # camera clock
+
+
 class DeploymentThumbnails(BaseModel):
-    uuids: List[str]
+    photos: List[DeploymentPhoto]
 
 
 @router.get("/{deployment_id}/thumbnails", response_model=DeploymentThumbnails)
@@ -548,15 +553,18 @@ async def deployment_thumbnails(
     project_id: int,
     deployment_id: int,
     limit: int = Query(6, ge=1, le=12),
+    order: Literal["random", "first", "last"] = Query("random"),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_access),
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
     """
-    A random sample of image UUIDs from this deployment, so the UI can show a
-    few thumbnails as visual confirmation of the location. Skips hidden images
-    and images without stored files. 404 if the deployment is not in the project
-    or outside a restricted viewer's sites.
+    A few photos of this deployment with their capture time: a random
+    sample, the first ones or the last ones. The check of camera updates
+    shows the last photo before a move next to the first one after it.
+    Skips hidden images and images without stored files. 404 if the
+    deployment is not in the project or outside a restricted viewer's
+    sites.
     """
     row = (
         await db.execute(
@@ -570,16 +578,23 @@ async def deployment_thumbnails(
             status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found",
         )
 
-    uuids = (
+    sort = {
+        "random": func.random(),
+        "first": Image.captured_at.asc(),
+        "last": Image.captured_at.desc(),
+    }[order]
+    rows = (
         await db.execute(
-            select(Image.uuid)
+            select(Image.uuid, Image.captured_at)
             .where(
                 Image.deployment_id == deployment_id,
                 Image.is_hidden == False,  # noqa: E712
                 Image.storage_path.isnot(None),
             )
-            .order_by(func.random())
+            .order_by(sort)
             .limit(limit)
         )
-    ).scalars().all()
-    return DeploymentThumbnails(uuids=list(uuids))
+    ).all()
+    return DeploymentThumbnails(
+        photos=[DeploymentPhoto(uuid=u, captured_at=t.isoformat()) for u, t in rows],
+    )

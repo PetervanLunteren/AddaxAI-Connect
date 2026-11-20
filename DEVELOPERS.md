@@ -732,6 +732,15 @@ one record.
 
 - An update is a deployment the GPS made (`site_source = 'auto'`): a camera
   started somewhere, or it moved. Photos without a site are listed too.
+- The page is calm: how many updates are left to check, the map, a
+  read-only log. The work is the check (`CheckUpdatesModal.tsx`), one
+  update at a time like image verification: Enter is Right and next, W is
+  Wrong, the arrows step, Esc closes. Its queue (`checkQueue` in
+  `update-items.ts`) is fixed when it opens: moves, starts at a new place
+  and photos without a site that nobody answered, the ones that need a
+  person first. A camera that started at a site you have is not asked
+  about. It shows the last photo before a move next to the first after it
+  (`GET .../deployments/{id}/thumbnails?order=last|first`).
 - Nobody has to answer. Right (`PUT .../deployments/checked`) only records
   who looked and when in `checked_at` and `checked_by_user_id`. It fixes
   nothing: the GPS can still change the deployment.

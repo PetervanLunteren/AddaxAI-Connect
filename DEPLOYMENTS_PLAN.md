@@ -397,6 +397,15 @@ Notes per step:
     someone asks for it.
   - A rule for the rest of this plan: before adding a screen, a button or
     a word, ask what the user must never have to do, and what can go.
+  - **Round 3, the check**, planned and built on 20 November 2026. The
+    page still felt odd: the map and the list did not work together, and
+    Right and Wrong on every row suggested work that was not needed. Now
+    the page is a summary with Check updates, the map and a read-only log,
+    and the check shows one update at a time like image verification: the
+    map of that camera, the last photo before the move next to the first
+    after it, Right (Enter) or Wrong (W), then the next. Decided: in the
+    check are moves, starts at a new place and photos without a site; a
+    start at a site you have is not asked about.
   - Deployed and tested on dev on 20 November 2026 (`e984f1e3`), on a
     fresh "Deployment scenarios" project: 2 updates needed a person (S06
     photos without a site, S03 back within a week), 17 more were optional.

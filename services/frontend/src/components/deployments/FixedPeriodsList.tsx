@@ -9,13 +9,11 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { deploymentsApi, type FixedPeriod } from '../../api/deployments';
-import { formatDate } from '../../utils/datetime';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toaster';
 
-// Plain day labels from YYYY-MM-DD, never shifted by the browser's timezone.
-export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
+import { dayLabel } from './update-items';
 
 function sourceLabel(p: FixedPeriod): string {
   if (p.source === 'upload') return 'set by an upload';

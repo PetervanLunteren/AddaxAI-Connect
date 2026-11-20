@@ -197,3 +197,26 @@ async def test_sites_from_a_csv(session, admin):
     [ridge] = rows("SELECT name, notes, ST_Y(location::geometry) AS lat FROM sites WHERE name = 'Ridge'")
     assert ridge["notes"] == "on the dike" and abs(ridge["lat"] - 53.27) < 1e-9
     assert len(rows("SELECT 1 FROM sites")) == 2
+
+
+# The photos the check shows
+
+
+async def test_the_first_and_last_photos_of_a_deployment(session, admin):
+    from routers.deployments import deployment_thumbnails
+    project = make_project()
+    cam = make_camera("PHOTOS", project)
+    for day in (1, 2, 3, 4):
+        make_image(cam, None, at(day), HOME)
+    hidden = make_image(cam, None, at(5), HOME)
+    execute("UPDATE images SET is_hidden = true WHERE uuid = :u", u=hidden)
+    rebuild(cam)
+    [dep] = deployments(cam)
+
+    first = await deployment_thumbnails(project, dep["id"], 2, "first", session, admin, None)
+    last = await deployment_thumbnails(project, dep["id"], 1, "last", session, admin, None)
+    some = await deployment_thumbnails(project, dep["id"], 6, "random", session, admin, None)
+
+    assert [p.captured_at for p in first.photos] == [at(1).isoformat(), at(2).isoformat()]
+    assert [p.captured_at for p in last.photos] == [at(4).isoformat()]  # the hidden one is left out
+    assert len(some.photos) == 4

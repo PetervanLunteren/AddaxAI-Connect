@@ -16,6 +16,7 @@
  * holds the two together.
  */
 import type { DeploymentListItem, DeploymentsOverview, UnplacedPhotos } from '../../api/deployments';
+import { formatDate } from '../../utils/datetime';
 import { isAutoSiteName } from '../../utils/site-names';
 
 // A move that comes back to the site it left within this many days is
@@ -132,4 +133,53 @@ export function weekOf(day: string, today: Date = new Date()): 'This week' | 'La
   monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
   const age = (monday.getTime() - Date.parse(day)) / 86_400_000;
   return age <= 0 ? 'This week' : age <= 7 ? 'Last week' : 'Earlier';
+}
+
+/**
+ * The updates of a check, in the order it shows them: moves, starts at a
+ * new place and photos without a site that nobody answered yet. The ones
+ * that need a person come first, then the newest. A camera that started at
+ * a site you already have is not asked about: that is almost never wrong.
+ */
+export function checkQueue(items: UpdateItem[]): UpdateItem[] {
+  const inCheck = items.filter((it) =>
+    !it.answered && (
+      it.kind !== 'started' || isAutoSiteName(it.deployment?.site_name)
+    ));
+  return [...inCheck.filter((it) => it.needsYou), ...inCheck.filter((it) => !it.needsYou)];
+}
+
+// Words for an update, shared by the log and the check.
+
+// Plain day labels from YYYY-MM-DD, never shifted by the browser's timezone.
+export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
+
+export const placeName = (name: string | null | undefined) =>
+  !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
+
+/** "moved from Pond to Ridge", without the camera. */
+export function headline(it: UpdateItem): string {
+  if (it.kind === 'unplaced') return 'has photos without a site';
+  const site = placeName(it.deployment?.site_name);
+  if (it.kind === 'started') return `started sending ${site === 'a new place' ? 'from a new place' : `at ${site}`}`;
+  return `moved from ${placeName(it.previous?.site_name)} to ${site}`;
+}
+
+/** The facts under the headline: distance and the photos around the move. */
+export function context(it: UpdateItem): string {
+  if (it.kind === 'unplaced') {
+    const days = it.unplaced!.photo_days;
+    return `From ${dayLabel(days[0].start)} to ${dayLabel(days[days.length - 1].end)}. This camera sent no GPS on these days.`;
+  }
+  const d = it.deployment!;
+  if (it.kind === 'started') {
+    return isAutoSiteName(d.site_name) ? 'No site within 250 m, so the app made one.' : 'A site you already have.';
+  }
+  const p = it.previous!;
+  const parts = [
+    it.distanceM !== undefined ? metresLabel(it.distanceM) : null,
+    p.last_photo_at ? `last photo at ${placeName(p.site_name)} ${dayLabel(p.last_photo_at.slice(0, 10))}` : null,
+    `first at ${placeName(d.site_name)} ${dayLabel(d.start_at.slice(0, 10))}`,
+  ];
+  return parts.filter(Boolean).join(', ');
 }
