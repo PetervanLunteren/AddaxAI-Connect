@@ -441,6 +441,17 @@ Notes per step:
     the wrong day: nothing new. The Camera updates page and its sidebar
     item went; the check opens from a chip on the Cameras page and the
     badge sits on Cameras again.
+  - Deployed and tested on dev on 20 November 2026 (`706817db`), fresh
+    scenario project: no Camera updates item, badge 2 on Cameras, chip "8
+    camera updates to check". In the check: It did not move on S03, Enter
+    once, the way back of S03 stepped over by itself, then "This one and
+    the 3 moves after it are right": "5 right, 1 wrong, 1 skipped" (S06).
+    Afterwards "1 camera update to check" and badge 1. Site panel: Name
+    this site on a new camera's place, saved as Hazel corner. Pond's
+    Cameras tab: Give it its own site for S10, Add site on the camera's
+    pin, Set site from 15 Aug (its start at Pond), saved; Pond keeps only
+    S01. The new site's pin follows the camera's own GPS, as every pin
+    does, so a typed spot is moved to where the photos say the camera is.
 
 ## How to work on this plan
 
