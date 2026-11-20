@@ -3,9 +3,12 @@
  *
  * The history reads as a journey: each step is a site the camera stood at,
  * oldest first. The server works the deployments out from the photos' GPS
- * plus fixed periods. Project admins can set a deployment (place a camera
- * without GPS, change the site of a step, correct the past) and see the
- * fixed periods with who set them, each of which can be taken back.
+ * plus fixed periods. Project admins fix a wrong site with "Wrong site?" on
+ * a step: the form opens with that step's site and days, and the first day
+ * can be moved to fix a move the GPS missed. Photos without a site, and a
+ * camera without any deployment yet, get their own Set site button, since
+ * there is no step to click. The fixed periods with who set them, each with
+ * Undo, show only once someone set one.
  */
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -83,9 +86,8 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
         </Callout>
       )}
 
-      {/* The note above has its own button, so this one waits until all
-          photos have a site. */}
-      {canEdit && unplaced === 0 && (
+      {/* Every other fix starts from a step, with Wrong site?. */}
+      {canEdit && unplaced === 0 && deployments.length === 0 && (
         <Button size="sm" variant="outline" onClick={() => newDeployment(today(), null)}>
           <MapPinPlus className="h-4 w-4 mr-2" />
           Set site

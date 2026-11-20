@@ -1,6 +1,7 @@
 /**
  * What people said about where one camera stood, with who and when, and
- * Undo on each. In the camera panel, admins only (the endpoint is).
+ * Undo on each. In the camera panel, admins only (the endpoint is). Shows
+ * nothing until someone set one: there is nothing to undo.
  *
  * In the code this is a fixed period (a statement): the GPS does not change
  * those days. Undo gives them back to the GPS, or to what a person said
@@ -48,6 +49,9 @@ export const FixedPeriodsList: React.FC<{ projectId: number; cameraId: number }>
     },
   });
 
+  const periods = fixedPeriods ?? [];
+  if (periods.length === 0) return null;
+
   return (
     <div className="space-y-2">
       <h3 className="text-sm font-medium">Set by people</h3>
@@ -55,25 +59,21 @@ export const FixedPeriodsList: React.FC<{ projectId: number; cameraId: number }>
         Days for which someone said where the camera stood. Undo one and the
         camera follows its GPS again for those days.
       </p>
-      {(fixedPeriods ?? []).length === 0 ? (
-        <p className="text-sm text-muted-foreground">None.</p>
-      ) : (
-        <ul className="divide-y border rounded-md">
-          {(fixedPeriods ?? []).map((p) => (
-            <li key={p.id} className="flex items-start justify-between gap-3 p-3">
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{p.site_name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {dayLabel(p.from_date)} to {p.until_date ? dayLabel(p.until_date) : 'now'}, {sourceLabel(p)}
-                </div>
+      <ul className="divide-y border rounded-md">
+        {periods.map((p) => (
+          <li key={p.id} className="flex items-start justify-between gap-3 p-3">
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">{p.site_name}</div>
+              <div className="text-xs text-muted-foreground">
+                {dayLabel(p.from_date)} to {p.until_date ? dayLabel(p.until_date) : 'now'}, {sourceLabel(p)}
               </div>
-              <Button size="sm" variant="ghost" onClick={() => setRemoving(p)}>
-                Undo
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setRemoving(p)}>
+              Undo
+            </Button>
+          </li>
+        ))}
+      </ul>
 
       <ConfirmDialog
         open={removing !== null}

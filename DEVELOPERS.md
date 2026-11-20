@@ -695,8 +695,8 @@ The rules:
 - A person sets a deployment with `POST /api/projects/{id}/deployments/statements`
   (camera, site, first day, last day or none). The days become a period by
   `period_of_days`: from the start of the first day to the start of the day
-  after the last. The camera panel's Change site uses the same endpoint with
-  the deployment's own days. `GET .../statements?camera_id=` lists the fixed
+  after the last. The camera panel's Wrong site? on a deployment uses the same endpoint,
+  prefilled with the deployment's own days. `GET .../statements?camera_id=` lists the fixed
   periods in force, `DELETE .../statements/{id}` takes one back.
 - GPS for alerts, integrations and exports comes from `images.gps_lat` and
   `gps_lon`, never from `image_metadata['gps_decimal']`: an accepted photo
@@ -755,8 +755,12 @@ record. There is no page: the check opens from a chip on the Cameras page
 - Naming a place the app named, and giving a camera its own site when two
   share one, are optional actions in the site panel (`SiteDetailSheet`),
   not to-dos. The second is the Set site form with a new site.
-- Going back in time is the camera panel: Set site, and "Set by people"
-  with Undo for every correction.
+- Going back in time is the camera panel. Each deployment has Wrong site?,
+  the Set site form prefilled with its site and days; moving the first day
+  fixes a move the GPS missed. A separate Set site button shows only when
+  there is no deployment to click: photos without a site, or a camera
+  without any deployment. "Set by people", with Undo for every correction,
+  shows once there is one.
 - A correction deletes a site it emptied when that site still has the name
   the app gave it (`drop_unnamed_sites_left_empty` in
   `utils/deployment_edits.py`, `is_auto_site_name` in `shared/geo.py`). A

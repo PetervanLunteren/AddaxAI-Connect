@@ -57,7 +57,7 @@ def moved_camera():
 
 
 async def change_site(session, admin, project, deployment_id, site_id):
-    """Change site as the camera panel does it since 2b: the Set deployment
+    """Wrong site? as the camera panel does it since 2b: the Set deployment
     form, filled with the deployment's own days."""
     [dep] = rows("SELECT camera_id, start_date, end_date FROM deployments WHERE id = :d", d=deployment_id)
     return await set_deployment(

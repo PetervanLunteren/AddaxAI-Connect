@@ -463,8 +463,15 @@ Notes per step:
     project (images first, then cameras, sites, project) and run `--only S01`.
   - Per scenario, send Peter a card: what really happened, where to look,
     what he should see, what to do. Then wait for "next" or feedback.
-  - Status: S01 card sent. Peter has feedback points to give after a
-    context compaction; nothing collected yet.
+  - Status: S01 under review.
+  - Feedback, numbered:
+    1. S01, camera panel: Set site, Change site and an empty "Set by
+       people" on a camera that needs nothing is too much. Fixed at once:
+       one "Wrong site?" per deployment (the first day can be moved for a
+       missed move), the separate Set site only for photos without a site
+       or a camera without deployments, "Set by people" hidden while empty.
+       Fixing where a camera stood stays in the camera panel; the Sites
+       page is about the place itself.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

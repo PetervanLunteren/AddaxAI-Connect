@@ -105,10 +105,9 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onC
                   type="button"
                   onClick={() => onChangeSite(it)}
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  aria-label="Change site"
                 >
                   <Pencil className="h-3.5 w-3.5" />
-                  Change site
+                  Wrong site?
                 </button>
               )}
             </div>
