@@ -34,7 +34,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 2a | done, release with the branch | `deployments-phase-2` |
 | 2b | done, release with the branch | `deployments-phase-2` |
 | 2c | done, release with the branch | `deployments-phase-2` |
-| 3a | not started | `deployments-phase-2` |
+| 3a | in progress | `deployments-phase-2` |
 | 3b | not started | `deployments-phase-2` |
 | 3c | not started | `deployments-phase-2` |
 | 4 | not started | `deployments-phase-2` |
@@ -304,6 +304,25 @@ Notes per step:
     Starts at midnight are the carried-over periods.
   - The timeline: bars stop at the last photo, the Utrecht test photo of
     January is its own short row.
+
+- **3a**, planned and built on 20 November 2026, not yet deployed to dev.
+  - Decided: "needs review" is built in 3b, all of it. The reason for a cut
+    is worked out on request, never stored. Details show in a card under the
+    map, nothing is dimmed. Bars have one colour with the site name on them,
+    a fixed period has an outline. The Insights timeline stays and shares
+    its axis code. The page is for project admins only, which closes the
+    open point about viewers. It opens on the whole history. A selection
+    shows all GPS of the camera, the selected deployment strong. The page
+    has the layout and the filter bar of the other pages.
+  - Built: `Move` on `BuiltDeployment`, `load_history` and `build_history`
+    in the rebuild, the list endpoint with photo days and photos without a
+    site, the readings endpoint, `DeploymentsPage` with its timeline, map
+    and card, `timeline-scale.tsx` and `SiteMarkersLayer.tsx` as shared
+    parts, links from the camera and site panels, the sidebar item.
+  - Tests: `tests/shared/test_deployment_build.py` (the move reason),
+    `tests/db_api/test_deployments_page.py`.
+  - Still to do: before and after screenshots of the Insights timeline,
+    deploy to dev, end to end in the browser.
 
 ## How to work on this plan
 
@@ -972,9 +991,8 @@ To settle at the start of the phase named.
   a deployment of its own, which can also count months of effort at the wrong
   place (pwn, three cameras, see the notes of 1b). Hold the first reading
   like any far one, or leave it to statements and phase 5.
-- Phase 3: whether viewers see the "needs review" state.
-- Phase 3: how the Insights timeline and the new page share code, or become
-  one.
+- Phase 3, settled in 3a: viewers do not see the Deployments page. The
+  Insights timeline stays and shares its axis code with the page.
 
 ## Sources
 

@@ -15,6 +15,7 @@ import { camerasApi } from '../api/cameras';
 import { deploymentsApi, type FixedPeriod } from '../api/deployments';
 import type { Camera } from '../api/types';
 import { DeploymentJourney, type JourneyItem } from './DeploymentJourney';
+import { DeploymentsPageLink } from './deployments/DeploymentsPageLink';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
@@ -65,6 +66,7 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
       queryClient.invalidateQueries({ queryKey: ['fixed-periods'] });
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
       queryClient.invalidateQueries({ queryKey: ['sites', pid] });
+      queryClient.invalidateQueries({ queryKey: ['deployments', pid] });
       setRemoving(null);
       toast.success('Fixed period removed');
     },
@@ -128,6 +130,8 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
           Set deployment
         </Button>
       )}
+
+      {canEdit && <DeploymentsPageLink projectId={pid} filter="cameras" id={camera.id} />}
 
       <DeploymentJourney
         mode="camera"

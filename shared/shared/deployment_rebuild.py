@@ -191,21 +191,7 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
     if camera is None:
         raise ValueError(f"Unknown camera {camera_id}")
 
-    photos = [
-        Photo(r.id, r.captured_at, r.gps_lat, r.gps_lon, r.deployment_id)
-        for r in session.execute(text("""
-            SELECT id, captured_at, gps_lat, gps_lon, deployment_id
-            FROM images WHERE camera_id = :id ORDER BY captured_at, id
-        """), {"id": camera_id})
-    ]
-    statements = [
-        Statement(r.id, r.site_id, r.from_at, r.until_at, r.fixed_until_at)
-        for r in session.execute(text("""
-            SELECT id, site_id, from_at, until_at, fixed_until_at
-            FROM deployment_statements
-            WHERE camera_id = :id AND removed_at IS NULL ORDER BY id
-        """), {"id": camera_id})
-    ]
+    photos, statements = load_history(session, camera_id)
     stored = [
         StoredRow(r.id, r.deployment_number, r.site_id, r.start_at, r.end_at, r.lat, r.lon,
                   r.gps_reading_count, r.site_source)
@@ -216,11 +202,7 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
         """), {"id": camera_id})
     ]
 
-    built = build_deployments(
-        [Reading(p.id, p.taken_at, p.lat, p.lon) for p in photos if p.lat is not None],
-        statements,
-        closed_at=_closed_at(camera.retired_at, photos),
-    )
+    built = build_history(photos, statements, camera.retired_at)
 
     stored_by_id = {s.id: s for s in stored}
     planned: list[Planned] = []
@@ -320,6 +302,38 @@ def rebuild_camera(session: Session, camera_id: int, announce: bool = True) -> R
             deployments=len(planned), created=len(created), deleted=len(gone),
         )
     return RebuildResult(tuple(created), len(gone))
+
+
+def load_history(session: Session, camera_id: int) -> tuple[list[Photo], list[Statement]]:
+    """Everything the build reads for one camera: its photos in capture order
+    and its statements in force. The rebuild and the Deployments page both
+    load it here, so the page explains exactly what the rebuild saw."""
+    photos = [
+        Photo(r.id, r.captured_at, r.gps_lat, r.gps_lon, r.deployment_id)
+        for r in session.execute(text("""
+            SELECT id, captured_at, gps_lat, gps_lon, deployment_id
+            FROM images WHERE camera_id = :id ORDER BY captured_at, id
+        """), {"id": camera_id})
+    ]
+    statements = [
+        Statement(r.id, r.site_id, r.from_at, r.until_at, r.fixed_until_at)
+        for r in session.execute(text("""
+            SELECT id, site_id, from_at, until_at, fixed_until_at
+            FROM deployment_statements
+            WHERE camera_id = :id AND removed_at IS NULL ORDER BY id
+        """), {"id": camera_id})
+    ]
+    return photos, statements
+
+
+def build_history(photos: Sequence[Photo], statements: Sequence[Statement],
+                  retired_at: Optional[datetime]) -> list[BuiltDeployment]:
+    """The build as the rebuild runs it: readings are the photos with GPS."""
+    return build_deployments(
+        [Reading(p.id, p.taken_at, p.lat, p.lon) for p in photos if p.lat is not None],
+        statements,
+        closed_at=_closed_at(retired_at, photos),
+    )
 
 
 def _closed_at(retired_at: Optional[datetime], photos: Sequence[Photo]) -> Optional[datetime]:

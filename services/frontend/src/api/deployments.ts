@@ -18,9 +18,57 @@ export interface DeploymentListItem {
   latitude: number | null;
   longitude: number | null;
   start_date: string | null;
-  end_date: string | null;
+  end_date: string | null; // the last day, null = still there
+  start_at: string; // camera clock, exact
+  end_at: string | null;
+  last_photo_at: string | null;
   image_count: number;
+  // 'manual' when a fixed period made it, 'auto' when the GPS did.
   site_source: string;
+  // Runs of days with photos, both ends included.
+  photo_days: DaySpan[];
+}
+
+export interface DaySpan {
+  start: string; // YYYY-MM-DD
+  end: string;
+}
+
+// Photo days of one camera that no deployment covers: no site yet.
+export interface UnplacedPhotos {
+  camera_id: number;
+  camera_label: string;
+  photo_days: DaySpan[];
+}
+
+export interface DeploymentsOverview {
+  deployments: DeploymentListItem[];
+  unplaced: UnplacedPhotos[];
+}
+
+// The GPS of a camera's photos, grouped per deployment and spot.
+export interface ReadingDot {
+  deployment_id: number | null;
+  latitude: number;
+  longitude: number;
+  count: number;
+}
+
+// How a deployment started. 'first': the camera's first photos, or the
+// first after a fixed period ended. 'moved': the GPS rule saw a move.
+// 'fixed': a fixed period starts here.
+export interface DeploymentStart {
+  deployment_id: number;
+  kind: 'first' | 'moved' | 'fixed';
+  distance_m: number | null;
+  readings: number | null;
+  first_at: string | null;
+}
+
+export interface CameraReadings {
+  threshold_m: number;
+  dots: ReadingDot[];
+  starts: DeploymentStart[];
 }
 
 export interface SetDeploymentRequest {
@@ -51,8 +99,12 @@ export interface FixedPeriod {
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;
 
 export const deploymentsApi = {
-  list: async (projectId: number): Promise<DeploymentListItem[]> => {
+  list: async (projectId: number): Promise<DeploymentsOverview> => {
     const { data } = await apiClient.get(base(projectId));
+    return data;
+  },
+  readings: async (projectId: number, cameraId: number): Promise<CameraReadings> => {
+    const { data } = await apiClient.get(`${base(projectId)}/cameras/${cameraId}/readings`);
     return data;
   },
   set: async (projectId: number, body: SetDeploymentRequest): Promise<SetDeploymentResponse> => {

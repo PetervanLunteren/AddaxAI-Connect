@@ -54,6 +54,14 @@ class Statement:
     fixed_until_at: Optional[datetime] = None  # only read when until_at is None
 
 
+@dataclass(frozen=True)
+class Move:
+    """Why the GPS rule started a deployment: the camera moved."""
+    distance_m: float  # from the previous deployment's pin to the reading that confirmed the move
+    readings: int  # how many far readings in a row confirmed it
+    first_at: datetime  # the first of them, which is where the deployment starts
+
+
 @dataclass
 class BuiltDeployment:
     """One camera at one place for a period. The period is [start_at, end_at):
@@ -66,6 +74,7 @@ class BuiltDeployment:
     image_ids: list[int] = field(default_factory=list)
     site_id: Optional[int] = None  # set when a statement made this deployment
     statement_id: Optional[int] = None
+    move: Optional[Move] = None  # set when the GPS rule cut here, for the "why" on the Deployments page
 
     @property
     def start_date(self) -> date:
@@ -238,6 +247,7 @@ def build_deployments(
         active.image_ids = [i for i in active.image_ids if i not in moving]
         active.end_at = first_at
         active = _open(reading, first_at, waiting + [reading.image_id])
+        active.move = Move(distance_m=distance, readings=count, first_at=first_at)
         deployments.append(active)
         held = None
 

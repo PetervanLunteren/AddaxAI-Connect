@@ -727,6 +727,22 @@ Three readers' rules, each in one place (step 2c):
   report, the timeline and the Camtrap DP `deploymentEnd`.
   `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
 
+The Deployments page (step 3a, project admins only) reads two endpoints:
+
+- `GET /api/projects/{id}/deployments`: every deployment with its exact
+  times and its runs of days with photos, plus the photo days of each camera
+  that no deployment covers. Filtered in the browser.
+- `GET .../deployments/cameras/{camera_id}/readings`: the camera's GPS,
+  grouped per deployment and spot, and why each deployment starts where it
+  does (`first`, `moved` with distance, count and date, or `fixed`). The
+  reason is never stored: the endpoint runs `build_history` again on what
+  `load_history` reads, the same two calls the rebuild makes, and matches a
+  built deployment to its row by `start_at`.
+
+Its timeline shares the axis, scale, drag to zoom and tooltip with the
+Insights timeline through `components/plots/timeline-scale.tsx`, and its
+site pins with the Sites map through `components/sites/SiteMarkersLayer.tsx`.
+
 `scripts/populate_demo_data.py` is the one place that writes deployments
 without the rebuild, for generated demo data.
 

@@ -3,8 +3,9 @@ Deployment endpoints.
 
 A deployment is one camera at one site for a time range. Deployments are
 rebuilt from photo GPS plus fixed periods (statements, see
-shared/deployment_rebuild.py). This router serves the project-wide list, the
-fixed periods of a camera (list, set, remove) and the thumbnail sample.
+shared/deployment_rebuild.py). This router serves the project-wide list and a
+camera's GPS with the reason for each cut (the Deployments page), the fixed
+periods of a camera (list, set, remove) and the thumbnail sample.
 """
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -15,12 +16,15 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
+from shared.deployment_rebuild import build_history, load_history
+from shared.geo import SITE_THRESHOLD_METERS
 from shared.logger import get_logger
 from shared.models import Camera, Deployment, DeploymentStatement, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
 from utils.deployment_edits import rebuild, state
 from utils.site_scope import site_in_scope
+from utils.timeline_activity import daily_camera_counts, split_into_segments
 
 logger = get_logger("api.deployments")
 
@@ -30,9 +34,16 @@ router = APIRouter(
 )
 
 
+class DaySpan(BaseModel):
+    """A run of days with photos, both ends included."""
+    start: str
+    end: str
+
+
 class DeploymentListItem(BaseModel):
     """One deployment in the project-wide list: which camera stood at which site,
-    for how long, with how many photos, and whether the site is auto or manual."""
+    for how long, with how many photos, and whether a statement made it
+    (site_source 'manual') or the GPS (auto)."""
     id: int
     deployment_number: int
     camera_id: int
@@ -43,11 +54,33 @@ class DeploymentListItem(BaseModel):
     longitude: Optional[float] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    start_at: str
+    end_at: Optional[str] = None
+    last_photo_at: Optional[str] = None
     image_count: int
     site_source: str = 'auto'
+    # Runs of days with photos, for the marks on the bars.
+    photo_days: List[DaySpan] = []
 
 
-@router.get("", response_model=List[DeploymentListItem])
+class UnplacedPhotos(BaseModel):
+    """Photos of one camera that no deployment covers: no site yet."""
+    camera_id: int
+    camera_label: str
+    photo_days: List[DaySpan]
+
+
+class DeploymentsOverview(BaseModel):
+    deployments: List[DeploymentListItem]
+    # Empty for viewers limited to sites: photos without a site fail closed.
+    unplaced: List[UnplacedPhotos]
+
+
+def _spans(days: List[date]) -> List[DaySpan]:
+    return [DaySpan(start=a.isoformat(), end=b.isoformat()) for a, b in split_into_segments(days)]
+
+
+@router.get("", response_model=DeploymentsOverview)
 async def list_deployments(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
@@ -55,10 +88,11 @@ async def list_deployments(
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
     """
-    Every deployment in the project, newest first. One row is one camera at one
-    site for a time range. The frontend filters and sorts this list client-side.
-    Site-restricted viewers only see deployments at their sites; deployments
-    without a site fail the scope test, fail closed.
+    Every deployment in the project, oldest first, with the days it has
+    photos, and the photo days of each camera that have no deployment. The
+    Deployments page filters this in the browser. Site-restricted viewers
+    only see deployments at their sites; deployments without a site fail the
+    scope test, fail closed.
     """
     scope_sql = " AND d.site_id = ANY(:scope)" if site_scope is not None else ""
     params: Dict[str, Any] = {"project_id": project_id}
@@ -72,37 +106,139 @@ async def list_deployments(
                        d.site_id, s.name AS site_name,
                        ST_Y(d.location::geometry) AS lat,
                        ST_X(d.location::geometry) AS lon,
-                       d.start_date, d.end_date, d.site_source,
-                       count(i.id) AS image_count
+                       d.start_date, d.end_date, d.start_at, d.end_at, d.last_photo_at,
+                       d.site_source,
+                       (SELECT count(*) FROM images i WHERE i.deployment_id = d.id) AS image_count
                 FROM deployments d
                 JOIN cameras c ON c.id = d.camera_id
                 LEFT JOIN sites s ON s.id = d.site_id
-                LEFT JOIN images i ON i.deployment_id = d.id
                 WHERE c.project_id = :project_id{scope_sql}
-                GROUP BY d.id, c.device_id, s.name
-                ORDER BY d.start_date DESC NULLS LAST, d.id DESC
+                ORDER BY d.start_at, d.id
             """),
             params,
         )
     ).mappings().all()
 
-    return [
-        DeploymentListItem(
-            id=r["id"],
-            deployment_number=r["deployment_number"],
-            camera_id=r["camera_id"],
-            camera_label=r["camera_label"],
-            site_id=r["site_id"],
-            site_name=r["site_name"],
-            latitude=float(r["lat"]) if r["lat"] is not None else None,
-            longitude=float(r["lon"]) if r["lon"] is not None else None,
-            start_date=r["start_date"].isoformat() if r["start_date"] else None,
-            end_date=r["end_date"].isoformat() if r["end_date"] else None,
-            image_count=r["image_count"],
-            site_source=r["site_source"],
+    camera_ids = sorted({r["camera_id"] for r in rows})
+    if site_scope is None:
+        camera_ids = list(
+            (await db.execute(select(Camera.id).where(Camera.project_id == project_id))).scalars()
         )
-        for r in rows
+    days_by_deployment: Dict[int, List[date]] = {}
+    unplaced_days: Dict[int, List[date]] = {}
+    for day in await daily_camera_counts(db, camera_ids):
+        if day["deployment_id"] is not None:
+            days_by_deployment.setdefault(day["deployment_id"], []).append(day["date"])
+        elif site_scope is None:
+            unplaced_days.setdefault(day["camera_id"], []).append(day["date"])
+
+    labels: Dict[int, str] = {}
+    if unplaced_days:
+        labels = dict((await db.execute(
+            select(Camera.id, Camera.device_id).where(Camera.id.in_(list(unplaced_days)))
+        )).all())
+
+    return DeploymentsOverview(
+        deployments=[
+            DeploymentListItem(
+                id=r["id"],
+                deployment_number=r["deployment_number"],
+                camera_id=r["camera_id"],
+                camera_label=r["camera_label"],
+                site_id=r["site_id"],
+                site_name=r["site_name"],
+                latitude=float(r["lat"]) if r["lat"] is not None else None,
+                longitude=float(r["lon"]) if r["lon"] is not None else None,
+                start_date=r["start_date"].isoformat() if r["start_date"] else None,
+                end_date=r["end_date"].isoformat() if r["end_date"] else None,
+                start_at=r["start_at"].isoformat(),
+                end_at=r["end_at"].isoformat() if r["end_at"] else None,
+                last_photo_at=r["last_photo_at"].isoformat() if r["last_photo_at"] else None,
+                image_count=r["image_count"],
+                site_source=r["site_source"],
+                photo_days=_spans(days_by_deployment.get(r["id"], [])),
+            )
+            for r in rows
+        ],
+        unplaced=[
+            UnplacedPhotos(camera_id=cid, camera_label=labels[cid], photo_days=_spans(days))
+            for cid, days in sorted(unplaced_days.items())
+        ],
+    )
+
+
+class ReadingDot(BaseModel):
+    """Photos of one deployment at one spot (5 decimals, about a metre)."""
+    deployment_id: Optional[int] = None
+    latitude: float
+    longitude: float
+    count: int
+
+
+class DeploymentStart(BaseModel):
+    """How a deployment started. kind is 'first' (the camera's first photos,
+    or the first after a closed fixed period), 'moved' (the GPS rule saw a
+    move) or 'fixed' (a fixed period starts here)."""
+    deployment_id: int
+    kind: str
+    distance_m: Optional[float] = None
+    readings: Optional[int] = None
+    first_at: Optional[str] = None
+
+
+class CameraReadings(BaseModel):
+    threshold_m: float
+    dots: List[ReadingDot]
+    starts: List[DeploymentStart]
+
+
+@router.get("/cameras/{camera_id}/readings", response_model=CameraReadings)
+async def camera_readings(
+    project_id: int,
+    camera_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """
+    The GPS of a camera's photos and why each of its deployments starts where
+    it does. The build runs again on the same input the rebuild reads
+    (load_history), so the reason is never stored and never stale. A built
+    deployment is matched to its row by its start, which the rebuild wrote.
+    Two parts at one site that the rebuild joined keep the reason of the
+    first part, which is where the row starts.
+    """
+    camera = await _camera_in_project(db, project_id, camera_id)
+    photos, statements = await db.run_sync(lambda s: load_history(s, camera_id))
+    built = build_history(photos, statements, camera.retired_at)
+    row_by_start = dict((await db.execute(
+        select(Deployment.start_at, Deployment.id).where(Deployment.camera_id == camera_id)
+    )).all())
+
+    starts: List[DeploymentStart] = []
+    for b in built:
+        row_id = row_by_start.get(b.start_at)
+        if row_id is None:
+            continue  # a part the rebuild joined to the one before
+        if b.statement_id is not None:
+            starts.append(DeploymentStart(deployment_id=row_id, kind="fixed"))
+        elif b.move is not None:
+            starts.append(DeploymentStart(
+                deployment_id=row_id, kind="moved", distance_m=round(b.move.distance_m),
+                readings=b.move.readings, first_at=b.move.first_at.isoformat(),
+            ))
+        else:
+            starts.append(DeploymentStart(deployment_id=row_id, kind="first"))
+
+    grouped: Dict[tuple, int] = {}
+    for p in photos:
+        if p.lat is not None:
+            key = (p.deployment_id, round(p.lat, 5), round(p.lon, 5))
+            grouped[key] = grouped.get(key, 0) + 1
+    dots = [
+        ReadingDot(deployment_id=d, latitude=lat, longitude=lon, count=n)
+        for (d, lat, lon), n in grouped.items()
     ]
+    return CameraReadings(threshold_m=SITE_THRESHOLD_METERS, dots=dots, starts=starts)
 
 
 class StatementItem(BaseModel):

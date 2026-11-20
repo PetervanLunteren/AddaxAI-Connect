@@ -33,6 +33,7 @@ import {
   Radio,
   Footprints,
   Wrench,
+  CalendarRange,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useProject } from '../../contexts/ProjectContext';
@@ -61,6 +62,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/sites`, icon: MapPin, label: 'Sites' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
+    // Admins only, like its route.
+    ...(isProjectAdmin
+      ? [{ to: `/projects/${projectId}/deployments`, icon: CalendarRange, label: 'Deployments' }]
+      : []),
     { to: `/projects/${projectId}/service`, icon: Wrench, label: 'Service' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/live-feed`, icon: Activity, label: 'Live feed' },

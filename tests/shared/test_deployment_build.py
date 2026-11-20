@@ -269,3 +269,30 @@ def test_closed_at_ends_a_retired_camera():
 def test_closed_at_never_ends_before_the_start():
     [dep] = build_deployments(readings((HOME, at(5)),), closed_at=at(1))
     assert dep.end_at == dep.start_at
+
+
+# Why the GPS rule cut, for the Deployments page.
+
+
+def test_a_move_keeps_how_far_how_many_and_when():
+    confirming = offset(FAR, north_m=20)
+    first, second = build_deployments(readings(
+        (HOME, at(1)), (FAR, at(10, hour=9)), (confirming, at(11)),
+    ))
+    assert first.move is None  # the first photos, no move
+    assert second.move is not None
+    assert second.move.readings == 2
+    assert second.move.first_at == at(10, hour=9) == second.start_at
+    # From the previous pin to the reading that confirmed the move.
+    assert abs(second.move.distance_m - math.dist((0, 0), (1500, 20))) < 2
+
+
+def test_no_move_inside_or_after_a_statement():
+    deps = build_deployments(
+        readings((HOME, at(2)), (FAR, at(5)), (FAR, at(6)), (FAR, at(12)), (FAR, at(13))),
+        [Statement(1, SITE_A, at(1, hour=0), at(10, hour=0))],
+    )
+    stated, after = deps
+    assert stated.move is None and stated.statement_id == 1
+    # After a closed period the walk starts fresh: a first deployment, no move.
+    assert after.move is None and after.statement_id is None
