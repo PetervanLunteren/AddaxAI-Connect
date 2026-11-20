@@ -5,7 +5,11 @@
  *
  * In the code this is a fixed period (a statement): the GPS does not change
  * those days. Undo gives them back to the GPS, or to what a person said
- * before. The screens never say "fixed period", only who set which site.
+ * before. The screens call them corrections, never "fixed period".
+ *
+ * A row says what was set and who set it, not what the app had before: that
+ * is worked out again on every rebuild, is not stored, and one correction
+ * can cover several earlier sites.
  */
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,11 +20,17 @@ import { useToast } from '../ui/Toaster';
 
 import { dayLabel } from './update-items';
 
+function daysLabel(p: FixedPeriod): string {
+  return p.until_date
+    ? `${p.site_name}, ${dayLabel(p.from_date)} to ${dayLabel(p.until_date)}`
+    : `${p.site_name} from ${dayLabel(p.from_date)}`;
+}
+
 function sourceLabel(p: FixedPeriod): string {
-  if (p.source === 'upload') return 'set by an upload';
+  if (p.source === 'upload') return 'by an upload';
   if (p.source === 'carried_over') return 'kept from before the update';
   const when = dayLabel(p.created_at.slice(0, 10));
-  return p.created_by ? `set by ${p.created_by} on ${when}` : `set on ${when}`;
+  return p.created_by ? `by ${p.created_by}, ${when}` : when;
 }
 
 export const FixedPeriodsList: React.FC<{ projectId: number; cameraId: number }> = ({ projectId, cameraId }) => {
@@ -54,19 +64,16 @@ export const FixedPeriodsList: React.FC<{ projectId: number; cameraId: number }>
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-medium">Set by people</h3>
+      <h3 className="text-sm font-medium">Corrections</h3>
       <p className="text-xs text-muted-foreground">
-        Days for which someone said where the camera stood. Undo one and the
-        camera follows its GPS again for those days.
+        Undo one and the app works out the site again.
       </p>
       <ul className="divide-y border rounded-md">
         {periods.map((p) => (
           <li key={p.id} className="flex items-start justify-between gap-3 p-3">
             <div className="min-w-0">
-              <div className="text-sm font-medium truncate">{p.site_name}</div>
-              <div className="text-xs text-muted-foreground">
-                {dayLabel(p.from_date)} to {p.until_date ? dayLabel(p.until_date) : 'now'}, {sourceLabel(p)}
-              </div>
+              <div className="text-sm font-medium truncate">{daysLabel(p)}</div>
+              <div className="text-xs text-muted-foreground truncate">{sourceLabel(p)}</div>
             </div>
             <Button size="sm" variant="ghost" onClick={() => setRemoving(p)}>
               Undo
@@ -83,10 +90,9 @@ export const FixedPeriodsList: React.FC<{ projectId: number; cameraId: number }>
         body={
           removing ? (
             <>
-              {removing.site_name}, {dayLabel(removing.from_date)} to{' '}
-              {removing.until_date ? dayLabel(removing.until_date) : 'now'}. For these
-              days the camera follows its GPS again, or what someone said before. Photos
-              without GPS in these days have no site until it is set again.
+              {daysLabel(removing)}. The app works out the site of these days again,
+              from the GPS or an earlier correction. Photos without GPS in these days
+              have no site until it is set again.
             </>
           ) : ''
         }

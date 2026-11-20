@@ -472,6 +472,10 @@ Notes per step:
        or a camera without deployments, "Set by people" hidden while empty.
        Fixing where a camera stood stays in the camera panel; the Sites
        page is about the place itself.
+    2. S01, after a test correction: "Set by people" with its explanation
+       was too much text. Fixed at once: the list is "Corrections", one
+       line of help, rows "Fen from 1 Aug 2026" over "by <email>, 20 Nov
+       2026". Not "Pond to Fen": what the app had before is not stored.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

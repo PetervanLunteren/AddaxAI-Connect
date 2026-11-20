@@ -5,7 +5,7 @@
  * The one form for every way to place a camera: placing a camera without
  * GPS, changing the site of a deployment the GPS made, and correcting the
  * past. It writes a fixed period on the server. The GPS does not change that
- * period, and it can be undone under "Set by people" in the camera panel.
+ * period, and it can be undone under Corrections in the camera panel.
  *
  * Whole days on purpose: a day belongs to one deployment, the day of a move
  * to the new one, the same rule as everywhere in the app. The caller prefills

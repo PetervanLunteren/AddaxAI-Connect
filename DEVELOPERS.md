@@ -759,7 +759,7 @@ record. There is no page: the check opens from a chip on the Cameras page
   the Set site form prefilled with its site and days; moving the first day
   fixes a move the GPS missed. A separate Set site button shows only when
   there is no deployment to click: photos without a site, or a camera
-  without any deployment. "Set by people", with Undo for every correction,
+  without any deployment. "Corrections", with Undo for each one,
   shows once there is one.
 - A correction deletes a site it emptied when that site still has the name
   the app gave it (`drop_unnamed_sites_left_empty` in
@@ -772,7 +772,7 @@ record. There is no page: the check opens from a chip on the Cameras page
   stored: the endpoint runs `build_history` again on what `load_history`
   reads, the same two calls the rebuild makes.
 - The screens never say "fixed period" or "statement". The camera panel
-  lists them as "Set by people", each with Undo.
+  lists them as "Corrections", each with Undo.
 - Sites are added on the Sites page, one at a time or from a CSV
   (`POST .../sites/import-csv`). `utils/csv_upload.py` reads the file for
   this import and the camera import.
