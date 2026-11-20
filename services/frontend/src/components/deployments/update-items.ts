@@ -145,20 +145,19 @@ export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
 export const placeName = (name: string | null | undefined) =>
   !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
 
-/** Where the camera went, short: "Pond → Ridge". */
+/** Where the camera went, short: "Pond → Ridge"; "None yet" without a site. */
 export function route(it: UpdateItem): string {
-  if (it.kind === 'unplaced') return 'Photos without a site';
+  if (it.kind === 'unplaced') return 'None yet';
   const site = placeName(it.deployment?.site_name);
   if (it.kind === 'started') return `Started at ${site}`;
   return `${placeName(it.previous?.site_name)} → ${site}`;
 }
 
-/** When, and how far for a move: "1 Sep 2026 · 1.5 km". */
-export function whenLabel(it: UpdateItem): string {
+/** The day of a move, or the days of photos without a site. */
+export function dateLabel(it: UpdateItem): string {
   if (it.kind === 'unplaced') {
     const days = it.unplaced!.photo_days;
     return `${dayLabel(days[0].start)} to ${dayLabel(days[days.length - 1].end)}`;
   }
-  const day = dayLabel(it.deployment!.start_at.slice(0, 10));
-  return it.distanceM !== undefined ? `${day} · ${metresLabel(it.distanceM)}` : day;
+  return dayLabel(it.deployment!.start_at.slice(0, 10));
 }

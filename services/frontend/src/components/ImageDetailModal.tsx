@@ -46,6 +46,7 @@ import { imagesApi } from '../api/images';
 import { drawDetectionOverlay } from '../utils/detection-overlay';
 import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
 import { PopoverLink, ShortcutRow } from './ui/PopoverLink';
+import { DetailRow } from './ui/DetailRow';
 import { REVIEW_WINDOW_CLASS } from './ui/review-window';
 import { useImageCache } from '../contexts/ImageCacheContext';
 import { useProject } from '../contexts/ProjectContext';
@@ -75,16 +76,6 @@ const LIGHT_LABELS: Record<string, string> = {
  * the shortcuts popover next to it. Renders nothing when the value is empty,
  * so a field we cannot fill leaves no blank row behind.
  */
-const DetailRow: React.FC<{ label: string; children?: React.ReactNode }> = ({ label, children }) => {
-  if (children === null || children === undefined || children === false || children === '') return null;
-  return (
-    <div className="flex justify-between gap-4">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="min-w-0 break-words text-right">{children}</span>
-    </div>
-  );
-};
-
 interface ImageDetailModalProps {
   imageUuid: string;
   allImageUuids?: string[];  // For look-ahead prefetching

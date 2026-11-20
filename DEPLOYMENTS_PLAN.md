@@ -463,7 +463,7 @@ Notes per step:
     project (images first, then cameras, sites, project) and run `--only S01`.
   - Per scenario, send Peter a card: what really happened, where to look,
     what he should see, what to do. Then wait for "next" or feedback.
-  - Status: S01 under review.
+  - Status: S02 under review (reset on 21 Nov, S01 and S02 re-added).
   - Feedback, numbered:
     1. S01, camera panel: Set site, Change site and an empty "Set by
        people" on a camera that needs nothing is too much. Fixed at once:
@@ -503,6 +503,21 @@ Notes per step:
        each with its count and opening the check with that group; empty
        groups show greyed. Also the review window got a set width, so the
        map no longer keeps a narrow first size when the photos load.
+    7. Design issue, to plan and fix after S12: site pins follow the mean
+       GPS of every deployment at the site, also deployments a correction
+       placed. A wrong correction drags the pin to that camera's GPS, and
+       the build then snaps other cameras to the moved pin. Undo does not
+       bring the pin back. Seen on dev 21 Nov: Peter's test corrections
+       (S01 at Fen, S02 at Pond from 1 Sep) moved Fen onto Pond's spot and
+       Pond onto Ridge's, so S02's August became Fen and Pond and Ridge
+       overlapped. Likely fix: only deployments the app placed itself
+       (site_source auto) move a pin. Test project reset afterwards.
+    8. S02, the check window: facts as label and value rows in their own
+       card (`DetailRow`, shared with Show details), Right and Wrong on one
+       row with keys (`Kbd`, copied from AddaxAI desktop, also on Verify
+       and Same as last in image verification), Wrong a menu (opened by W
+       too), the map on satellite, everything of the camera magenta, the
+       arrow from 15% to 85%, no separate deployment pin, a legend.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

@@ -1,16 +1,18 @@
 /**
- * The map of the camera updates check.
+ * The map of the camera updates check, on satellite: the landscape shows
+ * whether a move is real.
  *
- * It shows every site of the project, the ones outside the current view
- * faded, and the moves of the updates list as arrows. A click on a site is
- * passed up (it filters, or picks the site for Set site). In pick mode a
- * click on an empty spot is passed up too, to make a new site there.
+ * It shows every site of the project in teal, the ones outside the current
+ * update faded, and the move as an arrow. A click on a site is passed up
+ * (it picks the site for Set site). In pick mode a click on an empty spot
+ * is passed up too, to make a new site there.
  *
- * With a deployment selected it also shows
- * where the photos of that camera were taken: the dots of the selected
- * deployment strong, the camera's other dots faded, the pin of the
- * deployment and the ring of the move rule around it. The map fits to the
- * camera's dots each time the selection changes.
+ * Everything of the camera itself is magenta, which stands out on forest,
+ * heath and sand alike: the arrow, the GPS of its photos (this deployment
+ * strong, its others faded) and the ring of the move rule around the
+ * deployment. The site marker is the place, so the deployment gets no pin
+ * of its own. The map fits to the camera's dots each time the selection
+ * changes. A small legend names the four things.
  */
 import { Fragment, useEffect, useMemo } from 'react';
 import { Circle, CircleMarker, MapContainer, Marker, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet';
@@ -18,20 +20,17 @@ import L, { latLng, latLngBounds, type LatLngBounds } from 'leaflet';
 import type { CameraReadings, DeploymentListItem } from '../../api/deployments';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { FullscreenControl } from '../map/FullscreenControl';
-import { SiteMarkersLayer, type SitePin } from '../sites/SiteMarkersLayer';
+import { SITE_COLOR, SiteMarkersLayer, type SitePin } from '../sites/SiteMarkersLayer';
+import { metresLabel } from './update-items';
 import 'leaflet/dist/leaflet.css';
 
-const TEAL = '#0f6064';
-const ORANGE = '#ff8945';
-const FADED = '#6b7280';
+const CAMERA = '#e6007e'; // magenta
 
-/** A move drawn as an arrow from the old pin to the new one. */
+/** A move drawn as an arrow from the old site to the new one. */
 export interface MapArrow {
   key: string;
   from: [number, number];
   to: [number, number];
-  warn: boolean; // orange: the out leg of a trip that came back within a week
-  strong: boolean; // the selected entry, or every arrow when none is selected
   label: string;
 }
 
@@ -97,9 +96,41 @@ function FitOnSelection({ selectionKey, bounds }: { selectionKey: number | null;
   return null;
 }
 
-// Arrow heads stop short of the pin they point at, so the site marker does
-// not cover them.
-const HEAD_AT = 0.85;
+// The arrow runs from 15% to 85% of the way, as in flow maps: it never
+// covers the two site markers, and the head sits at the end of the line.
+// Proportional, so a 300 m move and a 3 km move look alike.
+const ARROW_FROM = 0.15;
+const ARROW_TO = 0.85;
+
+const along = (a: MapArrow, t: number): [number, number] => [
+  a.from[0] + (a.to[0] - a.from[0]) * t,
+  a.from[1] + (a.to[1] - a.from[1]) * t,
+];
+
+/** The four things on the map, bottom left above the attribution. */
+function Legend({ thresholdM }: { thresholdM: number | undefined }) {
+  const row = 'flex items-center gap-2';
+  return (
+    <div className="absolute left-2 bottom-7 z-[400] rounded-md bg-background/90 px-2 py-1.5 text-xs shadow space-y-1 pointer-events-none">
+      <div className={row}>
+        <span className="inline-block h-3 w-3 rounded-full border-2 border-[#555555]" style={{ backgroundColor: SITE_COLOR }} />
+        Site
+      </div>
+      <div className={row}>
+        <span className="inline-block h-2 w-2 mx-0.5 rounded-full" style={{ backgroundColor: CAMERA }} />
+        Photo GPS
+      </div>
+      <div className={row}>
+        <span className="inline-block h-3 w-3 rounded-full border border-dashed" style={{ borderColor: CAMERA }} />
+        GPS noise{thresholdM !== undefined && `, ${metresLabel(thresholdM)}`}
+      </div>
+      <div className={row}>
+        <span className="inline-block h-0.5 w-3" style={{ backgroundColor: CAMERA }} />
+        Move
+      </div>
+    </div>
+  );
+}
 
 export function DeploymentsMap({
   sites, activeSiteIds = null, arrows = [], selected, readings, onSiteClick, onSpotClick, height,
@@ -150,28 +181,24 @@ export function DeploymentsMap({
       className="rounded-lg border border-gray-200"
     >
       <MapAttribution />
-      <BaseLayersControl />
+      <BaseLayersControl initial="satellite" />
       <SiteMarkersLayer
         sites={placed}
         onSiteClick={onSiteClick}
         isFaded={(s) => (selected !== null ? s.id !== selected.site_id : activeSiteIds !== null && !activeSiteIds.has(s.id))}
       />
-      {arrows.map((a) => {
-        const color = a.warn ? ORANGE : TEAL;
-        return (
-          <Fragment key={a.key}>
-            <Polyline positions={[a.from, a.to]} pathOptions={{ color, weight: a.strong ? 4 : 2.5, opacity: a.strong ? 0.95 : 0.3 }}>
-              <Tooltip sticky>{a.label}</Tooltip>
-            </Polyline>
-            <Marker
-              position={[a.from[0] + (a.to[0] - a.from[0]) * HEAD_AT, a.from[1] + (a.to[1] - a.from[1]) * HEAD_AT]}
-              icon={arrowHead(bearing(a.from, a.to), color)}
-              opacity={a.strong ? 1 : 0.35}
-              interactive={false}
-            />
-          </Fragment>
-        );
-      })}
+      {arrows.map((a) => (
+        <Fragment key={a.key}>
+          <Polyline positions={[along(a, ARROW_FROM), along(a, ARROW_TO)]} pathOptions={{ color: CAMERA, weight: 4, opacity: 0.95 }}>
+            <Tooltip sticky>{a.label}</Tooltip>
+          </Polyline>
+          <Marker
+            position={along(a, ARROW_TO)}
+            icon={arrowHead(bearing(a.from, a.to), CAMERA)}
+            interactive={false}
+          />
+        </Fragment>
+      ))}
       {ordered.map((d) => {
         const strong = d.deployment_id === selected?.id;
         return (
@@ -180,11 +207,11 @@ export function DeploymentsMap({
             center={[d.latitude, d.longitude]}
             radius={4}
             pathOptions={{
-              color: strong ? TEAL : FADED,
+              color: '#ffffff',
               weight: 1,
-              fillColor: strong ? TEAL : FADED,
-              fillOpacity: strong ? 0.7 : 0.25,
-              opacity: strong ? 0.9 : 0.35,
+              fillColor: CAMERA,
+              fillOpacity: strong ? 0.85 : 0.3,
+              opacity: strong ? 0.9 : 0.3,
             }}
           >
             <Tooltip>
@@ -195,24 +222,17 @@ export function DeploymentsMap({
         );
       })}
       {pin && readings && (
-        <>
-          <Circle
-            center={pin}
-            radius={readings.threshold_m}
-            pathOptions={{ color: TEAL, weight: 1.5, dashArray: '6 4', fill: false }}
-          />
-          <CircleMarker
-            center={pin}
-            radius={7}
-            pathOptions={{ color: TEAL, weight: 3, fillColor: '#ffffff', fillOpacity: 1 }}
-          >
-            <Tooltip>The pin, the mean of the photos' GPS</Tooltip>
-          </CircleMarker>
-        </>
+        <Circle
+          center={pin}
+          radius={readings.threshold_m}
+          interactive={false}
+          pathOptions={{ color: CAMERA, weight: 1.5, dashArray: '6 4', fill: false }}
+        />
       )}
       <FitOnSelection selectionKey={selected?.id ?? null} bounds={fitBounds} />
       {onSpotClick && <SpotClicks onSpotClick={onSpotClick} />}
       <FullscreenControl />
+      <Legend thresholdM={readings?.threshold_m} />
     </MapContainer>
   );
 }

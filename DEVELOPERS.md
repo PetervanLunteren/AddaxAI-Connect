@@ -734,7 +734,11 @@ yet and Checked (`updateGroup` in `update-items.ts`), and each opens the
 check with that group. The button counts only Needs you (the sidebar badge
 rule); ordinary moves wait without asking, and Checked is the way back. The check
 uses the frame of image verification (`REVIEW_WINDOW_CLASS`,
-`PopoverLink` for the shortcuts): the map left, one card right.
+`PopoverLink` for the shortcuts): the map left on satellite, a facts card
+(`DetailRow`) and an answer card right, Right and Wrong on one row with
+their keys (`Kbd`, the same part as AddaxAI desktop). Wrong is a menu of
+what happened. On the map everything of the camera is magenta, the sites
+teal, with a small legend.
 
 - An update is a deployment the GPS made (`site_source = 'auto'`): a camera
   started somewhere, or it moved. Photos without a site are updates too.
