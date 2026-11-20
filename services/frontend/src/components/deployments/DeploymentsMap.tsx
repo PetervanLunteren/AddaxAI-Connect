@@ -17,7 +17,6 @@ import { Circle, CircleMarker, MapContainer, Marker, Polyline, Tooltip, useMap, 
 import L, { latLng, latLngBounds, type LatLngBounds } from 'leaflet';
 import type { CameraReadings, DeploymentListItem } from '../../api/deployments';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
-import { FitBounds } from '../map/FitBounds';
 import { FullscreenControl } from '../map/FullscreenControl';
 import { SiteMarkersLayer, type SitePin } from '../sites/SiteMarkersLayer';
 import 'leaflet/dist/leaflet.css';
@@ -82,11 +81,13 @@ function SpotClicks({ onSpotClick }: { onSpotClick: (lat: number, lon: number) =
 }
 
 /**
- * Fit to all the camera's dots and the ring around the pin, once per
- * selection and only when the GPS has arrived, so the earlier place of a
- * move is in view. A user who zooms afterwards is not thrown back.
+ * Fit the map when the selection changes: to all the selected camera's dots
+ * and the ring around its pin, so the earlier place of a move is in view,
+ * or back to everything in view when the selection is cleared. Waits until
+ * the bounds are known (the GPS arrives a moment later). A user who zooms
+ * afterwards is not thrown back.
  */
-function FitToSelection({ selectionKey, bounds }: { selectionKey: number; bounds: LatLngBounds | null }) {
+function FitOnSelection({ selectionKey, bounds }: { selectionKey: number | null; bounds: LatLngBounds | null }) {
   const map = useMap();
   const ready = bounds !== null;
   useEffect(() => {
@@ -95,6 +96,10 @@ function FitToSelection({ selectionKey, bounds }: { selectionKey: number; bounds
   }, [selectionKey, ready, map]);
   return null;
 }
+
+// Arrow heads stop short of the pin they point at, so the site marker does
+// not cover them.
+const HEAD_AT = 0.85;
 
 export function DeploymentsMap({
   sites, activeSiteIds = null, arrows = [], selected, readings, onSiteClick, onSpotClick, height,
@@ -126,6 +131,13 @@ export function DeploymentsMap({
   if (selected && readings) {
     fitBounds = pin ? latLng(pin).toBounds(readings.threshold_m * 2) : null;
     if (dotPoints.length) fitBounds = fitBounds ? fitBounds.extend(latLngBounds(dotPoints)) : latLngBounds(dotPoints);
+  } else if (!selected) {
+    const inView: [number, number][] = [
+      ...placed.filter((p) => activeSiteIds === null || activeSiteIds.has(p.id))
+        .map((p) => [p.latitude as number, p.longitude as number] as [number, number]),
+      ...arrows.flatMap((a) => [a.from, a.to]),
+    ];
+    fitBounds = inView.length ? latLngBounds(inView) : null;
   }
 
   return (
@@ -139,7 +151,6 @@ export function DeploymentsMap({
     >
       <MapAttribution />
       <BaseLayersControl />
-      <FitBounds points={sitePoints} />
       <SiteMarkersLayer
         sites={placed}
         onSiteClick={onSiteClick}
@@ -152,7 +163,12 @@ export function DeploymentsMap({
             <Polyline positions={[a.from, a.to]} pathOptions={{ color, weight: a.strong ? 4 : 2.5, opacity: a.strong ? 0.95 : 0.3 }}>
               <Tooltip sticky>{a.label}</Tooltip>
             </Polyline>
-            <Marker position={a.to} icon={arrowHead(bearing(a.from, a.to), color)} opacity={a.strong ? 1 : 0.35} interactive={false} />
+            <Marker
+              position={[a.from[0] + (a.to[0] - a.from[0]) * HEAD_AT, a.from[1] + (a.to[1] - a.from[1]) * HEAD_AT]}
+              icon={arrowHead(bearing(a.from, a.to), color)}
+              opacity={a.strong ? 1 : 0.35}
+              interactive={false}
+            />
           </Fragment>
         );
       })}
@@ -194,7 +210,7 @@ export function DeploymentsMap({
           </CircleMarker>
         </>
       )}
-      {selected && <FitToSelection selectionKey={selected.id} bounds={fitBounds} />}
+      <FitOnSelection selectionKey={selected?.id ?? null} bounds={fitBounds} />
       {onSpotClick && <SpotClicks onSpotClick={onSpotClick} />}
       <FullscreenControl />
     </MapContainer>
