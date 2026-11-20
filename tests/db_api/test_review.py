@@ -1,10 +1,9 @@
 """
-Step 3b: the Camera updates page.
+Step 3b: the camera updates check.
 
 An entry is a deployment the GPS made. A person may say it is right, which
 records who looked and when and fixes nothing. Few entries need a person:
-photos without a site, a place the app named itself, and a move that came
-back within a week. The badge counts those in SQL, the page marks them in
+photos without a site, and a move that came back within a week. The badge counts those in SQL, the page marks them in
 the browser from the deployments list, and the two must say the same.
 """
 from datetime import datetime
@@ -17,7 +16,6 @@ from deployment_db import (
     execute,
 )
 from routers.deployments import CheckedRequest, attention_count, list_deployments, set_checked
-from shared.geo import is_auto_site_name
 
 pytestmark = pytest.mark.asyncio
 
@@ -48,7 +46,7 @@ def list_rule(overview) -> int:
                 before is not None and after is not None and after.site_id == before.site_id
                 and (datetime.fromisoformat(d.end_at) - datetime.fromisoformat(d.start_at)).days <= 7
             )
-            if is_auto_site_name(d.site_name) or short_trip:
+            if short_trip:
                 count += 1
     return count
 
@@ -77,22 +75,12 @@ def project_with_news():
 
 
 async def test_what_needs_a_person(session, admin, project_with_news):
-    """The mover's first place got the app's own name, and so did the place
-    it moved to: two entries. The camera without GPS is the third. The fixed
-    camera is a person's word and needs nobody."""
+    """Only the camera without GPS needs a person. The mover's moves are
+    updates nobody answered, which is fine; the fixed camera is a person's
+    word and no update at all."""
     project, mover, fixed, lost = project_with_news
     assert len(to_check(mover)) == 2
     assert to_check(fixed) == []
-    assert (await attention_count(project, session, admin)).count == 3
-
-
-async def test_a_named_place_needs_nobody(session, admin, project_with_news):
-    project, mover, *_ = project_with_news
-    execute("UPDATE sites SET name = 'Home' WHERE id = :s", s=deployments(mover)[0]["site_id"])
-    execute("UPDATE sites SET name = 'Far' WHERE id = :s", s=deployments(mover)[1]["site_id"])
-    # The entries are still there and unanswered, but only the photos
-    # without a site need a person.
-    assert len(to_check(mover)) == 2
     assert (await attention_count(project, session, admin)).count == 1
 
 
@@ -161,7 +149,7 @@ async def test_the_badge_count_equals_the_list(session, admin, project_with_news
         overview = await list_deployments(project, session, admin, None)
         count = (await attention_count(project, session, admin)).count
         assert list_rule(overview) == count
-    assert count == 2  # the place it moved to, and the camera without a site
+    assert count == 1  # the camera without a site
 
 
 # Sites from a CSV

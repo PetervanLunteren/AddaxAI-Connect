@@ -526,8 +526,8 @@ export const SitesPage: React.FC = () => {
   const renderSiteCell = (id: SiteColumnId, site: SiteListItem): React.ReactNode => {
     switch (id) {
       case 'name':
-        // A site that still needs a name stays visible here after its entry
-        // on the Camera updates page was checked.
+        // The Unnamed chip is the only sign of a site nobody named. Naming
+        // is optional: many projects keep the names the app gives.
         return (
           <span className="inline-flex items-center gap-2">
             {site.name}

@@ -82,6 +82,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
       queryClient.invalidateQueries({ queryKey: ['fixed-periods'] });
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['site', projectId] });
       queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
       toast.success('Site set');
       onSaved?.();

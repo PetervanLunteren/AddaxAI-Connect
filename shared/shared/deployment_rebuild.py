@@ -173,7 +173,7 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
     and the rebuild it causes are saved together or not at all.
 
     A new deployment row starts unchecked (checked_at NULL). If the GPS made
-    it, it shows on the Camera updates page as an update nobody answered until a person
+    it, it shows in the camera updates check as an update nobody answered until a person
     says it is right. A kept row keeps its mark.
 
     Raises:
@@ -305,7 +305,7 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
 
 def load_history(session: Session, camera_id: int) -> tuple[list[Photo], list[Statement]]:
     """Everything the build reads for one camera: its photos in capture order
-    and its statements in force. The rebuild and the Camera updates page both
+    and its statements in force. The rebuild and the camera updates check both
     load it here, so the page explains exactly what the rebuild saw."""
     photos = [
         Photo(r.id, r.captured_at, r.gps_lat, r.gps_lon, r.deployment_id)

@@ -1,19 +1,19 @@
 /**
- * The entries of the Camera updates page, worked out from the deployments
- * list the page loads. Plain functions, no React.
+ * The camera updates: what the app noticed, worked out from the deployments
+ * list. Plain functions, no React.
  *
- * An entry is something the app noticed:
+ * An update is one of three kinds:
  * - started: a camera's first deployment, or the first after a gap
  * - moved: a deployment that starts where the camera's previous one ends
  * - unplaced: photos of a camera that no deployment covers
- * Only deployments the GPS made are entries. One a person set is their own
+ * Only deployments the GPS made are updates. One a person set is their own
  * word and is not news.
  *
- * Nobody has to answer an entry. A few need a person (needsYou): photos
- * without a site, a place that still has the name the app gave it, and a
- * move that came back within a week. The server counts the same rule for
- * the sidebar badge (ATTENTION_COUNT_SQL in routers/deployments.py); a test
- * holds the two together.
+ * Nobody has to answer. Two kinds need a person (needsYou): photos without
+ * a site, and a move that came back within a week, the usual shape of a
+ * false move. The server counts the same rule for the sidebar badge
+ * (ATTENTION_COUNT_SQL in routers/deployments.py); a test holds the two
+ * together.
  */
 import type { DeploymentListItem, DeploymentsOverview, UnplacedPhotos } from '../../api/deployments';
 import { formatDate } from '../../utils/datetime';
@@ -90,7 +90,7 @@ export function updateItems(overview: DeploymentsOverview): UpdateItem[] {
         cameraLabel: d.camera_label ?? `Camera ${d.camera_id}`,
         day: d.start_at.slice(0, 10),
         answered: d.checked_at !== null,
-        needsYou: d.checked_at === null && (isAutoSiteName(d.site_name) || shortTrip),
+        needsYou: d.checked_at === null && shortTrip,
         deployment: d,
         previous,
         distanceM: previous ? metresBetween(previous, d) : undefined,
@@ -127,25 +127,15 @@ export function filterItems(items: UpdateItem[], f: UpdateFilters): UpdateItem[]
 
 export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
-/** "This week", "Last week" or "Earlier", by the Monday that starts the week. */
-export function weekOf(day: string, today: Date = new Date()): 'This week' | 'Last week' | 'Earlier' {
-  const monday = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
-  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
-  const age = (monday.getTime() - Date.parse(day)) / 86_400_000;
-  return age <= 0 ? 'This week' : age <= 7 ? 'Last week' : 'Earlier';
-}
-
 /**
- * The updates of a check, in the order it shows them: moves, starts at a
- * new place and photos without a site that nobody answered yet. The ones
- * that need a person come first, then the newest. A camera that started at
- * a site you already have is not asked about: that is almost never wrong.
+ * The updates of a check, in the order it shows them: every move nobody
+ * answered and every camera with photos without a site. The ones that need
+ * a person come first, then the newest. A camera that started somewhere is
+ * not asked about: naming a new place is an optional action in the site's
+ * panel, not a to-do.
  */
 export function checkQueue(items: UpdateItem[]): UpdateItem[] {
-  const inCheck = items.filter((it) =>
-    !it.answered && (
-      it.kind !== 'started' || isAutoSiteName(it.deployment?.site_name)
-    ));
+  const inCheck = items.filter((it) => !it.answered && it.kind !== 'started');
   return [...inCheck.filter((it) => it.needsYou), ...inCheck.filter((it) => !it.needsYou)];
 }
 

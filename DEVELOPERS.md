@@ -725,22 +725,21 @@ Three readers' rules, each in one place (step 2c):
   report, the timeline and the Camtrap DP `deploymentEnd`.
   `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
 
-**Camera updates** (step 3b, project admins only) is the page where people
-see what the app noticed and say when it got one wrong. It replaced the
-camera updates panel and its `feed_events` table. The deployments are the
-one record.
+**Camera updates** (step 3b, project admins only) is how people see what
+the app noticed and say when it got one wrong. It replaced the camera
+updates panel and its `feed_events` table; the deployments are the one
+record. There is no page: the check opens from a chip on the Cameras page
+(`CameraAttentionBar`, "N camera updates to check").
 
 - An update is a deployment the GPS made (`site_source = 'auto'`): a camera
-  started somewhere, or it moved. Photos without a site are listed too.
-- The page is calm: how many updates are left to check, the map, a
-  read-only log. The work is the check (`CheckUpdatesModal.tsx`), one
-  update at a time like image verification: Enter is Right and next, W is
-  Wrong, the arrows step, Esc closes. Its queue (`checkQueue` in
-  `update-items.ts`) is fixed when it opens: moves, starts at a new place
-  and photos without a site that nobody answered, the ones that need a
-  person first. A camera that started at a site you have is not asked
-  about. It shows the last photo before a move next to the first after it
-  (`GET .../deployments/{id}/thumbnails?order=last|first`).
+  started somewhere, or it moved. Photos without a site are updates too.
+- The check (`components/deployments/CheckUpdatesModal.tsx`) shows one at a
+  time like image verification: Enter is Right and next, W is Wrong, the
+  arrows step, Esc closes, and one button marks the rest of the moves
+  right. Its queue (`checkQueue` in `update-items.ts`) is every move nobody
+  answered and every camera with photos without a site, the ones that need
+  a person first. It shows the last photo before a move next to the first
+  after it (`GET .../deployments/{id}/thumbnails?order=last|first`).
 - Nobody has to answer. Right (`PUT .../deployments/checked`) only records
   who looked and when in `checked_at` and `checked_by_user_id`. It fixes
   nothing: the GPS can still change the deployment.
@@ -748,21 +747,24 @@ one record.
   period through `POST .../statements`. Or it did not move
   (`POST .../deployments/{id}/not-moved`): one fixed period over the
   deployment before the move and this one, at the old site.
-- Few updates need a person, and only those count for the sidebar badge:
-  photos without a site, a place that still has the name the app gave it,
-  and a move that came back within a week. The page marks them in the
-  browser (`needsYou` in `components/deployments/update-items.ts`), the
-  badge counts the same rule in SQL (`ATTENTION_COUNT_SQL` in
-  `routers/deployments.py`), and `tests/db_api/test_review.py` holds the
-  two together.
+- Two kinds need a person, and only those count for the badge on Cameras:
+  photos without a site, and a move that came back within a week. The
+  browser marks them (`needsYou` in `update-items.ts`), the badge counts the
+  same rule in SQL (`ATTENTION_COUNT_SQL` in `routers/deployments.py`), and
+  `tests/db_api/test_review.py` holds the two together.
+- Naming a place the app named, and giving a camera its own site when two
+  share one, are optional actions in the site panel (`SiteDetailSheet`),
+  not to-dos. The second is the Set site form with a new site.
+- Going back in time is the camera panel: Set site, and "Set by people"
+  with Undo for every correction.
 - A correction deletes a site it emptied when that site still has the name
   the app gave it (`drop_unnamed_sites_left_empty` in
   `utils/deployment_edits.py`, `is_auto_site_name` in `shared/geo.py`). A
   site a person named is never deleted by the app.
-- The page reads `GET .../deployments` (every deployment, with its days
-  with photos and the photo days without a deployment) and, for a selected
-  update, `GET .../deployments/cameras/{camera_id}/readings`: the camera's
-  GPS and why each deployment starts where it does. The reason is never
+- The check reads `GET .../deployments` (every deployment, with its days
+  with photos and the photo days without a deployment) and, per update,
+  `GET .../deployments/cameras/{camera_id}/readings`: the camera's GPS and
+  why each deployment starts where it does. The reason is never
   stored: the endpoint runs `build_history` again on what `load_history`
   reads, the same two calls the rebuild makes.
 - The screens never say "fixed period" or "statement". The camera panel

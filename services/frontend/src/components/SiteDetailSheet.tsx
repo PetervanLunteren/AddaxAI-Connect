@@ -5,7 +5,7 @@
  * - Overview: editable key fields (name, habitat, notes) inline for admins,
  *   then a read-only card with coordinates and aggregate counts.
  * - History: a read-only journey of which cameras stood here over time.
- *   Corrections happen on the Camera updates page or in the camera slideout.
+ *   Corrections happen in the camera updates check or in the camera slideout.
  *
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
@@ -48,6 +48,8 @@ import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
 import { useToast } from './ui/Toaster';
 import { ServiceSummaryRows } from './service/ServiceSummaryRows';
 import { TabStrip } from './ui/TabStrip';
+import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
+import { isAutoSiteName } from '../utils/site-names';
 
 type TabType = 'overview' | 'cameras' | 'deployments';
 
@@ -121,12 +123,31 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editHabitat, setEditHabitat] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
+  const nameInput = useRef<HTMLInputElement>(null);
+  // "Give it its own site": the camera and where its form starts.
+  const [ownSite, setOwnSite] = useState<{ camera: Camera; prefill: SetDeploymentPrefill } | null>(null);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ['site', projectId, siteId],
     queryFn: () => sitesApi.get(projectId, siteId as number),
     enabled: siteId != null,
   });
+
+  // Where "Give it its own site" starts: the camera's deployment at this
+  // site (the open one, else its latest), from its first day, at its pin.
+  const ownSitePrefill = (c: Camera): SetDeploymentPrefill => {
+    const here = (detail?.deployments ?? [])
+      .filter((d) => d.camera_id === c.id)
+      .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''));
+    const dep = here.find((d) => d.end_date == null) ?? here[0];
+    return {
+      siteId: null,
+      fromDate: dep?.start_date ?? new Date().toISOString().slice(0, 10),
+      untilDate: dep?.end_date ?? null,
+      lat: dep?.latitude ?? c.location?.lat ?? null,
+      lon: dep?.longitude ?? c.location?.lon ?? null,
+    };
+  };
 
   // Tag autocomplete suggestions, project-wide.
   const { data: tagSuggestions } = useQuery({
@@ -269,9 +290,25 @@ export const SiteDetailSheet: React.FC<Props> = ({
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-xs text-muted-foreground">Name</label>
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs text-muted-foreground">Name</label>
+                      {/* Only a nudge: many projects keep the names the app gives. */}
+                      {canEdit && isAutoSiteName(detail.name) && editName === detail.name && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={() => {
+                            nameInput.current?.focus();
+                            nameInput.current?.select();
+                          }}
+                        >
+                          Name this site
+                        </button>
+                      )}
+                    </div>
                     {canEdit ? (
                       <input
+                        ref={nameInput}
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
@@ -455,6 +492,17 @@ export const SiteDetailSheet: React.FC<Props> = ({
                             />
                           </div>
                         </Link>
+                        {/* Two cameras less than 250 m apart share a site.
+                            Only a person knows when one had its own spot. */}
+                        {canEdit && cameras.length >= 2 && (
+                          <button
+                            type="button"
+                            className="mt-1 text-xs text-primary hover:underline"
+                            onClick={() => setOwnSite({ camera: c, prefill: ownSitePrefill(c) })}
+                          >
+                            Give it its own site
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ol>
@@ -473,7 +521,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
               )
             ) : (
               // History tab: a read-only journey of which cameras stood here
-              // over time. Corrections happen on the Camera updates page,
+              // over time. Corrections happen in the camera updates check,
               // or from the camera slideout's history for old placements.
               <DeploymentJourney
                 mode="site"
@@ -501,6 +549,17 @@ export const SiteDetailSheet: React.FC<Props> = ({
           </SheetBody>
         </SheetContent>
       </Sheet>
+
+      {ownSite && (
+        <SetDeploymentDialog
+          projectId={projectId}
+          cameraId={ownSite.camera.id}
+          cameraName={ownSite.camera.device_id ?? ownSite.camera.name}
+          prefill={ownSite.prefill}
+          newSite
+          onClose={() => setOwnSite(null)}
+        />
+      )}
     </>
   );
 };

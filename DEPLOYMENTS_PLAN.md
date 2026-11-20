@@ -430,6 +430,17 @@ Notes per step:
     Add site with both choices, a CSV with 4 rows gave 2 added and 2 clear
     reasons (name in use, a comma as decimal sign). The camera CSV import,
     now on the shared reader, still works.
+  - **Round 4**, planned and built on 20 November 2026. Peter: most of it
+    goes right by itself, so why a page? What goes right by itself: a
+    camera that stays, starts or moves between known sites, GPS noise,
+    late photos, a camera that goes silent. What a person does: place a
+    camera without GPS (the check), look at moves (the check, all moves,
+    the ones back within a week first, one click for the rest). What a
+    person may do: name a place the app named and give a camera its own
+    site when two share one (both in the site panel, not to-dos). A move on
+    the wrong day: nothing new. The Camera updates page and its sidebar
+    item went; the check opens from a chip on the Cameras page and the
+    badge sits on Cameras again.
 
 ## How to work on this plan
 

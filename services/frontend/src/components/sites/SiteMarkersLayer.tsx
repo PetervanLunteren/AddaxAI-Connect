@@ -1,7 +1,7 @@
 /**
  * Site pins on a map: a round marker per site with its name as tooltip,
  * spread out where pins overlap (sites under 100 m apart exist, e.g. cameras
- * on one pole). Shared by the Sites map and the Camera updates page. Must be
+ * on one pole). Shared by the Sites map and the camera updates check. Must be
  * used inside a MapContainer.
  */
 import { Marker, Tooltip } from 'react-leaflet';

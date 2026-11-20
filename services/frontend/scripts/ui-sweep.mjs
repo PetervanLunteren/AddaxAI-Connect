@@ -54,7 +54,6 @@ const PROJECT_ROUTES = [
   'dashboard',
   'dashboard/explore',
   'cameras',
-  'camera-updates',
   'service',
   'sites',
   'images',

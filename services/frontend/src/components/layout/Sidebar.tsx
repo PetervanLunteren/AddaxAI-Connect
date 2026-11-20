@@ -33,7 +33,6 @@ import {
   Radio,
   Footprints,
   Wrench,
-  Route,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useProject } from '../../contexts/ProjectContext';
@@ -62,10 +61,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/sites`, icon: MapPin, label: 'Sites' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
-    // Admins only, like its route.
-    ...(isProjectAdmin
-      ? [{ to: `/projects/${projectId}/camera-updates`, icon: Route, label: 'Camera updates' }]
-      : []),
     { to: `/projects/${projectId}/service`, icon: Wrench, label: 'Service' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/live-feed`, icon: Activity, label: 'Live feed' },
@@ -103,8 +98,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // immediate query invalidation, so they never wait.
   const numericProjectId = projectId ? Number(projectId) : undefined;
 
-  // Camera updates that need a person, for the badge: a to-do count, so
-  // admins only (the page is). Rare events, so a slow poll is enough; every
+  // Camera updates that need a person, for the badge on Cameras (the check
+  // opens from that page): a to-do count, so admins only. Rare events, so a slow poll is enough; every
   // answer on the page invalidates it.
   const { data: needYou } = useQuery({
     queryKey: ['deployments', numericProjectId, 'attention-count'],
@@ -123,7 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   });
 
   const navBadges: Record<string, number | undefined> = {
-    'Camera updates': needYou,
+    Cameras: needYou,
     Service: serviceTasks?.length,
   };
 
@@ -245,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <span>{item.label}</span>
                 </div>
                 {/* Admin to-do counts: camera updates that need a person
-                    and open service tasks. */}
+                    (checked from the Cameras page) and open service tasks. */}
                 {(navBadges[item.label] ?? 0) > 0 && (
                   <span
                     className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"

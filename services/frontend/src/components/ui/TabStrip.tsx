@@ -1,7 +1,7 @@
 /**
  * Underlined tab strip, shared by every page and slide-out that switches
  * between views (Sites table and map, Service open and done, the camera
- * and site slide-outs, the Camera updates page).
+ * and site slide-outs, the camera updates check).
  *
  * `extra` sits at the right end of the same row, for controls that belong
  * to the active tab. The row wraps, so on phones it drops to its own line.

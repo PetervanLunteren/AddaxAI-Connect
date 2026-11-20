@@ -1,5 +1,5 @@
 /**
- * The map of the Camera updates page.
+ * The map of the camera updates check.
  *
  * It shows every site of the project, the ones outside the current view
  * faded, and the moves of the updates list as arrows. A click on a site is

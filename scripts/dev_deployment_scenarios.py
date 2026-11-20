@@ -1,6 +1,6 @@
 """
 Dev-only. Make a project of made-up cameras, each telling one deployment
-story, for end to end tests of the Camera updates page (DEPLOYMENTS_PLAN.md,
+story, for end to end tests of the camera updates check (DEPLOYMENTS_PLAN.md,
 phase 3 onwards).
 
 Every photo goes through the real live path: stored in MinIO, written with
@@ -195,7 +195,7 @@ def make_project(devices: list[str]) -> tuple[int, dict[str, int]]:
         model = session.execute(text("SELECT classification_model FROM projects ORDER BY id LIMIT 1")).scalar()
         project_id = session.execute(
             text("INSERT INTO projects (name, description, classification_model) VALUES (:n, :d, :m) RETURNING id"),
-            {"n": PROJECT_NAME, "d": "Made-up cameras for testing the Camera updates page. Dev only.",
+            {"n": PROJECT_NAME, "d": "Made-up cameras for testing the camera updates check. Dev only.",
              "m": model or "EUR-DF-v1-4"},
         ).scalar_one()
         for name, (lat, lon) in SITES.items():

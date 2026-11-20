@@ -9,19 +9,17 @@
  *   new one, and one line of reason
  * - Right (Enter) records that a person looked and goes on. Wrong (W) asks
  *   what happened: it did not move, or it stands at another site, which
- *   puts the map in pick mode; the Set site form does the rest. A place the
- *   app named itself also gets Name this site. Photos without a site only
- *   get Set site.
- * The arrows step back and forward without answering, Esc closes. The last
- * answer shows a short summary.
+ *   puts the map in pick mode; the Set site form does the rest. Photos
+ *   without a site only get Set site.
+ * "This one and the moves after it are right" ends a long check after the
+ * flagged moves. The arrows step back and forward without answering, Esc
+ * closes. The end shows a short summary.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronLeft, ChevronRight, Loader2, MapPin, Pencil, Undo2, X } from 'lucide-react';
+import { Check, CheckCheck, ChevronLeft, ChevronRight, Loader2, MapPin, Undo2, X } from 'lucide-react';
 import { deploymentsApi, type DeploymentPhoto, type DeploymentStart } from '../../api/deployments';
-import { sitesApi } from '../../api/sites';
 import { formatDateTime } from '../../utils/datetime';
-import { isAutoSiteName } from '../../utils/site-names';
 import { AuthenticatedImage } from '../AuthenticatedImage';
 import { Button } from '../ui/Button';
 import { Dialog } from '../ui/Dialog';
@@ -76,7 +74,6 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
   const [wrongOpen, setWrongOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<{ prefill: SetDeploymentPrefill; newSite: boolean } | null>(null);
-  const [naming, setNaming] = useState(false);
 
   const index = current ? queue.indexOf(current) : -1;
   const it = items.find((i) => i.key === current) ?? null;
@@ -89,7 +86,6 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
   const goTo = (target: number) => {
     setWrongOpen(false);
     setPicking(false);
-    setNaming(false);
     const step = target < index ? -1 : 1;
     let i = target;
     while (i >= 0 && i < queue.length && gone(queue[i])) i += step;
@@ -146,20 +142,27 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
     },
     onError: (error) => toast.error(`Could not take the move back. ${errMsg(error)}`),
   });
-  const rename = useMutation({
-    mutationFn: async (name: string) => {
-      await sitesApi.update(projectId, d!.site_id!, { name });
-      // Naming the place is looking at it.
-      await deploymentsApi.setChecked(projectId, [d!.id], true);
-    },
+  // The moves after this one that nobody answered: one click marks them all
+  // right. Photos without a site are never marked, they still need a site.
+  const restIds = queue.slice(index + 1)
+    .map((key) => items.find((i) => i.key === key))
+    .filter((i): i is UpdateItem => !!i && i.kind === 'moved' && !i.answered && !answers[i.key])
+    .map((i) => i.deployment!.id);
+  const allRight = useMutation({
+    mutationFn: () => deploymentsApi.setChecked(projectId, [d!.id, ...restIds], true),
     onSuccess: () => {
       refresh();
-      toast.success('Site named');
-      answered('right');
+      const marked = new Set([d!.id, ...restIds]);
+      setAnswers((a) => {
+        const next = { ...a };
+        for (const i of items) if (i.deployment && marked.has(i.deployment.id)) next[i.key] = 'right';
+        return next;
+      });
+      setDone(true);
     },
-    onError: (error) => toast.error(`Could not name the site. ${errMsg(error)}`),
+    onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
   });
-  const busy = right.isPending || notMoved.isPending || rename.isPending;
+  const busy = right.isPending || notMoved.isPending || allRight.isPending;
 
   const startPicking = () => {
     setWrongOpen(false);
@@ -182,7 +185,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
   const keys = useRef({ goTo, index, it, answer, busy, rightNow: () => right.mutate(true), blocked: false });
   keys.current = {
     goTo, index, it, answer, busy, rightNow: () => right.mutate(true),
-    blocked: done || !!editing || naming || picking,
+    blocked: done || !!editing || picking,
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -332,7 +335,8 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
                     onWrong={() => setWrongOpen(true)}
                     onNotMoved={() => notMoved.mutate()}
                     onOtherSite={startPicking}
-                    onName={() => setNaming(true)}
+                    onAllRight={restIds.length > 0 && it.kind === 'moved' ? () => allRight.mutate() : undefined}
+                    restCount={restIds.length}
                     onNext={next}
                   />
                 </>
@@ -341,14 +345,6 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
           </div>
         )}
 
-        {naming && d && (
-          <NameSite
-            initialName={d.site_name ?? ''}
-            isPending={rename.isPending}
-            onCancel={() => setNaming(false)}
-            onSave={(name) => rename.mutate(name)}
-          />
-        )}
       </div>
 
       {editing && it && (
@@ -394,9 +390,10 @@ const Answers: React.FC<{
   onWrong: () => void;
   onNotMoved: () => void;
   onOtherSite: () => void;
-  onName: () => void;
+  onAllRight?: () => void;
+  restCount: number;
   onNext: () => void;
-}> = ({ it, myAnswer, busy, wrongOpen, onRight, onUndo, onWrong, onNotMoved, onOtherSite, onName, onNext }) => {
+}> = ({ it, myAnswer, busy, wrongOpen, onRight, onUndo, onWrong, onNotMoved, onOtherSite, onAllRight, restCount, onNext }) => {
   const d = it.deployment;
   if (it.kind === 'unplaced') {
     return (
@@ -444,13 +441,13 @@ const Answers: React.FC<{
           Wrong
           <kbd className="ml-2 text-[10px] opacity-70">W</kbd>
         </Button>
-        {isAutoSiteName(d?.site_name) && (
-          <Button variant="outline" onClick={onName} disabled={busy}>
-            <Pencil className="h-4 w-4 mr-2" />
-            Name this site
-          </Button>
-        )}
       </div>
+      {onAllRight && (
+        <Button variant="ghost" size="sm" onClick={onAllRight} disabled={busy}>
+          <CheckCheck className="h-4 w-4 mr-2" />
+          This one and the {restCount} {restCount === 1 ? 'move' : 'moves'} after it are right
+        </Button>
+      )}
       {wrongOpen && (
         <div className="space-y-2">
           <p className="font-medium">What happened?</p>
@@ -470,42 +467,5 @@ const Answers: React.FC<{
         </div>
       )}
     </div>
-  );
-};
-
-const NameSite: React.FC<{
-  initialName: string;
-  isPending: boolean;
-  onCancel: () => void;
-  onSave: (name: string) => void;
-}> = ({ initialName, isPending, onCancel, onSave }) => {
-  const [name, setName] = useState(initialName);
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => ref.current?.select(), []);
-  return (
-    <form
-      className="mt-4 flex flex-wrap items-end gap-2 border-t pt-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!isPending && name.trim()) onSave(name.trim());
-      }}
-    >
-      <label className="flex-1 min-w-[12rem] text-xs text-muted-foreground" htmlFor="check-site-name">
-        Name for this site
-        <input
-          id="check-site-name"
-          ref={ref}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={255}
-          className="mt-1 w-full px-3 py-2 border rounded-md text-sm text-foreground"
-        />
-      </label>
-      <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>Cancel</Button>
-      <Button type="submit" disabled={isPending || !name.trim()}>
-        {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-        Save name
-      </Button>
-    </form>
   );
 };

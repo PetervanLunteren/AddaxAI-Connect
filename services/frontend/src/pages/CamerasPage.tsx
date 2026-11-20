@@ -105,6 +105,10 @@ import {
 } from '../components/BulkEditDialogs';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
+import { CheckUpdatesModal } from '../components/deployments/CheckUpdatesModal';
+import { checkQueue, updateItems } from '../components/deployments/update-items';
+import { deploymentsApi } from '../api/deployments';
+import { sitesApi } from '../api/sites';
 import { useToast } from '../components/ui/Toaster';
 import { cameraColumnPrefs, type ColumnId } from '../components/cameras/columnDefs';
 import { formatRelative } from '../utils/datetime';
@@ -224,6 +228,25 @@ export const CamerasPage: React.FC = () => {
     queryFn: () => camerasApi.getAll(currentProject?.id),
     enabled: !!currentProject,
   });
+
+  // Camera updates to check (moves, photos without a site), admins only.
+  // The check itself is CheckUpdatesModal; its chip sits with the others.
+  const { data: deploymentsOverview } = useQuery({
+    queryKey: ['deployments', currentProject?.id, 'overview'],
+    queryFn: () => deploymentsApi.list(currentProject!.id),
+    enabled: !!currentProject && canAdminCurrentProject,
+  });
+  const { data: projectSites } = useQuery({
+    queryKey: ['sites', currentProject?.id],
+    queryFn: () => sitesApi.list(currentProject!.id),
+    enabled: !!currentProject && canAdminCurrentProject,
+  });
+  const cameraUpdates = useMemo(
+    () => (deploymentsOverview ? updateItems(deploymentsOverview) : []),
+    [deploymentsOverview],
+  );
+  const updatesToCheck = checkQueue(cameraUpdates);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
 
   // Site-restricted viewers get null counts (they see no rejections at
   // all). Then the column would be a row of dashes and the filter could
@@ -961,7 +984,24 @@ export const CamerasPage: React.FC = () => {
       {/* Page-wide counts of cameras that want a visit, independent of the
           table filters. Clicking a count applies the matching filter. Shared
           with the dashboard so the thresholds cannot drift apart. */}
-      <CameraAttentionBar cameras={cameras} onSelect={onFilterChange} />
+      <CameraAttentionBar
+        cameras={cameras}
+        onSelect={onFilterChange}
+        updates={canAdminCurrentProject ? {
+          count: updatesToCheck.length,
+          urgent: updatesToCheck.some((it) => it.needsYou),
+          onOpen: () => setCheckingUpdates(true),
+        } : undefined}
+      />
+      {checkingUpdates && currentProject && (
+        <CheckUpdatesModal
+          projectId={currentProject.id}
+          items={cameraUpdates}
+          sites={projectSites ?? []}
+          startKey={null}
+          onClose={() => setCheckingUpdates(false)}
+        />
+      )}
 
       {/* Shared filter bar */}
       {cameras && cameras.length > 0 && (
