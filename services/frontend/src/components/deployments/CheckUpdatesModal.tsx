@@ -83,10 +83,16 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
   const d = it?.deployment;
   const p = it?.previous;
 
-  const goTo = (i: number) => {
+  // An update can disappear while the check is open: taking back a trip
+  // out removes its way back too. The check steps over those.
+  const gone = (key: string) => !answers[key] && !items.some((i) => i.key === key);
+  const goTo = (target: number) => {
     setWrongOpen(false);
     setPicking(false);
     setNaming(false);
+    const step = target < index ? -1 : 1;
+    let i = target;
+    while (i >= 0 && i < queue.length && gone(queue[i])) i += step;
     if (i >= queue.length) setDone(true);
     else if (i >= 0) setCurrent(queue[i]);
   };
@@ -212,6 +218,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
 
   const rightCount = Object.values(answers).filter((a) => a === 'right').length;
   const wrongCount = Object.values(answers).filter((a) => a === 'wrong').length;
+  const skipped = queue.filter((key) => !answers[key] && !gone(key)).length;
   const myAnswer = answer;
 
   return (
@@ -245,7 +252,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, st
             </p>
             {queue.length > 0 && (
               <p className="text-sm text-muted-foreground">
-                {rightCount} right, {wrongCount} wrong, {queue.length - rightCount - wrongCount} skipped.
+                {rightCount} right, {wrongCount} wrong, {skipped} skipped.
               </p>
             )}
             <Button onClick={onClose}>Close</Button>
