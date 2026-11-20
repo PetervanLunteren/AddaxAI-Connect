@@ -35,7 +35,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 2b | done, release with the branch | `deployments-phase-2` |
 | 2c | done, release with the branch | `deployments-phase-2` |
 | 3a | done, release with the branch | `deployments-phase-2` |
-| 3b | done, release with the branch | `deployments-phase-2` |
+| 3b | done, walkthrough with Peter in progress | `deployments-phase-2` |
 | 3c | dropped, see the notes of 3b | |
 | 4 | not started | `deployments-phase-2` |
 | docs | not started | `deployments-phase-2` |
@@ -452,6 +452,31 @@ Notes per step:
     pin, Set site from 15 Aug (its start at Pond), saved; Pond keeps only
     S01. The new site's pin follows the camera's own GPS, as every pin
     does, so a typed spot is moved to where the photos say the camera is.
+
+- **Walkthrough with Peter**, started 20 November 2026. Peter walks the
+  twelve scenarios one by one in the browser and gives feedback; fixes are
+  collected and made after S12, unless one blocks him.
+  - Dev holds an otherwise empty "Deployment scenarios" project (id 12)
+    with only S01. The next scenario is added with
+    `docker compose exec -T ingestion python /app/scripts/dev_deployment_scenarios.py --only S02`
+    (one camera, its whole history at once). To start over, delete the
+    project (images first, then cameras, sites, project) and run `--only S01`.
+  - Per scenario, send Peter a card: what really happened, where to look,
+    what he should see, what to do. Then wait for "next" or feedback.
+  - Status: S01 card sent. Peter has feedback points to give after a
+    context compaction; nothing collected yet.
+  - The scenarios, what really happened, and the answer on the screens:
+    S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
+    check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not
+    move). S04 moved 180 m on 15 Sep, unseen (camera panel, Set site
+    Stream east from 15 Sep). S05 one stray fix 3 km off (nothing). S06 no
+    GPS at Meadow from 1 Oct (check, Set site). S07 GPS gaps in October
+    (nothing). S08 silent since 20 Sep (nothing, shows inactive). S09 Old
+    mill, Beech wood in September, Old mill (Right twice). S10 next to S01
+    at Pond, own spot (site panel, Give it its own site). S11 moved 1 Oct,
+    first photo 8 Oct (Wrong, another site, Fen from 1 Oct). S12 moved 1
+    Sep, August photos from an old card arrive last (Right).
+  - Test photos show blurred until detection processes them.
 
 ## How to work on this plan
 
