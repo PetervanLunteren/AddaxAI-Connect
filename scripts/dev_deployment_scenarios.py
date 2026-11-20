@@ -31,20 +31,18 @@ from typing import Optional
 # Ingestion service code (db_operations, storage_operations) lives at /app.
 sys.path.insert(0, "/app")
 
-from PIL import Image as PILImage
+from PIL import Image as PILImage, ImageDraw, ImageFont
 from sqlalchemy import text
 
 from shared.database import get_db_session
 from shared.notify_guard import is_development
 from shared.queue import QUEUE_IMAGE_INGESTED, RedisQueue
-from shared.storage import BUCKET_RAW_IMAGES, StorageClient
 
 from db_operations import create_image_record
 from storage_operations import generate_and_upload_thumbnail, upload_image_to_minio
 
 PROJECT_NAME = "Deployment scenarios"
 FIRST_DAY = date(2026, 8, 1)
-LOCAL_SRC = "/tmp/scenario_src.jpg"
 LOCAL_PHOTO = "/tmp/scenario_photo.jpg"
 
 # A made-up grid on the Veluwe. Names make the sites easy to read on the page.
@@ -83,6 +81,7 @@ class Photo:
     device: str
     taken: datetime
     gps: Optional[tuple[float, float]]
+    place: str  # where the camera really stood, written on the photo
     late: bool = False  # arrives after every on-time photo
 
 
@@ -100,7 +99,7 @@ def days(first: date, last: date):
 
 def stay(device: str, site: str, first: date, last: date, gps: bool = True) -> list[Photo]:
     """One photo a day at a site, both days included."""
-    return [Photo(device, day(d), jitter(SITES[site]) if gps else None) for d in days(first, last)]
+    return [Photo(device, day(d), jitter(SITES[site]) if gps else None, site) for d in days(first, last)]
 
 
 def scenarios(today: date) -> dict[str, list[Photo]]:
@@ -117,8 +116,8 @@ def scenarios(today: date) -> dict[str, list[Photo]]:
     bad = offset(SITES["Meadow"], north_m=400)
     burst = datetime(2026, 9, 10, 6, 12, 0)
     s["S03-FALSE-MOVE"] = stay("S03-FALSE-MOVE", "Meadow", FIRST_DAY, today) + [
-        Photo("S03-FALSE-MOVE", burst, jitter(bad)),
-        Photo("S03-FALSE-MOVE", burst + timedelta(seconds=1), jitter(bad)),
+        Photo("S03-FALSE-MOVE", burst, jitter(bad), "Meadow (GPS 400 m off)"),
+        Photo("S03-FALSE-MOVE", burst + timedelta(seconds=1), jitter(bad), "Meadow (GPS 400 m off)"),
     ]
 
     # Moved 180 m, inside the 250 m the rule allows.
@@ -129,11 +128,12 @@ def scenarios(today: date) -> dict[str, list[Photo]]:
 
     # One stray fix 3 km off.
     s["S05-ONE-STRAY"] = stay("S05-ONE-STRAY", "Spruce hill", FIRST_DAY, today) + [
-        Photo("S05-ONE-STRAY", datetime(2026, 10, 5, 14, 3, 0), jitter(offset(SITES["Spruce hill"], east_m=3000))),
+        Photo("S05-ONE-STRAY", datetime(2026, 10, 5, 14, 3, 0), jitter(offset(SITES["Spruce hill"], east_m=3000)),
+              "Spruce hill (GPS 3 km off)"),
     ]
 
-    # A camera without GPS.
-    s["S06-NO-GPS"] = stay("S06-NO-GPS", "Pond", date(2026, 10, 1), today, gps=False)
+    # A camera without GPS, at Meadow.
+    s["S06-NO-GPS"] = stay("S06-NO-GPS", "Meadow", date(2026, 10, 1), today, gps=False)
 
     # GPS that drops out: every third October photo without GPS, two at (0, 0).
     gaps = stay("S07-GPS-GAPS", "Clearing", FIRST_DAY, today)
@@ -173,22 +173,18 @@ def scenarios(today: date) -> dict[str, list[Photo]]:
     return s
 
 
-def prepare_photo() -> str:
-    """One real camera trap photo from this server, made small, used for
-    every scenario photo. Detection runs on it as on any photo."""
-    with get_db_session() as session:
-        row = session.execute(text("""
-            SELECT i.storage_path FROM images i
-            JOIN detections d ON d.image_id = i.id
-            WHERE i.status = 'classified' AND i.storage_path IS NOT NULL AND d.category = 'animal'
-            ORDER BY d.confidence DESC LIMIT 1
-        """)).first()
-    if row is None:
-        sys.exit("No classified photo on this server to use as the picture.")
-    StorageClient().download_file(BUCKET_RAW_IMAGES, row.storage_path, LOCAL_SRC)
-    with PILImage.open(LOCAL_SRC) as im:
-        im.thumbnail((1280, 1280))
-        im.convert("RGB").save(LOCAL_PHOTO, "JPEG", quality=85)
+def draw(photo: Photo) -> str:
+    """A plain picture that says what really happened: the camera, where it
+    stood and when, so every thumbnail can be checked against the page.
+    Detection finds nothing on it, so it lands as empty."""
+    im = PILImage.new("RGB", (960, 540), (52, 78, 65))
+    pen = ImageDraw.Draw(im)
+    font = ImageFont.load_default(size=44)
+    gps = "no GPS" if photo.gps is None else f"GPS {photo.gps[0]:.5f}, {photo.gps[1]:.5f}"
+    lines = [photo.device, f"Really at {photo.place}", f"{photo.taken:%d %b %Y %H:%M:%S}", gps]
+    for i, line in enumerate(lines):
+        pen.text((40, 60 + i * 100), line, fill=(240, 240, 230), font=font)
+    im.save(LOCAL_PHOTO, "JPEG", quality=80)
     return LOCAL_PHOTO
 
 
@@ -217,7 +213,8 @@ def make_project(devices: list[str]) -> tuple[int, dict[str, int]]:
     return project_id, cameras
 
 
-def send(photo: Photo, camera_id: int, path: str, queue: RedisQueue) -> None:
+def send(photo: Photo, camera_id: int, queue: RedisQueue) -> None:
+    path = draw(photo)
     image_uuid = str(uuid_module.uuid4())
     filename = f"{photo.device}_{photo.taken:%Y%m%d_%H%M%S}.jpg"
     storage_path = upload_image_to_minio(path, photo.device, image_uuid, filename)
@@ -243,16 +240,15 @@ def main() -> None:
     # On-time photos in capture order, then the late ones.
     photos.sort(key=lambda p: (p.late, p.taken))
 
-    path = prepare_photo()
     project_id, cameras = make_project(list(stories))
     print(f"Project {project_id} {PROJECT_NAME!r}: {len(SITES)} sites, {len(cameras)} cameras, "
           f"{len(photos)} photos to send")
     queue = RedisQueue(QUEUE_IMAGE_INGESTED)
     for n, photo in enumerate(photos, start=1):
-        send(photo, cameras[photo.device], path, queue)
+        send(photo, cameras[photo.device], queue)
         if n % 200 == 0:
             print(f"  {n} sent")
-    os.remove(path)
+    os.remove(LOCAL_PHOTO)
     print("Done. Detection and classification run next, in the background.")
 
 
