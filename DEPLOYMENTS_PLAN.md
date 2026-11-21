@@ -546,6 +546,8 @@ Notes per step:
        person had set that site. Fixed at once: only a site the GPS chose
        is kept, so after Undo the GPS decides again. Test with more photos
        after the move than before, as S02 has; it failed before the fix.
+       In the check, Undo now forgets the answer, so the move that comes
+       back asks Right or Wrong again. Test data reset (project 15).
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

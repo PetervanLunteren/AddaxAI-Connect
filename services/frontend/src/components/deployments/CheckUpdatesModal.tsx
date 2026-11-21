@@ -105,6 +105,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
     if (!current) return;
     setAnswers((a) => ({ ...a, [current]: 'wrong' }));
     setCorrections((c) => ({ ...c, [current]: statementId }));
+    setUndone((u) => { const next = new Set(u); next.delete(current); return next; });
   };
 
   const refresh = () => {
@@ -147,9 +148,15 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
   });
   const undoCorrection = useMutation({
     mutationFn: (statementId: number) => deploymentsApi.removeFixedPeriod(projectId, statementId),
+    // The answer is forgotten: a move that comes back (often with the same
+    // row) asks Right or Wrong again. One that does not come back, as a
+    // correction from the camera panel, says it is undone.
     onSuccess: () => {
       refresh();
-      if (current) setUndone((u) => new Set(u).add(current));
+      if (!current) return;
+      setUndone((u) => new Set(u).add(current));
+      setAnswers(({ [current]: _a, ...rest }) => rest);
+      setCorrections(({ [current]: _c, ...rest }) => rest);
     },
     onError: (error) => toast.error(`Could not undo. ${errMsg(error)}`),
   });
@@ -311,9 +318,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                 {!it ? (
                   <Card>
                     <CardContent className="pt-4 pb-3 space-y-3 text-sm">
-                      {current && undone.has(current) ? (
-                        <p className="text-muted-foreground text-center">Undone, the move is back under Not checked yet</p>
-                      ) : current && corrections[current] !== undefined ? (
+                      {current && corrections[current] !== undefined ? (
                         <>
                           <Button className="w-full" onClick={next}>
                             Next
@@ -325,6 +330,8 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                           </Button>
                           <p className="text-muted-foreground text-center">Corrected</p>
                         </>
+                      ) : current && undone.has(current) ? (
+                        <p className="text-muted-foreground text-center">Undone, the GPS decides these days again</p>
                       ) : (
                         <p className="text-muted-foreground text-center">This update no longer exists</p>
                       )}
@@ -377,7 +384,11 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                           wrongOpen={wrongOpen}
                           onWrongOpenChange={setWrongOpen}
                           onRight={() => right.mutate(true)}
-                          onUndo={it.correction ? () => undoCorrection.mutate(it.correction!.id) : () => right.mutate(false)}
+                          onUndo={
+                            it.correction ? () => undoCorrection.mutate(it.correction!.id)
+                              : current && corrections[current] !== undefined ? () => undoCorrection.mutate(corrections[current])
+                                : () => right.mutate(false)
+                          }
                           onNotMoved={() => notMoved.mutate()}
                           onOtherSite={startPicking}
                           onAllRight={restIds.length > 0 && it.kind === 'moved' ? () => allRight.mutate() : undefined}
@@ -475,7 +486,7 @@ const Answers: React.FC<{
           Next
           <Kbd>→</Kbd>
         </Button>
-        {it.answered && (
+        {(it.answered || myAnswer === 'wrong') && (
           <Button variant="outline" className="w-full" onClick={onUndo} disabled={busy}>
             <Undo2 className="h-4 w-4 mr-2" />
             Undo
