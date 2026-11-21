@@ -40,8 +40,9 @@ interface Props {
   // Open on "create a new site" at the prefilled spot: a click on an empty
   // spot of the map in the camera updates check.
   newSite?: boolean;
-  // Called after a successful save, before onClose.
-  onSaved?: () => void;
+  // Called after a successful save, before onClose, with the statement
+  // written, so the caller can offer Undo.
+  onSaved?: (statementId: number) => void;
 }
 
 function errMsg(err: unknown): string {
@@ -76,7 +77,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
         from_date: fromDate,
         until_date: untilDate || null,
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       // Everything that shows where a camera stood.
       queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
       queryClient.invalidateQueries({ queryKey: ['fixed-periods'] });
@@ -85,7 +86,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
       queryClient.invalidateQueries({ queryKey: ['site', projectId] });
       queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
       toast.success('Site set');
-      onSaved?.();
+      onSaved?.(result.statement_id);
       onClose();
     },
     onError: (error) => toast.error(`Could not set the site. ${errMsg(error)}`),

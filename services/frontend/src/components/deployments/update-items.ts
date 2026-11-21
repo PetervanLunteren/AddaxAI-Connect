@@ -37,7 +37,7 @@ export interface UpdateItem {
   distanceM?: number; // from the previous pin to this one
   // The out leg of a trip that came back within a week: the likely false move.
   shortTrip?: boolean;
-  // The way back of such a trip. "It did not move" belongs on the out leg.
+  // The way back of such a trip. "It stayed at …" belongs on the out leg.
   returnOfShortTrip?: boolean;
   unplaced?: UnplacedPhotos;
 }

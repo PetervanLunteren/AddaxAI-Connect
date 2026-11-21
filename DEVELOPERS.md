@@ -750,10 +750,15 @@ teal, with a small legend.
 - Nobody has to answer. Right (`PUT .../deployments/checked`) only records
   who looked and when in `checked_at` and `checked_by_user_id`. It fixes
   nothing: the GPS can still change the deployment.
-- Wrong is one of two things. The camera stands at another site: a fixed
-  period through `POST .../statements`. Or it did not move
+- Wrong is one of two things, named in the user's words with the real
+  sites. "It moved, but not to Ridge": a fixed period through
+  `POST .../statements`. "It stayed at Pond", the GPS was off
   (`POST .../deployments/{id}/not-moved`): one fixed period over the
-  deployment before the move and this one, at the old site.
+  deployment before the move and this one, at the old site. Both return
+  the statement id, and the check shows Undo on the spot
+  (`DELETE .../statements/{id}`) instead of asking for confirmation first.
+  Later, Undo is under Corrections in the camera panel: a corrected move is
+  no longer the app's, so it is in none of the three groups.
 - Two kinds need a person, and only those count for the badge on Cameras:
   photos without a site, and a move that came back within a week. The
   browser marks them (`needsYou` in `update-items.ts`), the badge counts the

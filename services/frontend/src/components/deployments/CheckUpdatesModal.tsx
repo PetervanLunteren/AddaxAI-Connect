@@ -12,10 +12,11 @@
  *   Right and Wrong, each on its own row with its key. On a real camera the two photos
  *   settle most checks: same view, so it did not move.
  * - Right (Enter) records that a person looked and goes on. Wrong (W) is a
- *   small menu of what happened: it did not move, or it stands at another
- *   site, which
- *   puts the map in pick mode; the Set site form does the rest. Photos
- *   without a site only get Set site.
+ *   small menu of what happened, in the user's words with the real names:
+ *   "It stayed at Pond" (the GPS was off) or "It moved, but not to Ridge",
+ *   which puts the map in pick mode; the Set site form does the rest.
+ *   A Wrong answer stays on screen with Undo, instead of a confirmation
+ *   before it. Photos without a site only get Set site.
  * "Right, and the next N too" ends a long check after the flagged moves.
  * The arrows step back and forward without answering, Esc closes. The end
  * shows a short summary.
@@ -67,6 +68,11 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
   const [done, setDone] = useState(queue.length === 0);
   // What was answered in this check, by update, for going back and the summary.
   const [answers, setAnswers] = useState<Record<string, 'right' | 'wrong'>>({});
+  // A Wrong answer is a correction: its id, for Undo right here. No
+  // confirmation before Wrong, Undo after it instead: everything is
+  // reversible, and a dialog on every answer slows the check down.
+  const [corrections, setCorrections] = useState<Record<string, number>>({});
+  const [undone, setUndone] = useState<Set<string>>(new Set());
   const [wrongOpen, setWrongOpen] = useState(false);
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<{ prefill: SetDeploymentPrefill; newSite: boolean } | null>(null);
@@ -93,6 +99,12 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
   const answered = (how: 'right' | 'wrong') => {
     if (current) setAnswers((a) => ({ ...a, [current]: how }));
     next();
+  };
+  // Wrong stays on the update, so its Undo is in view.
+  const corrected = (statementId: number) => {
+    if (!current) return;
+    setAnswers((a) => ({ ...a, [current]: 'wrong' }));
+    setCorrections((c) => ({ ...c, [current]: statementId }));
   };
 
   const refresh = () => {
@@ -127,13 +139,21 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
   });
   const notMoved = useMutation({
     mutationFn: () => deploymentsApi.notMoved(projectId, d!.id),
-    onSuccess: () => {
+    onSuccess: (result) => {
       refresh();
-      toast.success('The move is taken back');
-      answered('wrong');
+      corrected(result.statement_id);
     },
     onError: (error) => toast.error(`Could not take the move back. ${errMsg(error)}`),
   });
+  const undoCorrection = useMutation({
+    mutationFn: (statementId: number) => deploymentsApi.removeFixedPeriod(projectId, statementId),
+    onSuccess: () => {
+      refresh();
+      if (current) setUndone((u) => new Set(u).add(current));
+    },
+    onError: (error) => toast.error(`Could not undo. ${errMsg(error)}`),
+  });
+
   // The moves after this one that nobody answered: one click marks them all
   // right. Photos without a site are never marked, they still need a site.
   const restIds = queue.slice(index + 1)
@@ -154,7 +174,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
     },
     onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
   });
-  const busy = right.isPending || notMoved.isPending || allRight.isPending;
+  const busy = right.isPending || notMoved.isPending || allRight.isPending || undoCorrection.isPending;
 
   const startPicking = () => {
     setWrongOpen(false);
@@ -186,7 +206,10 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
       if (k.blocked || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable) return;
       if (e.key === 'ArrowRight') { e.preventDefault(); k.goTo(k.index + 1); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); k.goTo(k.index - 1); }
-      else if (e.key === 'Enter' && k.it && !k.busy) {
+      else if (e.key === 'Enter' && !k.it && k.answer) {
+        e.preventDefault();
+        k.goTo(k.index + 1); // a corrected update: Enter goes on, as Next
+      } else if (e.key === 'Enter' && k.it && !k.busy) {
         e.preventDefault();
         if (k.it.answered || k.answer) k.goTo(k.index + 1);
         else if (k.it.deployment) k.rightNow();
@@ -216,7 +239,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
   );
 
   const rightCount = Object.values(answers).filter((a) => a === 'right').length;
-  const wrongCount = Object.values(answers).filter((a) => a === 'wrong').length;
+  const wrongCount = Object.entries(answers).filter(([key, a]) => a === 'wrong' && !undone.has(key)).length;
   const skipped = queue.filter((key) => !answers[key] && !gone(key)).length;
 
   // Previous, next, position and close, as in the image verification panel.
@@ -285,8 +308,24 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                 {header}
                 {!it ? (
                   <Card>
-                    <CardContent className="pt-4 pb-3 text-sm text-muted-foreground text-center">
-                      {answer === 'wrong' ? 'Corrected' : 'This update no longer exists'}
+                    <CardContent className="pt-4 pb-3 space-y-3 text-sm">
+                      {current && undone.has(current) ? (
+                        <p className="text-muted-foreground text-center">Undone, the move is back under Not checked yet</p>
+                      ) : current && corrections[current] !== undefined ? (
+                        <>
+                          <Button className="w-full" onClick={next}>
+                            Next
+                            <Kbd onPrimary>→</Kbd>
+                          </Button>
+                          <Button variant="outline" className="w-full" onClick={() => undoCorrection.mutate(corrections[current])} disabled={busy}>
+                            <Undo2 className="h-4 w-4 mr-2" />
+                            Undo
+                          </Button>
+                          <p className="text-muted-foreground text-center">Corrected</p>
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground text-center">This update no longer exists</p>
+                      )}
                     </CardContent>
                   </Card>
                 ) : (
@@ -370,7 +409,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
           cameraName={it.cameraLabel}
           prefill={editing.prefill}
           newSite={editing.newSite}
-          onSaved={() => answered('wrong')}
+          onSaved={corrected}
           onClose={() => setEditing(null)}
         />
       )}
@@ -463,11 +502,11 @@ const Answers: React.FC<{
         <DropdownMenuContent align="end" className="w-56">
           {canNotMove && (
             <DropdownMenuItem onClick={onNotMoved}>
-              It did not move
+              It stayed at {placeName(it.previous?.site_name)}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={onOtherSite}>
-            It stands at another site
+            It moved, but not to {placeName(d?.site_name)}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -527,6 +527,15 @@ Notes per step:
        its models and tests. The GPS columns and their backfill stay: they
        are the input of the build. Right and Wrong back on their own rows,
        so they do not read as belonging to one photo.
+   10. S02, Wrong from the user's side: "It stayed at Pond" (was "It did
+       not move", the GPS was off) and "It moved, but not to Ridge" (was
+       "It stands at another site": the camera moved to an existing site
+       whose pin is over 250 m from its GPS, or the app snapped to the
+       wrong one of two close sites). No confirmation before Wrong; it
+       stays on screen with Undo (the API now returns the statement id).
+       Peter could not find how to undo a Wrong: corrected moves are in
+       none of the three groups, only under Corrections in the camera
+       panel. Show GPS of photos as a toggle: decide at S03.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

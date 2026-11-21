@@ -64,6 +64,7 @@ export interface SetDeploymentRequest {
 // `merged` is how many deployments fewer the camera has afterwards: periods
 // at one site back to back become one. 0 in the common case.
 export interface SetDeploymentResponse {
+  statement_id: number; // for Undo (removeFixedPeriod)
   merged: number;
 }
 

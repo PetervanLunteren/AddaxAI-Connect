@@ -89,6 +89,7 @@ async def test_change_site_is_a_statement_and_leaves_the_pin(session, admin, mov
     # north, not at this camera's GPS. Until 21 November 2026 it moved there.
     assert close(site(other)["lat"], offset(HOME, north_m=5000)[0]) and close(site(other)["lon"], HOME[1])
     [statement] = statements(m["cam"])
+    assert result.statement_id == statement["id"]
     assert (statement["site_id"], statement["source"]) == (other, "person")
     assert statement["created_by_user_id"] == admin.id
     assert statement["until_at"] is None and statement["fixed_until_at"] == at(11)
@@ -197,6 +198,7 @@ async def test_it_did_not_move_folds_back_and_removes_the_unnamed_site(session, 
         assert image_deployment(image) == m["first"]
     assert site(m["far"]) is None
     [statement] = statements(m["cam"])
+    assert result.statement_id == statement["id"]
     assert statement["from_at"] == at(2) and statement["site_id"] == m["home"]
     assert statement["created_by_user_id"] == admin.id
 

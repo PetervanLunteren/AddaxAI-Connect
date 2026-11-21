@@ -195,6 +195,8 @@ class SetDeploymentRequest(BaseModel):
 
 
 class SetDeploymentResponse(BaseModel):
+    # The statement written, for Undo (DELETE .../statements/{id}).
+    statement_id: int
     # How many deployments fewer the camera has afterwards: periods at the
     # same site back to back become one.
     merged: int = 0
@@ -306,7 +308,7 @@ async def set_deployment(
     from_at, until_at = period_of_days(request.from_date, request.until_date)
     before = await _deployment_count(db, request.camera_id)
     sites_before = await _camera_site_ids(db, request.camera_id)
-    await state(db, request.camera_id, request.site_id, from_at, until_at, user.id)
+    statement_id = await state(db, request.camera_id, request.site_id, from_at, until_at, user.id)
     await drop_unnamed_sites_left_empty(db, sites_before)
     merged = max(0, before - await _deployment_count(db, request.camera_id))
     await db.commit()
@@ -314,7 +316,7 @@ async def set_deployment(
         "Set deployment", project_id=project_id, camera_id=request.camera_id,
         site_id=request.site_id, from_date=str(request.from_date), until_date=str(request.until_date),
     )
-    return SetDeploymentResponse(merged=merged)
+    return SetDeploymentResponse(statement_id=statement_id, merged=merged)
 
 
 @router.delete("/statements/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -450,12 +452,12 @@ async def not_moved(
         )
     before = await _deployment_count(db, deployment.camera_id)
     false_site = deployment.site_id
-    await state(db, deployment.camera_id, before_move.site_id, before_move.start_at, deployment.end_at, user.id)
+    statement_id = await state(db, deployment.camera_id, before_move.site_id, before_move.start_at, deployment.end_at, user.id)
     await drop_unnamed_sites_left_empty(db, [false_site])
     merged = max(0, before - await _deployment_count(db, deployment.camera_id))
     await db.commit()
     logger.info("It did not move", project_id=project_id, deployment_id=deployment_id)
-    return SetDeploymentResponse(merged=merged)
+    return SetDeploymentResponse(statement_id=statement_id, merged=merged)
 
 
 class DeploymentPhoto(BaseModel):
