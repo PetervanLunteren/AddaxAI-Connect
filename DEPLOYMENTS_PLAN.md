@@ -585,7 +585,13 @@ Notes per step:
        layout test", id 16, throwaway): Where wrapped into rows ten lines
        high. Now From and To are two sortable columns, long names and
        camera ids are cut on one line with the full text on hover, and
-       headers do not wrap.
+       headers do not wrap. A fixed layout fits all nine columns at laptop
+       width (short columns set, the four text columns share the rest;
+       below 64rem it scrolls), and Date shows the first day only.
+   19. Seen while testing, not fixed: a page opened in a fresh tab right
+       after a frontend deploy sometimes says "Please select a project"
+       until reloaded (Moves and Cameras alike). Looks like the project
+       context loading race, older than this work.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not
