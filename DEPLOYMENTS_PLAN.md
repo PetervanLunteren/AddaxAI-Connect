@@ -578,6 +578,9 @@ Notes per step:
        gone once someone answers; a Status filter option, on top of the
        table, and what the badge counts. `SuspiciousPill` is shared by the
        table and the window.
+   17. A Distance column, sortable by metres. Not part of the Suspicious
+       rule: GPS errors and real moves both come short and long, so
+       distance alone does not tell them apart; the person judges it.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

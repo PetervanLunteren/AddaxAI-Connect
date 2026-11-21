@@ -23,7 +23,7 @@ import { sitesApi } from '../api/sites';
 import { CheckMovesModal } from '../components/deployments/CheckMovesModal';
 import { SuspiciousPill } from '../components/deployments/SuspiciousPill';
 import {
-  STATUS_LABELS, dateLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
+  STATUS_LABELS, dateLabel, metresLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
   updateStatus, type UpdateItem, type UpdateStatus,
 } from '../components/deployments/update-items';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
@@ -43,7 +43,7 @@ import { useBulkSelection } from '../hooks/useBulkSelection';
 import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } from '../lib/filter-url';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
-type Column = 'date' | 'camera' | 'where' | 'status' | 'by' | 'decidedOn';
+type Column = 'date' | 'camera' | 'where' | 'distance' | 'status' | 'by' | 'decidedOn';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera: 'string',
@@ -66,11 +66,13 @@ const asString = (v: FilterValue): string => (typeof v === 'string' ? v : '');
 const errorText = (error: any) => error?.response?.data?.detail || error?.message;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-// Null sorts last either way: a move nobody decided has no who or when.
-const SORT: Record<Column, (it: UpdateItem) => string | null> = {
+// Null sorts last either way: a move nobody decided has no who or when, a
+// correction has no distance.
+const SORT: Record<Column, (it: UpdateItem) => string | number | null> = {
   date: (it) => it.day,
   camera: (it) => it.cameraLabel,
   where: (it) => route(it),
+  distance: (it) => it.distanceM ?? null,
   status: (it) => STATUS_LABELS[updateStatus(it)],
   by: (it) => decided(it)?.by ?? null,
   decidedOn: (it) => decided(it)?.day ?? null,
@@ -174,7 +176,8 @@ export const MovesPage: React.FC = () => {
       const va = value(a);
       const vb = value(b);
       if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1;
-      return sign * va.localeCompare(vb, undefined, { sensitivity: 'base' });
+      if (typeof va === 'number' && typeof vb === 'number') return sign * (va - vb);
+      return sign * String(va).localeCompare(String(vb), undefined, { sensitivity: 'base' });
     });
   }, [items, f.camera, f.site, f.status, f.by, f.from, f.to, sort]);
   const isFiltered = Object.values(f).some(Boolean);
@@ -299,6 +302,7 @@ export const MovesPage: React.FC = () => {
                     {header('Date', 'date')}
                     {header('Camera', 'camera')}
                     {header('Where', 'where')}
+                    {header('Distance', 'distance')}
                     {header('Status', 'status')}
                     {header('Decided by', 'by')}
                     {header('Decided on', 'decidedOn')}
@@ -307,7 +311,7 @@ export const MovesPage: React.FC = () => {
                 <TableBody>
                   {shown.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         No moves match your filters.
                       </TableCell>
                     </TableRow>
@@ -335,6 +339,9 @@ export const MovesPage: React.FC = () => {
                         </TableCell>
                         <TableCell className="font-medium">{it.cameraLabel}</TableCell>
                         <TableCell>{route(it)}</TableCell>
+                        <TableCell className="whitespace-nowrap tabular-nums">
+                          {it.distanceM !== undefined ? metresLabel(it.distanceM) : '-'}
+                        </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             <StatusPill tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</StatusPill>
