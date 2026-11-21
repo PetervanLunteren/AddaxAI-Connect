@@ -20,7 +20,7 @@ from deployment_db import (
     DAY, HOME, at, close, deployments, execute, image_deployment, make_camera,
     make_image, make_project, make_site, make_user, offset, rows, scalar, site,
 )
-from routers.deployments import SetDeploymentRequest, not_moved, set_deployment
+from routers.deployments import SetDeploymentRequest, not_moved, remove_statement, set_deployment
 from routers.sites import MergeSiteRequest, delete_site, merge_site
 
 pytestmark = pytest.mark.asyncio
@@ -212,6 +212,27 @@ async def test_it_did_not_move_leaves_the_pin_where_the_gps_put_it(session, admi
     await not_moved(m["project"], m["second"], session, admin)
     after = site(m["home"])
     assert close(after["lat"], before["lat"]) and close(after["lon"], before["lon"])
+
+
+async def test_undo_of_it_did_not_move_gives_the_move_back(session, admin):
+    """Undo hands the days back to the GPS. More photos after the move than
+    before, as with S02 on dev: the one corrected row then matches the part
+    after the move, and the rebuild used to keep that row's site, Home, for
+    it, so the camera stayed at Home after Undo."""
+    project = make_project()
+    cam = make_camera("CAM01", project)
+    home = make_site(project, "Home", HOME)
+    history(cam, [(HOME, at(2)), (HOME, at(3))] + [(FAR, at(d)) for d in (10, 11, 12, 13, 14)])
+    _, moved = deployments(cam)
+
+    result = await not_moved(project, moved["id"], session, admin)
+    assert len(deployments(cam)) == 1
+    await remove_statement(project, result.statement_id, session, admin)
+
+    first, second = deployments(cam)
+    assert first["site_id"] == home and first["site_source"] == "auto"
+    assert second["site_id"] != home and second["site_source"] == "auto"
+    assert close(site(second["site_id"])["lon"], FAR[1], metres=20)
 
 
 async def test_it_did_not_move_twice_finds_no_deployment(session, admin, moved_camera):

@@ -209,7 +209,13 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
     planned: list[Planned] = []
     for b, row_id in zip(built, match_rows(built, stored, photos)):
         p = Planned(b, row_id)
-        kept_site = stored_by_id[row_id].site_id if row_id is not None else None
+        # A GPS part keeps the site its row had, so jitter never hops it to
+        # another site. Only a site the GPS chose, though: a site a person
+        # set came from a statement, and once that statement is removed the
+        # GPS decides again. Keeping it made Undo of "It stayed at Pond"
+        # leave the camera at Pond (Peter's walkthrough, 21 November 2026).
+        old = stored_by_id[row_id] if row_id is not None else None
+        kept_site = old.site_id if old is not None and old.site_source == "auto" else None
         if b.site_id is not None:
             p.site_id = b.site_id
         elif kept_site is not None:
