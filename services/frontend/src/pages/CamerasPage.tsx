@@ -243,9 +243,16 @@ export const CamerasPage: React.FC = () => {
     queryFn: () => sitesApi.list(currentProject!.id),
     enabled: !!currentProject && canAdminCurrentProject,
   });
+  // The project's corrections, for the Checked group (key under
+  // 'fixed-periods', so every save and Undo refreshes it).
+  const { data: projectCorrections } = useQuery({
+    queryKey: ['fixed-periods', 'project', currentProject?.id],
+    queryFn: () => deploymentsApi.fixedPeriods(currentProject!.id),
+    enabled: !!currentProject && canAdminCurrentProject,
+  });
   const cameraUpdates = useMemo(
-    () => (deploymentsOverview ? updateItems(deploymentsOverview) : []),
-    [deploymentsOverview],
+    () => (deploymentsOverview ? updateItems(deploymentsOverview, projectCorrections) : []),
+    [deploymentsOverview, projectCorrections],
   );
   // A menu of three groups, each opening the check. Findable, not asking:
   // the button shows a count only for the updates that need a person, the

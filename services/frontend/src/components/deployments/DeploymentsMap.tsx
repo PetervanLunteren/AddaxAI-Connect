@@ -4,7 +4,7 @@
  *
  * It shows the move and nothing more: the site it left and the site it went
  * to, both magenta like the arrow between them, and the project's other
- * sites faded teal. A person decides a move by whether they moved the
+ * sites faded teal. A correction has no move: its one site is magenta. A person decides a move by whether they moved the
  * camera, and the two photos in the card show that, so the GPS of the
  * photos is not drawn. The GPS stays the input of the build.
  *
@@ -87,13 +87,12 @@ function SpotClicks({ onSpotClick }: { onSpotClick: (lat: number, lon: number) =
 
 export function DeploymentsMap({ sites, activeSiteIds, arrows, onSiteClick, onSpotClick, height }: Props) {
   const placed = useMemo(() => sites.filter((s) => s.latitude != null && s.longitude != null), [sites]);
-  // Fit to the move, or to every site when there is none.
-  const fitPoints = useMemo<[number, number][]>(
-    () => arrows.length > 0
-      ? arrows.flatMap((a) => [a.from, a.to])
-      : placed.map((s) => [s.latitude as number, s.longitude as number]),
-    [arrows, placed],
-  );
+  // Fit to the move, else to the sites in it, else to every site.
+  const fitPoints = useMemo<[number, number][]>(() => {
+    if (arrows.length > 0) return arrows.flatMap((a) => [a.from, a.to]);
+    const inView = activeSiteIds ? placed.filter((s) => activeSiteIds.has(s.id)) : [];
+    return (inView.length > 0 ? inView : placed).map((s) => [s.latitude as number, s.longitude as number]);
+  }, [arrows, placed, activeSiteIds]);
 
   if (placed.length === 0) {
     return (
@@ -129,7 +128,7 @@ export function DeploymentsMap({ sites, activeSiteIds, arrows, onSiteClick, onSp
           <Marker position={along(a, ARROW_TO)} icon={arrowHead(bearing(a.from, a.to), MOVE)} interactive={false} />
         </Fragment>
       ))}
-      <FitBounds points={fitPoints} />
+      <FitBounds points={fitPoints} maxZoom={16} />
       {onSpotClick && <SpotClicks onSpotClick={onSpotClick} />}
       <FullscreenControl />
     </MapContainer>

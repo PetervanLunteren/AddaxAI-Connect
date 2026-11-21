@@ -757,8 +757,11 @@ teal, with a small legend.
   deployment before the move and this one, at the old site. Both return
   the statement id, and the check shows Undo on the spot
   (`DELETE .../statements/{id}`) instead of asking for confirmation first.
-  Later, Undo is under Corrections in the camera panel: a corrected move is
-  no longer the app's, so it is in none of the three groups.
+  Later, Undo is in the Checked group, which lists everything a person
+  decided: moves answered Right and every correction a person made
+  (`GET .../statements` without `camera_id` gives the project's; periods
+  an upload set or the update carried over are left out, nobody decided
+  those). The camera panel's Corrections list is the same data per camera.
 - Two kinds need a person, and only those count for the badge on Cameras:
   photos without a site, and a move that came back within a week. The
   browser marks them (`needsYou` in `update-items.ts`), the badge counts the

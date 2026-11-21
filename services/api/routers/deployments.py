@@ -175,6 +175,8 @@ async def list_deployments(
 class StatementItem(BaseModel):
     """One fixed period: a decision about where the camera stood."""
     id: int
+    camera_id: int
+    camera_label: str
     site_id: int
     site_name: str
     from_date: str
@@ -247,27 +249,30 @@ async def _deployment_count(db: AsyncSession, camera_id: int) -> int:
 @router.get("/statements", response_model=List[StatementItem])
 async def list_statements(
     project_id: int,
-    camera_id: int = Query(...),
+    camera_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """The camera's fixed periods that are in force, newest first."""
-    await _camera_in_project(db, project_id, camera_id)
-    rows = (
-        await db.execute(
-            select(DeploymentStatement, Site.name, User.email)
-            .join(Site, Site.id == DeploymentStatement.site_id)
-            .outerjoin(User, User.id == DeploymentStatement.created_by_user_id)
-            .where(
-                DeploymentStatement.camera_id == camera_id,
-                DeploymentStatement.removed_at.is_(None),
-            )
-            .order_by(DeploymentStatement.id.desc())
-        )
-    ).all()
+    """The fixed periods in force, newest first: of one camera (the camera
+    panel's Corrections), or of the whole project without camera_id (the
+    Checked group of camera updates)."""
+    query = (
+        select(DeploymentStatement, Camera.device_id, Site.name, User.email)
+        .join(Camera, Camera.id == DeploymentStatement.camera_id)
+        .join(Site, Site.id == DeploymentStatement.site_id)
+        .outerjoin(User, User.id == DeploymentStatement.created_by_user_id)
+        .where(Camera.project_id == project_id, DeploymentStatement.removed_at.is_(None))
+        .order_by(DeploymentStatement.id.desc())
+    )
+    if camera_id is not None:
+        await _camera_in_project(db, project_id, camera_id)
+        query = query.where(DeploymentStatement.camera_id == camera_id)
+    rows = (await db.execute(query)).all()
     return [
         StatementItem(
             id=st.id,
+            camera_id=st.camera_id,
+            camera_label=camera_label,
             site_id=st.site_id,
             site_name=site_name,
             from_date=st.from_at.date().isoformat(),
@@ -276,7 +281,7 @@ async def list_statements(
             created_by=email,
             created_at=st.created_at.isoformat(),
         )
-        for st, site_name, email in rows
+        for st, camera_label, site_name, email in rows
     ]
 
 

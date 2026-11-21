@@ -70,6 +70,8 @@ export interface SetDeploymentResponse {
 
 export interface FixedPeriod {
   id: number;
+  camera_id: number;
+  camera_label: string;
   site_id: number;
   site_name: string;
   from_date: string; // YYYY-MM-DD
@@ -104,9 +106,10 @@ export const deploymentsApi = {
     const { data } = await apiClient.post(`${base(projectId)}/statements`, body);
     return data;
   },
-  fixedPeriods: async (projectId: number, cameraId: number): Promise<FixedPeriod[]> => {
+  // Of one camera, or of the whole project without cameraId.
+  fixedPeriods: async (projectId: number, cameraId?: number): Promise<FixedPeriod[]> => {
     const { data } = await apiClient.get(`${base(projectId)}/statements`, {
-      params: { camera_id: cameraId },
+      params: cameraId !== undefined ? { camera_id: cameraId } : {},
     });
     return data;
   },

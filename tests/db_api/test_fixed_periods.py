@@ -159,3 +159,21 @@ async def test_a_site_of_another_project_is_not_found(session, admin, setup):
     with pytest.raises(HTTPException) as err:
         await place(session, admin, project, cam, elsewhere, 1)
     assert err.value.status_code == 404
+
+
+async def test_without_a_camera_the_list_is_the_whole_project(session, admin, setup):
+    """The Checked group of camera updates lists every correction of the
+    project, with the camera it belongs to."""
+    project, cam, pond, meadow = setup
+    other = make_camera("REOLINK02", project)
+    other_project = make_project("Other")
+    elsewhere = make_camera("ELSEWHERE", other_project)
+    await place(session, admin, project, cam, pond, 1)
+    await place(session, admin, project, other, meadow, 2)
+    await place(session, admin, other_project, elsewhere, make_site(other_project, "Far", HOME), 1)
+    await place(session, admin, project, cam, meadow, 10)
+
+    items = await list_statements(project, None, session, admin)
+    assert [(i.camera_label, i.site_name) for i in items] == [
+        ("REOLINK01", "Meadow"), ("REOLINK02", "Meadow"), ("REOLINK01", "Pond"),
+    ]

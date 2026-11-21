@@ -233,9 +233,11 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
     if (!from || !to) return [];
     return [{ key: it!.key, from, to, label: `${placeName(p!.site_name)} to ${placeName(d!.site_name)}` }];
   }, [it, d, p, sites]);
+  // The sites in this update, magenta on the map: both ends of a move, or
+  // the one site of a correction.
   const active = useMemo(
-    () => new Set([d?.site_id, p?.site_id].filter((id): id is number => id != null)),
-    [d, p],
+    () => new Set([d?.site_id, p?.site_id, it?.correction?.site_id].filter((id): id is number => id != null)),
+    [d, p, it],
   );
 
   const rightCount = Object.values(answers).filter((a) => a === 'right').length;
@@ -296,7 +298,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                 <DeploymentsMap
                   key={current ?? 'none'}
                   sites={sites}
-                  activeSiteIds={picking || !d ? null : active}
+                  activeSiteIds={picking || active.size === 0 ? null : active}
                   arrows={picking ? [] : arrows}
                   onSiteClick={(siteId) => picking && picked(siteId, null, null)}
                   onSpotClick={picking ? (lat, lon) => picked(null, lat, lon) : undefined}
@@ -334,9 +336,14 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                     <Card>
                       <CardContent className="pt-4 pb-3 space-y-1 text-sm">
                         <DetailRow label="Camera">{it.cameraLabel}</DetailRow>
-                        <DetailRow label={it.kind === 'unplaced' ? 'Site' : 'Move'}>{route(it)}</DetailRow>
-                        <DetailRow label={it.kind === 'unplaced' ? 'Days' : 'Date'}>{dateLabel(it)}</DetailRow>
+                        <DetailRow label={it.kind === 'unplaced' ? 'Site' : it.kind === 'corrected' ? 'Set to' : 'Move'}>{route(it)}</DetailRow>
+                        <DetailRow label={it.kind === 'moved' ? 'Date' : 'Days'}>{dateLabel(it)}</DetailRow>
                         <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : null}</DetailRow>
+                        {it.correction && (
+                          <DetailRow label="By">
+                            {[it.correction.created_by, dayLabel(it.correction.created_at.slice(0, 10))].filter(Boolean).join(', ')}
+                          </DetailRow>
+                        )}
                         {it.shortTrip && (
                           <div className="pt-1 text-right">
                             <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[#ff8945]/20">Back within a week</span>
@@ -370,7 +377,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                           wrongOpen={wrongOpen}
                           onWrongOpenChange={setWrongOpen}
                           onRight={() => right.mutate(true)}
-                          onUndo={() => right.mutate(false)}
+                          onUndo={it.correction ? () => undoCorrection.mutate(it.correction!.id) : () => right.mutate(false)}
                           onNotMoved={() => notMoved.mutate()}
                           onOtherSite={startPicking}
                           onAllRight={restIds.length > 0 && it.kind === 'moved' ? () => allRight.mutate() : undefined}
@@ -474,7 +481,7 @@ const Answers: React.FC<{
             Undo
           </Button>
         )}
-        {status(!it.answered
+        {status(!it.answered || it.kind === 'corrected'
           ? 'Corrected'
           : [`Checked by ${d?.checked_by ?? 'someone'}`, d?.checked_at && dayLabel(d.checked_at.slice(0, 10))]
               .filter(Boolean).join(', '))}

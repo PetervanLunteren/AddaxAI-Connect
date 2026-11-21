@@ -536,6 +536,11 @@ Notes per step:
        Peter could not find how to undo a Wrong: corrected moves are in
        none of the three groups, only under Corrections in the camera
        panel. Show GPS of photos as a toggle: decide at S03.
+   11. S02: Checked is everything a person decided, Right and Wrong, to
+       review and undo in one place. Corrections a person made (not upload
+       or carried-over periods) are items in Checked: camera, Set to, Days,
+       By, the site magenta on the map, Next and Undo. Same endpoint as the
+       camera panel's Corrections, without camera_id for the project.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not
