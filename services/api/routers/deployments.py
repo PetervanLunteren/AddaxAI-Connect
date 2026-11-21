@@ -16,8 +16,6 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
-from shared.deployment_rebuild import build_history, load_history
-from shared.geo import SITE_THRESHOLD_METERS
 from shared.logger import get_logger
 from shared.models import Camera, Deployment, DeploymentStatement, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
@@ -172,80 +170,6 @@ async def list_deployments(
             for cid, days in sorted(unplaced_days.items())
         ],
     )
-
-
-class ReadingDot(BaseModel):
-    """Photos of one deployment at one spot (5 decimals, about a metre)."""
-    deployment_id: Optional[int] = None
-    latitude: float
-    longitude: float
-    count: int
-
-
-class DeploymentStart(BaseModel):
-    """How a deployment started. kind is 'first' (the camera's first photos,
-    or the first after a closed fixed period), 'moved' (the GPS rule saw a
-    move) or 'fixed' (a fixed period starts here)."""
-    deployment_id: int
-    kind: str
-    distance_m: Optional[float] = None
-    readings: Optional[int] = None
-    first_at: Optional[str] = None
-
-
-class CameraReadings(BaseModel):
-    threshold_m: float
-    dots: List[ReadingDot]
-    starts: List[DeploymentStart]
-
-
-@router.get("/cameras/{camera_id}/readings", response_model=CameraReadings)
-async def camera_readings(
-    project_id: int,
-    camera_id: int,
-    db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(require_project_admin_access),
-):
-    """
-    The GPS of a camera's photos and why each of its deployments starts where
-    it does. The build runs again on the same input the rebuild reads
-    (load_history), so the reason is never stored and never stale. A built
-    deployment is matched to its row by its start, which the rebuild wrote.
-    Two parts at one site that the rebuild joined keep the reason of the
-    first part, which is where the row starts.
-    """
-    camera = await _camera_in_project(db, project_id, camera_id)
-    photos, statements = await db.run_sync(lambda s: load_history(s, camera_id))
-    built = build_history(photos, statements, camera.retired_at)
-    row_by_start = dict((await db.execute(
-        select(Deployment.start_at, Deployment.id).where(Deployment.camera_id == camera_id)
-    )).all())
-
-    starts: List[DeploymentStart] = []
-    for b in built:
-        row_id = row_by_start.get(b.start_at)
-        if row_id is None:
-            continue  # a part the rebuild joined to the one before
-        if b.statement_id is not None:
-            starts.append(DeploymentStart(deployment_id=row_id, kind="fixed"))
-        elif b.move is not None:
-            starts.append(DeploymentStart(
-                deployment_id=row_id, kind="moved", distance_m=round(b.move.distance_m),
-                readings=b.move.readings, first_at=b.move.first_at.isoformat(),
-            ))
-        else:
-            starts.append(DeploymentStart(deployment_id=row_id, kind="first"))
-
-    grouped: Dict[tuple, int] = {}
-    for p in photos:
-        if p.lat is not None:
-            key = (p.deployment_id, round(p.lat, 5), round(p.lon, 5))
-            grouped[key] = grouped.get(key, 0) + 1
-    dots = [
-        ReadingDot(deployment_id=d, latitude=lat, longitude=lon, count=n)
-        for (d, lat, lon), n in grouped.items()
-    ]
-    return CameraReadings(threshold_m=SITE_THRESHOLD_METERS, dots=dots, starts=starts)
 
 
 class StatementItem(BaseModel):

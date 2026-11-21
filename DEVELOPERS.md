@@ -773,11 +773,10 @@ teal, with a small legend.
   `utils/deployment_edits.py`, `is_auto_site_name` in `shared/geo.py`). A
   site a person named is never deleted by the app.
 - The check reads `GET .../deployments` (every deployment, with its days
-  with photos and the photo days without a deployment) and, per update,
-  `GET .../deployments/cameras/{camera_id}/readings`: the camera's GPS and
-  why each deployment starts where it does. The reason is never
-  stored: the endpoint runs `build_history` again on what `load_history`
-  reads, the same two calls the rebuild makes.
+  with photos and the photo days without a deployment). Its map shows only
+  the two sites of a move and the arrow between them, not the GPS of the
+  photos: a person decides a move by whether they moved the camera, and the
+  two photos show that. The GPS stays the input of the build.
 - The screens never say "fixed period" or "statement". The camera panel
   lists them as "Corrections", each with Undo.
 - Sites are added on the Sites page, one at a time or from a CSV

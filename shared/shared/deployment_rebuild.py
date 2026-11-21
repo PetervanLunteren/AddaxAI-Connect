@@ -305,8 +305,7 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
 
 def load_history(session: Session, camera_id: int) -> tuple[list[Photo], list[Statement]]:
     """Everything the build reads for one camera: its photos in capture order
-    and its statements in force. The rebuild and the camera updates check both
-    load it here, so the page explains exactly what the rebuild saw."""
+    and its statements in force."""
     photos = [
         Photo(r.id, r.captured_at, r.gps_lat, r.gps_lon, r.deployment_id)
         for r in session.execute(text("""

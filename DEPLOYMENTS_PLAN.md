@@ -518,6 +518,12 @@ Notes per step:
        and Same as last in image verification), Wrong a menu (opened by W
        too), the map on satellite, everything of the camera magenta, the
        arrow from 15% to 85%, no separate deployment pin, a legend.
+    9. S02, simpler still: the map shows only site A, the arrow and site B,
+       all magenta; the GPS dots, the noise ring and the legend went, and
+       with them the readings endpoint (`GET .../cameras/{id}/readings`),
+       its models and tests. The GPS columns and their backfill stay: they
+       are the input of the build. Right and Wrong back on their own rows,
+       so they do not read as belonging to one photo.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

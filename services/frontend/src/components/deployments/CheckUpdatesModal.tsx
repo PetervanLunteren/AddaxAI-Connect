@@ -6,12 +6,10 @@
  * It shows one group of the Camera updates menu (updateGroup in
  * update-items.ts). The queue is fixed when the check opens,
  * so an answered update does not jump away under the user. Per update:
- * - the map of this camera: the arrow of the move, both places, the GPS of
- *   its photos and the ring of the move rule (which is why the card does
- *   not explain the rule in words)
+ * - the map: the two sites of the move and the arrow between them
  * - a facts card (camera, move, date, distance) and an answer card: the
- *   last photo at the old place next to the first at the new one, Right
- *   and Wrong on one row with their keys. On a real camera the two photos
+ *   last photo at the old place next to the first at the new one, then
+ *   Right and Wrong, each on its own row with its key. On a real camera the two photos
  *   settle most checks: same view, so it did not move.
  * - Right (Enter) records that a person looked and goes on. Wrong (W) is a
  *   small menu of what happened: it did not move, or it stands at another
@@ -105,11 +103,6 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
     queryClient.invalidateQueries({ queryKey: ['cameras'] });
   };
 
-  const { data: readings } = useQuery({
-    queryKey: ['deployments', projectId, 'readings', it?.cameraId],
-    queryFn: () => deploymentsApi.readings(projectId, it!.cameraId),
-    enabled: !!d,
-  });
   // The evidence: the last photo before the move and the first after it,
   // or the first two at a new place.
   const { data: before } = useQuery({
@@ -206,13 +199,17 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // From site to site, so the arrow meets the two magenta markers.
   const arrows: MapArrow[] = useMemo(() => {
-    if (!d || !p || d.latitude === null || d.longitude === null || p.latitude === null || p.longitude === null) return [];
-    return [{
-      key: it!.key, from: [p.latitude, p.longitude], to: [d.latitude, d.longitude],
-      label: `${placeName(p.site_name)} to ${placeName(d.site_name)}`,
-    }];
-  }, [it, d, p]);
+    const at = (siteId: number | null | undefined): [number, number] | null => {
+      const site = sites.find((s) => s.id === siteId);
+      return site && site.latitude != null && site.longitude != null ? [site.latitude, site.longitude] : null;
+    };
+    const from = at(p?.site_id);
+    const to = at(d?.site_id);
+    if (!from || !to) return [];
+    return [{ key: it!.key, from, to, label: `${placeName(p!.site_name)} to ${placeName(d!.site_name)}` }];
+  }, [it, d, p, sites]);
   const active = useMemo(
     () => new Set([d?.site_id, p?.site_id].filter((id): id is number => id != null)),
     [d, p],
@@ -278,8 +275,6 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                   sites={sites}
                   activeSiteIds={picking || !d ? null : active}
                   arrows={picking ? [] : arrows}
-                  selected={picking ? null : d ?? null}
-                  readings={readings}
                   onSiteClick={(siteId) => picking && picked(siteId, null, null)}
                   onSpotClick={picking ? (lat, lon) => picked(null, lat, lon) : undefined}
                   height={MAP_HEIGHT}
@@ -430,18 +425,16 @@ const Answers: React.FC<{
   if (it.answered || myAnswer) {
     return (
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          {it.answered ? (
-            <Button variant="outline" onClick={onUndo} disabled={busy}>
-              <Undo2 className="h-4 w-4 mr-2" />
-              Undo
-            </Button>
-          ) : <span />}
-          <Button variant="outline" onClick={onNext}>
-            Next
-            <Kbd>→</Kbd>
+        <Button variant="outline" className="w-full" onClick={onNext}>
+          Next
+          <Kbd>→</Kbd>
+        </Button>
+        {it.answered && (
+          <Button variant="outline" className="w-full" onClick={onUndo} disabled={busy}>
+            <Undo2 className="h-4 w-4 mr-2" />
+            Undo
           </Button>
-        </div>
+        )}
         {status(!it.answered
           ? 'Corrected'
           : [`Checked by ${d?.checked_by ?? 'someone'}`, d?.checked_at && dayLabel(d.checked_at.slice(0, 10))]
@@ -452,34 +445,32 @@ const Answers: React.FC<{
   const canNotMove = it.kind === 'moved' && !it.returnOfShortTrip;
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <Button onClick={onRight} disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-          Right
-          <Kbd onPrimary>⏎</Kbd>
-        </Button>
-        {/* What kind of wrong: a menu, opened by a click or by W. */}
-        <DropdownMenu open={wrongOpen} onOpenChange={onWrongOpenChange} className="block">
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-full" disabled={busy}>
-              <X className="h-4 w-4 mr-2" />
-              Wrong
-              <Kbd>W</Kbd>
-              <ChevronDown className="h-3.5 w-3.5 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            {canNotMove && (
-              <DropdownMenuItem onClick={onNotMoved}>
-                It did not move
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={onOtherSite}>
-              It stands at another site
+      <Button className="w-full" onClick={onRight} disabled={busy}>
+        {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+        Right
+        <Kbd onPrimary>⏎</Kbd>
+      </Button>
+      {/* What kind of wrong: a menu, opened by a click or by W. */}
+      <DropdownMenu open={wrongOpen} onOpenChange={onWrongOpenChange} className="block">
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="w-full" disabled={busy}>
+            <X className="h-4 w-4 mr-2" />
+            Wrong
+            <Kbd>W</Kbd>
+            <ChevronDown className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {canNotMove && (
+            <DropdownMenuItem onClick={onNotMoved}>
+              It did not move
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+          )}
+          <DropdownMenuItem onClick={onOtherSite}>
+            It stands at another site
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {onAllRight && (
         <Button variant="ghost" size="sm" className="w-full" onClick={onAllRight} disabled={busy}>
           <CheckCheck className="h-4 w-4 mr-2" />

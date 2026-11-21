@@ -49,34 +49,9 @@ export interface DeploymentsOverview {
   unplaced: UnplacedPhotos[];
 }
 
-// The GPS of a camera's photos, grouped per deployment and spot.
-export interface ReadingDot {
-  deployment_id: number | null;
-  latitude: number;
-  longitude: number;
-  count: number;
-}
-
-// How a deployment started. 'first': the camera's first photos, or the
-// first after a fixed period ended. 'moved': the GPS rule saw a move.
-// 'fixed': a fixed period starts here.
-export interface DeploymentStart {
-  deployment_id: number;
-  kind: 'first' | 'moved' | 'fixed';
-  distance_m: number | null;
-  readings: number | null;
-  first_at: string | null;
-}
-
 export interface DeploymentPhoto {
   uuid: string;
   captured_at: string; // camera clock
-}
-
-export interface CameraReadings {
-  threshold_m: number;
-  dots: ReadingDot[];
-  starts: DeploymentStart[];
 }
 
 export interface SetDeploymentRequest {
@@ -122,10 +97,6 @@ export const deploymentsApi = {
   // The GPS saw a move that did not happen: back to the site before it.
   notMoved: async (projectId: number, deploymentId: number): Promise<SetDeploymentResponse> => {
     const { data } = await apiClient.post(`${base(projectId)}/${deploymentId}/not-moved`);
-    return data;
-  },
-  readings: async (projectId: number, cameraId: number): Promise<CameraReadings> => {
-    const { data } = await apiClient.get(`${base(projectId)}/cameras/${cameraId}/readings`);
     return data;
   },
   set: async (projectId: number, body: SetDeploymentRequest): Promise<SetDeploymentResponse> => {
