@@ -105,11 +105,6 @@ import {
 } from '../components/BulkEditDialogs';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
-import { CheckUpdatesModal } from '../components/deployments/CheckUpdatesModal';
-import { StatusPill } from '../components/ui/StatusPill';
-import { UPDATE_GROUPS, updateGroup, updateItems, type UpdateGroup } from '../components/deployments/update-items';
-import { deploymentsApi } from '../api/deployments';
-import { sitesApi } from '../api/sites';
 import { useToast } from '../components/ui/Toaster';
 import { cameraColumnPrefs, type ColumnId } from '../components/cameras/columnDefs';
 import { formatRelative } from '../utils/datetime';
@@ -229,39 +224,6 @@ export const CamerasPage: React.FC = () => {
     queryFn: () => camerasApi.getAll(currentProject?.id),
     enabled: !!currentProject,
   });
-
-  // Camera updates to check (moves, photos without a site), admins only.
-  // The check itself is CheckUpdatesModal, opened from a header button that
-  // is always there, so people find it also when nothing waits.
-  const { data: deploymentsOverview } = useQuery({
-    queryKey: ['deployments', currentProject?.id, 'overview'],
-    queryFn: () => deploymentsApi.list(currentProject!.id),
-    enabled: !!currentProject && canAdminCurrentProject,
-  });
-  const { data: projectSites } = useQuery({
-    queryKey: ['sites', currentProject?.id],
-    queryFn: () => sitesApi.list(currentProject!.id),
-    enabled: !!currentProject && canAdminCurrentProject,
-  });
-  // The project's corrections, for the Checked group (key under
-  // 'fixed-periods', so every save and Undo refreshes it).
-  const { data: projectCorrections } = useQuery({
-    queryKey: ['fixed-periods', 'project', currentProject?.id],
-    queryFn: () => deploymentsApi.fixedPeriods(currentProject!.id),
-    enabled: !!currentProject && canAdminCurrentProject,
-  });
-  const cameraUpdates = useMemo(
-    () => (deploymentsOverview ? updateItems(deploymentsOverview, projectCorrections) : []),
-    [deploymentsOverview, projectCorrections],
-  );
-  // A menu of three groups, each opening the check. Findable, not asking:
-  // the button shows a count only for the updates that need a person, the
-  // same rule as the sidebar badge.
-  const updateCounts = useMemo(
-    () => Object.fromEntries(UPDATE_GROUPS.map((g) => [g.key, updateGroup(cameraUpdates, g.key).length])) as Record<UpdateGroup, number>,
-    [cameraUpdates],
-  );
-  const [checkingUpdates, setCheckingUpdates] = useState<UpdateGroup | null>(null);
 
   // Site-restricted viewers get null counts (they see no rejections at
   // all). Then the column would be a row of dashes and the filter could
@@ -971,35 +933,7 @@ export const CamerasPage: React.FC = () => {
             Monitor camera health, battery levels, and connectivity status
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 self-start">
-          {canAdminCurrentProject && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="whitespace-nowrap">
-                  Camera updates
-                  {updateCounts.needsYou > 0 && (
-                    <StatusPill tone="warning" className="ml-2 tabular-nums">
-                      {updateCounts.needsYou}
-                    </StatusPill>
-                  )}
-                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {UPDATE_GROUPS.map((g) => (
-                  <DropdownMenuItem
-                    key={g.key}
-                    onClick={() => setCheckingUpdates(g.key)}
-                    disabled={updateCounts[g.key] === 0}
-                    className="justify-between gap-4"
-                  >
-                    {g.label}
-                    <span className="tabular-nums text-muted-foreground">{updateCounts[g.key]}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+        <div className="flex gap-2 self-start">
           {canAdminCurrentProject && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1031,15 +965,6 @@ export const CamerasPage: React.FC = () => {
         cameras={cameras}
         onSelect={onFilterChange}
       />
-      {checkingUpdates !== null && currentProject && (
-        <CheckUpdatesModal
-          projectId={currentProject.id}
-          items={cameraUpdates}
-          sites={projectSites ?? []}
-          group={checkingUpdates}
-          onClose={() => setCheckingUpdates(null)}
-        />
-      )}
 
       {/* Shared filter bar */}
       {cameras && cameras.length > 0 && (

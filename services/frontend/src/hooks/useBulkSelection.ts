@@ -8,10 +8,10 @@
  */
 import { useCallback, useState } from 'react';
 
-export function useBulkSelection() {
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+export function useBulkSelection<K = number>() {
+  const [selected, setSelected] = useState<Set<K>>(new Set());
 
-  const toggle = useCallback((id: number) => {
+  const toggle = useCallback((id: K) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -22,7 +22,7 @@ export function useBulkSelection() {
 
   const clear = useCallback(() => setSelected(new Set()), []);
 
-  const setMany = useCallback((ids: number[], on: boolean) => {
+  const setMany = useCallback((ids: K[], on: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
       for (const id of ids) {

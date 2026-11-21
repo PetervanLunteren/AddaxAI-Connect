@@ -116,6 +116,10 @@ export const deploymentsApi = {
   removeFixedPeriod: async (projectId: number, statementId: number): Promise<void> => {
     await apiClient.delete(`${base(projectId)}/statements/${statementId}`);
   },
+  // Many at once, all or none (the Camera updates table).
+  removeFixedPeriods: async (projectId: number, statementIds: number[]): Promise<void> => {
+    await apiClient.post(`${base(projectId)}/statements/undo`, { ids: statementIds });
+  },
   // A few photos of a deployment: a random sample, the first or the last.
   photos: async (
     projectId: number,

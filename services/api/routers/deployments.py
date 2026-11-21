@@ -324,6 +324,35 @@ async def set_deployment(
     return SetDeploymentResponse(statement_id=statement_id, merged=merged)
 
 
+async def _remove_statements(db: AsyncSession, project_id: int, statement_ids: List[int], user: User) -> None:
+    """Take fixed periods back, all or none. The rows stay, marked removed
+    with who and when, and each camera is rebuilt once: what the GPS or an
+    older period says for that time shows again. The one way a correction is
+    removed, for one (camera panel, check window) or many (the table)."""
+    wanted = set(statement_ids)
+    rows = (
+        await db.execute(
+            select(DeploymentStatement)
+            .join(Camera, Camera.id == DeploymentStatement.camera_id)
+            .where(
+                DeploymentStatement.id.in_(wanted),
+                Camera.project_id == project_id,
+                DeploymentStatement.removed_at.is_(None),
+            )
+        )
+    ).scalars().all()
+    if not wanted or len(rows) != len(wanted):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixed period not found")
+    now = datetime.now(timezone.utc)
+    for row in rows:
+        row.removed_at = now
+        row.removed_by_user_id = user.id
+    await db.flush()
+    await rebuild(db, [row.camera_id for row in rows])
+    await db.commit()
+    logger.info("Removed fixed periods", project_id=project_id, statement_ids=sorted(wanted))
+
+
 @router.delete("/statements/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_statement(
     project_id: int,
@@ -331,28 +360,24 @@ async def remove_statement(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """Take a fixed period back. The row stays, marked removed with who and
-    when, and the camera is rebuilt: what the GPS or an older period says for
-    that time shows again."""
-    row = (
-        await db.execute(
-            select(DeploymentStatement)
-            .join(Camera, Camera.id == DeploymentStatement.camera_id)
-            .where(
-                DeploymentStatement.id == statement_id,
-                Camera.project_id == project_id,
-                DeploymentStatement.removed_at.is_(None),
-            )
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixed period not found")
-    row.removed_at = datetime.now(timezone.utc)
-    row.removed_by_user_id = user.id
-    await db.flush()
-    await rebuild(db, [row.camera_id])
-    await db.commit()
-    logger.info("Removed fixed period", project_id=project_id, statement_id=statement_id)
+    """Take one fixed period back."""
+    await _remove_statements(db, project_id, [statement_id], user)
+
+
+class RemoveStatementsRequest(BaseModel):
+    ids: List[int]
+
+
+@router.post("/statements/undo", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_statements(
+    project_id: int,
+    request: RemoveStatementsRequest,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """Take many fixed periods back at once, from the Camera updates table.
+    All or none: one unknown id, or one of another project, fails the call."""
+    await _remove_statements(db, project_id, request.ids, user)
 
 
 # Camera updates: what the app noticed (a camera started somewhere, a camera

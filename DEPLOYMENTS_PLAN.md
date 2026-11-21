@@ -548,6 +548,15 @@ Notes per step:
        after the move than before, as S02 has; it failed before the fix.
        In the check, Undo now forgets the answer, so the move that comes
        back asks Right or Wrong again. Test data reset (project 15).
+   13. S02: the menu with three counts hid what people want to see, and
+       one decision among hundreds could not be found. Built: the Camera
+       updates page (sidebar under Cameras, the badge moved there), a
+       table of moves, started, photos without a site and corrections
+       with the shared filter bar; a row opens the check window. Bulk
+       with checkboxes: Mark right, Undo checks, and Undo corrections
+       behind a typed word (`POST .../statements/undo`). The menu on the
+       Cameras page and "Right, and the next N too" went. A page, not a
+       tab: in this app a tab is another view of the same rows.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

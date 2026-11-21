@@ -130,32 +130,60 @@ export function updateItems(overview: DeploymentsOverview, corrections: FixedPer
 export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 /**
- * The three groups of the Camera updates menu; each opens the check with
- * its own updates, newest first.
- * - needsYou: photos without a site, and moves back within a week. The
- *   count on the button and the sidebar badge (ATTENTION_COUNT_SQL).
- * - notChecked: ordinary moves nobody answered. Findable, not asking.
- * - checked: everything a person decided, to review and undo: moves said
- *   to be right, and corrections (a move answered Wrong is gone, its
- *   correction is what is left).
- * A camera that started somewhere is in none: naming a new place is an
- * optional action in the site's panel, not a to-do.
+ * Where an update stands, the Status column of the Camera updates table.
+ * - needsYou: photos without a site, and a move back within a week. The
+ *   badge on Camera updates counts the same rule (ATTENTION_COUNT_SQL).
+ * - notChecked: an ordinary move nobody answered. Findable, not asking.
+ * - checked: a move a person said is right.
+ * - corrected: a correction a person made (a move answered Wrong is gone,
+ *   its correction is what is left).
+ * - none: a camera that started somewhere; nothing to check, naming a new
+ *   place is an optional action in the site's panel.
  */
-export type UpdateGroup = 'needsYou' | 'notChecked' | 'checked';
+export type UpdateStatus = 'needsYou' | 'notChecked' | 'checked' | 'corrected' | 'none';
 
-export const UPDATE_GROUPS: { key: UpdateGroup; label: string }[] = [
-  { key: 'needsYou', label: 'Needs you' },
-  { key: 'notChecked', label: 'Not checked yet' },
-  { key: 'checked', label: 'Checked' },
-];
+export const STATUS_LABELS: Record<UpdateStatus, string> = {
+  needsYou: 'Needs you',
+  notChecked: 'Not checked yet',
+  checked: 'Checked',
+  corrected: 'Corrected',
+  none: 'Nothing to check',
+};
 
-export function updateGroup(items: UpdateItem[], group: UpdateGroup): UpdateItem[] {
-  return items.filter((it) => {
-    if (it.kind === 'started') return false;
-    if (group === 'checked') return it.answered; // corrections are answered
+export function updateStatus(it: UpdateItem): UpdateStatus {
+  if (it.kind === 'corrected') return 'corrected';
+  if (it.kind === 'started') return 'none';
+  if (it.answered) return 'checked';
+  return it.needsYou ? 'needsYou' : 'notChecked';
+}
 
-    return !it.answered && it.needsYou === (group === 'needsYou');
-  });
+export const KIND_LABELS: Record<UpdateItem['kind'], string> = {
+  moved: 'Move',
+  started: 'Started',
+  unplaced: 'Photos without a site',
+  corrected: 'Correction',
+};
+
+/** Who decided and on which day (YYYY-MM-DD), for checked and corrected rows. */
+export function decided(it: UpdateItem): { by: string | null; day: string } | null {
+  if (it.correction) return { by: it.correction.created_by, day: it.correction.created_at.slice(0, 10) };
+  const d = it.deployment;
+  if (it.answered && d?.checked_at) return { by: d.checked_by, day: d.checked_at.slice(0, 10) };
+  return null;
+}
+
+const STATUS_ORDER: UpdateStatus[] = ['needsYou', 'notChecked', 'checked', 'corrected', 'none'];
+
+/** The table's first order: what waits on top, then history, newest first. */
+export function defaultOrder(items: UpdateItem[]): UpdateItem[] {
+  const rank = (it: UpdateItem) => STATUS_ORDER.indexOf(updateStatus(it));
+  return [...items].sort((a, b) => rank(a) - rank(b) || b.day.localeCompare(a.day));
+}
+
+/** The sites an update is about: both ends of a move, else its one site. */
+export function siteIds(it: UpdateItem): number[] {
+  return [it.deployment?.site_id, it.previous?.site_id, it.correction?.site_id]
+    .filter((id): id is number => id != null);
 }
 
 // Words for an update in the check.
@@ -171,7 +199,7 @@ export function route(it: UpdateItem): string {
   if (it.kind === 'unplaced') return 'None yet';
   if (it.kind === 'corrected') return it.correction!.site_name;
   const site = placeName(it.deployment?.site_name);
-  if (it.kind === 'started') return `Started at ${site}`;
+  if (it.kind === 'started') return site;
   return `${placeName(it.previous?.site_name)} → ${site}`;
 }
 

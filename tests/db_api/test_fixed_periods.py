@@ -15,7 +15,8 @@ from deployment_db import (
     make_project, make_site, offset, rows,
 )
 from routers.deployments import (
-    SetDeploymentRequest, list_statements, remove_statement, set_deployment,
+    RemoveStatementsRequest, SetDeploymentRequest, list_statements, remove_statement,
+    remove_statements, set_deployment,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -177,3 +178,32 @@ async def test_without_a_camera_the_list_is_the_whole_project(session, admin, se
     assert [(i.camera_label, i.site_name) for i in items] == [
         ("REOLINK01", "Meadow"), ("REOLINK02", "Meadow"), ("REOLINK01", "Pond"),
     ]
+
+
+async def test_many_periods_are_removed_at_once(session, admin, setup):
+    """The Camera updates table undoes many corrections in one call."""
+    project, cam, pond, meadow = setup
+    other = make_camera("REOLINK02", project)
+    early = photo(cam, at(2))
+    later = photo(other, at(3))
+    a = await place(session, admin, project, cam, pond, 1)
+    b = await place(session, admin, project, other, meadow, 1)
+
+    await remove_statements(project, RemoveStatementsRequest(ids=[a.statement_id, b.statement_id]), session, admin)
+
+    assert await list_statements(project, None, session, admin) == []
+    assert deployments(cam) == [] and deployments(other) == []
+    assert image_deployment(early) is None and image_deployment(later) is None
+
+
+async def test_one_unknown_id_removes_none(session, admin, setup):
+    project, cam, pond, meadow = setup
+    other_project = make_project("Other")
+    elsewhere = make_camera("ELSEWHERE", other_project)
+    mine = await place(session, admin, project, cam, pond, 1)
+    theirs = await place(session, admin, other_project, elsewhere, make_site(other_project, "Far", HOME), 1)
+
+    with pytest.raises(HTTPException) as err:
+        await remove_statements(project, RemoveStatementsRequest(ids=[mine.statement_id, theirs.statement_id]), session, admin)
+    assert err.value.status_code == 404
+    assert len(await list_statements(project, None, session, admin)) == 1

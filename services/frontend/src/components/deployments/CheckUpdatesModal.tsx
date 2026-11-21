@@ -3,9 +3,9 @@
  * verification: the evidence big on the left, one card with the answer on
  * the right, the shortcuts behind a link.
  *
- * It shows one group of the Camera updates menu (updateGroup in
- * update-items.ts). The queue is fixed when the check opens,
- * so an answered update does not jump away under the user. Per update:
+ * It opens on a row of the Camera updates table and steps through the rows
+ * as the table shows them, filtered and sorted. The queue is fixed when the
+ * window opens, so an answered update does not jump away. Per update:
  * - the map: the two sites of the move and the arrow between them
  * - a facts card (camera, move, date, distance) and an answer card: the
  *   last photo at the old place next to the first at the new one, then
@@ -16,19 +16,23 @@
  *   "It stayed at Pond" (the GPS was off) or "It moved, but not to Ridge",
  *   which puts the map in pick mode; the Set site form does the rest.
  *   A Wrong answer stays on screen with Undo, instead of a confirmation
- *   before it. Photos without a site only get Set site.
- * "Right, and the next N too" ends a long check after the flagged moves.
- * The arrows step back and forward without answering, Esc closes. The end
- * shows a short summary.
+ *   before it. Photos without a site only get Set site. A camera that only
+ *   started somewhere is shown, with nothing to answer.
+ * - A correction from history can be undone, after a confirmation: it moves
+ *   photos between sites, and you did not just make it.
+ * Marking many moves right is done in the table, with its checkboxes. The
+ * arrows step back and forward without answering, Esc closes. The end shows
+ * a short summary.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Loader2, MapPin, Undo2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, MapPin, Undo2, X } from 'lucide-react';
 import { deploymentsApi, type DeploymentPhoto } from '../../api/deployments';
 import { formatDateTime } from '../../utils/datetime';
 import { AuthenticatedImage } from '../AuthenticatedImage';
 import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { DetailRow } from '../ui/DetailRow';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/DropdownMenu';
 import { Kbd } from '../ui/Kbd';
@@ -40,14 +44,15 @@ import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './SetDeploymentDialog';
 import {
-  dateLabel, dayLabel, metresLabel, placeName, route, updateGroup, type UpdateGroup, type UpdateItem,
+  dateLabel, dayLabel, metresLabel, placeName, route, siteIds, type UpdateItem,
 } from './update-items';
 
 interface Props {
   projectId: number;
-  items: UpdateItem[]; // every update in view, kept fresh by the page
+  items: UpdateItem[]; // every update, kept fresh by the page
   sites: SitePin[];
-  group: UpdateGroup;
+  keys: string[]; // the rows of the table as shown, in order
+  startKey: string; // the row clicked
   onClose: () => void;
 }
 
@@ -59,12 +64,12 @@ function errMsg(err: unknown): string {
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
 
-export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, group, onClose }) => {
+export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, keys: rowKeys, startKey, onClose }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const [queue] = useState<string[]>(() => updateGroup(items, group).map((it) => it.key));
-  const [current, setCurrent] = useState<string | null>(queue[0] ?? null);
+  const [queue] = useState<string[]>(rowKeys);
+  const [current, setCurrent] = useState<string | null>(startKey);
   const [done, setDone] = useState(queue.length === 0);
   // What was answered in this check, by update, for going back and the summary.
   const [answers, setAnswers] = useState<Record<string, 'right' | 'wrong'>>({});
@@ -77,6 +82,8 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<{ prefill: SetDeploymentPrefill; newSite: boolean } | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  // An older correction, waiting for "Undo this?".
+  const [confirmUndo, setConfirmUndo] = useState<UpdateItem | null>(null);
 
   const index = current ? queue.indexOf(current) : -1;
   const it = items.find((i) => i.key === current) ?? null;
@@ -161,27 +168,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
     onError: (error) => toast.error(`Could not undo. ${errMsg(error)}`),
   });
 
-  // The moves after this one that nobody answered: one click marks them all
-  // right. Photos without a site are never marked, they still need a site.
-  const restIds = queue.slice(index + 1)
-    .map((key) => items.find((i) => i.key === key))
-    .filter((i): i is UpdateItem => !!i && i.kind === 'moved' && !i.answered && !answers[i.key])
-    .map((i) => i.deployment!.id);
-  const allRight = useMutation({
-    mutationFn: () => deploymentsApi.setChecked(projectId, [d!.id, ...restIds], true),
-    onSuccess: () => {
-      refresh();
-      const marked = new Set([d!.id, ...restIds]);
-      setAnswers((a) => {
-        const next = { ...a };
-        for (const i of items) if (i.deployment && marked.has(i.deployment.id)) next[i.key] = 'right';
-        return next;
-      });
-      setDone(true);
-    },
-    onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
-  });
-  const busy = right.isPending || notMoved.isPending || allRight.isPending || undoCorrection.isPending;
+  const busy = right.isPending || notMoved.isPending || undoCorrection.isPending;
 
   const startPicking = () => {
     setWrongOpen(false);
@@ -218,9 +205,9 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
         k.goTo(k.index + 1); // a corrected update: Enter goes on, as Next
       } else if (e.key === 'Enter' && k.it && !k.busy) {
         e.preventDefault();
-        if (k.it.answered || k.answer) k.goTo(k.index + 1);
-        else if (k.it.deployment) k.rightNow();
-      } else if ((e.key === 'w' || e.key === 'W') && k.it?.deployment && !k.it.answered && !k.answer && !k.busy) {
+        if (k.it.answered || k.answer || k.it.kind !== 'moved') k.goTo(k.index + 1);
+        else k.rightNow();
+      } else if ((e.key === 'w' || e.key === 'W') && k.it?.kind === 'moved' && !k.it.answered && !k.answer && !k.busy) {
         e.preventDefault();
         setWrongOpen(true);
       }
@@ -242,10 +229,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
   }, [it, d, p, sites]);
   // The sites in this update, magenta on the map: both ends of a move, or
   // the one site of a correction.
-  const active = useMemo(
-    () => new Set([d?.site_id, p?.site_id, it?.correction?.site_id].filter((id): id is number => id != null)),
-    [d, p, it],
-  );
+  const active = useMemo(() => new Set(it ? siteIds(it) : []), [it]);
 
   const rightCount = Object.values(answers).filter((a) => a === 'right').length;
   const wrongCount = Object.entries(answers).filter(([key, a]) => a === 'wrong' && !undone.has(key)).length;
@@ -343,7 +327,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                     <Card>
                       <CardContent className="pt-4 pb-3 space-y-1 text-sm">
                         <DetailRow label="Camera">{it.cameraLabel}</DetailRow>
-                        <DetailRow label={it.kind === 'unplaced' ? 'Site' : it.kind === 'corrected' ? 'Set to' : 'Move'}>{route(it)}</DetailRow>
+                        <DetailRow label={it.kind === 'moved' ? 'Move' : it.kind === 'corrected' ? 'Set to' : 'Site'}>{route(it)}</DetailRow>
                         <DetailRow label={it.kind === 'moved' ? 'Date' : 'Days'}>{dateLabel(it)}</DetailRow>
                         <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : null}</DetailRow>
                         {it.correction && (
@@ -385,14 +369,12 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
                           onWrongOpenChange={setWrongOpen}
                           onRight={() => right.mutate(true)}
                           onUndo={
-                            it.correction ? () => undoCorrection.mutate(it.correction!.id)
+                            it.correction ? () => setConfirmUndo(it)
                               : current && corrections[current] !== undefined ? () => undoCorrection.mutate(corrections[current])
                                 : () => right.mutate(false)
                           }
                           onNotMoved={() => notMoved.mutate()}
                           onOtherSite={startPicking}
-                          onAllRight={restIds.length > 0 && it.kind === 'moved' ? () => allRight.mutate() : undefined}
-                          restCount={restIds.length}
                           onNext={next}
                         />
                       </CardContent>
@@ -419,6 +401,26 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, gr
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmUndo !== null}
+        onClose={() => setConfirmUndo(null)}
+        onConfirm={() => {
+          if (confirmUndo?.correction) undoCorrection.mutate(confirmUndo.correction.id);
+          setConfirmUndo(null);
+        }}
+        title="Undo this correction?"
+        body={confirmUndo?.correction ? (
+          <>
+            {confirmUndo.cameraLabel} at {confirmUndo.correction.site_name}, {dateLabel(confirmUndo)}. For these
+            days the app works out the site again, from the GPS or an earlier correction. Photos
+            without GPS in these days have no site until it is set again.
+          </>
+        ) : ''}
+        confirmLabel="Undo"
+        variant="destructive"
+        isPending={undoCorrection.isPending}
+      />
 
       {editing && it && (
         <SetDeploymentDialog
@@ -463,14 +465,23 @@ const Answers: React.FC<{
   onUndo: () => void;
   onNotMoved: () => void;
   onOtherSite: () => void;
-  onAllRight?: () => void;
-  restCount: number;
   onNext: () => void;
-}> = ({ it, myAnswer, busy, wrongOpen, onWrongOpenChange, onRight, onUndo, onNotMoved, onOtherSite, onAllRight, restCount, onNext }) => {
+}> = ({ it, myAnswer, busy, wrongOpen, onWrongOpenChange, onRight, onUndo, onNotMoved, onOtherSite, onNext }) => {
   const d = it.deployment;
   // The muted line under the buttons, as "Not verified yet" under Verify.
   const status = (text: string) => <p className="text-muted-foreground text-center">{text}</p>;
 
+  if (it.kind === 'started') {
+    return (
+      <div className="space-y-3">
+        <Button variant="outline" className="w-full" onClick={onNext}>
+          Next
+          <Kbd>→</Kbd>
+        </Button>
+        {status('Nothing to check')}
+      </div>
+    );
+  }
   if (it.kind === 'unplaced') {
     return (
       <Button className="w-full" onClick={onOtherSite} disabled={busy}>
@@ -528,12 +539,6 @@ const Answers: React.FC<{
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {onAllRight && (
-        <Button variant="ghost" size="sm" className="w-full" onClick={onAllRight} disabled={busy}>
-          <CheckCheck className="h-4 w-4 mr-2" />
-          Right, and the next {restCount} too
-        </Button>
-      )}
       {status('Not checked yet')}
     </div>
   );
