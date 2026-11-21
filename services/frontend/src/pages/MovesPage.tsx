@@ -23,7 +23,7 @@ import { sitesApi } from '../api/sites';
 import { CheckMovesModal } from '../components/deployments/CheckMovesModal';
 import { SuspiciousPill } from '../components/deployments/SuspiciousPill';
 import {
-  STATUS_LABELS, dateLabel, metresLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
+  STATUS_LABELS, dateLabel, ends, metresLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
   updateStatus, type UpdateItem, type UpdateStatus,
 } from '../components/deployments/update-items';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
@@ -43,7 +43,7 @@ import { useBulkSelection } from '../hooks/useBulkSelection';
 import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } from '../lib/filter-url';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
-type Column = 'date' | 'camera' | 'where' | 'distance' | 'status' | 'by' | 'decidedOn';
+type Column = 'date' | 'camera' | 'from' | 'to' | 'distance' | 'status' | 'by' | 'decidedOn';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera: 'string',
@@ -71,7 +71,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const SORT: Record<Column, (it: UpdateItem) => string | number | null> = {
   date: (it) => it.day,
   camera: (it) => it.cameraLabel,
-  where: (it) => route(it),
+  from: (it) => ends(it).from,
+  to: (it) => ends(it).to,
   distance: (it) => it.distanceM ?? null,
   status: (it) => STATUS_LABELS[updateStatus(it)],
   by: (it) => decided(it)?.by ?? null,
@@ -84,6 +85,11 @@ const STATUS_OPTIONS = [
   { value: 'suspicious', label: 'Suspicious' },
   ...(Object.keys(STATUS_LABELS) as UpdateStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
 ];
+
+/** One line of text, cut with "…" at `width`, the whole text on hover. */
+const Clip: React.FC<{ text: string; width?: string }> = ({ text, width = 'max-w-[14rem]' }) => (
+  <span className={`block truncate ${width}`} title={text}>{text}</span>
+);
 
 export const MovesPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject: canAdmin } = useProject();
@@ -232,8 +238,10 @@ export const MovesPage: React.FC = () => {
 
   const onSort = (column: Column) =>
     setSort((p) => (p.column === column ? { column, direction: p.direction === 'asc' ? 'desc' : 'asc' } : { column, direction: 'asc' }));
+  // Headers never wrap; long values stop at a width with "…" (Clip), so
+  // every row is one line and the list stays easy to scan.
   const header = (label: string, column: Column) => (
-    <TableHead>
+    <TableHead className="whitespace-nowrap">
       <SortableHeader label={label} column={column} sort={sort} onSort={onSort} />
     </TableHead>
   );
@@ -301,7 +309,8 @@ export const MovesPage: React.FC = () => {
                     </TableHead>
                     {header('Date', 'date')}
                     {header('Camera', 'camera')}
-                    {header('Where', 'where')}
+                    {header('From', 'from')}
+                    {header('To', 'to')}
                     {header('Distance', 'distance')}
                     {header('Status', 'status')}
                     {header('Decided by', 'by')}
@@ -311,7 +320,7 @@ export const MovesPage: React.FC = () => {
                 <TableBody>
                   {shown.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No moves match your filters.
                       </TableCell>
                     </TableRow>
@@ -337,8 +346,9 @@ export const MovesPage: React.FC = () => {
                         <TableCell className="whitespace-nowrap">
                           {it.kind === 'moved' ? dayLabel(it.day) : dateLabel(it)}
                         </TableCell>
-                        <TableCell className="font-medium">{it.cameraLabel}</TableCell>
-                        <TableCell>{route(it)}</TableCell>
+                        <TableCell className="font-medium"><Clip text={it.cameraLabel} width="max-w-[12rem]" /></TableCell>
+                        <TableCell>{ends(it).from === null ? '-' : <Clip text={ends(it).from!} />}</TableCell>
+                        <TableCell><Clip text={ends(it).to} /></TableCell>
                         <TableCell className="whitespace-nowrap tabular-nums">
                           {it.distanceM !== undefined ? metresLabel(it.distanceM) : '-'}
                         </TableCell>
@@ -348,7 +358,7 @@ export const MovesPage: React.FC = () => {
                             {it.suspicious && <SuspiciousPill />}
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{who?.by ?? '-'}</TableCell>
+                        <TableCell className="text-muted-foreground">{who?.by ? <Clip text={who.by} /> : '-'}</TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">{who ? dayLabel(who.day) : '-'}</TableCell>
                       </TableRow>
                     );

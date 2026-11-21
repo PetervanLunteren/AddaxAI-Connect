@@ -581,6 +581,11 @@ Notes per step:
    17. A Distance column, sortable by metres. Not part of the Suspicious
        rule: GPS errors and real moves both come short and long, so
        distance alone does not tell them apart; the person judges it.
+   18. Layout, tested on a dev project of 20 rows with long names ("Moves
+       layout test", id 16, throwaway): Where wrapped into rows ten lines
+       high. Now From and To are two sortable columns, long names and
+       camera ids are cut on one line with the full text on hover, and
+       headers do not wrap.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

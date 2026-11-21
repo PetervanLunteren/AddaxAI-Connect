@@ -171,10 +171,16 @@ export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
 export const placeName = (name: string | null | undefined) =>
   !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
 
+/** The site a move left (null for a correction) and the site it went to. */
+export function ends(it: UpdateItem): { from: string | null; to: string } {
+  if (it.kind === 'corrected') return { from: null, to: it.correction!.site_name };
+  return { from: placeName(it.previous?.site_name), to: placeName(it.deployment?.site_name) };
+}
+
 /** Where the camera went, short: "Pond → Ridge", or a correction's site. */
 export function route(it: UpdateItem): string {
-  if (it.kind === 'corrected') return it.correction!.site_name;
-  return `${placeName(it.previous?.site_name)} → ${placeName(it.deployment?.site_name)}`;
+  const { from, to } = ends(it);
+  return from === null ? to : `${from} → ${to}`;
 }
 
 /** The day of a move, or the days of a correction. */

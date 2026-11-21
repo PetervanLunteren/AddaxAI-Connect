@@ -729,7 +729,9 @@ Three readers' rules, each in one place (step 2c):
 the app noticed and say when it got one wrong. It replaced the camera
 updates panel and its `feed_events` table; the deployments are the one
 record. The page `pages/MovesPage.tsx` (sidebar under Cameras,
-admins only, the badge counts what needs a person) is a table (Date, Camera, Where, Distance, Status, Decided by, Decided on) of
+admins only, the badge counts what needs a person) is a table (Date,
+Camera, From, To, Distance, Status, Decided by, Decided on; one line
+per row, long names cut with a full-text tooltip) of
 every move and every correction a person made, built in the browser by
 `updateItems` in `update-items.ts`. Nothing else: a camera that started
 somewhere has nothing to check (naming a place is in the site panel), and
