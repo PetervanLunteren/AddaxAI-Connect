@@ -328,7 +328,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, ke
                       <CardContent className="pt-4 pb-3 space-y-1 text-sm">
                         <DetailRow label="Camera">{it.cameraLabel}</DetailRow>
                         <DetailRow label={it.kind === 'moved' ? 'Move' : it.kind === 'corrected' ? 'Set to' : 'Site'}>{route(it)}</DetailRow>
-                        <DetailRow label={it.kind === 'moved' ? 'Date' : 'Days'}>{dateLabel(it)}</DetailRow>
+                        <DetailRow label={it.kind === 'moved' || it.kind === 'started' ? 'Date' : 'Days'}>{dateLabel(it)}</DetailRow>
                         <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : null}</DetailRow>
                         {it.correction && (
                           <DetailRow label="By">
