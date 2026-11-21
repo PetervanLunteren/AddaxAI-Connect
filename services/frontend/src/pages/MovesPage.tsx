@@ -353,7 +353,7 @@ export const MovesPage: React.FC = () => {
                           />
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {it.kind === 'moved' ? dayLabel(it.day) : dateLabel(it)}
+                          {dayLabel(it.day)}
                         </TableCell>
                         <TableCell className="font-medium"><Clip text={it.cameraLabel} /></TableCell>
                         <TableCell>{ends(it).from === null ? '-' : <Clip text={ends(it).from!} />}</TableCell>
