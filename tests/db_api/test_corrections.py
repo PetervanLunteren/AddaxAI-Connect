@@ -75,7 +75,7 @@ def statements(camera_id):
 # Change the site of a deployment
 
 
-async def test_change_site_is_a_statement_and_moves_the_pins(session, admin, moved_camera):
+async def test_change_site_is_a_statement_and_leaves_the_pin(session, admin, moved_camera):
     m = moved_camera
     other = make_site(m["project"], "Other", offset(HOME, north_m=5000))
 
@@ -85,8 +85,9 @@ async def test_change_site_is_a_statement_and_moves_the_pins(session, admin, mov
     second = deployments(m["cam"])[1]
     assert second["id"] == m["second"]
     assert second["site_id"] == other and second["site_source"] == "manual"
-    # The target pin is now the centroid of its one deployment.
-    assert close(site(other)["lon"], FAR[1]) and close(site(other)["lat"], FAR[0])
+    # A correction never moves a pin: Other stays where it was made, 5 km
+    # north, not at this camera's GPS. Until 21 November 2026 it moved there.
+    assert close(site(other)["lat"], offset(HOME, north_m=5000)[0]) and close(site(other)["lon"], HOME[1])
     [statement] = statements(m["cam"])
     assert (statement["site_id"], statement["source"]) == (other, "person")
     assert statement["created_by_user_id"] == admin.id
@@ -198,6 +199,17 @@ async def test_it_did_not_move_folds_back_and_removes_the_unnamed_site(session, 
     [statement] = statements(m["cam"])
     assert statement["from_at"] == at(2) and statement["site_id"] == m["home"]
     assert statement["created_by_user_id"] == admin.id
+
+
+async def test_it_did_not_move_leaves_the_pin_where_the_gps_put_it(session, admin, moved_camera):
+    """The photos after the false move are 1.5 km away. Saying the camera
+    did not move puts them at Home, but must not drag Home's pin towards
+    them: the build snaps other cameras to that pin."""
+    m = moved_camera
+    before = site(m["home"])
+    await not_moved(m["project"], m["second"], session, admin)
+    after = site(m["home"])
+    assert close(after["lat"], before["lat"]) and close(after["lon"], before["lon"])
 
 
 async def test_it_did_not_move_twice_finds_no_deployment(session, admin, moved_camera):

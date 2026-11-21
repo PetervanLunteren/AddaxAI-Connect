@@ -510,8 +510,11 @@ Notes per step:
        bring the pin back. Seen on dev 21 Nov: Peter's test corrections
        (S01 at Fen, S02 at Pond from 1 Sep) moved Fen onto Pond's spot and
        Pond onto Ridge's, so S02's August became Fen and Pond and Ridge
-       overlapped. Likely fix: only deployments the app placed itself
-       (site_source auto) move a pin. Test project reset afterwards.
+       overlapped. It blocked S03 ("It did not move" did the same to Pond),
+       so fixed at once on 21 Nov: only deployments the app placed itself
+       (site_source auto) move a pin (`RECOMPUTE_SITE_LOCATION_SQL`), which
+       is also what "A pin set by a person stays where it is" in the Sites
+       section asked for. Test project reset afterwards.
     8. S02, the check window: facts as label and value rows in their own
        card (`DetailRow`, shared with Show details), Right and Wrong on one
        row with keys (`Kbd`, copied from AddaxAI desktop, also on Verify

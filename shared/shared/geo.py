@@ -126,19 +126,26 @@ def combine_pins(
     return (lat_a * count_a + lat_b * count_b) / n, lon, n
 
 
-# A site's pin is the centroid of its deployments' locations. Run this after a
-# site's deployment membership changes (a deployment is created at, reassigned
-# to, merged into, or removed from it), and after a deployment's own pin moved
-# (the running mean above). It is a no-op for a site with no deployments, which
-# keeps its current location. Bind :site_id. Works from both
-# the sync ingestion session and the async API session.
+# A site's pin is the centroid of the locations of the deployments the app
+# placed there from the GPS (site_source 'auto'). A deployment a person placed
+# (a correction) never moves the pin: its GPS is where the camera really was,
+# which is the reason for the correction, and the build snaps other cameras
+# to pins, so a pin pulled by a correction misplaced them (Peter's walkthrough,
+# 21 November 2026: "It did not move" dragged Pond halfway to Ridge, and Undo
+# could not bring it back). A site with no such deployment keeps its location,
+# also a pin a person typed or clicked.
+#
+# Run this after a site's deployment membership changes (a deployment is
+# created at, reassigned to, merged into, or removed from it), and after a
+# deployment's own pin moved (the running mean above). Bind :site_id. Works
+# from both the sync ingestion session and the async API session.
 RECOMPUTE_SITE_LOCATION_SQL = """
     UPDATE sites s
     SET location = c.centroid
     FROM (
         SELECT ST_Centroid(ST_Collect(location::geometry))::geography AS centroid
         FROM deployments
-        WHERE site_id = :site_id
+        WHERE site_id = :site_id AND site_source = 'auto'
     ) c
     WHERE s.id = :site_id AND c.centroid IS NOT NULL
 """

@@ -768,6 +768,11 @@ teal, with a small legend.
   there is no deployment to click: photos without a site, or a camera
   without any deployment. "Corrections", with Undo for each one,
   shows once there is one.
+- A site's pin follows only the deployments the app placed from the GPS
+  (`RECOMPUTE_SITE_LOCATION_SQL` in `shared/geo.py`). A correction never
+  moves a pin: the build snaps other cameras to pins, so a pin pulled by a
+  correction misplaced them. A site with only corrected deployments keeps
+  its pin, also one a person typed or clicked.
 - A correction deletes a site it emptied when that site still has the name
   the app gave it (`drop_unnamed_sites_left_empty` in
   `utils/deployment_edits.py`, `is_auto_site_name` in `shared/geo.py`). A
