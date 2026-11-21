@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { NavLink, useParams } from 'react-router-dom';
 import {
+  ArrowLeftRight,
   Camera,
   MapPin,
   LayoutDashboard,
@@ -40,7 +41,7 @@ import { cn } from '../../lib/utils';
 import { LastUpdate } from '../LastUpdate';
 import { InstallAppButton } from '../InstallApp';
 import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
-import { feedApi } from '../../api/feed';
+import { deploymentsApi } from '../../api/deployments';
 import { serviceApi, serviceKeys } from '../../api/service';
 
 interface SidebarProps {
@@ -61,6 +62,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/sites`, icon: MapPin, label: 'Sites' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
+    // What the app noticed about where cameras stood: a to-do list, so admins only.
+    ...(isProjectAdmin ? [{ to: `/projects/${projectId}/moves`, icon: ArrowLeftRight, label: 'Moves' }] : []),
     { to: `/projects/${projectId}/service`, icon: Wrench, label: 'Service' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/live-feed`, icon: Activity, label: 'Live feed' },
@@ -98,12 +101,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // immediate query invalidation, so they never wait.
   const numericProjectId = projectId ? Number(projectId) : undefined;
 
-  // Open camera updates for the badge: a to-do count, so admins only (a
-  // viewer cannot act on it). Events are rare (a camera appearing or
-  // moving), so a slow poll is enough; resolving an entry invalidates it.
-  const { data: openUpdates } = useQuery({
-    queryKey: ['feed-open', numericProjectId],
-    queryFn: () => feedApi.openCount(numericProjectId!),
+  // Moves that need a person, for the badge on Moves: a
+  // to-do count, so admins only. Rare events, so a slow poll is enough; every
+  // answer on the page invalidates it.
+  const { data: needYou } = useQuery({
+    queryKey: ['deployments', numericProjectId, 'attention-count'],
+    queryFn: () => deploymentsApi.attentionCount(numericProjectId!),
     enabled: numericProjectId !== undefined && isProjectAdmin,
     refetchInterval: 300000,
   });
@@ -118,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   });
 
   const navBadges: Record<string, number | undefined> = {
-    Cameras: openUpdates,
+    Moves: needYou,
     Service: serviceTasks?.length,
   };
 
@@ -239,9 +242,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
                 </div>
-                {/* Admin to-do counts: unseen camera updates (the feed opens
-                    from the Updates button on the Cameras page) and open
-                    service tasks. Visible from anywhere without a nav slot. */}
+                {/* Admin to-do counts: moves that need a person (on the
+                    Moves page) and open service tasks. */}
                 {(navBadges[item.label] ?? 0) > 0 && (
                   <span
                     className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"

@@ -12,12 +12,14 @@ import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 
-export function FitBounds({ points }: { points: [number, number][] }) {
+/** `maxZoom` keeps a single point, or points close together, from zooming
+ *  in to the last level. */
+export function FitBounds({ points, maxZoom }: { points: [number, number][]; maxZoom?: number }) {
   const map = useMap();
   const fitted = useRef(false);
   useEffect(() => {
     if (points.length === 0 || fitted.current) return;
-    map.fitBounds(latLngBounds(points), { padding: [30, 30], animate: false });
+    map.fitBounds(latLngBounds(points), { padding: [30, 30], animate: false, maxZoom });
     fitted.current = true;
   }, [points, map]);
   return null;

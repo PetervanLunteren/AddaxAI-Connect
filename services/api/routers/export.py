@@ -28,6 +28,7 @@ from shared.models import (
     HumanObservation, CameraMaintenanceEvent,
     ServerSettings, TaxonomyMapping,
 )
+from shared import effort
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_THUMBNAILS
 from shared.logger import get_logger
@@ -88,12 +89,11 @@ def _format_dt(dt: Optional[datetime]) -> str:
     return dt.isoformat()
 
 
-def _format_date_as_dt(d: Optional[date], tz: ZoneInfo) -> str:
-    """Format a date as a datetime at midnight in the given timezone."""
-    if d is None:
+def _format_camera_time(dt: Optional[datetime], tz: ZoneInfo) -> str:
+    """A naive camera clock time as ISO 8601 with the server timezone offset."""
+    if dt is None:
         return ""
-    dt = datetime(d.year, d.month, d.day, tzinfo=tz)
-    return dt.isoformat()
+    return dt.replace(tzinfo=tz).isoformat()
 
 
 def _slugify(text: str) -> str:
@@ -102,29 +102,6 @@ def _slugify(text: str) -> str:
     text = re.sub(r'[^\w\s-]', '', text)
     text = re.sub(r'[\s_]+', '-', text)
     return text
-
-
-def _find_deployment_id(
-    camera_id: int,
-    capture_date: Optional[date],
-    deployments_by_camera: Dict[int, list],
-) -> Optional[str]:
-    """
-    Match an image to a deployment period by camera_id and capture date.
-
-    Returns the deployment ID string (e.g., "dep-13-1") or None if no match.
-    """
-    if capture_date is None:
-        return None
-
-    periods = deployments_by_camera.get(camera_id, [])
-    for cdp in periods:
-        start = cdp["start_date"]
-        end = cdp["end_date"] or date.today()
-        if start <= capture_date <= end:
-            return cdp["deployment_id_str"]
-
-    return None
 
 
 def _build_deployments_csv(deployments: list, tz: ZoneInfo) -> str:
@@ -154,8 +131,10 @@ def _build_deployments_csv(deployments: list, tz: ZoneInfo) -> str:
             dep["location_name"],
             dep["latitude"],
             dep["longitude"],
-            _format_date_as_dt(dep["start_date"], tz),
-            _format_date_as_dt(dep["end_date"] or date.today(), tz),
+            # The exact period. An open deployment ends at its last photo,
+            # the same end as its effort (shared/effort.py).
+            _format_camera_time(dep["start_at"], tz),
+            _format_camera_time(dep["end_at"] or dep["last_photo_at"] or dep["start_at"], tz),
             dep["camera_identifier"],
             camera_model,
         ])
@@ -165,7 +144,7 @@ def _build_deployments_csv(deployments: list, tz: ZoneInfo) -> str:
 
 def _build_media_csv(
     images: list,
-    deployments_by_camera: Dict[int, list],
+    deployment_ids: Dict[int, str],
     camera_identifiers: Dict[int, str],
     tz: ZoneInfo,
     include_media: bool,
@@ -186,17 +165,14 @@ def _build_media_csv(
     writer.writerow(headers)
 
     media_entries = []
+    without_deployment = 0
     for image in images:
         ts = _parse_timestamp(image, tz)
-        capture_date = ts.date() if ts else None
-        dep_id = _find_deployment_id(image.camera_id, capture_date, deployments_by_camera)
-
+        # The deployment the rebuild linked the photo to. A photo without
+        # one has no site yet and cannot be in a Camtrap DP package.
+        dep_id = deployment_ids.get(image.deployment_id)
         if dep_id is None:
-            logger.warning(
-                "Image has no matching deployment period, skipping from export",
-                image_uuid=image.uuid,
-                camera_id=image.camera_id,
-            )
+            without_deployment += 1
             continue
 
         cam_id = camera_identifiers.get(image.camera_id, str(image.camera_id))
@@ -222,6 +198,8 @@ def _build_media_csv(
             "unique_filename": unique_filename,
         })
 
+    if without_deployment:
+        logger.info("Photos without a deployment left out of the export", count=without_deployment)
     return output.getvalue(), media_entries
 
 
@@ -575,6 +553,7 @@ async def export_camtrap_dp(
     dep_query = text(f"""
         SELECT
             cdp.id, cdp.camera_id, cdp.deployment_number, cdp.start_date, cdp.end_date,
+            cdp.start_at, cdp.end_at, cdp.last_photo_at,
             cdp.site_id,
             s.name AS site_name,
             COALESCE(ST_Y(s.location::geometry), ST_Y(cdp.location::geometry)) as latitude,
@@ -585,7 +564,7 @@ async def export_camtrap_dp(
         JOIN cameras c ON cdp.camera_id = c.id
         LEFT JOIN sites s ON s.id = cdp.site_id
         WHERE c.project_id = :project_id{scope_sql}
-        ORDER BY cdp.camera_id, cdp.deployment_number
+        ORDER BY cdp.camera_id, cdp.start_at, cdp.id
     """)
     dep_result = await db.execute(dep_query, dep_params)
     dep_rows = dep_result.mappings().all()
@@ -598,7 +577,8 @@ async def export_camtrap_dp(
 
     # Build deployment data structures
     deployments = []
-    deployments_by_camera: Dict[int, list] = {}
+    deployment_ids: Dict[int, str] = {}
+    camera_identifiers: Dict[int, str] = {}
 
     for row in dep_rows:
         camera_identifier = row["device_id"] or row["camera_name"]
@@ -611,15 +591,16 @@ async def export_camtrap_dp(
             "longitude": float(row["longitude"]) if row["longitude"] is not None else None,
             "start_date": row["start_date"],
             "end_date": row["end_date"],
+            "start_at": row["start_at"],
+            "end_at": row["end_at"],
+            "last_photo_at": row["last_photo_at"],
             "camera_identifier": camera_identifier,
             "manufacturer": row["manufacturer"] or "",
             "model": row["camera_model"] or "",
         }
         deployments.append(dep_data)
-
-        if row["camera_id"] not in deployments_by_camera:
-            deployments_by_camera[row["camera_id"]] = []
-        deployments_by_camera[row["camera_id"]].append(dep_data)
+        deployment_ids[row["id"]] = dep_data["deployment_id_str"]
+        camera_identifiers[row["camera_id"]] = camera_identifier
 
     # Load all classified images for this project with related data
     images_query = (
@@ -651,11 +632,6 @@ async def export_camtrap_dp(
         include_media=include_media,
     )
 
-    # Build camera_id -> camera identifier lookup for unique filenames
-    camera_identifiers: Dict[int, str] = {}
-    for cam_id, cam_deps in deployments_by_camera.items():
-        camera_identifiers[cam_id] = cam_deps[0]["camera_identifier"]
-
     # Pre-compute event assignments if independence interval is active. The
     # independence CTE returns naive event_start/event_end values derived from
     # Image.captured_at. Localize them to the project timezone here so every
@@ -677,7 +653,7 @@ async def export_camtrap_dp(
     # Build CSV contents
     deployments_csv = _build_deployments_csv(deployments, tz)
     media_csv, media_entries = _build_media_csv(
-        images, deployments_by_camera, camera_identifiers, tz, include_media,
+        images, deployment_ids, camera_identifiers, tz, include_media,
     )
     observations_csv, observed_species = _build_observations_csv(
         media_entries, taxonomy_lookup, get_model(project.classification_model).name, project.detection_threshold,
@@ -788,11 +764,10 @@ def _build_observation_rows(
         camera_name = camera_names.get(image.camera_id, "")
         site_id, site_name = sites_by_deployment.get(image.deployment_id, ("", ""))
 
-        # Extract GPS from image EXIF metadata
+        # The photo's own GPS reading, empty when it had none or an invalid one.
         lat, lon = "", ""
-        gps = image.image_metadata.get("gps_decimal") if image.image_metadata else None
-        if gps and len(gps) == 2:
-            lat, lon = gps[0], gps[1]
+        if image.gps_lat is not None:
+            lat, lon = image.gps_lat, image.gps_lon
 
         is_verified = "TRUE" if image.is_verified else "FALSE"
         has_observations = False
@@ -1755,10 +1730,7 @@ async def export_spatial(
                    ST_Y(cdp.location::geometry) AS lat,
                    ST_X(s.location::geometry) AS site_lon,
                    ST_Y(s.location::geometry) AS site_lat,
-                   COALESCE(
-                       cdp.end_date - cdp.start_date + 1,
-                       CURRENT_DATE - cdp.start_date + 1
-                   ) AS trap_days
+                   {effort.days_sql("cdp")} AS trap_days
             FROM deployments cdp
             JOIN cameras c ON cdp.camera_id = c.id
             LEFT JOIN sites s ON s.id = cdp.site_id
@@ -1785,9 +1757,7 @@ async def export_spatial(
             JOIN cameras c ON di.camera_id = c.id
             JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i
-                ON i.camera_id = di.camera_id
-                AND i.captured_at::date >= di.start_date
-                AND (di.end_date IS NULL OR i.captured_at::date <= di.end_date)
+                ON i.deployment_id = di.id
                 AND i.status = 'classified'
                 AND i.is_hidden = FALSE
             LEFT JOIN detections d

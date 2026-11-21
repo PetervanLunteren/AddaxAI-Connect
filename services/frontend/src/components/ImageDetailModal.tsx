@@ -45,6 +45,9 @@ import { useToast } from './ui/Toaster';
 import { imagesApi } from '../api/images';
 import { drawDetectionOverlay } from '../utils/detection-overlay';
 import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
+import { PopoverLink, ShortcutRow } from './ui/PopoverLink';
+import { DetailRow } from './ui/DetailRow';
+import { REVIEW_WINDOW_CLASS } from './ui/review-window';
 import { useImageCache } from '../contexts/ImageCacheContext';
 import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
@@ -73,16 +76,6 @@ const LIGHT_LABELS: Record<string, string> = {
  * the shortcuts popover next to it. Renders nothing when the value is empty,
  * so a field we cannot fill leaves no blank row behind.
  */
-const DetailRow: React.FC<{ label: string; children?: React.ReactNode }> = ({ label, children }) => {
-  if (children === null || children === undefined || children === false || children === '') return null;
-  return (
-    <div className="flex justify-between gap-4">
-      <span className="shrink-0 text-muted-foreground">{label}</span>
-      <span className="min-w-0 break-words text-right">{children}</span>
-    </div>
-  );
-};
-
 interface ImageDetailModalProps {
   imageUuid: string;
   allImageUuids?: string[];  // For look-ahead prefetching
@@ -754,7 +747,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       {/* The height cap is viewport-based (dvh minus the iOS status-bar
           inset), the parent wrapper has auto height so max-h-full would
           resolve to no cap at all. */}
-      <div className="bg-background p-3 sm:p-6 rounded-lg shadow-lg w-[calc(100vw-1rem)] sm:w-full sm:max-w-7xl max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_1rem)] sm:max-h-[90vh] flex flex-col overflow-hidden md:block md:overflow-y-auto overflow-x-hidden relative">
+      <div className={`${REVIEW_WINDOW_CLASS} flex flex-col overflow-hidden md:block md:overflow-y-auto overflow-x-hidden relative`}>
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -1181,182 +1174,126 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
         {/* Everything known about this photo. A popover, so the panel keeps
             its height and the verification form never moves. */}
-        <div className="relative">
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Show details
-          </button>
-          {showDetails && (
-            <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 w-[300px]">
-              <div className="text-xs space-y-1">
-                <DetailRow label="Camera">
-                  <button
-                    type="button"
-                    onClick={openCamera}
-                    className="hover:text-primary transition-colors"
-                    title="Open this camera"
-                  >
-                    {imageDetail.camera_name}
-                  </button>
-                </DetailRow>
-                <DetailRow label="Site">{imageDetail.site?.name}</DetailRow>
-                {/* The site pin, not this photo's own EXIF fix. The pin is a
-                    running mean of every within-threshold reading, so it
-                    converges on the true spot, and it is the same number the
-                    map, the exports and the site page show. Camtrap DP puts
-                    the position on the deployment for the same reason. On dev
-                    the two agree within 10 m for 96% of photos, so a second
-                    per-photo row would only show GPS jitter. */}
-                <DetailRow label="Coordinates">
-                  {imageDetail.site && (
-                    <a
-                      href={`https://www.google.com/maps?q=${imageDetail.site.lat},${imageDetail.site.lon}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 hover:text-primary"
-                    >
-                      {imageDetail.site.lat.toFixed(5)}, {imageDetail.site.lon.toFixed(5)}
-                      <ExternalLink className="h-3 w-3 shrink-0" />
-                    </a>
-                  )}
-                </DetailRow>
-                <DetailRow label="Deployment">{deploymentText}</DetailRow>
-                {/* Taken repeats the chip on the photo on purpose. Read on its
-                    own it is the chip; read against Received it is how long
-                    the photo took to reach us, which is why both carry
-                    seconds. Two clocks, so they can disagree: Taken is the
-                    camera's, Received is the server's. */}
-                <DetailRow label="Taken">{formatDateTimeSeconds(imageDetail.captured_at)}</DetailRow>
-                <DetailRow label="Received">{formatDateTimeSeconds(imageDetail.ingested_at)}</DetailRow>
-                <DetailRow label="Source">
-                  {imageDetail.origin === 'bulk' ? 'Bulk upload' : 'Live camera'}
-                </DetailRow>
-                <DetailRow label="Light">{LIGHT_LABELS[imageDetail.day_night ?? '']}</DetailRow>
-                <DetailRow label="Camera model">{imageDetail.camera_model}</DetailRow>
-                <DetailRow label="File">{imageDetail.filename}</DetailRow>
-                <DetailRow label="Size">{pixelSize}</DetailRow>
-                <DetailRow label="Status">
-                  {STATUS_LABELS[imageDetail.status] ?? imageDetail.status}
-                </DetailRow>
-                {Object.keys(imageDetail.image_metadata).length > 0 && (
-                  <>
-                    <div className="border-t my-2" />
-                    <button
-                      type="button"
-                      onClick={() => setExifExpanded(!exifExpanded)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {exifExpanded ? 'Hide raw EXIF' : 'Show raw EXIF'}
-                    </button>
-                    {exifExpanded && (
-                      <pre className="mt-1 p-2 rounded bg-muted text-[11px] max-h-48 overflow-auto">
-                        {JSON.stringify(imageDetail.image_metadata, null, 2)}
-                      </pre>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
+        <PopoverLink
+          label="Show details"
+          open={showDetails}
+          onToggle={() => setShowDetails(!showDetails)}
+          width="w-[300px]"
+        >
+          <DetailRow label="Camera">
+            <button
+              type="button"
+              onClick={openCamera}
+              className="hover:text-primary transition-colors"
+              title="Open this camera"
+            >
+              {imageDetail.camera_name}
+            </button>
+          </DetailRow>
+          <DetailRow label="Site">{imageDetail.site?.name}</DetailRow>
+          {/* The site pin, not this photo's own EXIF fix. The pin is a
+              running mean of every within-threshold reading, so it
+              converges on the true spot, and it is the same number the
+              map, the exports and the site page show. Camtrap DP puts
+              the position on the deployment for the same reason. On dev
+              the two agree within 10 m for 96% of photos, so a second
+              per-photo row would only show GPS jitter. */}
+          <DetailRow label="Coordinates">
+            {imageDetail.site && (
+              <a
+                href={`https://www.google.com/maps?q=${imageDetail.site.lat},${imageDetail.site.lon}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 hover:text-primary"
+              >
+                {imageDetail.site.lat.toFixed(5)}, {imageDetail.site.lon.toFixed(5)}
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+            )}
+          </DetailRow>
+          <DetailRow label="Deployment">{deploymentText}</DetailRow>
+          {/* Taken repeats the chip on the photo on purpose. Read on its
+              own it is the chip; read against Received it is how long
+              the photo took to reach us, which is why both carry
+              seconds. Two clocks, so they can disagree: Taken is the
+              camera's, Received is the server's. */}
+          <DetailRow label="Taken">{formatDateTimeSeconds(imageDetail.captured_at)}</DetailRow>
+          <DetailRow label="Received">{formatDateTimeSeconds(imageDetail.ingested_at)}</DetailRow>
+          <DetailRow label="Source">
+            {imageDetail.origin === 'bulk' ? 'Bulk upload' : 'Live camera'}
+          </DetailRow>
+          <DetailRow label="Light">{LIGHT_LABELS[imageDetail.day_night ?? '']}</DetailRow>
+          <DetailRow label="Camera model">{imageDetail.camera_model}</DetailRow>
+          <DetailRow label="File">{imageDetail.filename}</DetailRow>
+          <DetailRow label="Size">{pixelSize}</DetailRow>
+          <DetailRow label="Status">
+            {STATUS_LABELS[imageDetail.status] ?? imageDetail.status}
+          </DetailRow>
+          {Object.keys(imageDetail.image_metadata).length > 0 && (
+            <>
+              <div className="border-t my-2" />
+              <button
+                type="button"
+                onClick={() => setExifExpanded(!exifExpanded)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {exifExpanded ? 'Hide raw EXIF' : 'Show raw EXIF'}
+              </button>
+              {exifExpanded && (
+                <pre className="mt-1 p-2 rounded bg-muted text-[11px] max-h-48 overflow-auto">
+                  {JSON.stringify(imageDetail.image_metadata, null, 2)}
+                </pre>
+              )}
+            </>
           )}
-        </div>
+        </PopoverLink>
 
         {/* Keyboard shortcuts, hidden on touch screens where there is no
             keyboard to shortcut. */}
-        <div className="hidden sm:block relative">
-          <button
-            onClick={() => setShowShortcuts(!showShortcuts)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Show shortcuts
-          </button>
-          {showShortcuts && (
-            <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[230px]">
-              <div className="text-xs space-y-1">
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Enter</span>
-                  <span>Verify + next</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">0</span>
-                  <span>Empty + next</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">1-9</span>
-                  <span>Type the count</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">← →</span>
-                  <span>Navigate</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">↑ ↓</span>
-                  <span>Move between observations</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">A S J</span>
-                  <span>Adult, subadult, juvenile</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">M F</span>
-                  <span>Male, female</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">C</span>
-                  <span>Same rows as last saved</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">X</span>
-                  <span>Delete observation</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Ctrl+Z</span>
-                  <span>Undo last verification</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">+ -</span>
-                  <span>Zoom in, out</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">B</span>
-                  <span>Toggle AI predictions</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Scroll</span>
-                  <span>Zoom</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Esc</span>
-                  <span>Close</span>
-                </div>
-                {/* Species shortcut slots, per user per project */}
-                <div className="border-t my-2" />
-                <div className="text-muted-foreground">Species keys, set the focused observation to</div>
-                {SLOT_KEYS.map((slotKey) => (
-                  <div key={slotKey} className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground uppercase">{slotKey}</span>
-                    <Select
-                      size="sm"
-                      wrapperClassName="max-w-[160px]"
-                      value={speciesSlots[slotKey]}
-                      onChange={(ev) => updateSlot(slotKey, ev.target.value)}
-                    >
-                      <option value="">Not set</option>
-                      {(slotSpeciesOptions ?? [])
-                        .filter((o) => String(o.value) !== 'empty')
-                        .map((o) => (
-                          <option key={String(o.value)} value={String(o.value)}>
-                            {String(o.label)}
-                          </option>
-                        ))}
-                    </Select>
-                  </div>
-                ))}
-              </div>
+        <PopoverLink
+          label="Show shortcuts"
+          open={showShortcuts}
+          onToggle={() => setShowShortcuts(!showShortcuts)}
+          className="hidden sm:block"
+        >
+          <ShortcutRow keys="Enter">Verify + next</ShortcutRow>
+          <ShortcutRow keys="0">Empty + next</ShortcutRow>
+          <ShortcutRow keys="1-9">Type the count</ShortcutRow>
+          <ShortcutRow keys="← →">Navigate</ShortcutRow>
+          <ShortcutRow keys="↑ ↓">Move between observations</ShortcutRow>
+          <ShortcutRow keys="A S J">Adult, subadult, juvenile</ShortcutRow>
+          <ShortcutRow keys="M F">Male, female</ShortcutRow>
+          <ShortcutRow keys="C">Same rows as last saved</ShortcutRow>
+          <ShortcutRow keys="X">Delete observation</ShortcutRow>
+          <ShortcutRow keys="Ctrl+Z">Undo last verification</ShortcutRow>
+          <ShortcutRow keys="+ -">Zoom in, out</ShortcutRow>
+          <ShortcutRow keys="B">Toggle AI predictions</ShortcutRow>
+          <ShortcutRow keys="Scroll">Zoom</ShortcutRow>
+          <ShortcutRow keys="Esc">Close</ShortcutRow>
+          {/* Species shortcut slots, per user per project */}
+          <div className="border-t my-2" />
+          <div className="text-muted-foreground">Species keys, set the focused observation to</div>
+          {SLOT_KEYS.map((slotKey) => (
+            <div key={slotKey} className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground uppercase">{slotKey}</span>
+              <Select
+                size="sm"
+                wrapperClassName="max-w-[160px]"
+                value={speciesSlots[slotKey]}
+                onChange={(ev) => updateSlot(slotKey, ev.target.value)}
+              >
+                <option value="">Not set</option>
+                {(slotSpeciesOptions ?? [])
+                  .filter((o) => String(o.value) !== 'empty')
+                  .map((o) => (
+                    <option key={String(o.value)} value={String(o.value)}>
+                      {String(o.label)}
+                    </option>
+                  ))}
+              </Select>
             </div>
-          )}
-        </div>
+          ))}
+        </PopoverLink>
 
         </div>
         </>

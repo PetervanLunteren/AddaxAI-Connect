@@ -41,7 +41,7 @@ from shared.queue import (
 )
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 
-from db_operations import create_image_record, get_or_create_bulk_deployment  # noqa: E402
+from db_operations import create_image_record, rebuild_deployments, state_upload_to_site  # noqa: E402
 from exif_parser import extract_exif, get_corrected_datetime  # noqa: E402
 from storage_operations import (  # noqa: E402
     generate_and_upload_thumbnail,
@@ -124,10 +124,8 @@ def _process_file(
     raw: bytes,
     camera_id: int,
     camera_storage_id: str,
-    gps_location,
     bulk_queue: RedisQueue,
     bulk_upload_job_id: int,
-    bulk_deployment_id: Optional[int] = None,
     use_profile: bool = False,
     time_offset_seconds: int = 0,
 ) -> str:
@@ -147,12 +145,14 @@ def _process_file(
     - **Mode A (use_profile=True):** the same camera-profile hunt as live
       FTPS. The file's EXIF must match an EXIF profile (path profiles never
       match here, the relative path is empty for a browser upload). GPS is
-      read per image and the deployment is resolved from it by
-      create_image_record, so a registered camera's SD card builds sites and
-      deployments exactly like FTPS. `gps_location` / `bulk_deployment_id` are
-      ignored.
-    - **Mode B (use_profile=False):** no profile, the batch is pinned to the
-      caller-chosen site via `bulk_deployment_id`. DateTimeOriginal is required.
+      required per image, as for FTPS, and the deployments follow from it.
+    - **Mode B (use_profile=False):** no profile and GPS is optional: the job
+      states that the camera stood at the chosen site (see _process_job).
+      DateTimeOriginal is required.
+
+    Either way the photo is stored with its own GPS reading and without a
+    deployment. _process_job rebuilds the camera's deployments once, when the
+    job ends.
     """
     if not name.lower().endswith(BULK_IMAGE_EXTENSIONS):
         return {"outcome": "skipped", "reason": "not_a_photo"}
@@ -239,7 +239,9 @@ def _process_file(
                     gps=image_gps,
                 )
                 return {"outcome": "skipped", "reason": "invalid_gps"}
-            if not image_gps and profile.requires_gps:
+            if not image_gps:
+                # Without a chosen site, a photo without GPS would have no
+                # site. Phase 4 of DEPLOYMENTS_PLAN.md asks for the site then.
                 logger.warning(
                     "Skipping bulk upload entry, no GPS",
                     entry=name,
@@ -247,10 +249,6 @@ def _process_file(
                 )
                 return {"outcome": "skipped", "reason": "missing_gps"}
 
-            # Per-image GPS, no pinned deployment: create_image_record resolves
-            # the site and deployment through the shared FTPS resolver.
-            record_gps = image_gps
-            record_deployment_id = None
         else:
             # Mode B: chosen-site deployment, DateTimeOriginal required.
             try:
@@ -262,8 +260,6 @@ def _process_file(
                     error=str(exc),
                 )
                 return {"outcome": "skipped", "reason": "missing_datetime"}
-            record_gps = gps_location
-            record_deployment_id = bulk_deployment_id
 
         image_uuid = str(uuid.uuid4())
         storage_path = upload_image_to_minio(
@@ -288,15 +284,12 @@ def _process_file(
             storage_path=storage_path,
             thumbnail_path=thumbnail_path,
             captured_at=captured_at,
-            gps_location=record_gps,
-            # The photo's own reading, also in Mode B where record_gps is the
-            # chosen site's pin and not a reading.
             gps_reading=exif.get("gps_decimal"),
             exif_metadata=exif,
             origin="bulk",
             content_hash=content_hash,
             bulk_upload_job_id=bulk_upload_job_id,
-            deployment_id=record_deployment_id,
+            rebuild=False,
         )
 
         set_image_id(image_uuid)
@@ -320,9 +313,7 @@ def _process_prefix_job(
     job_id: int,
     camera_id: int,
     camera_storage_id: str,
-    gps_location,
     staged_prefix: str,
-    bulk_deployment_id: Optional[int] = None,
     use_profile: bool = False,
     time_offset_seconds: int = 0,
 ) -> None:
@@ -381,10 +372,8 @@ def _process_prefix_job(
                     raw,
                     camera_id,
                     camera_storage_id,
-                    gps_location,
                     bulk_queue,
                     job_id,
-                    bulk_deployment_id,
                     use_profile,
                     time_offset_seconds,
                 )
@@ -495,30 +484,10 @@ def _process_job(job_uuid: str) -> None:
         manifest = job.manifest or {}
         time_offset_seconds = job.time_offset_seconds
 
-        # Mode A (no pinned site): run the camera-profile hunt per image and
-        # resolve site + deployment from each image's GPS, exactly like FTPS.
-        # Mode B (pinned site): attach the whole batch to one deployment at the
-        # chosen site.
+        # Mode A (no chosen site): the camera-profile hunt per image, GPS
+        # required, deployments follow from the readings like FTPS.
+        # Mode B (chosen site): the job states where the camera stood.
         use_profile = not manifest.get("site_id")
-
-        # In Mode B, default each image's location to where the camera is now
-        # (its most recent deployment site). Unused in Mode A, where per-image
-        # GPS drives the deployment, so the lookup is skipped there.
-        gps_location = None
-        if not use_profile:
-            loc_row = session.execute(
-                text("""
-                    SELECT ST_Y(s.location::geometry) AS lat, ST_X(s.location::geometry) AS lon
-                    FROM deployments d
-                    JOIN sites s ON s.id = d.site_id
-                    WHERE d.camera_id = :camera_id
-                    ORDER BY d.deployment_number DESC
-                    LIMIT 1
-                """),
-                {"camera_id": camera.id},
-            ).fetchone()
-            if loc_row:
-                gps_location = (loc_row.lat, loc_row.lon)
 
         # The API flips status to 'processing' at finalize so users see
         # the right state during the brief queue hop; we still own
@@ -526,43 +495,37 @@ def _process_job(job_uuid: str) -> None:
         job.status = "processing"
         job.process_started_at = datetime.now(timezone.utc)
 
-    # Mode B pins every image to one deployment at the chosen site. The
-    # client already applied the job's clock correction to date_range.
-    bulk_deployment_id = None
-    if not use_profile:
-        site_id = manifest.get("site_id")
-        date_range = manifest.get("date_range") or {}
-        try:
-            bulk_deployment_id = get_or_create_bulk_deployment(
-                camera_id,
-                int(site_id),
-                _parse_iso_date(date_range.get("start")),
-                _parse_iso_date(date_range.get("end")),
-            )
-        except Exception as exc:
-            logger.error(
-                "Could not resolve pinned site deployment, falling back to camera location",
-                job_uuid=job_uuid,
-                site_id=site_id,
-                error=str(exc),
-            )
-
     logger.info(
         "Processing bulk upload",
         job_uuid=job_uuid,
         camera_id=camera_id,
         staged_object_key=staged_object_key,
-        bulk_deployment_id=bulk_deployment_id,
         use_profile=use_profile,
         time_offset_seconds=time_offset_seconds,
     )
 
     try:
-        _process_prefix_job(
-            job_uuid, job_id, camera_id, camera_storage_id,
-            gps_location, staged_object_key, bulk_deployment_id, use_profile,
-            time_offset_seconds,
-        )
+        try:
+            _process_prefix_job(
+                job_uuid, job_id, camera_id, camera_storage_id,
+                staged_object_key, use_profile, time_offset_seconds,
+            )
+        finally:
+            # Once per job and not per photo, also when the job broke off
+            # halfway: the photos that did get in need their deployment. An
+            # old SD card is then read as history, in the order the photos
+            # were taken, and cannot move where the camera stands now.
+            if not use_profile:
+                # The client already applied the clock correction to date_range.
+                date_range = manifest.get("date_range") or {}
+                state_upload_to_site(
+                    camera_id,
+                    int(manifest["site_id"]),
+                    job_id,
+                    _parse_iso_date(date_range.get("start")),
+                    _parse_iso_date(date_range.get("end")),
+                )
+            rebuild_deployments(camera_id)
     except Exception as exc:
         logger.error(
             "Bulk upload processing failed",

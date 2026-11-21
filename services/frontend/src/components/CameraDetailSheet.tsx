@@ -4,8 +4,8 @@
  * Shows full camera details in a slide-out panel with tabs:
  * - Overview: Status, site, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
- * - Placements: Where this camera has been over time (all users), with an
- *   admin-only change-site action per step as the late-correction escape hatch
+ * - Deployments: Where this camera has been over time (all users). Project
+ *   admins set deployments there and see the fixed periods
  * - Rejected: Files the server refused but could attribute to this camera
  *   (all users, hidden for site-restricted viewers who get no count)
  * - Details: Camera id, custom fields, remarks, tags, SIM, reference (admins)
@@ -276,7 +276,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               tabs={[
                 { key: 'overview', label: 'Overview' },
                 { key: 'history', label: 'History' },
-                { key: 'deployments', label: 'Placements' },
+                { key: 'deployments', label: 'Deployments' },
                 ...(camera.rejected_count_recent !== null ? [{ key: 'rejections' as const, label: 'Rejected' }] : []),
                 ...(canAdmin ? [{ key: 'details' as const, label: 'Details' }] : []),
               ]}
@@ -563,7 +563,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
             {/* Deployments tab */}
             {activeTab === 'deployments' && (
-              <CameraDeploymentHistory cameraId={camera.id} cameraName={camera.name} />
+              <CameraDeploymentHistory camera={camera} />
             )}
 
             {/* Rejected tab: files refused by the server, attributed to this camera */}

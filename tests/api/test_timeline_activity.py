@@ -24,7 +24,6 @@ from utils.timeline_activity import (  # noqa: E402
     concurrent_from_signal_days,
     daily_camera_counts,
     fetch_capture_days,
-    fetch_report_days,
     split_into_segments,
 )
 
@@ -255,27 +254,6 @@ class TestAsyncHelpersCompile:
         sql = db.compiled_queries[0].lower()
         assert "images" in sql
         assert "is_hidden" in sql
-
-    @pytest.mark.asyncio
-    async def test_fetch_report_days_skips_db_when_no_cameras(self):
-        db = _CompileAssertingSession()
-        out = await fetch_report_days(db, [])  # type: ignore[arg-type]
-        assert out == {}
-        assert db.compiled_queries == []
-
-    @pytest.mark.asyncio
-    async def test_fetch_report_days_compiles(self):
-        db = _CompileAssertingSession()
-        out = await fetch_report_days(
-            db,  # type: ignore[arg-type]
-            [10, 11],
-            clip_start=date(2024, 1, 1),
-            clip_end=date(2024, 12, 31),
-        )
-        assert out == {}
-        assert len(db.compiled_queries) == 1
-        sql = db.compiled_queries[0].lower()
-        assert "camera_health_reports" in sql
 
     @pytest.mark.asyncio
     async def test_daily_camera_counts_skips_db_when_no_cameras(self):

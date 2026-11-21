@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, union_all, literal, text
 
+from shared import effort
 from shared.classification_threshold import classification_passes_threshold
 from shared.label_source import DEFAULT_LABEL_SOURCE, LabelScope, label_scope
 
@@ -768,10 +769,10 @@ WITH active_sites AS (
     WHERE c.project_id = ANY(:project_ids)
       AND cdp.site_id IS NOT NULL
       AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
-      AND cdp.start_date <= CAST(:end_date AS date)
-      AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
+      AND {first_day} <= CAST(:end_date AS date)
+      AND {last_day} >= CAST(:start_date AS date)
 )
-"""
+""".format(first_day=effort.first_day_sql("cdp"), last_day=effort.last_day_sql("cdp"))
 
 _NAIVE_OCCUPANCY_SQL = _ACTIVE_SITES_CTE + """,
 verified_presence AS (
@@ -882,12 +883,12 @@ WITH occ AS (
 SELECT DISTINCT cdp.site_id, occ.occ_idx
 FROM deployments cdp
 INNER JOIN cameras c ON cdp.camera_id = c.id
-INNER JOIN occ ON cdp.start_date <= occ.occ_end
-             AND (cdp.end_date IS NULL OR cdp.end_date >= occ.occ_start)
+INNER JOIN occ ON {first_day} <= occ.occ_end
+             AND {last_day} >= occ.occ_start
 WHERE c.project_id = ANY(:project_ids)
   AND cdp.site_id IS NOT NULL
   AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
-"""
+""".format(first_day=effort.first_day_sql("cdp"), last_day=effort.last_day_sql("cdp"))
 
 _SITE_MATRIX_DETECTED_SQL = """
 SELECT DISTINCT dep.site_id,

@@ -8,8 +8,8 @@
  * - site mode answers "which cameras stood here over time?" (each step is a
  *   camera that was placed here)
  *
- * Site assignment is automatic and corrections normally happen from the
- * camera updates panel. For late corrections, camera mode can pass
+ * Site assignment is automatic and corrections normally happen on the
+ * moves check. For late corrections, camera mode can pass
  * onChangeSite (admin only), which puts a small action on each step.
  */
 import React from 'react';
@@ -105,10 +105,9 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onC
                   type="button"
                   onClick={() => onChangeSite(it)}
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  aria-label="Change site"
                 >
                   <Pencil className="h-3.5 w-3.5" />
-                  Change site
+                  Wrong site?
                 </button>
               )}
             </div>

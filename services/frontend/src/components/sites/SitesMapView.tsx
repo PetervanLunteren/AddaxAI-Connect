@@ -11,20 +11,16 @@
  * spiderfy out.
  */
 import { useMemo, useEffect } from 'react';
-import { MapContainer, Marker, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
 import { FullscreenControl } from '../map/FullscreenControl';
 import { FitBounds } from '../map/FitBounds';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
-import { SpiderLegLine } from '../map/SpiderLegLine';
-import { useSpiderfied } from '../../hooks/useSpiderfied';
+import { SiteMarkersLayer, SITE_COLOR } from './SiteMarkersLayer';
 import { getLegendItems, type ColorByMetric } from '../../utils/camera-colors';
 import { getSiteColor, type SiteColorMode, type SiteHealth } from '../../utils/site-health';
 import 'leaflet/dist/leaflet.css';
-
-// Primary teal, matching the design system. Used for plain place markers.
-const SITE_COLOR = '#0f6064';
 
 const LEGEND_TITLES: Record<ColorByMetric, string> = {
   status: 'Status',
@@ -37,67 +33,6 @@ interface SitesMapViewProps {
   onSiteClick: (siteId: number) => void;
   colorMode: SiteColorMode;
   siteHealth: Map<number, SiteHealth>;
-}
-
-// Icons are pure functions of their colour, so cache them by colour string to
-// avoid rebuilding identical divIcons on every render.
-const iconCache = new Map<string, L.DivIcon>();
-function siteIcon(color: string): L.DivIcon {
-  let icon = iconCache.get(color);
-  if (!icon) {
-    icon = L.divIcon({
-      className: 'site-marker-icon',
-      html: `<div style="
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background-color: ${color};
-        border: 2px solid #555555;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-      "></div>`,
-      iconSize: [16, 16],
-      iconAnchor: [8, 8],
-    });
-    iconCache.set(color, icon);
-  }
-  return icon;
-}
-
-// Spreads overlapping site pins (sub-100 m sites) like the cameras map.
-function SpiderfiedSiteLayer({
-  sites,
-  colorMode,
-  siteHealth,
-  onSiteClick,
-}: {
-  sites: SiteListItem[];
-  colorMode: SiteColorMode;
-  siteHealth: Map<number, SiteHealth>;
-  onSiteClick: (siteId: number) => void;
-}) {
-  const { spread, legs } = useSpiderfied(
-    sites,
-    (s) => (s.latitude != null && s.longitude != null ? { lat: s.latitude, lon: s.longitude } : null),
-    (s) => s.id,
-    { proximityThresholdPixels: 10, spreadRadiusPixels: 20 },
-  );
-  return (
-    <>
-      {legs.map((leg) => (
-        <SpiderLegLine key={`leg-${leg.id}`} leg={leg} />
-      ))}
-      {spread.map(({ item, displayPosition }) => (
-        <Marker
-          key={item.id}
-          position={[displayPosition.lat, displayPosition.lon]}
-          icon={siteIcon(getSiteColor(siteHealth.get(item.id), colorMode, SITE_COLOR))}
-          eventHandlers={{ click: () => onSiteClick(item.id) }}
-        >
-          <Tooltip>{item.name}</Tooltip>
-        </Marker>
-      ))}
-    </>
-  );
 }
 
 // Bottom-right legend, added only while a health mode is active. Same Leaflet
@@ -186,10 +121,9 @@ export function SitesMapView({ sites, onSiteClick, colorMode, siteHealth }: Site
         <MapAttribution />
         <BaseLayersControl />
         <FitBounds points={points} />
-        <SpiderfiedSiteLayer
+        <SiteMarkersLayer
           sites={sitesWithLocation}
-          colorMode={colorMode}
-          siteHealth={siteHealth}
+          colorFor={(s) => getSiteColor(siteHealth.get(s.id), colorMode, SITE_COLOR)}
           onSiteClick={onSiteClick}
         />
         {colorMode !== 'none' && <SiteMapLegend colorMode={colorMode} />}

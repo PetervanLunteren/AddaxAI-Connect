@@ -79,10 +79,11 @@ with_events AS (
     FROM with_flags
 ),
 -- Per event: take MAX individuals (same pool seen multiple times)
--- When a pool spans multiple cameras, attribute the event to the camera of
--- the earliest detection.
+-- When a pool spans multiple cameras, attribute the event to the camera and
+-- the deployment of the earliest detection.
 events AS (
     SELECT (ARRAY_AGG(camera_id ORDER BY ts))[1] as camera_id,
+           (ARRAY_AGG(deployment_id ORDER BY ts))[1] as deployment_id,
            pool_id, species, event_id,
            MIN(ts) as event_start, MAX(img_count) as event_count
     FROM with_events
@@ -484,9 +485,7 @@ async def get_independent_detection_rate_counts(
                e.species,
                SUM(e.event_count)::int as detection_count
         FROM events e
-        JOIN deployments cdp ON e.camera_id = cdp.camera_id
-            AND DATE(e.event_start) >= cdp.start_date
-            AND (cdp.end_date IS NULL OR DATE(e.event_start) <= cdp.end_date)
+        JOIN deployments cdp ON cdp.id = e.deployment_id
         GROUP BY cdp.camera_id, cdp.deployment_number, e.species
     )
     SELECT camera_id, deployment_number, species, detection_count FROM deployment_events
@@ -513,16 +512,13 @@ def get_independent_site_species_counts_sync(
     which cannot run the async executors.
 
     Returns a list of {site_id, species, count} where count sums each
-    event's MaxN. site_id is None for events whose camera had no deployment
-    covering the event start (LEFT JOIN, so those events are kept and land
-    in the report's unassigned bucket). Species keys are lowercased.
+    event's MaxN. site_id is None for events whose first photo has no
+    deployment (LEFT JOIN, so those events are kept and land in the report's
+    unassigned bucket). Species keys are lowercased.
 
-    Two known approximations, both shared with the detection-rate map:
-    - An event in a merged-site pool is attributed to the site of its
-      earliest observation's camera.
-    - A camera whose deployment ends the same day the next one starts can
-      join an event on that boundary date to both deployments; this only
-      double-counts when the two deployments are at different sites.
+    An event belongs to the deployment of its earliest photo, the same rule
+    as the detection-rate map. In a merged-site pool that is the site of the
+    earliest observation's camera.
     """
     cte_sql, params = _build_cte(species, start_date, end_date)
     params["project_ids"] = [project_id]
@@ -533,9 +529,7 @@ def get_independent_site_species_counts_sync(
     SELECT dep.site_id, LOWER(e.species) as species,
            SUM(e.event_count)::int as count
     FROM events e
-    LEFT JOIN deployments dep ON e.camera_id = dep.camera_id
-        AND DATE(e.event_start) >= dep.start_date
-        AND (dep.end_date IS NULL OR DATE(e.event_start) <= dep.end_date)
+    LEFT JOIN deployments dep ON dep.id = e.deployment_id
     GROUP BY dep.site_id, LOWER(e.species)
     """
 

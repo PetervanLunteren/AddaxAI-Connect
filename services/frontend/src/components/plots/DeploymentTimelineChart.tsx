@@ -16,21 +16,36 @@
  *
  * Drag-to-zoom on the chart writes back to the parent's date filter.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type {
   CdpTransition,
   HeatmapPoint,
   TimelineResponse,
 } from '../../api/types';
 import { STATUS_COLORS } from '../../utils/camera-colors';
+import {
+  AXIS_TEXT,
+  ChartTooltip,
+  DragOverlay,
+  GRID_STROKE,
+  MS_PER_DAY,
+  TimeAxis,
+  formatShortDate,
+  generateMonthTicks,
+  paddedDomain,
+  parseDate,
+  thinTicks,
+  timeScale,
+  useChartWidth,
+  useDragZoom,
+  xFromEvent,
+  type HoverInfo,
+} from './timeline-scale';
 
 const BAR_INNER = '#0f6064';
 const BAR_OUTER_HEATMAP = 'rgba(15, 96, 100, 0.08)';
 const CONCURRENT_FILL = 'rgba(15, 96, 100, 0.18)';
 const CONCURRENT_STROKE = '#0f6064';
-const GRID_STROKE = 'rgba(0, 0, 0, 0.06)';
-const AXIS_TEXT = 'rgba(0, 0, 0, 0.65)';
-const HOVER_FILL = 'rgba(0, 0, 0, 0.05)';
 const TRANSITION_STROKE = 'rgba(0, 0, 0, 0.25)';
 
 // Heatmap intensity ramp: same hue as the inner bar, varying alpha so the
@@ -78,90 +93,12 @@ const CONCURRENT_Y_LABEL_WIDTH = 28;
 const STATUS_DOT_GAP = 6;
 const WEEKLY_BIN_DAY_THRESHOLD = 365;
 
-const MS_PER_DAY = 86_400_000;
-
-function parseDate(s: string): number {
-  const [y, m, d] = s.split('-').map(Number);
-  return Date.UTC(y, m - 1, d);
-}
-
-function formatYMD(ms: number): string {
-  const d = new Date(ms);
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function formatShortDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('en', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-interface MonthTick {
-  ms: number;
-  label: string;
-  major: boolean;
-}
-
-function generateMonthTicks(xMinMs: number, xMaxMs: number): MonthTick[] {
-  const ticks: MonthTick[] = [];
-  const start = new Date(xMinMs);
-  let y = start.getUTCFullYear();
-  let m = start.getUTCMonth();
-  if (start.getUTCDate() > 1) m += 1;
-  while (true) {
-    const tickMs = Date.UTC(y, m, 1);
-    if (tickMs > xMaxMs) break;
-    const monthName = new Date(tickMs).toLocaleString('en', {
-      month: 'short',
-      timeZone: 'UTC',
-    });
-    const major = m === 0;
-    ticks.push({ ms: tickMs, label: major ? `${monthName} ${y}` : monthName, major });
-    m += 1;
-    if (m > 11) {
-      m = 0;
-      y += 1;
-    }
-  }
-  return ticks;
-}
-
-function thinTicks(ticks: MonthTick[], plotWidth: number): Set<number> {
-  const MIN_PX = 56;
-  const span = ticks.length > 1 ? ticks.length : 1;
-  const spacingPx = plotWidth / span;
-  const keep = new Set<number>();
-  if (ticks.length === 0) return keep;
-  let step = 1;
-  while (spacingPx * step < MIN_PX) step += 1;
-  for (let i = 0; i < ticks.length; i += step) keep.add(i);
-  ticks.forEach((t, i) => {
-    if (t.major) keep.add(i);
-  });
-  return keep;
-}
-
 interface DeploymentTimelineChartProps {
   data: TimelineResponse;
   density?: Density;
   viewMode?: ViewMode;
   /** Fired with YYYY-MM-DD strings when the user drag-zooms on the chart. */
   onZoom?: (from: string, to: string) => void;
-}
-
-const ZOOM_DRAG_THRESHOLD_PX = 4;
-
-interface HoverInfo {
-  x: number;
-  y: number;
-  title: string;
-  subtitle: string;
 }
 
 interface CameraHeatmap {
@@ -175,22 +112,8 @@ export function DeploymentTimelineChart({
   onZoom,
 }: DeploymentTimelineChartProps) {
   const cfg = DENSITY[density];
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [width, setWidth] = useState(960);
+  const { containerRef, width } = useChartWidth(800);
   const [hover, setHover] = useState<HoverInfo | null>(null);
-  const [drag, setDrag] = useState<{ startX: number; currentX: number } | null>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const ro = new ResizeObserver((entries) => {
-      // Never draw narrower than 800, below that the year ticks overlap
-      // into unreadable text on long projects. Narrow screens scroll the
-      // chart instead.
-      for (const e of entries) setWidth(Math.max(800, Math.floor(e.contentRect.width)));
-    });
-    ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
 
   // Compute x-axis bounds. Trust the backend's `date_range_from / to`,
   // which it has already clipped to the active date filter. Each "day"
@@ -223,18 +146,15 @@ export function DeploymentTimelineChart({
         hi = today + MS_PER_DAY;
       }
     }
-    const span = Math.max(MS_PER_DAY, hi - lo);
-    const pad = span * 0.02;
-    return { xMinMs: lo - pad, xMaxMs: hi + pad };
+    // hi is the start of the day after the last one.
+    return paddedDomain(lo, hi - MS_PER_DAY);
   }, [data]);
 
   const plotLeft = cfg.labelWidth;
   const plotWidth = Math.max(40, width - plotLeft - RIGHT_PADDING);
 
-  const xToPx = (ms: number) =>
-    plotLeft + ((ms - xMinMs) / Math.max(1, xMaxMs - xMinMs)) * plotWidth;
-  const pxToMs = (px: number) =>
-    xMinMs + ((px - plotLeft) / Math.max(1, plotWidth)) * (xMaxMs - xMinMs);
+  const { xToPx, pxToMs } = timeScale(xMinMs, xMaxMs, plotLeft, plotWidth);
+  const { drag, handlers } = useDragZoom({ plotLeft, plotWidth, xMinMs, xMaxMs, pxToMs, onZoom });
 
   const rowsHeight = data.sites.length * (cfg.rowHeight + cfg.rowGap);
   // Bands top to bottom: axis, then the concurrent-sites summary, then the
@@ -315,37 +235,6 @@ export function DeploymentTimelineChart({
     return parts.join(' ');
   }, [data, xMinMs, xMaxMs, plotWidth]);
 
-  const xFromEvent = (e: React.MouseEvent): number => {
-    const svg = (e.currentTarget as Element).closest('svg') as SVGSVGElement | null;
-    const rect = (svg ?? (e.currentTarget as SVGSVGElement)).getBoundingClientRect();
-    return e.clientX - rect.left;
-  };
-
-  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    const x = xFromEvent(e);
-    if (x < plotLeft || x > plotLeft + plotWidth) return;
-    setDrag({ startX: x, currentX: x });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!drag) return;
-    setDrag({ ...drag, currentX: xFromEvent(e) });
-  };
-
-  const handleMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!drag) return;
-    const x = xFromEvent(e);
-    const dragged = Math.abs(x - drag.startX);
-    if (dragged >= ZOOM_DRAG_THRESHOLD_PX && onZoom) {
-      const a = Math.min(drag.startX, x);
-      const b = Math.max(drag.startX, x);
-      const fromMs = Math.max(xMinMs, pxToMs(a));
-      const toMs = Math.min(xMaxMs, pxToMs(b));
-      onZoom(formatYMD(fromMs), formatYMD(toMs));
-    }
-    setDrag(null);
-  };
-
   // Concurrent-strip hover: look up the count for the day under the
   // cursor. Each signal day has its own point, so if the binary search
   // does not land on a point whose date matches the cursor's day, the
@@ -401,39 +290,19 @@ export function DeploymentTimelineChart({
         height={totalHeight}
         role="img"
         aria-label="Timeline"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={() => setDrag(null)}
+        {...handlers}
         style={{ cursor: drag ? 'ew-resize' : 'crosshair' }}
       >
-        {ticks.map((t, i) => {
-          const x = xToPx(t.ms);
-          if (x < plotLeft || x > plotLeft + plotWidth) return null;
-          return (
-            <g key={t.ms}>
-              <line
-                x1={x}
-                x2={x}
-                y1={plotTop}
-                y2={rowsBottom}
-                stroke={GRID_STROKE}
-              />
-              {tickKeep.has(i) && (
-                <text
-                  x={x}
-                  y={TOP_PADDING + AXIS_HEIGHT - 8}
-                  fontSize={11}
-                  textAnchor="middle"
-                  fill={AXIS_TEXT}
-                  fontWeight={t.major ? 600 : 400}
-                >
-                  {t.label}
-                </text>
-              )}
-            </g>
-          );
-        })}
+        <TimeAxis
+          ticks={ticks}
+          keep={tickKeep}
+          xToPx={xToPx}
+          plotLeft={plotLeft}
+          plotWidth={plotWidth}
+          top={plotTop}
+          bottom={rowsBottom}
+          labelY={TOP_PADDING + AXIS_HEIGHT - 8}
+        />
 
         {data.sites.map((site, rowIdx) => {
           const rowTop = rowsTop + rowIdx * (cfg.rowHeight + cfg.rowGap);
@@ -635,45 +504,16 @@ export function DeploymentTimelineChart({
           onMouseMove={handleConcurrentMove}
           onMouseLeave={() => setHover(null)}
         />
-        {/* Dim overlay during drag, purely visual. pointerEvents="none"
-            so it never swallows hover events on cells / bars / ticks. */}
-        {drag && (
-          <rect
-            x={plotLeft}
-            y={TOP_PADDING + AXIS_HEIGHT}
-            width={plotWidth}
-            height={rowsHeight + SECTION_GAP + CONCURRENT_HEIGHT}
-            fill={HOVER_FILL}
-            pointerEvents="none"
-          />
-        )}
-        {drag && (
-          <rect
-            x={Math.min(drag.startX, drag.currentX)}
-            y={TOP_PADDING + AXIS_HEIGHT}
-            width={Math.abs(drag.currentX - drag.startX)}
-            height={rowsHeight + SECTION_GAP + CONCURRENT_HEIGHT}
-            fill="rgba(15, 96, 100, 0.10)"
-            stroke="rgba(15, 96, 100, 0.5)"
-            strokeDasharray="3 3"
-            pointerEvents="none"
-          />
-        )}
+        <DragOverlay
+          drag={drag}
+          plotLeft={plotLeft}
+          plotWidth={plotWidth}
+          top={TOP_PADDING + AXIS_HEIGHT}
+          height={rowsHeight + SECTION_GAP + CONCURRENT_HEIGHT}
+        />
       </svg>
 
-      {hover && (
-        <div
-          className="pointer-events-none absolute z-10 rounded-md border bg-card text-card-foreground px-2 py-1.5 text-xs shadow-md whitespace-nowrap"
-          style={{
-            left: hover.x,
-            top: hover.y,
-            transform: 'translate(-50%, calc(-100% - 10px))',
-          }}
-        >
-          <div className="font-semibold">{hover.title}</div>
-          <div className="text-muted-foreground">{hover.subtitle}</div>
-        </div>
-      )}
+      <ChartTooltip hover={hover} />
     </div>
   );
 }

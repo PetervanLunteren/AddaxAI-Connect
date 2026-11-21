@@ -1,0 +1,187 @@
+/**
+ * The moves: what the app noticed, worked out from the deployments
+ * list. Plain functions, no React.
+ *
+ * An update is one of two kinds:
+ * - moved: a deployment the GPS made that starts where the camera's
+ *   previous one ends
+ * - corrected: a correction a person made (a statement), from Wrong in the
+ *   check or from the camera panel
+ * The rest is handled where it belongs: a camera that started somewhere
+ * has nothing to check (naming a new place is in the site panel), and
+ * photos without a site are a camera's problem, on the Cameras page.
+ *
+ * Nobody has to answer. A move nobody checked yet that came back to the
+ * same site within a week is suspicious, the usual shape of a GPS error.
+ * The server counts the same rule for the badge (ATTENTION_COUNT_SQL in
+ * routers/deployments.py); a test holds the two together.
+ */
+import type { DeploymentListItem, FixedPeriod } from '../../api/deployments';
+import { formatDate } from '../../utils/datetime';
+import { isAutoSiteName } from '../../utils/site-names';
+
+// A move that comes back to the site it left within this many days is
+// marked "Back within a week": the usual shape of a false move. It changes
+// no data. The same number as SHORT_TRIP_DAYS in routers/deployments.py.
+const SHORT_TRIP_DAYS = 7;
+
+export interface UpdateItem {
+  key: string;
+  kind: 'moved' | 'corrected';
+  cameraId: number;
+  cameraLabel: string;
+  day: string; // YYYY-MM-DD, the first day of the entry
+  answered: boolean; // a person said it is right
+  suspicious: boolean;
+  deployment?: DeploymentListItem;
+  previous?: DeploymentListItem; // the deployment it moved from
+  distanceM?: number; // from the previous pin to this one
+  // The out leg of a trip that came back within a week: the likely false move.
+  shortTrip?: boolean;
+  // The way back of such a trip. "It stayed at …" belongs on the out leg.
+  returnOfShortTrip?: boolean;
+  correction?: FixedPeriod;
+}
+
+export function metresBetween(a: DeploymentListItem, b: DeploymentListItem): number | undefined {
+  if (a.latitude === null || a.longitude === null || b.latitude === null || b.longitude === null) return undefined;
+  const rad = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * rad;
+  const dLon = (b.longitude - a.longitude) * rad;
+  const h = Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.latitude * rad) * Math.cos(b.latitude * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
+}
+
+const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
+
+/**
+ * Every entry, answered or not, newest first. `corrections` are the
+ * project's statements in force; only those a person made count, not the
+ * ones an upload set or the update carried over: nobody decided those.
+ */
+export function updateItems(deployments: DeploymentListItem[], corrections: FixedPeriod[] = []): UpdateItem[] {
+  const byCamera = new Map<number, DeploymentListItem[]>();
+  for (const d of deployments) {
+    const list = byCamera.get(d.camera_id) ?? [];
+    list.push(d);
+    byCamera.set(d.camera_id, list);
+  }
+  const items: UpdateItem[] = [];
+  for (const list of byCamera.values()) {
+    list.sort((a, b) => a.start_at.localeCompare(b.start_at));
+    list.forEach((d, i) => {
+      const before = list[i - 1];
+      const previous = before && before.end_at === d.start_at ? before : undefined;
+      if (d.site_source !== 'auto' || !previous) return; // not a move
+      const next = list[i + 1];
+      const shortTrip = !!previous && !!next && next.start_at === d.end_at &&
+        next.site_id === previous.site_id && daysBetween(d.start_at, d.end_at!) <= SHORT_TRIP_DAYS;
+      const beforePrevious = previous ? list[i - 2] : undefined;
+      const returnOfShortTrip = !!previous && !!beforePrevious && beforePrevious.end_at === previous.start_at &&
+        beforePrevious.site_id === d.site_id && previous.end_at !== null &&
+        daysBetween(previous.start_at, previous.end_at) <= SHORT_TRIP_DAYS;
+      items.push({
+        key: `d${d.id}`,
+        kind: 'moved',
+        cameraId: d.camera_id,
+        cameraLabel: d.camera_label ?? `Camera ${d.camera_id}`,
+        day: d.start_at.slice(0, 10),
+        answered: d.checked_at !== null,
+        suspicious: d.checked_at === null && shortTrip,
+        deployment: d,
+        previous,
+        distanceM: metresBetween(previous, d),
+        shortTrip,
+        returnOfShortTrip,
+      });
+    });
+  }
+  for (const c of corrections) {
+    if (c.source !== 'person') continue;
+    items.push({
+      key: `s${c.id}`,
+      kind: 'corrected',
+      cameraId: c.camera_id,
+      cameraLabel: c.camera_label,
+      day: c.from_date,
+      answered: true,
+      suspicious: false,
+      correction: c,
+    });
+  }
+  return items.sort((a, b) => b.day.localeCompare(a.day) || a.cameraLabel.localeCompare(b.cameraLabel));
+}
+
+export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+
+/**
+ * What a person decided, the Status column of the Moves page.
+ * - notChecked: a move nobody answered.
+ * - checked: a move a person said is right.
+ * - corrected: a correction a person made (a move answered Wrong is gone,
+ *   its correction is what is left).
+ * Suspicious is not a status but what the app thinks of a move nobody
+ * checked yet (`suspicious` on the item), shown as a pill next to it.
+ */
+export type UpdateStatus = 'notChecked' | 'checked' | 'corrected';
+
+export const STATUS_LABELS: Record<UpdateStatus, string> = {
+  notChecked: 'Not checked',
+  checked: 'Checked',
+  corrected: 'Corrected',
+};
+
+export function updateStatus(it: UpdateItem): UpdateStatus {
+  if (it.kind === 'corrected') return 'corrected';
+  return it.answered ? 'checked' : 'notChecked';
+}
+
+/** Why a move is suspicious, for the pill's tooltip. */
+export const SUSPICIOUS_REASON = 'Back at the same site within a week, often a GPS error';
+
+/** Who decided and on which day (YYYY-MM-DD), for checked and corrected rows. */
+export function decided(it: UpdateItem): { by: string | null; day: string } | null {
+  if (it.correction) return { by: it.correction.created_by, day: it.correction.created_at.slice(0, 10) };
+  const d = it.deployment;
+  if (it.answered && d?.checked_at) return { by: d.checked_by, day: d.checked_at.slice(0, 10) };
+  return null;
+}
+
+const STATUS_ORDER: UpdateStatus[] = ['notChecked', 'checked', 'corrected'];
+
+/** The table's first order: suspicious moves, then the rest nobody checked,
+ *  then history, each newest first. */
+export function defaultOrder(items: UpdateItem[]): UpdateItem[] {
+  const rank = (it: UpdateItem) => (it.suspicious ? -1 : STATUS_ORDER.indexOf(updateStatus(it)));
+  return [...items].sort((a, b) => rank(a) - rank(b) || b.day.localeCompare(a.day));
+}
+
+/** The sites an update is about: both ends of a move, else its one site. */
+export function siteIds(it: UpdateItem): number[] {
+  return [it.deployment?.site_id, it.previous?.site_id, it.correction?.site_id]
+    .filter((id): id is number => id != null);
+}
+
+// Words for an update in the check.
+
+// Plain day labels from YYYY-MM-DD, never shifted by the browser's timezone.
+export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
+
+export const placeName = (name: string | null | undefined) =>
+  !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
+
+/** Where the camera went, short: "Pond → Ridge", or a correction's site. */
+export function route(it: UpdateItem): string {
+  if (it.kind === 'corrected') return it.correction!.site_name;
+  return `${placeName(it.previous?.site_name)} → ${placeName(it.deployment?.site_name)}`;
+}
+
+/** The day of a move, or the days of a correction. */
+export function dateLabel(it: UpdateItem): string {
+  if (it.kind === 'corrected') {
+    const c = it.correction!;
+    return `${dayLabel(c.from_date)} to ${c.until_date ? dayLabel(c.until_date) : 'now'}`;
+  }
+  return dayLabel(it.deployment!.start_at.slice(0, 10));
+}

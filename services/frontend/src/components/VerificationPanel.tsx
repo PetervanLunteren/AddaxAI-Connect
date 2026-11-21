@@ -10,6 +10,7 @@ import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } f
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Minus, X, Loader2, Check, Copy, ChevronDown } from 'lucide-react';
 import { Button } from './ui/Button';
+import { Kbd } from './ui/Kbd';
 import { Card, CardContent } from './ui/Card';
 import { CreatableSpeciesSelect, Option } from './ui/CreatableSelect';
 import { imagesApi } from '../api/images';
@@ -878,6 +879,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             >
               <Copy className="h-4 w-4 mr-1" />
               Same as last
+              <Kbd>C</Kbd>
             </Button>
           </div>
         </div>
@@ -904,6 +906,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             <>
               <Check className="h-4 w-4 mr-2" />
               Verify
+              <Kbd onPrimary>⏎</Kbd>
             </>
           )}
         </Button>

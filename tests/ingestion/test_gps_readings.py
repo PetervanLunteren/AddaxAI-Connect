@@ -1,8 +1,7 @@
 """The GPS reading of a photo and of a daily report lands in gps_lat and gps_lon.
 
-Fake DB session, like test_rejection_record.py. The deployment rule itself
-needs PostGIS and is not exercised here: photos come with a deployment_id, and
-the report's call into the rule is replaced by a recorder.
+Fake DB session, like test_rejection_record.py. The rebuild of deployments
+needs PostGIS and is not exercised here: photos are stored with rebuild=False.
 """
 from contextlib import contextmanager
 from datetime import datetime
@@ -59,10 +58,9 @@ def _photo(monkeypatch, gps_reading):
         storage_path="x",
         thumbnail_path="x",
         captured_at=datetime(2026, 3, 1, 12),
-        gps_location=(52.0, 5.0),
         gps_reading=gps_reading,
         exif_metadata={},
-        deployment_id=4,
+        rebuild=False,
     )
     [image] = session.added
     return image
@@ -87,28 +85,21 @@ def _report(monkeypatch, gps, existing=None):
     camera = Camera(id=7, device_id="CAM7", config={})
     session = _FakeSession({Camera: camera, CameraHealthReport: existing})
     _patch_session(monkeypatch, session)
-    calls = []
-    monkeypatch.setattr(
-        db_operations, "update_or_create_site_and_deployment",
-        lambda **kwargs: calls.append(kwargs),
-    )
     db_operations.update_camera_health("CAM7", {
         "gps_location": gps,
         "report_datetime": datetime(2026, 3, 1, 6),
     })
-    return session, calls
+    return session
 
 
 def test_report_stores_its_reading_on_a_new_row(monkeypatch):
-    session, calls = _report(monkeypatch, (52.1, 5.2))
+    session = _report(monkeypatch, (52.1, 5.2))
     [report] = session.added
     assert (report.gps_lat, report.gps_lon) == (52.1, 5.2)
-    assert len(calls) == 1
 
 
 def test_report_overwrites_the_reading_of_the_same_day(monkeypatch):
     existing = CameraHealthReport(camera_id=7, gps_lat=52.1, gps_lon=5.2)
-    session, calls = _report(monkeypatch, (0.0, 0.0), existing=existing)
+    session = _report(monkeypatch, (0.0, 0.0), existing=existing)
     assert session.added == []
     assert (existing.gps_lat, existing.gps_lon) == (None, None)
-    assert calls == []

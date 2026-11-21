@@ -76,9 +76,6 @@ export interface ScanProfileResponse {
   profile_name: string | null;
   camera_registered: boolean;
   camera_id: number | null;
-  // The matched camera's photos need a location; without one the analysis
-  // skips them.
-  requires_gps: boolean;
   // Set when the sample resolves more than one camera; the batch must be
   // split per camera before uploading.
   multiple_cameras: boolean;

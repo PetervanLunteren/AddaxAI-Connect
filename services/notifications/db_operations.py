@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, text
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
 
 from shared.logger import get_logger
 from shared.models import NotificationLog, Project, ProjectMembership, ServerSettings, User
@@ -153,19 +154,17 @@ def get_image_site_label(image_uuid: str) -> Optional[str]:
 
 def get_camera_site_label(camera_id: int) -> Optional[str]:
     """
-    The site a camera currently stands at, via its active (or latest)
-    deployment. Returns the site name, or None when the camera has no
-    site-resolved deployment. Used so hardware alerts can say where to walk.
+    The site a camera currently stands at (shared/deployment_queries.py).
+    Returns the site name, or None when the camera has no deployment or the
+    current one has no site. Used so hardware alerts can say where to walk.
     """
     with get_sync_session() as session:
         row = session.execute(
-            text("""
+            text(f"""
                 SELECT s.name AS site_name
-                FROM deployments d
-                JOIN sites s ON s.id = d.site_id
-                WHERE d.camera_id = :camera_id
-                ORDER BY (d.end_date IS NULL) DESC, d.start_date DESC
-                LIMIT 1
+                FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+                JOIN sites s ON s.id = cur.site_id
+                WHERE cur.camera_id = :camera_id
             """),
             {"camera_id": camera_id},
         ).first()
@@ -189,18 +188,17 @@ def project_wide_email_skip_reason(is_superuser, membership_role, membership_sit
 
 def camera_ids_at_current_sites(db, project_id: int, site_ids) -> set:
     """
-    Cameras of the project whose current site (active, else latest
-    deployment, mirroring get_camera_site_label) is one of the given
-    sites. Used to clamp camera alert rules to a site-restricted
-    viewer's allow-list; cameras without a resolved site never qualify.
+    Cameras of the project whose current site (shared/deployment_queries.py)
+    is one of the given sites. Used to clamp camera alert rules to a
+    site-restricted viewer's allow-list; cameras without a site never
+    qualify.
     """
     rows = db.execute(
-        text("""
-            SELECT DISTINCT ON (d.camera_id) d.camera_id, d.site_id
-            FROM deployments d
-            JOIN cameras c ON c.id = d.camera_id
+        text(f"""
+            SELECT cur.camera_id, cur.site_id
+            FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+            JOIN cameras c ON c.id = cur.camera_id
             WHERE c.project_id = :project_id
-            ORDER BY d.camera_id, (d.end_date IS NULL) DESC, d.start_date DESC
         """),
         {"project_id": project_id},
     ).all()

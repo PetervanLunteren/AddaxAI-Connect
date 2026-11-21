@@ -125,9 +125,14 @@ function PersistBaseLayer() {
   return null;
 }
 
-export function BaseLayersControl() {
+/**
+ * `initial` starts this map on that layer whatever was chosen last, for a
+ * map where one layer is the point (satellite in the moves check:
+ * the landscape shows whether a move is real). Switching still works.
+ */
+export function BaseLayersControl({ initial }: { initial?: 'positron' | 'satellite' | 'osm' } = {}) {
   const stored = localStorage.getItem(STORAGE_KEY);
-  const checkedKey = LAYERS.some((l) => l.key === stored) ? stored : 'positron';
+  const checkedKey = initial ?? (LAYERS.some((l) => l.key === stored) ? stored : 'positron');
   // The Light layer loads lazily and so registers with the control after the
   // raster layers. Sorting by our own order keeps the menu stable.
   const order = LAYERS.map((l) => l.name);

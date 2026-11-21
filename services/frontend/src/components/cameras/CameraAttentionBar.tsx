@@ -15,6 +15,9 @@
  * which works because the camera filters live in the URL. The dashboard also
  * passes the overdue service task count, a chip that links to the Service
  * page instead.
+ *
+ * Moves are not here: checking them is a desk task with its own page, not
+ * a problem in the field.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -76,6 +79,10 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
   // count would flag the whole project for days. This clears with the first
   // good photo. Null means the viewer sees no rejections.
   const rejecting = cameras.filter((c) => c.rejecting === true).length;
+  // Cameras with photos no deployment covers: a camera without GPS that
+  // nobody placed yet, or photos older than its first deployment. Null
+  // means the viewer cannot see those photos.
+  const unplaced = cameras.filter((c) => (c.unplaced_photo_count ?? 0) > 0).length;
 
   const candidates: AttentionItem[] = [
     {
@@ -97,6 +104,11 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       count: rejecting,
       label: `${rejecting} ${plural(rejecting, 'camera', 'cameras')} rejecting files`,
       patch: { rejected: 'rejecting' },
+    },
+    {
+      count: unplaced,
+      label: `${unplaced} ${plural(unplaced, 'camera', 'cameras')} with photos without a site`,
+      patch: { unplaced: 'yes' },
     },
     {
       count: overdueServiceTasks,

@@ -4,8 +4,6 @@ Camera endpoints for viewing camera trap devices and their health status.
 from typing import List, NamedTuple, Optional
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-import csv
-import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text, delete as sql_delete
@@ -24,8 +22,12 @@ from auth.project_access import (
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
 from shared.camera_status import camera_status as _camera_status, is_rejecting
+from utils.csv_upload import read_csv_upload
 from utils.camera_recency import fetch_camera_recency
+from utils.deployment_edits import rebuild
 from utils.camera_rejections import RecentRejections, fetch_recent_rejections, REJECTED_RECENT_DAYS
+from utils.camera_unplaced import UnplacedPhotos, fetch_unplaced
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags, tag_length_error
 
@@ -69,6 +71,12 @@ class CameraResponse(BaseModel):
     # filter, so a camera that rejected a photo before its GPS fix and then
     # recovered stops warning at once. None exactly when the count is None.
     rejecting: Optional[bool] = None
+    # Photos no deployment covers yet, with their first and last day (camera
+    # clock, YYYY-MM-DD) to prefill the Set deployment form. None for
+    # site-restricted viewers, who cannot see these photos.
+    unplaced_photo_count: Optional[int] = None
+    unplaced_first_day: Optional[str] = None
+    unplaced_last_day: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -143,16 +151,11 @@ def _localize(dt: Optional[datetime], tz: ZoneInfo) -> Optional[str]:
 
 
 async def _current_site_id(db: AsyncSession, camera_id: int) -> Optional[int]:
-    """Site of the camera's latest deployment, None when it has no
-    deployments or the latest one has no site."""
+    """The camera's current site (shared/deployment_queries.py), None when it
+    has no deployments or the current one has no site."""
     row = (
         await db.execute(
-            text("""
-                SELECT d.site_id FROM deployments d
-                WHERE d.camera_id = :cam
-                ORDER BY d.deployment_number DESC
-                LIMIT 1
-            """),
+            text(f"SELECT site_id FROM ({CURRENT_DEPLOYMENTS_SQL}) cur WHERE cur.camera_id = :cam"),
             {"cam": camera_id},
         )
     ).first()
@@ -188,6 +191,7 @@ def camera_to_response(
     last_maintenance_date: Optional[date] = None,
     rejections_visible: bool = False,
     recent_rejections: Optional[RecentRejections] = None,
+    unplaced: Optional[UnplacedPhotos] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape.
 
@@ -197,7 +201,9 @@ def camera_to_response(
     `rejections_visible` is False for site-restricted viewers, who see no
     rejections anywhere: the count and the rejecting flag then stay None.
     `recent_rejections` is the camera's entry from `fetch_recent_rejections`,
-    None when it has none in the window.
+    None when it has none in the window. `unplaced` is its entry from
+    `fetch_unplaced`; like rejections it is only shown when
+    `rejections_visible`, since restricted viewers cannot see those photos.
     """
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
@@ -212,6 +218,9 @@ def camera_to_response(
             recent_rejections.last_rejected_at if recent_rejections else None,
             last_image_arrival,
         )
+    unplaced_photo_count = (unplaced.count if unplaced else 0) if rejections_visible else None
+    unplaced_first_day = unplaced.first_day.isoformat() if rejections_visible and unplaced else None
+    unplaced_last_day = unplaced.last_day.isoformat() if rejections_visible and unplaced else None
 
     return CameraResponse(
         current_site=current_site,
@@ -236,6 +245,9 @@ def camera_to_response(
         last_maintenance_date=last_maintenance_date.isoformat() if last_maintenance_date else None,
         rejected_count_recent=rejected_count_recent,
         rejecting=rejecting,
+        unplaced_photo_count=unplaced_photo_count,
+        unplaced_first_day=unplaced_first_day,
+        unplaced_last_day=unplaced_last_day,
     )
 
 
@@ -254,8 +266,10 @@ async def camera_detail_response(
     """
     recency = await fetch_camera_recency(db, [camera.id])
     recent_rejections = None
+    unplaced = None
     if site_scope is None:
         recent_rejections = (await fetch_recent_rejections(db, [camera.id])).get(camera.id)
+        unplaced = (await fetch_unplaced(db, [camera.id])).get(camera.id)
 
     last_maintenance_date = (await db.execute(
         select(func.max(CameraMaintenanceEvent.event_date))
@@ -263,13 +277,11 @@ async def camera_detail_response(
     )).scalar_one_or_none()
 
     site_row = (await db.execute(
-        text("""
+        text(f"""
             SELECT s.id AS site_id, s.name AS site_name
-            FROM deployments d
-            LEFT JOIN sites s ON s.id = d.site_id
-            WHERE d.camera_id = :cam
-            ORDER BY d.deployment_number DESC
-            LIMIT 1
+            FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+            LEFT JOIN sites s ON s.id = cur.site_id
+            WHERE cur.camera_id = :cam
         """),
         {"cam": camera.id},
     )).mappings().first()
@@ -291,6 +303,7 @@ async def camera_detail_response(
         last_maintenance_date=last_maintenance_date,
         rejections_visible=site_scope is None,
         recent_rejections=recent_rejections,
+        unplaced=unplaced,
     )
 
 
@@ -342,8 +355,10 @@ async def list_cameras(
     # Restricted viewers see no rejections at all (a rejection has no site),
     # so their count stays None and the UI hides it.
     recent_rejections: dict[int, RecentRejections] = {}
+    unplaced: dict[int, UnplacedPhotos] = {}
     if site_scope is None:
         recent_rejections = await fetch_recent_rejections(db, camera_ids)
+        unplaced = await fetch_unplaced(db, camera_ids)
     last_maintenance_map: dict[int, date] = {}
     if camera_ids:
         maintenance_rows = await db.execute(
@@ -353,17 +368,15 @@ async def list_cameras(
         )
         last_maintenance_map = {cam_id: d for cam_id, d in maintenance_rows.all()}
 
-    # Each camera's current site = the site of its most recent deployment.
+    # Each camera's current site, see shared/deployment_queries.py.
     current_site_map: dict[int, dict] = {}
     if camera_ids:
         site_rows = await db.execute(
-            text("""
-                SELECT DISTINCT ON (d.camera_id) d.camera_id,
-                       s.id AS site_id, s.name AS site_name
-                FROM deployments d
-                LEFT JOIN sites s ON s.id = d.site_id
-                WHERE d.camera_id = ANY(:cam_ids)
-                ORDER BY d.camera_id, d.deployment_number DESC
+            text(f"""
+                SELECT cur.camera_id, s.id AS site_id, s.name AS site_name
+                FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+                LEFT JOIN sites s ON s.id = cur.site_id
+                WHERE cur.camera_id = ANY(:cam_ids)
             """),
             {"cam_ids": camera_ids},
         )
@@ -388,6 +401,7 @@ async def list_cameras(
             last_maintenance_date=last_maintenance_map.get(camera.id),
             rejections_visible=site_scope is None,
             recent_rejections=recent_rejections.get(camera.id),
+            unplaced=unplaced.get(camera.id),
         )
         for camera in cameras
     ]
@@ -711,10 +725,9 @@ async def bulk_delete(
     await _assert_no_live_bulk_jobs(db, cameras)
 
     if request.keep_data:
-        today = await _server_today(db)
         deleted_tasks = 0
         for camera in cameras:
-            deleted_tasks += await _retire_camera(db, camera, today)
+            deleted_tasks += await _retire_camera(db, camera)
         await db.commit()
         return BulkDeleteResponse(
             deleted_cameras=0,
@@ -923,7 +936,7 @@ async def get_camera_deployments(
                 LEFT JOIN images i ON i.deployment_id = d.id
                 WHERE d.camera_id = :camera_id{scope_sql}
                 GROUP BY d.id, s.name
-                ORDER BY d.deployment_number
+                ORDER BY d.start_at, d.id
             """),
             params,
         )
@@ -1285,42 +1298,23 @@ class ImageRef(NamedTuple):
     thumbnail_path: Optional[str]
 
 
-async def _server_today(db: AsyncSession) -> date:
-    from routers.admin import get_server_timezone
-    return datetime.now(ZoneInfo(await get_server_timezone(db))).date()
-
-
-async def _retire_camera(db: AsyncSession, camera: Camera, today: date) -> int:
+async def _retire_camera(db: AsyncSession, camera: Camera) -> int:
     """
     Take a camera out of service and keep everything it recorded.
 
     Stamps retired_at, which frees the device id (partial unique index) and
-    turns the camera's status to retired everywhere. Closes the open
-    placement at the camera's last photo, so the old project stops counting
-    trap days for a camera that left; a placement is never closed before it
-    started, and a camera that never sent a photo closes today. Deletes the
+    turns the camera's status to retired everywhere. The rebuild then closes
+    the open deployment at the day of the camera's last photo, so the old
+    project stops counting trap days for a camera that left; a camera that
+    never sent a photo closes on the day it was retired. Deletes the
     open service tasks, they are work on a camera nobody services here any
     more; the visit history stays. Returns how many tasks went.
 
     Does not commit, the caller owns the transaction, same as the cascade.
     """
     camera.retired_at = datetime.now(timezone.utc)
-
-    open_deployment = (
-        await db.execute(
-            select(Deployment).where(
-                Deployment.camera_id == camera.id, Deployment.end_date.is_(None),
-            )
-        )
-    ).scalar_one_or_none()
-    if open_deployment is not None:
-        last_capture = (
-            await db.execute(
-                select(func.max(Image.captured_at)).where(Image.camera_id == camera.id)
-            )
-        ).scalar_one_or_none()
-        end = last_capture.date() if last_capture is not None else today
-        open_deployment.end_date = max(end, open_deployment.start_date)
+    await db.flush()
+    await rebuild(db, [camera.id])
 
     result = await db.execute(
         sql_delete(CameraServiceTask).where(CameraServiceTask.camera_id == camera.id)
@@ -1471,7 +1465,7 @@ async def delete_camera(
 
     await _assert_no_live_bulk_jobs(db, [camera])
     if keep_data:
-        await _retire_camera(db, camera, await _server_today(db))
+        await _retire_camera(db, camera)
         await db.commit()
         return
     _, image_refs = await _delete_camera_cascade(db, camera)
@@ -1515,58 +1509,7 @@ async def import_cameras_csv(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Project admin access required for project {project_id}",
         )
-    # Verify file is CSV
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File must be a CSV file",
-        )
-
-    # Read CSV content
-    try:
-        content = await file.read()
-        csv_text = content.decode('utf-8-sig')  # utf-8-sig automatically removes BOM if present
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to read CSV file: {str(e)}",
-        )
-
-    # Auto-detect delimiter (comma or semicolon)
-    try:
-        sniffer = csv.Sniffer()
-        sample = csv_text[:1024]  # Use first 1024 chars for detection
-        delimiter = sniffer.sniff(sample).delimiter
-    except Exception:
-        # Default to comma if detection fails
-        delimiter = ','
-
-    # Parse CSV
-    try:
-        csv_reader = csv.DictReader(io.StringIO(csv_text), delimiter=delimiter)
-        rows = list(csv_reader)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to parse CSV: {str(e)}",
-        )
-
-    if not rows:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="CSV file is empty",
-        )
-
-    # Validate required headers
-    actual_headers = set(rows[0].keys())
-
-    required_headers = {'CameraID'}
-    missing_headers = required_headers - actual_headers
-    if missing_headers:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required CSV headers: {', '.join(sorted(missing_headers))}",
-        )
+    rows = await read_csv_upload(file, required_headers={'CameraID'})
 
     # Verify project exists
     result = await db.execute(

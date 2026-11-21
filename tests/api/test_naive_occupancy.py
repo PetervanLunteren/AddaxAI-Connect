@@ -34,11 +34,13 @@ class TestNaiveOccupancySql:
         assert "cdp.site_id IS NOT NULL" in _NAIVE_OCCUPANCY_SQL
         assert "INNER JOIN deployments dep ON i.deployment_id = dep.id" in _NAIVE_OCCUPANCY_SQL
 
-    def test_active_cameras_join_uses_deployment_overlap(self):
-        # The "any overlap with the window" rule: deployment.start <= window_end
-        # AND (deployment.end IS NULL OR deployment.end >= window_start).
+    def test_active_cameras_join_uses_the_effort_days(self):
+        # A site is active in the window when the effort days of a deployment
+        # there overlap it (shared/effort.py): first day <= window end and
+        # last day >= window start.
         assert "cdp.start_date <= CAST(:end_date AS date)" in _NAIVE_OCCUPANCY_SQL
-        assert "cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date)" in _NAIVE_OCCUPANCY_SQL
+        assert "CAST(cdp.last_photo_at AS date)" in _NAIVE_OCCUPANCY_SQL
+        assert ">= CAST(:start_date AS date)" in _NAIVE_OCCUPANCY_SQL
 
     def test_has_verified_and_unverified_presence_ctes(self):
         assert "verified_presence AS" in _NAIVE_OCCUPANCY_SQL
