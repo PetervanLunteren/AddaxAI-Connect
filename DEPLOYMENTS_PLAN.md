@@ -557,6 +557,13 @@ Notes per step:
        behind a typed word (`POST .../statements/undo`). The menu on the
        Cameras page and "Right, and the next N too" went. A page, not a
        tab: in this app a tab is another view of the same rows.
+   14. Simplified to two kinds: Camera updates lists moves and
+       corrections only. Started needs nothing (naming is in the site
+       panel); photos without a site are a camera's problem, on the
+       Cameras page (attention chip, Set site in the panel). The badge
+       counts only moves back within a week. The deployments list lost
+       its photo days and its photos without a site, which only these
+       rows used.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

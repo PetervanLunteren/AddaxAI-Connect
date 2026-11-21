@@ -2,22 +2,21 @@
  * The camera updates: what the app noticed, worked out from the deployments
  * list. Plain functions, no React.
  *
- * An update is one of four kinds:
- * - started: a camera's first deployment, or the first after a gap
- * - moved: a deployment that starts where the camera's previous one ends
- * - unplaced: photos of a camera that no deployment covers
+ * An update is one of two kinds:
+ * - moved: a deployment the GPS made that starts where the camera's
+ *   previous one ends
  * - corrected: a correction a person made (a statement), from Wrong in the
- *   check or from the camera panel. Listed under Checked with Undo.
- * Only deployments the GPS made are moves. One a person set is their own
- * word and shows as the correction that made it.
+ *   check or from the camera panel
+ * The rest is handled where it belongs: a camera that started somewhere
+ * has nothing to check (naming a new place is in the site panel), and
+ * photos without a site are a camera's problem, on the Cameras page.
  *
- * Nobody has to answer. Two kinds need a person (needsYou): photos without
- * a site, and a move that came back within a week, the usual shape of a
- * false move. The server counts the same rule for the sidebar badge
- * (ATTENTION_COUNT_SQL in routers/deployments.py); a test holds the two
- * together.
+ * Nobody has to answer. One kind needs a person (needsYou): a move that
+ * came back within a week, the usual shape of a false move. The server
+ * counts the same rule for the badge (ATTENTION_COUNT_SQL in
+ * routers/deployments.py); a test holds the two together.
  */
-import type { DeploymentListItem, DeploymentsOverview, FixedPeriod, UnplacedPhotos } from '../../api/deployments';
+import type { DeploymentListItem, FixedPeriod } from '../../api/deployments';
 import { formatDate } from '../../utils/datetime';
 import { isAutoSiteName } from '../../utils/site-names';
 
@@ -28,7 +27,7 @@ const SHORT_TRIP_DAYS = 7;
 
 export interface UpdateItem {
   key: string;
-  kind: 'started' | 'moved' | 'unplaced' | 'corrected';
+  kind: 'moved' | 'corrected';
   cameraId: number;
   cameraLabel: string;
   day: string; // YYYY-MM-DD, the first day of the entry
@@ -41,7 +40,6 @@ export interface UpdateItem {
   shortTrip?: boolean;
   // The way back of such a trip. "It stayed at …" belongs on the out leg.
   returnOfShortTrip?: boolean;
-  unplaced?: UnplacedPhotos;
   correction?: FixedPeriod;
 }
 
@@ -62,9 +60,9 @@ const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 
  * project's statements in force; only those a person made count, not the
  * ones an upload set or the update carried over: nobody decided those.
  */
-export function updateItems(overview: DeploymentsOverview, corrections: FixedPeriod[] = []): UpdateItem[] {
+export function updateItems(deployments: DeploymentListItem[], corrections: FixedPeriod[] = []): UpdateItem[] {
   const byCamera = new Map<number, DeploymentListItem[]>();
-  for (const d of overview.deployments) {
+  for (const d of deployments) {
     const list = byCamera.get(d.camera_id) ?? [];
     list.push(d);
     byCamera.set(d.camera_id, list);
@@ -73,9 +71,9 @@ export function updateItems(overview: DeploymentsOverview, corrections: FixedPer
   for (const list of byCamera.values()) {
     list.sort((a, b) => a.start_at.localeCompare(b.start_at));
     list.forEach((d, i) => {
-      if (d.site_source !== 'auto') return;
       const before = list[i - 1];
       const previous = before && before.end_at === d.start_at ? before : undefined;
+      if (d.site_source !== 'auto' || !previous) return; // not a move
       const next = list[i + 1];
       const shortTrip = !!previous && !!next && next.start_at === d.end_at &&
         next.site_id === previous.site_id && daysBetween(d.start_at, d.end_at!) <= SHORT_TRIP_DAYS;
@@ -85,7 +83,7 @@ export function updateItems(overview: DeploymentsOverview, corrections: FixedPer
         daysBetween(previous.start_at, previous.end_at) <= SHORT_TRIP_DAYS;
       items.push({
         key: `d${d.id}`,
-        kind: previous ? 'moved' : 'started',
+        kind: 'moved',
         cameraId: d.camera_id,
         cameraLabel: d.camera_label ?? `Camera ${d.camera_id}`,
         day: d.start_at.slice(0, 10),
@@ -93,22 +91,10 @@ export function updateItems(overview: DeploymentsOverview, corrections: FixedPer
         needsYou: d.checked_at === null && shortTrip,
         deployment: d,
         previous,
-        distanceM: previous ? metresBetween(previous, d) : undefined,
+        distanceM: metresBetween(previous, d),
         shortTrip,
         returnOfShortTrip,
       });
-    });
-  }
-  for (const u of overview.unplaced) {
-    items.push({
-      key: `u${u.camera_id}`,
-      kind: 'unplaced',
-      cameraId: u.camera_id,
-      cameraLabel: u.camera_label,
-      day: u.photo_days[0]?.start ?? '',
-      answered: false,
-      needsYou: true, // until the photos have a site
-      unplaced: u,
     });
   }
   for (const c of corrections) {
@@ -131,36 +117,30 @@ export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${
 
 /**
  * Where an update stands, the Status column of the Camera updates table.
- * - needsYou: photos without a site, and a move back within a week. The
- *   badge on Camera updates counts the same rule (ATTENTION_COUNT_SQL).
+ * - needsYou: a move back within a week. The badge on Camera updates
+ *   counts the same rule (ATTENTION_COUNT_SQL).
  * - notChecked: an ordinary move nobody answered. Findable, not asking.
  * - checked: a move a person said is right.
  * - corrected: a correction a person made (a move answered Wrong is gone,
  *   its correction is what is left).
- * - none: a camera that started somewhere; nothing to check, naming a new
- *   place is an optional action in the site's panel.
  */
-export type UpdateStatus = 'needsYou' | 'notChecked' | 'checked' | 'corrected' | 'none';
+export type UpdateStatus = 'needsYou' | 'notChecked' | 'checked' | 'corrected';
 
 export const STATUS_LABELS: Record<UpdateStatus, string> = {
   needsYou: 'Needs you',
   notChecked: 'Not checked yet',
   checked: 'Checked',
   corrected: 'Corrected',
-  none: 'Nothing to check',
 };
 
 export function updateStatus(it: UpdateItem): UpdateStatus {
   if (it.kind === 'corrected') return 'corrected';
-  if (it.kind === 'started') return 'none';
   if (it.answered) return 'checked';
   return it.needsYou ? 'needsYou' : 'notChecked';
 }
 
 export const KIND_LABELS: Record<UpdateItem['kind'], string> = {
   moved: 'Move',
-  started: 'Started',
-  unplaced: 'Photos without a site',
   corrected: 'Correction',
 };
 
@@ -172,7 +152,7 @@ export function decided(it: UpdateItem): { by: string | null; day: string } | nu
   return null;
 }
 
-const STATUS_ORDER: UpdateStatus[] = ['needsYou', 'notChecked', 'checked', 'corrected', 'none'];
+const STATUS_ORDER: UpdateStatus[] = ['needsYou', 'notChecked', 'checked', 'corrected'];
 
 /** The table's first order: what waits on top, then history, newest first. */
 export function defaultOrder(items: UpdateItem[]): UpdateItem[] {
@@ -194,24 +174,17 @@ export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
 export const placeName = (name: string | null | undefined) =>
   !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
 
-/** Where the camera went, short: "Pond → Ridge"; "None yet" without a site. */
+/** Where the camera went, short: "Pond → Ridge", or a correction's site. */
 export function route(it: UpdateItem): string {
-  if (it.kind === 'unplaced') return 'None yet';
   if (it.kind === 'corrected') return it.correction!.site_name;
-  const site = placeName(it.deployment?.site_name);
-  if (it.kind === 'started') return site;
-  return `${placeName(it.previous?.site_name)} → ${site}`;
+  return `${placeName(it.previous?.site_name)} → ${placeName(it.deployment?.site_name)}`;
 }
 
-/** The day of a move, or the days of photos without a site or of a correction. */
+/** The day of a move, or the days of a correction. */
 export function dateLabel(it: UpdateItem): string {
   if (it.kind === 'corrected') {
     const c = it.correction!;
     return `${dayLabel(c.from_date)} to ${c.until_date ? dayLabel(c.until_date) : 'now'}`;
-  }
-  if (it.kind === 'unplaced') {
-    const days = it.unplaced!.photo_days;
-    return `${dayLabel(days[0].start)} to ${dayLabel(days[days.length - 1].end)}`;
   }
   return dayLabel(it.deployment!.start_at.slice(0, 10));
 }

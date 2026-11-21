@@ -2,9 +2,10 @@
  * Camera updates: what the app noticed about where cameras stood, and what
  * people decided about it. Project admins only.
  *
- * One table of every move, every camera that started somewhere, every
- * camera with photos without a site and every correction a person made
- * (rows from update-items.ts). It opens with what waits on top, then the
+ * One table of every move the app saw and every correction a person made
+ * (rows from update-items.ts). A camera that started somewhere is not
+ * here (nothing to check; naming a place is in the site panel), nor are
+ * photos without a site (a camera's problem, on the Cameras page). It opens with what waits on top, then the
  * history, newest first; a header sorts, the filter bar finds one row
  * ("corrected by Harry in November 2024"). A row click opens the check
  * window at that row, and its arrows step through the rows as shown.
@@ -60,7 +61,6 @@ const STATUS_TONE: Record<UpdateStatus, PillTone> = {
   notChecked: 'muted',
   checked: 'neutral',
   corrected: 'neutral',
-  none: 'muted',
 };
 
 const asString = (v: FilterValue): string => (typeof v === 'string' ? v : '');
@@ -91,7 +91,7 @@ export const CameraUpdatesPage: React.FC = () => {
     setSearchParams(filtersToSearchParams(values, FILTER_SCHEMA), { replace: true });
 
   const enabled = projectId > 0 && canAdmin;
-  const { data: overview, isLoading } = useQuery({
+  const { data: deployments, isLoading } = useQuery({
     queryKey: ['deployments', projectId, 'overview'],
     queryFn: () => deploymentsApi.list(projectId),
     enabled,
@@ -108,8 +108,8 @@ export const CameraUpdatesPage: React.FC = () => {
     enabled,
   });
   const items = useMemo(
-    () => (overview ? updateItems(overview, corrections) : []),
-    [overview, corrections],
+    () => (deployments ? updateItems(deployments, corrections) : []),
+    [deployments, corrections],
   );
 
   const [sort, setSort] = useState<SortState<Column>>({ column: null, direction: 'asc' });
@@ -234,7 +234,7 @@ export const CameraUpdatesPage: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold mb-0">Camera updates</h1>
-        <p className="text-sm text-gray-600 mt-1">Where the app saw cameras move, and what people decided about it</p>
+        <p className="text-sm text-gray-600 mt-1">Where the app saw cameras move, and what people corrected</p>
       </div>
 
       <div className="space-y-3">
@@ -325,7 +325,7 @@ export const CameraUpdatesPage: React.FC = () => {
                           />
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {it.kind === 'moved' || it.kind === 'started' ? dayLabel(it.day) : dateLabel(it)}
+                          {it.kind === 'moved' ? dayLabel(it.day) : dateLabel(it)}
                         </TableCell>
                         <TableCell className="font-medium">{it.cameraLabel}</TableCell>
                         <TableCell>{KIND_LABELS[it.kind]}</TableCell>

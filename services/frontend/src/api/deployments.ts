@@ -25,29 +25,11 @@ export interface DeploymentListItem {
   image_count: number;
   // 'manual' when a fixed period made it, 'auto' when the GPS did.
   site_source: string;
-  // Runs of days with photos, both ends included.
-  photo_days: DaySpan[];
   // When a person said this update is right, null = nobody answered.
   checked_at: string | null;
   checked_by: string | null; // email
 }
 
-export interface DaySpan {
-  start: string; // YYYY-MM-DD
-  end: string;
-}
-
-// Photo days of one camera that no deployment covers: no site yet.
-export interface UnplacedPhotos {
-  camera_id: number;
-  camera_label: string;
-  photo_days: DaySpan[];
-}
-
-export interface DeploymentsOverview {
-  deployments: DeploymentListItem[];
-  unplaced: UnplacedPhotos[];
-}
 
 export interface DeploymentPhoto {
   uuid: string;
@@ -85,7 +67,8 @@ export interface FixedPeriod {
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;
 
 export const deploymentsApi = {
-  list: async (projectId: number): Promise<DeploymentsOverview> => {
+  // Every deployment of the project, oldest first.
+  list: async (projectId: number): Promise<DeploymentListItem[]> => {
     const { data } = await apiClient.get(base(projectId));
     return data;
   },

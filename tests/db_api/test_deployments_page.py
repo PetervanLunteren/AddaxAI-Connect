@@ -1,6 +1,5 @@
 """
-What the camera updates check reads: every deployment with its photo days,
-and the photo days that have no deployment.
+What the Camera updates page reads: every deployment of the project.
 """
 import pytest
 
@@ -32,30 +31,16 @@ def moved_camera():
     return project, cam
 
 
-async def test_the_list_has_photo_days_and_photos_without_a_site(session, admin, moved_camera):
+async def test_the_list_has_every_deployment_oldest_first(session, admin, moved_camera):
     project, cam = moved_camera
-    lost = make_camera("NOGPS", project)
-    make_image(lost, None, at(4))
-    make_image(lost, None, at(5))
-    rebuild(lost)
-
-    overview = await list_deployments(project, session, admin, None)
-    home, far = overview.deployments
-    assert [(s.start, s.end) for s in home.photo_days] == [("2026-03-01", "2026-03-03")]
-    assert [(s.start, s.end) for s in far.photo_days] == [("2026-03-10", "2026-03-11")]
+    home, far = await list_deployments(project, session, admin, None)
     assert home.start_at < far.start_at and far.end_at is None
-    [unplaced] = overview.unplaced
-    assert unplaced.camera_id == lost and unplaced.camera_label == "NOGPS"
-    assert [(s.start, s.end) for s in unplaced.photo_days] == [("2026-03-04", "2026-03-05")]
+    assert (home.camera_label, home.image_count, far.image_count) == ("MOVER", 3, 2)
+    assert home.site_source == far.site_source == "auto"
 
 
-async def test_a_viewer_limited_to_sites_sees_no_photos_without_a_site(session, admin, moved_camera):
+async def test_a_viewer_limited_to_sites_sees_only_those(session, admin, moved_camera):
     project, cam = moved_camera
-    lost = make_camera("NOGPS", project)
-    make_image(lost, None, at(4))
-    rebuild(lost)
     home_site = deployments(cam)[0]["site_id"]
-
-    overview = await list_deployments(project, session, admin, [home_site])
-    assert [d.site_id for d in overview.deployments] == [home_site]
-    assert overview.unplaced == []
+    listed = await list_deployments(project, session, admin, [home_site])
+    assert [d.site_id for d in listed] == [home_site]

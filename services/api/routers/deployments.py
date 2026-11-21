@@ -22,7 +22,6 @@ from auth.permissions import require_project_access, require_project_admin_acces
 from auth.project_access import get_site_scope
 from utils.deployment_edits import drop_unnamed_sites_left_empty, previous_deployment, rebuild, state
 from utils.site_scope import site_in_scope
-from utils.timeline_activity import daily_camera_counts, split_into_segments
 
 logger = get_logger("api.deployments")
 
@@ -30,12 +29,6 @@ router = APIRouter(
     prefix="/api/projects/{project_id}/deployments",
     tags=["deployments"],
 )
-
-
-class DaySpan(BaseModel):
-    """A run of days with photos, both ends included."""
-    start: str
-    end: str
 
 
 class DeploymentListItem(BaseModel):
@@ -57,32 +50,13 @@ class DeploymentListItem(BaseModel):
     last_photo_at: Optional[str] = None
     image_count: int
     site_source: str = 'auto'
-    # Runs of days with photos, for the marks on the bars.
-    photo_days: List[DaySpan] = []
     # When a person said this entry is right in the camera updates check,
     # NULL = nobody answered. checked_by is their email.
     checked_at: Optional[str] = None
     checked_by: Optional[str] = None
 
 
-class UnplacedPhotos(BaseModel):
-    """Photos of one camera that no deployment covers: no site yet."""
-    camera_id: int
-    camera_label: str
-    photo_days: List[DaySpan]
-
-
-class DeploymentsOverview(BaseModel):
-    deployments: List[DeploymentListItem]
-    # Empty for viewers limited to sites: photos without a site fail closed.
-    unplaced: List[UnplacedPhotos]
-
-
-def _spans(days: List[date]) -> List[DaySpan]:
-    return [DaySpan(start=a.isoformat(), end=b.isoformat()) for a, b in split_into_segments(days)]
-
-
-@router.get("", response_model=DeploymentsOverview)
+@router.get("", response_model=List[DeploymentListItem])
 async def list_deployments(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
@@ -90,11 +64,10 @@ async def list_deployments(
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
     """
-    Every deployment in the project, oldest first, with the days it has
-    photos, and the photo days of each camera that have no deployment. The
-    camera updates check filters this in the browser. Site-restricted viewers
-    only see deployments at their sites; deployments without a site fail the
-    scope test, fail closed.
+    Every deployment in the project, oldest first: the moves of the Camera
+    updates page are worked out from it in the browser. Site-restricted
+    viewers only see deployments at their sites; deployments without a site
+    fail the scope test, fail closed.
     """
     scope_sql = " AND d.site_id = ANY(:scope)" if site_scope is not None else ""
     params: Dict[str, Any] = {"project_id": project_id}
@@ -122,54 +95,28 @@ async def list_deployments(
         )
     ).mappings().all()
 
-    camera_ids = sorted({r["camera_id"] for r in rows})
-    if site_scope is None:
-        camera_ids = list(
-            (await db.execute(select(Camera.id).where(Camera.project_id == project_id))).scalars()
+    return [
+        DeploymentListItem(
+            id=r["id"],
+            deployment_number=r["deployment_number"],
+            camera_id=r["camera_id"],
+            camera_label=r["camera_label"],
+            site_id=r["site_id"],
+            site_name=r["site_name"],
+            latitude=float(r["lat"]) if r["lat"] is not None else None,
+            longitude=float(r["lon"]) if r["lon"] is not None else None,
+            start_date=r["start_date"].isoformat() if r["start_date"] else None,
+            end_date=r["end_date"].isoformat() if r["end_date"] else None,
+            start_at=r["start_at"].isoformat(),
+            end_at=r["end_at"].isoformat() if r["end_at"] else None,
+            last_photo_at=r["last_photo_at"].isoformat() if r["last_photo_at"] else None,
+            image_count=r["image_count"],
+            site_source=r["site_source"],
+            checked_at=r["checked_at"].isoformat() if r["checked_at"] else None,
+            checked_by=r["checked_by"],
         )
-    days_by_deployment: Dict[int, List[date]] = {}
-    unplaced_days: Dict[int, List[date]] = {}
-    for day in await daily_camera_counts(db, camera_ids):
-        if day["deployment_id"] is not None:
-            days_by_deployment.setdefault(day["deployment_id"], []).append(day["date"])
-        elif site_scope is None:
-            unplaced_days.setdefault(day["camera_id"], []).append(day["date"])
-
-    labels: Dict[int, str] = {}
-    if unplaced_days:
-        labels = dict((await db.execute(
-            select(Camera.id, Camera.device_id).where(Camera.id.in_(list(unplaced_days)))
-        )).all())
-
-    return DeploymentsOverview(
-        deployments=[
-            DeploymentListItem(
-                id=r["id"],
-                deployment_number=r["deployment_number"],
-                camera_id=r["camera_id"],
-                camera_label=r["camera_label"],
-                site_id=r["site_id"],
-                site_name=r["site_name"],
-                latitude=float(r["lat"]) if r["lat"] is not None else None,
-                longitude=float(r["lon"]) if r["lon"] is not None else None,
-                start_date=r["start_date"].isoformat() if r["start_date"] else None,
-                end_date=r["end_date"].isoformat() if r["end_date"] else None,
-                start_at=r["start_at"].isoformat(),
-                end_at=r["end_at"].isoformat() if r["end_at"] else None,
-                last_photo_at=r["last_photo_at"].isoformat() if r["last_photo_at"] else None,
-                image_count=r["image_count"],
-                site_source=r["site_source"],
-                photo_days=_spans(days_by_deployment.get(r["id"], [])),
-                checked_at=r["checked_at"].isoformat() if r["checked_at"] else None,
-                checked_by=r["checked_by"],
-            )
-            for r in rows
-        ],
-        unplaced=[
-            UnplacedPhotos(camera_id=cid, camera_label=labels[cid], photo_days=_spans(days))
-            for cid, days in sorted(unplaced_days.items())
-        ],
-    )
+        for r in rows
+    ]
 
 
 class StatementItem(BaseModel):
@@ -421,27 +368,24 @@ async def set_checked(
     return CheckedResponse(updated=result.rowcount)
 
 
-# What needs a person, for the sidebar badge. The same rule as the list in
-# the browser (needsYou in components/deployments/update-items.ts), and
-# tests/db_api/test_review.py holds the two together:
-# - a camera with photos without a site (hidden photos do not count)
-# - a move nobody answered that came back to the site it left within
-#   SHORT_TRIP_DAYS, the mark of a false move
+# What needs a person, for the badge on Camera updates: a move nobody
+# answered that came back to the site it left within SHORT_TRIP_DAYS, the
+# mark of a false move. The same rule as the page (needsYou in
+# components/deployments/update-items.ts); tests/db_api/test_review.py holds
+# the two together. Photos without a site are not counted here: they are a
+# camera's problem, shown on the Cameras page.
 SHORT_TRIP_DAYS = 7
 ATTENTION_COUNT_SQL = f"""
-    SELECT
-      (SELECT count(DISTINCT i.camera_id) FROM images i JOIN cameras c ON c.id = i.camera_id
-        WHERE c.project_id = :project_id AND i.deployment_id IS NULL AND NOT i.is_hidden)
-    + (SELECT count(*) FROM deployments d
-        JOIN cameras c ON c.id = d.camera_id
-        WHERE c.project_id = :project_id AND d.site_source = 'auto' AND d.checked_at IS NULL
-          AND EXISTS (
-            SELECT 1 FROM deployments before_it, deployments after_it
-            WHERE before_it.camera_id = d.camera_id AND before_it.end_at = d.start_at
-              AND after_it.camera_id = d.camera_id AND after_it.start_at = d.end_at
-              AND after_it.site_id = before_it.site_id
-              AND d.end_at - d.start_at <= interval '{SHORT_TRIP_DAYS} days'
-          ))
+    SELECT count(*) FROM deployments d
+    JOIN cameras c ON c.id = d.camera_id
+    WHERE c.project_id = :project_id AND d.site_source = 'auto' AND d.checked_at IS NULL
+      AND EXISTS (
+        SELECT 1 FROM deployments before_it, deployments after_it
+        WHERE before_it.camera_id = d.camera_id AND before_it.end_at = d.start_at
+          AND after_it.camera_id = d.camera_id AND after_it.start_at = d.end_at
+          AND after_it.site_id = before_it.site_id
+          AND d.end_at - d.start_at <= interval '{SHORT_TRIP_DAYS} days'
+      )
 """
 
 

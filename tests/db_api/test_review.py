@@ -2,9 +2,10 @@
 Step 3b: the camera updates check.
 
 An entry is a deployment the GPS made. A person may say it is right, which
-records who looked and when and fixes nothing. Few entries need a person:
-photos without a site, and a move that came back within a week. The badge counts those in SQL, the page marks them in
-the browser from the deployments list, and the two must say the same.
+records who looked and when and fixes nothing. Only a move that came back
+within a week needs a person. The badge counts those in SQL, the page marks
+them in the browser from the deployments list, and the two must say the
+same. Photos without a site are the Cameras page's, not counted here.
 """
 from datetime import datetime
 
@@ -29,12 +30,12 @@ def rebuild(camera_id):
         rebuild_camera(s, camera_id)
 
 
-def list_rule(overview) -> int:
+def list_rule(listed) -> int:
     """needsYou in components/deployments/update-items.ts, in Python."""
     by_camera = {}
-    for d in overview.deployments:
+    for d in listed:
         by_camera.setdefault(d.camera_id, []).append(d)
-    count = len(overview.unplaced)
+    count = 0
     for deps in by_camera.values():
         deps.sort(key=lambda d: d.start_at)
         for i, d in enumerate(deps):
@@ -75,13 +76,13 @@ def project_with_news():
 
 
 async def test_what_needs_a_person(session, admin, project_with_news):
-    """Only the camera without GPS needs a person. The mover's moves are
-    updates nobody answered, which is fine; the fixed camera is a person's
-    word and no update at all."""
+    """Nothing here needs a person. The mover's moves are updates nobody
+    answered, which is fine; the fixed camera is a person's word; the
+    camera without GPS is the Cameras page's to show, not the badge's."""
     project, mover, fixed, lost = project_with_news
     assert len(to_check(mover)) == 2
     assert to_check(fixed) == []
-    assert (await attention_count(project, session, admin)).count == 1
+    assert (await attention_count(project, session, admin)).count == 0
 
 
 async def test_a_move_that_came_back_within_a_week_needs_a_person(session, admin):
@@ -95,10 +96,13 @@ async def test_a_move_that_came_back_within_a_week_needs_a_person(session, admin
     first, trip, back = deployments(cam)
     assert (first["site_id"], trip["site_id"], back["site_id"]) == (home, far, home)
 
-    # Only the trip out is marked, not the start and not the way back.
+    # Only the trip out is marked, not the start and not the way back. The
+    # page's rule says the same.
     assert (await attention_count(project, session, admin)).count == 1
+    assert list_rule(await list_deployments(project, session, admin, None)) == 1
     await set_checked(project, CheckedRequest(deployment_ids=[trip["id"]], checked=True), session, admin)
     assert (await attention_count(project, session, admin)).count == 0
+    assert list_rule(await list_deployments(project, session, admin, None)) == 0
 
 
 async def test_checking_and_undoing(session, admin, project_with_news):
@@ -146,10 +150,10 @@ async def test_the_badge_count_equals_the_list(session, admin, project_with_news
     for checked in ([], [first["id"]]):
         if checked:
             await set_checked(project, CheckedRequest(deployment_ids=checked, checked=True), session, admin)
-        overview = await list_deployments(project, session, admin, None)
+        listed = await list_deployments(project, session, admin, None)
         count = (await attention_count(project, session, admin)).count
-        assert list_rule(overview) == count
-    assert count == 1  # the camera without a site
+        assert list_rule(listed) == count
+    assert count == 0
 
 
 # Sites from a CSV

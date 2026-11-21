@@ -730,10 +730,12 @@ the app noticed and say when it got one wrong. It replaced the camera
 updates panel and its `feed_events` table; the deployments are the one
 record. The page `pages/CameraUpdatesPage.tsx` (sidebar under Cameras,
 admins only, the badge counts what needs a person) is a table of every
-move, every camera that started somewhere, every camera with photos
-without a site and every correction a person made, built in the browser
-by `updateItems` in `update-items.ts`. It opens with what waits on top
-(`defaultOrder`: needs you, not checked yet, checked, corrected, started),
+move and every correction a person made, built in the browser by
+`updateItems` in `update-items.ts`. Nothing else: a camera that started
+somewhere has nothing to check (naming a place is in the site panel), and
+photos without a site are a camera's problem, shown by the attention chip
+on the Cameras page with Set site in the camera panel. It opens with what
+waits on top (`defaultOrder`: needs you, not checked yet, checked, corrected),
 headers sort, the shared `FilterBar` filters (camera, site, what, status,
 date, decided by). A row click opens the check window at that row, and its
 arrows step through the rows as shown. Checkboxes with the shared bulk
@@ -746,13 +748,12 @@ in magenta, a facts card (`DetailRow`) and an answer card right, Right
 and Wrong each on a row with their keys (`Kbd`, the same part as AddaxAI
 desktop). Wrong is a menu of what happened.
 
-- An update is a deployment the GPS made (`site_source = 'auto'`): a camera
-  started somewhere, or it moved. Photos without a site are updates too.
+- A move is a deployment the GPS made (`site_source = 'auto'`) that starts
+  where the camera's previous one ends.
 - The check (`components/deployments/CheckUpdatesModal.tsx`) shows one at a
   time like image verification: Enter is Right and next, W is Wrong, the
   arrows step, Esc closes. Its queue is the table's rows as shown when it
-  opened. A started row is shown with nothing to answer; undoing an older
-  correction asks first. It shows the last photo before a move next to the first
+  opened. Undoing an older correction asks first. It shows the last photo before a move next to the first
   after it (`GET .../deployments/{id}/thumbnails?order=last|first`).
 - Nobody has to answer. Right (`PUT .../deployments/checked`) only records
   who looked and when in `checked_at` and `checked_by_user_id`. It fixes
@@ -764,14 +765,13 @@ desktop). Wrong is a menu of what happened.
   deployment before the move and this one, at the old site. Both return
   the statement id, and the check shows Undo on the spot
   (`DELETE .../statements/{id}`) instead of asking for confirmation first.
-  Later, Undo is in the Checked group, which lists everything a person
-  decided: moves answered Right and every correction a person made
+  Later, Undo is on the Camera updates page, which lists everything a
+  person decided: moves answered Right and every correction a person made
   (`GET .../statements` without `camera_id` gives the project's; periods
   an upload set or the update carried over are left out, nobody decided
   those). The camera panel's Corrections list is the same data per camera.
-- Two kinds need a person, and only those count for the badge on Cameras:
-  photos without a site, and a move that came back within a week. The
-  browser marks them (`needsYou` in `update-items.ts`), the badge counts the
+- One kind needs a person, and only that counts for the badge on Camera
+  updates: a move that came back within a week. The browser marks it (`needsYou` in `update-items.ts`), the badge counts the
   same rule in SQL (`ATTENTION_COUNT_SQL` in `routers/deployments.py`), and
   `tests/db_api/test_review.py` holds the two together.
 - Naming a place the app named, and giving a camera its own site when two
@@ -792,8 +792,8 @@ desktop). Wrong is a menu of what happened.
   the app gave it (`drop_unnamed_sites_left_empty` in
   `utils/deployment_edits.py`, `is_auto_site_name` in `shared/geo.py`). A
   site a person named is never deleted by the app.
-- The check reads `GET .../deployments` (every deployment, with its days
-  with photos and the photo days without a deployment). Its map shows only
+- The page reads `GET .../deployments` (every deployment, a plain list).
+  The check's map shows only
   the two sites of a move and the arrow between them, not the GPS of the
   photos: a person decides a move by whether they moved the camera, and the
   two photos show that. The GPS stays the input of the build.

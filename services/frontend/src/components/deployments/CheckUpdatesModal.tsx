@@ -16,8 +16,7 @@
  *   "It stayed at Pond" (the GPS was off) or "It moved, but not to Ridge",
  *   which puts the map in pick mode; the Set site form does the rest.
  *   A Wrong answer stays on screen with Undo, instead of a confirmation
- *   before it. Photos without a site only get Set site. A camera that only
- *   started somewhere is shown, with nothing to answer.
+ *   before it.
  * - A correction from history can be undone, after a confirmation: it moves
  *   photos between sites, and you did not just make it.
  * Marking many moves right is done in the table, with its checkboxes. The
@@ -26,7 +25,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, MapPin, Undo2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Undo2, X } from 'lucide-react';
 import { deploymentsApi, type DeploymentPhoto } from '../../api/deployments';
 import { formatDateTime } from '../../utils/datetime';
 import { AuthenticatedImage } from '../AuthenticatedImage';
@@ -176,10 +175,11 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, ke
   };
   const picked = (siteId: number | null, lat: number | null, lon: number | null) => {
     setPicking(false);
-    const prefill: SetDeploymentPrefill = d
-      ? { siteId, fromDate: d.start_date ?? d.start_at.slice(0, 10), untilDate: d.end_date,
-          lat: lat ?? d.latitude, lon: lon ?? d.longitude }
-      : { siteId, fromDate: it!.unplaced!.photo_days[0].start, untilDate: null, lat, lon };
+    if (!d) return; // only a move is picked for
+    const prefill: SetDeploymentPrefill = {
+      siteId, fromDate: d.start_date ?? d.start_at.slice(0, 10), untilDate: d.end_date,
+      lat: lat ?? d.latitude, lon: lon ?? d.longitude,
+    };
     setEditing({ prefill, newSite: siteId === null });
   };
 
@@ -327,8 +327,8 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, ke
                     <Card>
                       <CardContent className="pt-4 pb-3 space-y-1 text-sm">
                         <DetailRow label="Camera">{it.cameraLabel}</DetailRow>
-                        <DetailRow label={it.kind === 'moved' ? 'Move' : it.kind === 'corrected' ? 'Set to' : 'Site'}>{route(it)}</DetailRow>
-                        <DetailRow label={it.kind === 'moved' || it.kind === 'started' ? 'Date' : 'Days'}>{dateLabel(it)}</DetailRow>
+                        <DetailRow label={it.kind === 'moved' ? 'Move' : 'Set to'}>{route(it)}</DetailRow>
+                        <DetailRow label={it.kind === 'moved' ? 'Date' : 'Days'}>{dateLabel(it)}</DetailRow>
                         <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : null}</DetailRow>
                         {it.correction && (
                           <DetailRow label="By">
@@ -471,25 +471,6 @@ const Answers: React.FC<{
   // The muted line under the buttons, as "Not verified yet" under Verify.
   const status = (text: string) => <p className="text-muted-foreground text-center">{text}</p>;
 
-  if (it.kind === 'started') {
-    return (
-      <div className="space-y-3">
-        <Button variant="outline" className="w-full" onClick={onNext}>
-          Next
-          <Kbd>→</Kbd>
-        </Button>
-        {status('Nothing to check')}
-      </div>
-    );
-  }
-  if (it.kind === 'unplaced') {
-    return (
-      <Button className="w-full" onClick={onOtherSite} disabled={busy}>
-        <MapPin className="h-4 w-4 mr-2" />
-        Set site
-      </Button>
-    );
-  }
   if (it.answered || myAnswer) {
     return (
       <div className="space-y-3">
