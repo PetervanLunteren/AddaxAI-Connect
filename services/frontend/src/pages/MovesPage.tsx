@@ -86,10 +86,16 @@ const STATUS_OPTIONS = [
   ...(Object.keys(STATUS_LABELS) as UpdateStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
 ];
 
-/** One line of text, cut with "…" at `width`, the whole text on hover. */
-const Clip: React.FC<{ text: string; width?: string }> = ({ text, width = 'max-w-[14rem]' }) => (
-  <span className={`block truncate ${width}`} title={text}>{text}</span>
+/** One line of text, cut with "…" at the column's width, the whole text on hover. */
+const Clip: React.FC<{ text: string }> = ({ text }) => (
+  <span className="block truncate" title={text}>{text}</span>
 );
+
+// A fixed layout: the short columns get a set width, the four text columns
+// (camera, from, to, decided by; undefined here) share the rest equally,
+// and long text is cut to fit. All columns stay in view and every row is
+// one line. Below the minimum width the table scrolls sideways instead.
+const COLUMN_WIDTHS = ['2.5rem', '8rem', undefined, undefined, undefined, '5.5rem', '13rem', undefined, '7.5rem'];
 
 export const MovesPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject: canAdmin } = useProject();
@@ -296,7 +302,10 @@ export const MovesPage: React.FC = () => {
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="table-fixed min-w-[64rem]">
+                <colgroup>
+                  {COLUMN_WIDTHS.map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}
+                </colgroup>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
@@ -346,7 +355,7 @@ export const MovesPage: React.FC = () => {
                         <TableCell className="whitespace-nowrap">
                           {it.kind === 'moved' ? dayLabel(it.day) : dateLabel(it)}
                         </TableCell>
-                        <TableCell className="font-medium"><Clip text={it.cameraLabel} width="max-w-[12rem]" /></TableCell>
+                        <TableCell className="font-medium"><Clip text={it.cameraLabel} /></TableCell>
                         <TableCell>{ends(it).from === null ? '-' : <Clip text={ends(it).from!} />}</TableCell>
                         <TableCell><Clip text={ends(it).to} /></TableCell>
                         <TableCell className="whitespace-nowrap tabular-nums">
