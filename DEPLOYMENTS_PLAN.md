@@ -571,6 +571,13 @@ Notes per step:
        from a correction. Live feed keeps its name. The user docs
        (`docs/sites-and-deployments.md`) still say Camera updates; the
        docs step rewrites them.
+   16. One fact per cell: Status, Decided by and Decided on are three
+       sortable columns. Status is what a person decided: Not checked,
+       Checked, Corrected. Suspicious (back at the same site within a
+       week) is what the app thinks, an amber pill next to Not checked,
+       gone once someone answers; a Status filter option, on top of the
+       table, and what the badge counts. `SuspiciousPill` is shared by the
+       table and the window.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

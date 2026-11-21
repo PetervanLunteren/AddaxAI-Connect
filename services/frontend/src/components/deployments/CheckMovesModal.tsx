@@ -41,6 +41,7 @@ import { REVIEW_WINDOW_CLASS } from '../ui/review-window';
 import { useToast } from '../ui/Toaster';
 import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
+import { SuspiciousPill } from './SuspiciousPill';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './SetDeploymentDialog';
 import {
   dateLabel, dayLabel, metresLabel, placeName, route, siteIds, type UpdateItem,
@@ -335,9 +336,9 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                             {[it.correction.created_by, dayLabel(it.correction.created_at.slice(0, 10))].filter(Boolean).join(', ')}
                           </DetailRow>
                         )}
-                        {it.shortTrip && (
+                        {it.suspicious && (
                           <div className="pt-1 text-right">
-                            <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-[#ff8945]/20">Back within a week</span>
+                            <SuspiciousPill />
                           </div>
                         )}
                       </CardContent>
@@ -520,7 +521,7 @@ const Answers: React.FC<{
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      {status('Not checked yet')}
+      {status('Not checked')}
     </div>
   );
 };

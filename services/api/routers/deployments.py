@@ -370,7 +370,7 @@ async def set_checked(
 
 # What needs a person, for the badge on Moves: a move nobody
 # answered that came back to the site it left within SHORT_TRIP_DAYS, the
-# mark of a false move. The same rule as the page (needsYou in
+# mark of a false move. The same rule as the page (suspicious in
 # components/deployments/update-items.ts); tests/db_api/test_review.py holds
 # the two together. Photos without a site are not counted here: they are a
 # camera's problem, shown on the Cameras page.

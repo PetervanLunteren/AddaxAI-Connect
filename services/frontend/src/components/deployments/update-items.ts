@@ -11,9 +11,9 @@
  * has nothing to check (naming a new place is in the site panel), and
  * photos without a site are a camera's problem, on the Cameras page.
  *
- * Nobody has to answer. One kind needs a person (needsYou): a move that
- * came back within a week, the usual shape of a false move. The server
- * counts the same rule for the badge (ATTENTION_COUNT_SQL in
+ * Nobody has to answer. A move nobody checked yet that came back to the
+ * same site within a week is suspicious, the usual shape of a GPS error.
+ * The server counts the same rule for the badge (ATTENTION_COUNT_SQL in
  * routers/deployments.py); a test holds the two together.
  */
 import type { DeploymentListItem, FixedPeriod } from '../../api/deployments';
@@ -32,7 +32,7 @@ export interface UpdateItem {
   cameraLabel: string;
   day: string; // YYYY-MM-DD, the first day of the entry
   answered: boolean; // a person said it is right
-  needsYou: boolean;
+  suspicious: boolean;
   deployment?: DeploymentListItem;
   previous?: DeploymentListItem; // the deployment it moved from
   distanceM?: number; // from the previous pin to this one
@@ -88,7 +88,7 @@ export function updateItems(deployments: DeploymentListItem[], corrections: Fixe
         cameraLabel: d.camera_label ?? `Camera ${d.camera_id}`,
         day: d.start_at.slice(0, 10),
         answered: d.checked_at !== null,
-        needsYou: d.checked_at === null && shortTrip,
+        suspicious: d.checked_at === null && shortTrip,
         deployment: d,
         previous,
         distanceM: metresBetween(previous, d),
@@ -106,7 +106,7 @@ export function updateItems(deployments: DeploymentListItem[], corrections: Fixe
       cameraLabel: c.camera_label,
       day: c.from_date,
       answered: true,
-      needsYou: false,
+      suspicious: false,
       correction: c,
     });
   }
@@ -116,28 +116,29 @@ export function updateItems(deployments: DeploymentListItem[], corrections: Fixe
 export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 /**
- * Where a row stands, the Status column of the Moves page.
- * - needsYou: a move back within a week. The badge on Moves
- *   counts the same rule (ATTENTION_COUNT_SQL).
- * - notChecked: an ordinary move nobody answered. Findable, not asking.
+ * What a person decided, the Status column of the Moves page.
+ * - notChecked: a move nobody answered.
  * - checked: a move a person said is right.
  * - corrected: a correction a person made (a move answered Wrong is gone,
  *   its correction is what is left).
+ * Suspicious is not a status but what the app thinks of a move nobody
+ * checked yet (`suspicious` on the item), shown as a pill next to it.
  */
-export type UpdateStatus = 'needsYou' | 'notChecked' | 'checked' | 'corrected';
+export type UpdateStatus = 'notChecked' | 'checked' | 'corrected';
 
 export const STATUS_LABELS: Record<UpdateStatus, string> = {
-  needsYou: 'Needs you',
-  notChecked: 'Not checked yet',
+  notChecked: 'Not checked',
   checked: 'Checked',
   corrected: 'Corrected',
 };
 
 export function updateStatus(it: UpdateItem): UpdateStatus {
   if (it.kind === 'corrected') return 'corrected';
-  if (it.answered) return 'checked';
-  return it.needsYou ? 'needsYou' : 'notChecked';
+  return it.answered ? 'checked' : 'notChecked';
 }
+
+/** Why a move is suspicious, for the pill's tooltip. */
+export const SUSPICIOUS_REASON = 'Back at the same site within a week, often a GPS error';
 
 /** Who decided and on which day (YYYY-MM-DD), for checked and corrected rows. */
 export function decided(it: UpdateItem): { by: string | null; day: string } | null {
@@ -147,11 +148,12 @@ export function decided(it: UpdateItem): { by: string | null; day: string } | nu
   return null;
 }
 
-const STATUS_ORDER: UpdateStatus[] = ['needsYou', 'notChecked', 'checked', 'corrected'];
+const STATUS_ORDER: UpdateStatus[] = ['notChecked', 'checked', 'corrected'];
 
-/** The table's first order: what waits on top, then history, newest first. */
+/** The table's first order: suspicious moves, then the rest nobody checked,
+ *  then history, each newest first. */
 export function defaultOrder(items: UpdateItem[]): UpdateItem[] {
-  const rank = (it: UpdateItem) => STATUS_ORDER.indexOf(updateStatus(it));
+  const rank = (it: UpdateItem) => (it.suspicious ? -1 : STATUS_ORDER.indexOf(updateStatus(it)));
   return [...items].sort((a, b) => rank(a) - rank(b) || b.day.localeCompare(a.day));
 }
 

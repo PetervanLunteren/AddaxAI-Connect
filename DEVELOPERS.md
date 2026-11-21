@@ -735,7 +735,7 @@ move and every correction a person made, built in the browser by
 somewhere has nothing to check (naming a place is in the site panel), and
 photos without a site are a camera's problem, shown by the attention chip
 on the Cameras page with Set site in the camera panel. It opens with what
-waits on top (`defaultOrder`: needs you, not checked yet, checked, corrected),
+waits on top (`defaultOrder`: suspicious, not checked, checked, corrected),
 headers sort, the shared `FilterBar` filters (camera, site, status, date,
 decided by). A row click opens the check window at that row, and its
 arrows step through the rows as shown. Checkboxes with the shared bulk
@@ -770,8 +770,11 @@ desktop). Wrong is a menu of what happened.
   (`GET .../statements` without `camera_id` gives the project's; periods
   an upload set or the update carried over are left out, nobody decided
   those). The camera panel's Corrections list is the same data per camera.
-- One kind needs a person, and only that counts for the badge on Camera
-  updates: a move that came back within a week. The browser marks it (`needsYou` in `update-items.ts`), the badge counts the
+- A move nobody checked yet that came back to the same site within a week
+  is suspicious, the usual shape of a GPS error: an amber pill next to its
+  status (Not checked, Checked, Corrected), on top of the table, and the
+  only thing the badge on Moves counts. The browser marks it (`suspicious`
+  in `update-items.ts`), the badge counts the
   same rule in SQL (`ATTENTION_COUNT_SQL` in `routers/deployments.py`), and
   `tests/db_api/test_review.py` holds the two together.
 - Naming a place the app named, and giving a camera its own site when two

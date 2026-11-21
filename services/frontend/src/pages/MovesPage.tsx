@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { deploymentsApi } from '../api/deployments';
 import { sitesApi } from '../api/sites';
 import { CheckMovesModal } from '../components/deployments/CheckMovesModal';
+import { SuspiciousPill } from '../components/deployments/SuspiciousPill';
 import {
   STATUS_LABELS, dateLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
   updateStatus, type UpdateItem, type UpdateStatus,
@@ -42,7 +43,7 @@ import { useBulkSelection } from '../hooks/useBulkSelection';
 import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } from '../lib/filter-url';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
-type Column = 'date' | 'camera' | 'where' | 'status';
+type Column = 'date' | 'camera' | 'where' | 'status' | 'by' | 'decidedOn';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera: 'string',
@@ -56,7 +57,6 @@ const FILTER_SCHEMA: FilterSchema = {
 const UNDO_WORD = 'UNDO';
 
 const STATUS_TONE: Record<UpdateStatus, PillTone> = {
-  needsYou: 'warning',
   notChecked: 'muted',
   checked: 'neutral',
   corrected: 'neutral',
@@ -66,12 +66,22 @@ const asString = (v: FilterValue): string => (typeof v === 'string' ? v : '');
 const errorText = (error: any) => error?.response?.data?.detail || error?.message;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-const SORT: Record<Column, (it: UpdateItem) => string> = {
+// Null sorts last either way: a move nobody decided has no who or when.
+const SORT: Record<Column, (it: UpdateItem) => string | null> = {
   date: (it) => it.day,
   camera: (it) => it.cameraLabel,
   where: (it) => route(it),
   status: (it) => STATUS_LABELS[updateStatus(it)],
+  by: (it) => decided(it)?.by ?? null,
+  decidedOn: (it) => decided(it)?.day ?? null,
 };
+
+// The Status filter: the three statuses, and Suspicious for the moves that
+// look like a GPS error.
+const STATUS_OPTIONS = [
+  { value: 'suspicious', label: 'Suspicious' },
+  ...(Object.keys(STATUS_LABELS) as UpdateStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+];
 
 export const MovesPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject: canAdmin } = useProject();
@@ -140,10 +150,7 @@ export const MovesPage: React.FC = () => {
   const fields: FilterFieldDef[] = [
     { kind: 'select', key: 'camera', label: 'Camera', options: options.cameras, primary: true },
     { kind: 'select', key: 'site', label: 'Site', options: options.sites, primary: true },
-    {
-      kind: 'select', key: 'status', label: 'Status', primary: true,
-      options: (Object.keys(STATUS_LABELS) as UpdateStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
-    },
+    { kind: 'select', key: 'status', label: 'Status', options: STATUS_OPTIONS, primary: true },
     { kind: 'date-range', fromKey: 'from', toKey: 'to', label: 'Date', primary: true },
     { kind: 'select', key: 'by', label: 'Decided by', options: options.people, primary: false },
   ];
@@ -154,7 +161,7 @@ export const MovesPage: React.FC = () => {
       return (
         (!f.camera || String(it.cameraId) === f.camera) &&
         (!f.site || siteIds(it).some((id) => String(id) === f.site)) &&
-        (!f.status || updateStatus(it) === f.status) &&
+        (!f.status || (f.status === 'suspicious' ? it.suspicious : updateStatus(it) === f.status)) &&
         (!f.by || who?.by === f.by) &&
         (!f.from || it.day >= f.from) &&
         (!f.to || it.day <= f.to)
@@ -163,7 +170,12 @@ export const MovesPage: React.FC = () => {
     if (!sort.column) return defaultOrder(rows);
     const value = SORT[sort.column];
     const sign = sort.direction === 'asc' ? 1 : -1;
-    return [...rows].sort((a, b) => sign * value(a).localeCompare(value(b), undefined, { sensitivity: 'base' }));
+    return [...rows].sort((a, b) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1;
+      return sign * va.localeCompare(vb, undefined, { sensitivity: 'base' });
+    });
   }, [items, f.camera, f.site, f.status, f.by, f.from, f.to, sort]);
   const isFiltered = Object.values(f).some(Boolean);
 
@@ -288,12 +300,14 @@ export const MovesPage: React.FC = () => {
                     {header('Camera', 'camera')}
                     {header('Where', 'where')}
                     {header('Status', 'status')}
+                    {header('Decided by', 'by')}
+                    {header('Decided on', 'decidedOn')}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {shown.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No moves match your filters.
                       </TableCell>
                     </TableRow>
@@ -322,15 +336,13 @@ export const MovesPage: React.FC = () => {
                         <TableCell className="font-medium">{it.cameraLabel}</TableCell>
                         <TableCell>{route(it)}</TableCell>
                         <TableCell className="whitespace-nowrap">
-                          <div className="flex flex-col items-start gap-0.5">
+                          <div className="flex items-center gap-1.5">
                             <StatusPill tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</StatusPill>
-                            {who && (
-                              <span className="text-xs text-muted-foreground">
-                                {[who.by, dayLabel(who.day)].filter(Boolean).join(', ')}
-                              </span>
-                            )}
+                            {it.suspicious && <SuspiciousPill />}
                           </div>
                         </TableCell>
+                        <TableCell className="text-muted-foreground">{who?.by ?? '-'}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">{who ? dayLabel(who.day) : '-'}</TableCell>
                       </TableRow>
                     );
                   })}

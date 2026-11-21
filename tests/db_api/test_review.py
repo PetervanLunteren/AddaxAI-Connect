@@ -31,7 +31,7 @@ def rebuild(camera_id):
 
 
 def list_rule(listed) -> int:
-    """needsYou in components/deployments/update-items.ts, in Python."""
+    """suspicious in components/deployments/update-items.ts, in Python."""
     by_camera = {}
     for d in listed:
         by_camera.setdefault(d.camera_id, []).append(d)
