@@ -22,7 +22,7 @@ import { DashboardOverview } from './pages/dashboard/DashboardOverview';
 import { DashboardExplore } from './pages/dashboard/DashboardExplore';
 import { CamerasPage } from './pages/CamerasPage';
 import { ServicePage } from './pages/ServicePage';
-import { CameraUpdatesPage } from './pages/CameraUpdatesPage';
+import { MovesPage } from './pages/MovesPage';
 import { SitesPage } from './pages/SitesPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { LiveFeedPage } from './pages/LiveFeedPage';
@@ -160,7 +160,7 @@ function App() {
                   <Route path="explore" element={<DashboardExplore />} />
                 </Route>
                 <Route path="cameras" element={<CamerasPage />} />
-                <Route path="camera-updates" element={<CameraUpdatesPage />} />
+                <Route path="moves" element={<MovesPage />} />
                 <Route path="service" element={<ServicePage />} />
                 <Route path="sites" element={<SitesPage />} />
                 <Route path="images" element={<ImagesPage />} />

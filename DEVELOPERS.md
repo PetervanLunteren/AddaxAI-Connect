@@ -725,10 +725,10 @@ Three readers' rules, each in one place (step 2c):
   report, the timeline and the Camtrap DP `deploymentEnd`.
   `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
 
-**Camera updates** (step 3b, project admins only) is how people see what
+**Moves** (step 3b, project admins only) is how people see what
 the app noticed and say when it got one wrong. It replaced the camera
 updates panel and its `feed_events` table; the deployments are the one
-record. The page `pages/CameraUpdatesPage.tsx` (sidebar under Cameras,
+record. The page `pages/MovesPage.tsx` (sidebar under Cameras,
 admins only, the badge counts what needs a person) is a table of every
 move and every correction a person made, built in the browser by
 `updateItems` in `update-items.ts`. Nothing else: a camera that started
@@ -736,8 +736,8 @@ somewhere has nothing to check (naming a place is in the site panel), and
 photos without a site are a camera's problem, shown by the attention chip
 on the Cameras page with Set site in the camera panel. It opens with what
 waits on top (`defaultOrder`: needs you, not checked yet, checked, corrected),
-headers sort, the shared `FilterBar` filters (camera, site, what, status,
-date, decided by). A row click opens the check window at that row, and its
+headers sort, the shared `FilterBar` filters (camera, site, status, date,
+decided by). A row click opens the check window at that row, and its
 arrows step through the rows as shown. Checkboxes with the shared bulk
 bar: Mark right and Undo checks run at once (they change no data), Undo
 corrections asks with the cameras named and a typed word
@@ -750,7 +750,7 @@ desktop). Wrong is a menu of what happened.
 
 - A move is a deployment the GPS made (`site_source = 'auto'`) that starts
   where the camera's previous one ends.
-- The check (`components/deployments/CheckUpdatesModal.tsx`) shows one at a
+- The check (`components/deployments/CheckMovesModal.tsx`) shows one at a
   time like image verification: Enter is Right and next, W is Wrong, the
   arrows step, Esc closes. Its queue is the table's rows as shown when it
   opened. Undoing an older correction asks first. It shows the last photo before a move next to the first
@@ -765,7 +765,7 @@ desktop). Wrong is a menu of what happened.
   deployment before the move and this one, at the old site. Both return
   the statement id, and the check shows Undo on the spot
   (`DELETE .../statements/{id}`) instead of asking for confirmation first.
-  Later, Undo is on the Camera updates page, which lists everything a
+  Later, Undo is on the Moves page, which lists everything a
   person decided: moves answered Right and every correction a person made
   (`GET .../statements` without `camera_id` gives the project's; periods
   an upload set or the update carried over are left out, nobody decided

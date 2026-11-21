@@ -1,5 +1,5 @@
 /**
- * The camera updates: what the app noticed, worked out from the deployments
+ * The moves: what the app noticed, worked out from the deployments
  * list. Plain functions, no React.
  *
  * An update is one of two kinds:
@@ -116,8 +116,8 @@ export function updateItems(deployments: DeploymentListItem[], corrections: Fixe
 export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
 
 /**
- * Where an update stands, the Status column of the Camera updates table.
- * - needsYou: a move back within a week. The badge on Camera updates
+ * Where a row stands, the Status column of the Moves page.
+ * - needsYou: a move back within a week. The badge on Moves
  *   counts the same rule (ATTENTION_COUNT_SQL).
  * - notChecked: an ordinary move nobody answered. Findable, not asking.
  * - checked: a move a person said is right.
@@ -138,11 +138,6 @@ export function updateStatus(it: UpdateItem): UpdateStatus {
   if (it.answered) return 'checked';
   return it.needsYou ? 'needsYou' : 'notChecked';
 }
-
-export const KIND_LABELS: Record<UpdateItem['kind'], string> = {
-  moved: 'Move',
-  corrected: 'Correction',
-};
 
 /** Who decided and on which day (YYYY-MM-DD), for checked and corrected rows. */
 export function decided(it: UpdateItem): { by: string | null; day: string } | null {

@@ -1,5 +1,5 @@
 """
-Step 3b: the camera updates check.
+Step 3b: the moves check.
 
 An entry is a deployment the GPS made. A person may say it is right, which
 records who looked and when and fixes nothing. Only a move that came back

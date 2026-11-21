@@ -63,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/sites`, icon: MapPin, label: 'Sites' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
     // What the app noticed about where cameras stood: a to-do list, so admins only.
-    ...(isProjectAdmin ? [{ to: `/projects/${projectId}/camera-updates`, icon: ArrowLeftRight, label: 'Camera updates' }] : []),
+    ...(isProjectAdmin ? [{ to: `/projects/${projectId}/moves`, icon: ArrowLeftRight, label: 'Moves' }] : []),
     { to: `/projects/${projectId}/service`, icon: Wrench, label: 'Service' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/live-feed`, icon: Activity, label: 'Live feed' },
@@ -101,7 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // immediate query invalidation, so they never wait.
   const numericProjectId = projectId ? Number(projectId) : undefined;
 
-  // Camera updates that need a person, for the badge on Camera updates: a
+  // Moves that need a person, for the badge on Moves: a
   // to-do count, so admins only. Rare events, so a slow poll is enough; every
   // answer on the page invalidates it.
   const { data: needYou } = useQuery({
@@ -121,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   });
 
   const navBadges: Record<string, number | undefined> = {
-    'Camera updates': needYou,
+    Moves: needYou,
     Service: serviceTasks?.length,
   };
 
@@ -242,8 +242,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
                 </div>
-                {/* Admin to-do counts: camera updates that need a person
-                    (on the Camera updates page) and open service tasks. */}
+                {/* Admin to-do counts: moves that need a person (on the
+                    Moves page) and open service tasks. */}
                 {(navBadges[item.label] ?? 0) > 0 && (
                   <span
                     className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"

@@ -38,7 +38,7 @@ interface Props {
   prefill: SetDeploymentPrefill;
   onClose: () => void;
   // Open on "create a new site" at the prefilled spot: a click on an empty
-  // spot of the map in the camera updates check.
+  // spot of the map in the moves check.
   newSite?: boolean;
   // Called after a successful save, before onClose, with the statement
   // written, so the caller can offer Undo.

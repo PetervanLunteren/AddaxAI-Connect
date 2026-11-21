@@ -1,5 +1,5 @@
 /**
- * Camera updates: what the app noticed about where cameras stood, and what
+ * Moves: what the app noticed about where cameras stood, and what
  * people decided about it. Project admins only.
  *
  * One table of every move the app saw and every correction a person made
@@ -20,9 +20,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { deploymentsApi } from '../api/deployments';
 import { sitesApi } from '../api/sites';
-import { CheckUpdatesModal } from '../components/deployments/CheckUpdatesModal';
+import { CheckMovesModal } from '../components/deployments/CheckMovesModal';
 import {
-  KIND_LABELS, STATUS_LABELS, dateLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
+  STATUS_LABELS, dateLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
   updateStatus, type UpdateItem, type UpdateStatus,
 } from '../components/deployments/update-items';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
@@ -42,12 +42,11 @@ import { useBulkSelection } from '../hooks/useBulkSelection';
 import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } from '../lib/filter-url';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
-type Column = 'date' | 'camera' | 'kind' | 'where' | 'status';
+type Column = 'date' | 'camera' | 'where' | 'status';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera: 'string',
   site: 'string',
-  kind: 'string',
   status: 'string',
   by: 'string',
   from: 'date',
@@ -70,18 +69,17 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const SORT: Record<Column, (it: UpdateItem) => string> = {
   date: (it) => it.day,
   camera: (it) => it.cameraLabel,
-  kind: (it) => KIND_LABELS[it.kind],
   where: (it) => route(it),
   status: (it) => STATUS_LABELS[updateStatus(it)],
 };
 
-export const CameraUpdatesPage: React.FC = () => {
+export const MovesPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject: canAdmin } = useProject();
   const projectId = selectedProject?.id ?? 0;
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const [searchParams, setSearchParams] = usePersistedFilterParams('camera-updates', FILTER_SCHEMA);
+  const [searchParams, setSearchParams] = usePersistedFilterParams('moves', FILTER_SCHEMA);
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const filterValues: Record<string, FilterValue> = Object.fromEntries(
     Object.keys(FILTER_SCHEMA).map((key) => [key, asString(parsed[key]) || undefined]),
@@ -143,10 +141,6 @@ export const CameraUpdatesPage: React.FC = () => {
     { kind: 'select', key: 'camera', label: 'Camera', options: options.cameras, primary: true },
     { kind: 'select', key: 'site', label: 'Site', options: options.sites, primary: true },
     {
-      kind: 'select', key: 'kind', label: 'What', primary: true,
-      options: (Object.keys(KIND_LABELS) as UpdateItem['kind'][]).map((k) => ({ value: k, label: KIND_LABELS[k] })),
-    },
-    {
       kind: 'select', key: 'status', label: 'Status', primary: true,
       options: (Object.keys(STATUS_LABELS) as UpdateStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
     },
@@ -160,7 +154,6 @@ export const CameraUpdatesPage: React.FC = () => {
       return (
         (!f.camera || String(it.cameraId) === f.camera) &&
         (!f.site || siteIds(it).some((id) => String(id) === f.site)) &&
-        (!f.kind || it.kind === f.kind) &&
         (!f.status || updateStatus(it) === f.status) &&
         (!f.by || who?.by === f.by) &&
         (!f.from || it.day >= f.from) &&
@@ -171,7 +164,7 @@ export const CameraUpdatesPage: React.FC = () => {
     const value = SORT[sort.column];
     const sign = sort.direction === 'asc' ? 1 : -1;
     return [...rows].sort((a, b) => sign * value(a).localeCompare(value(b), undefined, { sensitivity: 'base' }));
-  }, [items, f.camera, f.site, f.kind, f.status, f.by, f.from, f.to, sort]);
+  }, [items, f.camera, f.site, f.status, f.by, f.from, f.to, sort]);
   const isFiltered = Object.values(f).some(Boolean);
 
   // What each bulk action fits among the selected rows. A selection survives
@@ -214,12 +207,12 @@ export const CameraUpdatesPage: React.FC = () => {
   if (!selectedProject) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Please select a project to view camera updates.</p>
+        <p className="text-muted-foreground">Please select a project to view moves.</p>
       </div>
     );
   }
   if (!canAdmin) {
-    return <p className="py-8 text-center text-muted-foreground">Camera updates are for project admins.</p>;
+    return <p className="py-8 text-center text-muted-foreground">Moves are for project admins.</p>;
   }
 
   const onSort = (column: Column) =>
@@ -233,7 +226,7 @@ export const CameraUpdatesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold mb-0">Camera updates</h1>
+        <h1 className="text-2xl font-bold mb-0">Moves</h1>
         <p className="text-sm text-gray-600 mt-1">Where the app saw cameras move, and what people corrected</p>
       </div>
 
@@ -248,12 +241,12 @@ export const CameraUpdatesPage: React.FC = () => {
           onDisplayChange={() => {}}
         />
         {isFiltered && items.length > 0 && (
-          <p className="text-sm text-muted-foreground">{shown.length} of {items.length} updates</p>
+          <p className="text-sm text-muted-foreground">{shown.length} of {items.length} rows</p>
         )}
       </div>
 
       {selected.size > 0 && (
-        <BulkActionBar selected={selected.size} total={items.length} noun="updates" onClear={clear}>
+        <BulkActionBar selected={selected.size} total={items.length} noun="rows" onClear={clear}>
           {toMarkRight.length > 0 && (
             <Button variant="outline" size="sm" disabled={busy} onClick={() => setChecked.mutate({ rows: toMarkRight, checked: true })}>
               Mark {toMarkRight.length} right
@@ -273,9 +266,9 @@ export const CameraUpdatesPage: React.FC = () => {
       )}
 
       {isLoading ? (
-        <p className="py-8 text-center text-muted-foreground">Loading camera updates...</p>
+        <p className="py-8 text-center text-muted-foreground">Loading moves...</p>
       ) : items.length === 0 ? (
-        <p className="py-8 text-center text-muted-foreground">No camera updates yet.</p>
+        <p className="py-8 text-center text-muted-foreground">No moves yet.</p>
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -288,12 +281,11 @@ export const CameraUpdatesPage: React.FC = () => {
                         visibleIds={shown.map((it) => it.key)}
                         selected={selected}
                         onToggle={setMany}
-                        ariaLabel="Select all visible updates"
+                        ariaLabel="Select all visible rows"
                       />
                     </TableHead>
                     {header('Date', 'date')}
                     {header('Camera', 'camera')}
-                    {header('What', 'kind')}
                     {header('Where', 'where')}
                     {header('Status', 'status')}
                   </TableRow>
@@ -301,8 +293,8 @@ export const CameraUpdatesPage: React.FC = () => {
                 <TableBody>
                   {shown.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        No camera updates match your filters.
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No moves match your filters.
                       </TableCell>
                     </TableRow>
                   )}
@@ -318,7 +310,7 @@ export const CameraUpdatesPage: React.FC = () => {
                         <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
-                            aria-label={`Select ${it.cameraLabel}, ${KIND_LABELS[it.kind]}`}
+                            aria-label={`Select ${it.cameraLabel}, ${route(it)}`}
                             checked={selected.has(it.key)}
                             onChange={() => toggle(it.key)}
                             className="w-4 h-4 cursor-pointer accent-primary"
@@ -328,7 +320,6 @@ export const CameraUpdatesPage: React.FC = () => {
                           {it.kind === 'moved' ? dayLabel(it.day) : dateLabel(it)}
                         </TableCell>
                         <TableCell className="font-medium">{it.cameraLabel}</TableCell>
-                        <TableCell>{KIND_LABELS[it.kind]}</TableCell>
                         <TableCell>{route(it)}</TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col items-start gap-0.5">
@@ -351,7 +342,7 @@ export const CameraUpdatesPage: React.FC = () => {
       )}
 
       {opened && (
-        <CheckUpdatesModal
+        <CheckMovesModal
           projectId={projectId}
           items={items}
           sites={sites ?? []}

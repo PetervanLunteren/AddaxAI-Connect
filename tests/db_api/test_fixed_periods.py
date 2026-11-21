@@ -163,7 +163,7 @@ async def test_a_site_of_another_project_is_not_found(session, admin, setup):
 
 
 async def test_without_a_camera_the_list_is_the_whole_project(session, admin, setup):
-    """The Checked group of camera updates lists every correction of the
+    """The Moves page lists every correction of the
     project, with the camera it belongs to."""
     project, cam, pond, meadow = setup
     other = make_camera("REOLINK02", project)
@@ -181,7 +181,7 @@ async def test_without_a_camera_the_list_is_the_whole_project(session, admin, se
 
 
 async def test_many_periods_are_removed_at_once(session, admin, setup):
-    """The Camera updates table undoes many corrections in one call."""
+    """The Moves page undoes many corrections in one call."""
     project, cam, pond, meadow = setup
     other = make_camera("REOLINK02", project)
     early = photo(cam, at(2))

@@ -1,7 +1,7 @@
 /**
  * One fact as a label and a value on one line, the label muted on the
  * left. Used where a window lists what it knows: "Show details" in image
- * verification and the facts card of the camera updates check. Renders
+ * verification and the facts card of the moves check. Renders
  * nothing without a value, so callers can pass optional fields as they are.
  */
 import React from 'react';

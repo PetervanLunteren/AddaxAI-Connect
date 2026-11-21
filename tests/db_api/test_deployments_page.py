@@ -1,5 +1,5 @@
 """
-What the Camera updates page reads: every deployment of the project.
+What the Moves page reads: every deployment of the project.
 """
 import pytest
 

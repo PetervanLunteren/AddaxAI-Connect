@@ -1,7 +1,7 @@
 /**
  * A quiet text link under a review window that opens a small panel upward:
  * "Show details" and "Show shortcuts" in image verification, "Show
- * shortcuts" in the camera updates check.
+ * shortcuts" in the moves check.
  *
  * Place it in the flow, not absolutely: those windows scroll once their
  * panel is long, and a bottom-anchored element then lands on top of

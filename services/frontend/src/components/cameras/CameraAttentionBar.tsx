@@ -16,8 +16,8 @@
  * passes the overdue service task count, a chip that links to the Service
  * page instead.
  *
- * Camera updates are not here: they are a desk task with their own button
- * in the Cameras page header, not a problem in the field.
+ * Moves are not here: checking them is a desk task with its own page, not
+ * a problem in the field.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';

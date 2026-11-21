@@ -564,6 +564,13 @@ Notes per step:
        counts only moves back within a week. The deployments list lost
        its photo days and its photos without a site, which only these
        rows used.
+   15. The page is called Moves (sidebar, title, `/moves`, `MovesPage`,
+       `CheckMovesModal`): one word like the other pages, and not a second
+       item starting with Cameras. The What column and filter went: Status
+       (Corrected) and Where (one site or an arrow) already tell a move
+       from a correction. Live feed keeps its name. The user docs
+       (`docs/sites-and-deployments.md`) still say Camera updates; the
+       docs step rewrites them.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

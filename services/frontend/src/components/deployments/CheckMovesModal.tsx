@@ -1,9 +1,9 @@
 /**
- * Check camera updates, one at a time, in the same window as image
+ * Check moves, one at a time, in the same window as image
  * verification: the evidence big on the left, one card with the answer on
  * the right, the shortcuts behind a link.
  *
- * It opens on a row of the Camera updates table and steps through the rows
+ * It opens on a row of the Moves page and steps through the rows
  * as the table shows them, filtered and sorted. The queue is fixed when the
  * window opens, so an answered update does not jump away. Per update:
  * - the map: the two sites of the move and the arrow between them
@@ -63,7 +63,7 @@ function errMsg(err: unknown): string {
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
 
-export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, keys: rowKeys, startKey, onClose }) => {
+export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys: rowKeys, startKey, onClose }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -255,7 +255,7 @@ export const CheckUpdatesModal: React.FC<Props> = ({ projectId, items, sites, ke
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <div className={`${REVIEW_WINDOW_CLASS} overflow-y-auto overflow-x-hidden`} role="dialog" aria-label="Camera updates">
+      <div className={`${REVIEW_WINDOW_CLASS} overflow-y-auto overflow-x-hidden`} role="dialog" aria-label="Check moves">
         {done ? (
           <div className="space-y-4">
             <div className="flex justify-end">

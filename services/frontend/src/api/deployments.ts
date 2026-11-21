@@ -75,7 +75,7 @@ export const deploymentsApi = {
   setChecked: async (projectId: number, deploymentIds: number[], checked: boolean): Promise<void> => {
     await apiClient.put(`${base(projectId)}/checked`, { deployment_ids: deploymentIds, checked });
   },
-  // How many camera updates need a person, for the sidebar badge.
+  // How many moves need a person, for the sidebar badge.
   attentionCount: async (projectId: number): Promise<number> => {
     const { data } = await apiClient.get(`${base(projectId)}/attention-count`);
     return data.count;
@@ -99,7 +99,7 @@ export const deploymentsApi = {
   removeFixedPeriod: async (projectId: number, statementId: number): Promise<void> => {
     await apiClient.delete(`${base(projectId)}/statements/${statementId}`);
   },
-  // Many at once, all or none (the Camera updates table).
+  // Many at once, all or none (the Moves page).
   removeFixedPeriods: async (projectId: number, statementIds: number[]): Promise<void> => {
     await apiClient.post(`${base(projectId)}/statements/undo`, { ids: statementIds });
   },

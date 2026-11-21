@@ -9,7 +9,7 @@
  *   camera that was placed here)
  *
  * Site assignment is automatic and corrections normally happen on the
- * camera updates check. For late corrections, camera mode can pass
+ * moves check. For late corrections, camera mode can pass
  * onChangeSite (admin only), which puts a small action on each step.
  */
 import React from 'react';

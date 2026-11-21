@@ -335,7 +335,7 @@ class Deployment(Base):
     # anchored on the first fix. Starts at 1 (the creation reading).
     gps_reading_count = Column(Integer, nullable=False, server_default='1')
     # When and by whom a person checked a deployment the GPS made, on the
-    # camera updates check. NULL = nobody answered. Saying it is right fixes nothing: the GPS
+    # moves check. NULL = nobody answered. Saying it is right fixes nothing: the GPS
     # can still change the deployment later. Only a fixed period does that.
     checked_at = Column(DateTime(timezone=True), nullable=True)
     checked_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

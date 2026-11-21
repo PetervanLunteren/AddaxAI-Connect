@@ -1,5 +1,5 @@
 /**
- * The map of the camera updates check, on satellite: the landscape shows
+ * The map of the moves check, on satellite: the landscape shows
  * whether a move is real.
  *
  * It shows the move and nothing more: the site it left and the site it went

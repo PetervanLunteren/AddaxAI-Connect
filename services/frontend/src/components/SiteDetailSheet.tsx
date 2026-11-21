@@ -5,7 +5,7 @@
  * - Overview: editable key fields (name, habitat, notes) inline for admins,
  *   then a read-only card with coordinates and aggregate counts.
  * - History: a read-only journey of which cameras stood here over time.
- *   Corrections happen in the camera updates check or in the camera slideout.
+ *   Corrections happen in the moves check or in the camera slideout.
  *
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
@@ -521,7 +521,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
               )
             ) : (
               // History tab: a read-only journey of which cameras stood here
-              // over time. Corrections happen in the camera updates check,
+              // over time. Corrections happen in the moves check,
               // or from the camera slideout's history for old placements.
               <DeploymentJourney
                 mode="site"

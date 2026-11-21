@@ -4,8 +4,8 @@ Deployment endpoints.
 A deployment is one camera at one site for a time range. Deployments are
 rebuilt from photo GPS plus fixed periods (statements, see
 shared/deployment_rebuild.py). This router serves the project-wide list and a
-camera's GPS with the reason for each cut (the camera updates check), the fixed
-periods of a camera (list, set, remove) and the thumbnail sample.
+the answers of the moves check (right, it did not move), the fixed periods
+(list, set, remove, many at once) and the thumbnail sample.
 """
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional
@@ -50,7 +50,7 @@ class DeploymentListItem(BaseModel):
     last_photo_at: Optional[str] = None
     image_count: int
     site_source: str = 'auto'
-    # When a person said this entry is right in the camera updates check,
+    # When a person said this entry is right in the moves check,
     # NULL = nobody answered. checked_by is their email.
     checked_at: Optional[str] = None
     checked_by: Optional[str] = None
@@ -202,7 +202,7 @@ async def list_statements(
 ):
     """The fixed periods in force, newest first: of one camera (the camera
     panel's Corrections), or of the whole project without camera_id (the
-    Checked group of camera updates)."""
+    Moves page)."""
     query = (
         select(DeploymentStatement, Camera.device_id, Site.name, User.email)
         .join(Camera, Camera.id == DeploymentStatement.camera_id)
@@ -322,13 +322,13 @@ async def remove_statements(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """Take many fixed periods back at once, from the Camera updates table.
+    """Take many fixed periods back at once, from the Moves page.
     All or none: one unknown id, or one of another project, fails the call."""
     await _remove_statements(db, project_id, request.ids, user)
 
 
-# Camera updates: what the app noticed (a camera started somewhere, a camera
-# moved), shown in the camera updates check. A person may say an entry is
+# Moves: where the app saw a camera move, shown on the Moves page and in
+# its check. A person may say a move is
 # right, which only records that they looked; it fixes nothing. Saying it is
 # wrong writes a fixed period instead. Nobody has to answer: an entry that is
 # never answered just gets older.
@@ -368,7 +368,7 @@ async def set_checked(
     return CheckedResponse(updated=result.rowcount)
 
 
-# What needs a person, for the badge on Camera updates: a move nobody
+# What needs a person, for the badge on Moves: a move nobody
 # answered that came back to the site it left within SHORT_TRIP_DAYS, the
 # mark of a false move. The same rule as the page (needsYou in
 # components/deployments/update-items.ts); tests/db_api/test_review.py holds
@@ -399,7 +399,7 @@ async def attention_count(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """How many camera updates need a person, for the sidebar badge."""
+    """How many moves need a person, for the sidebar badge."""
     count = (await db.execute(text(ATTENTION_COUNT_SQL), {"project_id": project_id})).scalar_one()
     return AttentionCount(count=count)
 
@@ -455,7 +455,7 @@ async def deployment_thumbnails(
 ):
     """
     A few photos of this deployment with their capture time: a random
-    sample, the first ones or the last ones. The check of camera updates
+    sample, the first ones or the last ones. The moves check
     shows the last photo before a move next to the first one after it.
     Skips hidden images and images without stored files. 404 if the
     deployment is not in the project or outside a restricted viewer's

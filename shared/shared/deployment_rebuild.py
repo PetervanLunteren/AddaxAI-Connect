@@ -173,7 +173,7 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
     and the rebuild it causes are saved together or not at all.
 
     A new deployment row starts unchecked (checked_at NULL). If the GPS made
-    it, it shows in the camera updates check as an update nobody answered until a person
+    it, it shows in the moves check as an update nobody answered until a person
     says it is right. A kept row keeps its mark.
 
     Raises:
