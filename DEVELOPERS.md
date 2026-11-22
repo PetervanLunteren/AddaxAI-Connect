@@ -744,8 +744,8 @@ the Decided by filter finds them and the check window shows them. It
 opens with suspicious moves on top (`defaultOrder`), headers sort, the
 shared `FilterBar` filters (camera, site, status, date, decided by). A
 row click opens the check window at that row, and its arrows step
-through the rows as shown. Checkboxes with the shared bulk bar: Mark
-right and Undo checks run at once (they change no data), Undo corrections
+through the rows as shown. Checkboxes with the shared bulk bar: Confirm
+moves and Undo checks run at once (they change no data), Undo corrections
 asks with the cameras named and a typed word (`POST .../statements/undo`,
 all or none). The check uses the frame of image verification
 (`REVIEW_WINDOW_CLASS`): the map left on satellite with only the sites of
