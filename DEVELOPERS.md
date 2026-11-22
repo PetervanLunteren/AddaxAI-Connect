@@ -728,50 +728,56 @@ Three readers' rules, each in one place (step 2c):
 **Moves** (step 3b, project admins only) is how people see what
 the app noticed and say when it got one wrong. It replaced the camera
 updates panel and its `feed_events` table; the deployments are the one
-record. The page `pages/MovesPage.tsx` (sidebar under Cameras,
-admins only, the badge counts what needs a person) is a table (Date,
-Camera, From, To, Distance, Status, Decided by, Decided on; one line
-per row, long names cut with a full-text tooltip) of
-every move and every correction a person made, built in the browser by
-`updateItems` in `update-items.ts`. Nothing else: a camera that started
-somewhere has nothing to check (naming a place is in the site panel), and
-photos without a site are a camera's problem, shown by the attention chip
-on the Cameras page with Set site in the camera panel. It opens with what
-waits on top (`defaultOrder`: suspicious, not checked, checked, corrected),
-headers sort, the shared `FilterBar` filters (camera, site, status, date,
-decided by). A row click opens the check window at that row, and its
-arrows step through the rows as shown. Checkboxes with the shared bulk
-bar: Mark right and Undo checks run at once (they change no data), Undo
-corrections asks with the cameras named and a typed word
-(`POST .../statements/undo`, all or none). The check uses the frame of
-image verification (`REVIEW_WINDOW_CLASS`, `PopoverLink` for the
-shortcuts): the map left on satellite with only the sites of the update
-in magenta, a facts card (`DetailRow`) and an answer card right, Right
-and Wrong each on a row with their keys (`Kbd`, the same part as AddaxAI
-desktop). Wrong is a menu of what happened.
+record. The page `pages/MovesPage.tsx` sits under Admin tools next to
+Curation: the app is automatic first, so it is an overview to look things
+up in, not a to-do list. Its badge (also summed on the closed Admin tools
+header) counts suspicious moves. It is a table (Date, Camera, From, To,
+Distance, Status; one line per row, long names cut with a full-text
+tooltip) of every move and every correction a person made, built in the
+browser by `updateItems` in `update-items.ts`. Nothing else: a camera
+that started somewhere has nothing to check (naming a place is in the
+site panel), and photos without a site are a camera's problem, shown by
+the attention chip on the Cameras page with Set site in the camera panel.
+Status is quiet: a move nobody checked shows nothing, only Suspicious,
+Checked and Corrected get a pill. Who decided and when are not columns:
+the Decided by filter finds them and the check window shows them. It
+opens with suspicious moves on top (`defaultOrder`), headers sort, the
+shared `FilterBar` filters (camera, site, status, date, decided by). A
+row click opens the check window at that row, and its arrows step
+through the rows as shown. Checkboxes with the shared bulk bar: Mark
+right and Undo checks run at once (they change no data), Undo corrections
+asks with the cameras named and a typed word (`POST .../statements/undo`,
+all or none). The check uses the frame of image verification
+(`REVIEW_WINDOW_CLASS`): the map left on satellite with only the sites of
+the move in magenta, a facts card (`DetailRow`) and an answer card right
+with one question, did it really move, and a button per answer with its
+key (`Kbd`, the same part as AddaxAI desktop).
 
 - A move is a deployment the GPS made (`site_source = 'auto'`) that starts
   where the camera's previous one ends.
 - The check (`components/deployments/CheckMovesModal.tsx`) shows one at a
-  time like image verification: Enter is Right and next, W is Wrong, the
-  arrows step, Esc closes. Its queue is the table's rows as shown when it
+  time like image verification: Enter is "It moved" and next, W is "It
+  stayed at Pond", the arrows step, Esc closes. The keys are on the
+  buttons, so there is no shortcuts pop-up. Its queue is the table's rows as shown when it
   opened. Undoing an older correction asks first. It shows the last photo before a move next to the first
   after it (`GET .../deployments/{id}/thumbnails?order=last|first`).
 - Nobody has to answer. Right (`PUT .../deployments/checked`) only records
   who looked and when in `checked_at` and `checked_by_user_id`. It fixes
   nothing: the GPS can still change the deployment.
-- Wrong is one of two things, named in the user's words with the real
-  sites. "It moved, but not to Ridge": a fixed period through
-  `POST .../statements`. "It stayed at Pond", the GPS was off
-  (`POST .../deployments/{id}/not-moved`): one fixed period over the
-  deployment before the move and this one, at the old site. Both return
-  the statement id, and the check shows Undo on the spot
+- "It stayed at Pond" is the one wrong answer: the GPS was off
+  (`POST .../deployments/{id}/not-moved`), one fixed period over the
+  deployment before the move and this one, at the old site. It returns the
+  statement id, and the check shows Undo on the spot
   (`DELETE .../statements/{id}`) instead of asking for confirmation first.
-  Later, Undo is on the Moves page, which lists everything a
-  person decided: moves answered Right and every correction a person made
-  (`GET .../statements` without `camera_id` gives the project's; periods
-  an upload set or the update carried over are left out, nobody decided
-  those). The camera panel's Corrections list is the same data per camera.
+  A move to the wrong site is not answered in the check: the app making a
+  new place where a site exists is fixed by merging the two on the Sites
+  page, a snap to the wrong one of two close sites by Wrong site? in the
+  camera panel. Later, Undo is on the Moves page, which lists everything
+  a person decided: moves answered It moved and every correction a person
+  made (`GET .../statements` without `camera_id` gives the project's;
+  periods an upload set or the update carried over are left out, nobody
+  decided those). The camera panel's Corrections list is the same data
+  per camera.
 - A move nobody checked yet that came back to the same site within a week
   is suspicious, the usual shape of a GPS error: an amber pill next to its
   status (Not checked, Checked, Corrected), on top of the table, and the

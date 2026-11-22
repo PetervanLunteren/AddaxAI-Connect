@@ -592,6 +592,17 @@ Notes per step:
        after a frontend deploy sometimes says "Please select a project"
        until reloaded (Moves and Cameras alike). Looks like the project
        context loading race, older than this work.
+   20. Quieter, automatic first (22 Nov). The check asks one question,
+       did it really move: "It moved" (Enter) or "It stayed at Pond" (W,
+       at once, Undo on the spot). "It moved, but not to Ridge" went: a
+       new place where a site exists is fixed by merging sites, a snap to
+       the wrong close site by Wrong site? in the camera panel. No
+       shortcuts pop-up (keys are on the buttons); the shared PopoverLink
+       now closes on a click outside and on Escape (caught in the capture
+       phase, so the window behind stays open). Moves moved under Admin
+       tools next to Curation, its badge also on the closed group. The
+       table lost Decided by and Decided on (the filter stays); Status is
+       quiet, a pill only for Suspicious, Checked and Corrected.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

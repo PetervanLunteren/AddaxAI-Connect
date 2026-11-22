@@ -1,17 +1,11 @@
 /**
  * Dropdown Menu Component
- * Simple dropdown menu for actions.
- *
- * Opens itself on a click by default. Pass `open` and `onOpenChange` to
- * open it from elsewhere too, such as a keyboard shortcut.
+ * Simple dropdown menu for actions
  */
 import React, { useState, useRef, useEffect } from 'react';
 
 interface DropdownMenuProps {
   children: React.ReactNode;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  className?: string; // on the wrapper, e.g. "block" to fill a grid cell
 }
 
 interface DropdownMenuTriggerProps {
@@ -21,13 +15,11 @@ interface DropdownMenuTriggerProps {
 
 interface DropdownMenuContentProps {
   align?: 'start' | 'end';
-  className?: string; // width, "w-48" by default
   children: React.ReactNode;
 }
 
 interface DropdownMenuItemProps {
   onClick?: () => void;
-  disabled?: boolean;
   className?: string;
   children: React.ReactNode;
 }
@@ -40,17 +32,12 @@ const DropdownMenuContext = React.createContext<{
   setIsOpen: () => {},
 });
 
-export const DropdownMenu: React.FC<DropdownMenuProps> = ({ children, open, onOpenChange, className = 'inline-block' }) => {
-  const [ownOpen, setOwnOpen] = useState(false);
-  const isOpen = open ?? ownOpen;
-  const setIsOpen = (next: boolean) => {
-    setOwnOpen(next);
-    onOpenChange?.(next);
-  };
+export const DropdownMenu: React.FC<DropdownMenuProps> = ({ children }) => {
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <DropdownMenuContext.Provider value={{ isOpen, setIsOpen }}>
-      <div className={`relative ${className}`}>{children}</div>
+      <div className="relative inline-block">{children}</div>
     </DropdownMenuContext.Provider>
   );
 };
@@ -77,7 +64,6 @@ export const DropdownMenuTrigger: React.FC<DropdownMenuTriggerProps> = ({
 
 export const DropdownMenuContent: React.FC<DropdownMenuContentProps> = ({
   align = 'start',
-  className = 'w-48',
   children,
 }) => {
   const { isOpen, setIsOpen } = React.useContext(DropdownMenuContext);
@@ -106,7 +92,7 @@ export const DropdownMenuContent: React.FC<DropdownMenuContentProps> = ({
   return (
     <div
       ref={ref}
-      className={`absolute ${alignmentClass} mt-2 ${className} rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50`}
+      className={`absolute ${alignmentClass} mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50`}
     >
       <div className="py-1">{children}</div>
     </div>
@@ -115,7 +101,6 @@ export const DropdownMenuContent: React.FC<DropdownMenuContentProps> = ({
 
 export const DropdownMenuItem: React.FC<DropdownMenuItemProps> = ({
   onClick,
-  disabled = false,
   className = '',
   children,
 }) => {
@@ -129,8 +114,7 @@ export const DropdownMenuItem: React.FC<DropdownMenuItemProps> = ({
   return (
     <button
       onClick={handleClick}
-      disabled={disabled}
-      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center disabled:opacity-50 disabled:pointer-events-none ${className}`}
+      className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center ${className}`}
     >
       {children}
     </button>

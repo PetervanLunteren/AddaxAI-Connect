@@ -8,12 +8,11 @@
  * camera, and the two photos in the card show that, so the GPS of the
  * photos is not drawn. The GPS stays the input of the build.
  *
- * A click on a site is passed up (it picks the site for Set site). In pick
- * mode a click on an empty spot is passed up too, to make a new site there.
+ * Nothing on it is clickable: the answer is in the card next to it.
  * The map fits to the move once; the check mounts a new map per update.
  */
-import { Fragment, useEffect, useMemo } from 'react';
-import { MapContainer, Marker, Polyline, Tooltip, useMapEvents } from 'react-leaflet';
+import { Fragment, useMemo } from 'react';
+import { MapContainer, Marker, Polyline, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { FitBounds } from '../map/FitBounds';
@@ -36,9 +35,6 @@ interface Props {
   // The sites of the move, drawn magenta. Null = no move: every site plain.
   activeSiteIds: Set<number> | null;
   arrows: MapArrow[];
-  onSiteClick: (siteId: number) => void;
-  // Pick mode: a click on an empty spot gives its coordinates.
-  onSpotClick?: (lat: number, lon: number) => void;
   height: number | string; // px, or a CSS length such as min(65vh, 640px)
 }
 
@@ -76,16 +72,7 @@ function bearing([lat1, lon1]: [number, number], [lat2, lon2]: [number, number])
   return (Math.atan2(dx, lat2 - lat1) * 180) / Math.PI;
 }
 
-function SpotClicks({ onSpotClick }: { onSpotClick: (lat: number, lon: number) => void }) {
-  const map = useMapEvents({ click: (e) => onSpotClick(e.latlng.lat, e.latlng.lng) });
-  useEffect(() => {
-    map.getContainer().style.cursor = 'crosshair';
-    return () => { map.getContainer().style.cursor = ''; };
-  }, [map]);
-  return null;
-}
-
-export function DeploymentsMap({ sites, activeSiteIds, arrows, onSiteClick, onSpotClick, height }: Props) {
+export function DeploymentsMap({ sites, activeSiteIds, arrows, height }: Props) {
   const placed = useMemo(() => sites.filter((s) => s.latitude != null && s.longitude != null), [sites]);
   // Fit to the move, else to the sites in it, else to every site.
   const fitPoints = useMemo<[number, number][]>(() => {
@@ -116,7 +103,7 @@ export function DeploymentsMap({ sites, activeSiteIds, arrows, onSiteClick, onSp
       <BaseLayersControl initial="satellite" />
       <SiteMarkersLayer
         sites={placed}
-        onSiteClick={onSiteClick}
+        onSiteClick={() => {}}
         colorFor={(s) => (inMove(s) ? MOVE : SITE_COLOR)}
         isFaded={(s) => activeSiteIds !== null && !inMove(s)}
       />
@@ -129,7 +116,6 @@ export function DeploymentsMap({ sites, activeSiteIds, arrows, onSiteClick, onSp
         </Fragment>
       ))}
       <FitBounds points={fitPoints} maxZoom={16} />
-      {onSpotClick && <SpotClicks onSpotClick={onSpotClick} />}
       <FullscreenControl />
     </MapContainer>
   );

@@ -1,22 +1,23 @@
 /**
  * Check moves, one at a time, in the same window as image
- * verification: the evidence big on the left, one card with the answer on
- * the right, the shortcuts behind a link.
+ * verification: the evidence big on the left, the answer on the right.
  *
  * It opens on a row of the Moves page and steps through the rows
  * as the table shows them, filtered and sorted. The queue is fixed when the
  * window opens, so an answered update does not jump away. Per update:
  * - the map: the two sites of the move and the arrow between them
  * - a facts card (camera, move, date, distance) and an answer card: the
- *   last photo at the old place next to the first at the new one, then
- *   Right and Wrong, each on its own row with its key. On a real camera the two photos
- *   settle most checks: same view, so it did not move.
- * - Right (Enter) records that a person looked and goes on. Wrong (W) is a
- *   small menu of what happened, in the user's words with the real names:
- *   "It stayed at Pond" (the GPS was off) or "It moved, but not to Ridge",
- *   which puts the map in pick mode; the Set site form does the rest.
- *   A Wrong answer stays on screen with Undo, instead of a confirmation
- *   before it.
+ *   last photo at the old place next to the first at the new one, then one
+ *   question, did it really move, with a button per answer and its key on
+ *   it. On a real camera the two photos settle most checks: same view, so
+ *   it did not move.
+ * - "It moved" (Enter) records that a person looked and goes on. "It stayed
+ *   at Pond" (W) says the GPS was off: one correction, at once, and it
+ *   stays on screen with Undo instead of a confirmation before it.
+ *   A move to the wrong site is not answered here: the app making a new
+ *   place where a site exists is fixed by merging the two on the Sites
+ *   page, a snap to the wrong one of two close sites by Wrong site? in
+ *   the camera panel.
  * - A correction from history can be undone, after a confirmation: it moves
  *   photos between sites, and you did not just make it.
  * Marking many moves right is done in the table, with its checkboxes. The
@@ -25,7 +26,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Undo2, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Loader2, Undo2, X } from 'lucide-react';
 import { deploymentsApi, type DeploymentPhoto } from '../../api/deployments';
 import { formatDateTime } from '../../utils/datetime';
 import { AuthenticatedImage } from '../AuthenticatedImage';
@@ -33,16 +34,13 @@ import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { DetailRow } from '../ui/DetailRow';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/DropdownMenu';
 import { Kbd } from '../ui/Kbd';
 import { Dialog } from '../ui/Dialog';
-import { PopoverLink, ShortcutRow } from '../ui/PopoverLink';
 import { REVIEW_WINDOW_CLASS } from '../ui/review-window';
 import { useToast } from '../ui/Toaster';
 import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
 import { SuspiciousPill } from './SuspiciousPill';
-import { SetDeploymentDialog, type SetDeploymentPrefill } from './SetDeploymentDialog';
 import {
   dateLabel, dayLabel, metresLabel, placeName, route, siteIds, type UpdateItem,
 } from './update-items';
@@ -78,10 +76,6 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // reversible, and a dialog on every answer slows the check down.
   const [corrections, setCorrections] = useState<Record<string, number>>({});
   const [undone, setUndone] = useState<Set<string>>(new Set());
-  const [wrongOpen, setWrongOpen] = useState(false);
-  const [picking, setPicking] = useState(false);
-  const [editing, setEditing] = useState<{ prefill: SetDeploymentPrefill; newSite: boolean } | null>(null);
-  const [showShortcuts, setShowShortcuts] = useState(false);
   // An older correction, waiting for "Undo this?".
   const [confirmUndo, setConfirmUndo] = useState<UpdateItem | null>(null);
 
@@ -94,8 +88,6 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // out removes its way back too. The check steps over those.
   const gone = (key: string) => !answers[key] && !items.some((i) => i.key === key);
   const goTo = (target: number) => {
-    setWrongOpen(false);
-    setPicking(false);
     const step = target < index ? -1 : 1;
     let i = target;
     while (i >= 0 && i < queue.length && gone(queue[i])) i += step;
@@ -170,29 +162,20 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
 
   const busy = right.isPending || notMoved.isPending || undoCorrection.isPending;
 
-  const startPicking = () => {
-    setWrongOpen(false);
-    setPicking(true);
-  };
-  const picked = (siteId: number | null, lat: number | null, lon: number | null) => {
-    setPicking(false);
-    if (!d) return; // only a move is picked for
-    const prefill: SetDeploymentPrefill = {
-      siteId, fromDate: d.start_date ?? d.start_at.slice(0, 10), untilDate: d.end_date,
-      lat: lat ?? d.latitude, lon: lon ?? d.longitude,
-    };
-    setEditing({ prefill, newSite: siteId === null });
-  };
-
-  // Keys as in image verification: Enter right and on, arrows step, Esc
-  // closes (the dialog does that). W opens Wrong. Quiet while a form on top
-  // is open, the map waits for a pick, or a field has focus. The listener
-  // reads the latest state through a ref, so it is added once.
+  // Keys as in image verification: Enter "It moved" and on, W "It
+  // stayed", arrows step, Esc closes (the dialog does that). Quiet while the
+  // confirmation is open or a field has focus. The listener reads the latest
+  // state through a ref, so it is added once.
   const answer = current ? answers[current] : undefined;
-  const keys = useRef({ goTo, index, it, answer, busy, rightNow: () => right.mutate(true), blocked: false });
+  const canStay = !!it && it.kind === 'moved' && !it.returnOfShortTrip;
+  const keys = useRef({
+    goTo, index, it, answer, busy, canStay,
+    moved: () => right.mutate(true), stayed: () => notMoved.mutate(), blocked: false,
+  });
   keys.current = {
-    goTo, index, it, answer, busy, rightNow: () => right.mutate(true),
-    blocked: done || !!editing || picking || wrongOpen,
+    goTo, index, it, answer, busy, canStay,
+    moved: () => right.mutate(true), stayed: () => notMoved.mutate(),
+    blocked: done || confirmUndo !== null,
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -207,10 +190,10 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
       } else if (e.key === 'Enter' && k.it && !k.busy) {
         e.preventDefault();
         if (k.it.answered || k.answer || k.it.kind !== 'moved') k.goTo(k.index + 1);
-        else k.rightNow();
-      } else if ((e.key === 'w' || e.key === 'W') && k.it?.kind === 'moved' && !k.it.answered && !k.answer && !k.busy) {
+        else k.moved();
+      } else if ((e.key === 'w' || e.key === 'W') && k.canStay && !k.it!.answered && !k.answer && !k.busy) {
         e.preventDefault();
-        setWrongOpen(true);
+        k.stayed();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -281,19 +264,11 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
           <>
             <div className="flex flex-col gap-4 md:grid md:grid-cols-3 md:gap-6">
               <div className="md:col-span-2 min-w-0 space-y-2">
-                {picking && (
-                  <div className="flex items-center justify-between gap-2 rounded-md border bg-accent/50 px-3 py-2 text-sm">
-                    <span>Click the site where {it?.cameraLabel} stood, or an empty spot for a new site</span>
-                    <Button size="sm" variant="outline" onClick={() => setPicking(false)}>Cancel</Button>
-                  </div>
-                )}
                 <DeploymentsMap
                   key={current ?? 'none'}
                   sites={sites}
-                  activeSiteIds={picking || active.size === 0 ? null : active}
-                  arrows={picking ? [] : arrows}
-                  onSiteClick={(siteId) => picking && picked(siteId, null, null)}
-                  onSpotClick={picking ? (lat, lon) => picked(null, lat, lon) : undefined}
+                  activeSiteIds={active.size === 0 ? null : active}
+                  arrows={arrows}
                   height={MAP_HEIGHT}
                 />
               </div>
@@ -358,7 +333,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
 
                         {it.returnOfShortTrip && !it.answered && (
                           <p className="text-xs text-muted-foreground">
-                            The way back of a short trip. If the trip never happened, answer Wrong on the trip out.
+                            The way back of a short trip. If the trip never happened, answer It stayed on the trip out.
                           </p>
                         )}
 
@@ -366,16 +341,14 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                           it={it}
                           myAnswer={answer}
                           busy={busy}
-                          wrongOpen={wrongOpen}
-                          onWrongOpenChange={setWrongOpen}
-                          onRight={() => right.mutate(true)}
+                          canStay={canStay}
+                          onMoved={() => right.mutate(true)}
                           onUndo={
                             it.correction ? () => setConfirmUndo(it)
                               : current && corrections[current] !== undefined ? () => undoCorrection.mutate(corrections[current])
                                 : () => right.mutate(false)
                           }
-                          onNotMoved={() => notMoved.mutate()}
-                          onOtherSite={startPicking}
+                          onStayed={() => notMoved.mutate()}
                           onNext={next}
                         />
                       </CardContent>
@@ -385,20 +358,6 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
               </div>
             </div>
 
-            {/* Hidden on touch screens, where there is no keyboard. */}
-            <div className="flex justify-end mt-2">
-              <PopoverLink
-                label="Show shortcuts"
-                open={showShortcuts}
-                onToggle={() => setShowShortcuts(!showShortcuts)}
-                className="hidden sm:block"
-              >
-                <ShortcutRow keys="Enter">Right + next</ShortcutRow>
-                <ShortcutRow keys="W">Wrong</ShortcutRow>
-                <ShortcutRow keys="← →">Navigate</ShortcutRow>
-                <ShortcutRow keys="Esc">Close</ShortcutRow>
-              </PopoverLink>
-            </div>
           </>
         )}
       </div>
@@ -422,18 +381,6 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
         variant="destructive"
         isPending={undoCorrection.isPending}
       />
-
-      {editing && it && (
-        <SetDeploymentDialog
-          projectId={projectId}
-          cameraId={it.cameraId}
-          cameraName={it.cameraLabel}
-          prefill={editing.prefill}
-          newSite={editing.newSite}
-          onSaved={corrected}
-          onClose={() => setEditing(null)}
-        />
-      )}
     </Dialog>
   );
 };
@@ -460,14 +407,12 @@ const Answers: React.FC<{
   it: UpdateItem;
   myAnswer: 'right' | 'wrong' | undefined;
   busy: boolean;
-  wrongOpen: boolean;
-  onWrongOpenChange: (open: boolean) => void;
-  onRight: () => void;
+  canStay: boolean; // not on the way back of a short trip
+  onMoved: () => void;
   onUndo: () => void;
-  onNotMoved: () => void;
-  onOtherSite: () => void;
+  onStayed: () => void;
   onNext: () => void;
-}> = ({ it, myAnswer, busy, wrongOpen, onWrongOpenChange, onRight, onUndo, onNotMoved, onOtherSite, onNext }) => {
+}> = ({ it, myAnswer, busy, canStay, onMoved, onUndo, onStayed, onNext }) => {
   const d = it.deployment;
   // The muted line under the buttons, as "Not verified yet" under Verify.
   const status = (text: string) => <p className="text-muted-foreground text-center">{text}</p>;
@@ -492,35 +437,20 @@ const Answers: React.FC<{
       </div>
     );
   }
-  const canNotMove = it.kind === 'moved' && !it.returnOfShortTrip;
   return (
     <div className="space-y-3">
-      <Button className="w-full" onClick={onRight} disabled={busy}>
+      <Button className="w-full" onClick={onMoved} disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-        Right
+        It moved
         <Kbd onPrimary>⏎</Kbd>
       </Button>
-      {/* What kind of wrong: a menu, opened by a click or by W. */}
-      <DropdownMenu open={wrongOpen} onOpenChange={onWrongOpenChange} className="block">
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="w-full" disabled={busy}>
-            <X className="h-4 w-4 mr-2" />
-            Wrong
-            <Kbd>W</Kbd>
-            <ChevronDown className="h-3.5 w-3.5 ml-1" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          {canNotMove && (
-            <DropdownMenuItem onClick={onNotMoved}>
-              It stayed at {placeName(it.previous?.site_name)}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={onOtherSite}>
-            It moved, but not to {placeName(d?.site_name)}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {canStay && (
+        <Button variant="outline" className="w-full" onClick={onStayed} disabled={busy}>
+          <X className="h-4 w-4 mr-2" />
+          It stayed at {placeName(it.previous?.site_name)}
+          <Kbd>W</Kbd>
+        </Button>
+      )}
       {status('Not checked')}
     </div>
   );

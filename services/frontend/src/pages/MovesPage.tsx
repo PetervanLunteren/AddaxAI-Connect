@@ -1,17 +1,21 @@
 /**
- * Moves: what the app noticed about where cameras stood, and what
- * people decided about it. Project admins only.
+ * Moves: where the app saw cameras move, and what people corrected.
+ * Project admins only, under Admin tools: the app is automatic first, so
+ * this is an overview to look things up in, not a to-do list.
  *
  * One table of every move the app saw and every correction a person made
  * (rows from update-items.ts). A camera that started somewhere is not
  * here (nothing to check; naming a place is in the site panel), nor are
- * photos without a site (a camera's problem, on the Cameras page). It opens with what waits on top, then the
- * history, newest first; a header sorts, the filter bar finds one row
- * ("corrected by Harry in November 2024"). A row click opens the check
- * window at that row, and its arrows step through the rows as shown.
+ * photos without a site (a camera's problem, on the Cameras page). The
+ * Status column is quiet: a move nobody checked shows nothing, only the
+ * exceptions get a pill (Suspicious, Checked, Corrected). Who decided and
+ * when are not columns: the Decided by filter finds them and the check
+ * window shows them. It opens with suspicious moves on top, then the rest,
+ * newest first; a header sorts. A row click opens the check window at that
+ * row, and its arrows step through the rows as shown.
  *
  * Checkboxes on every row. The bulk bar offers each action for the rows it
- * fits, with a count: Mark right and Undo checks change no data, so they
+ * fits, with a count: Confirm moves and Undo checks change no data, so they
  * run at once; Undo corrections moves photos between sites, so it asks
  * first with the cameras named and a typed word.
  */
@@ -35,7 +39,7 @@ import { FilterBar, type FilterFieldDef, type FilterValue } from '../components/
 import { ImpactBox } from '../components/ui/ImpactBox';
 import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
 import { SortableHeader, type SortState } from '../components/ui/SortableHeader';
-import { StatusPill, type PillTone } from '../components/ui/StatusPill';
+import { StatusPill } from '../components/ui/StatusPill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 import { useToast } from '../components/ui/Toaster';
 import { useProject } from '../contexts/ProjectContext';
@@ -43,7 +47,7 @@ import { useBulkSelection } from '../hooks/useBulkSelection';
 import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } from '../lib/filter-url';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
-type Column = 'date' | 'camera' | 'from' | 'to' | 'distance' | 'status' | 'by' | 'decidedOn';
+type Column = 'date' | 'camera' | 'from' | 'to' | 'distance' | 'status';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera: 'string',
@@ -56,18 +60,11 @@ const FILTER_SCHEMA: FilterSchema = {
 
 const UNDO_WORD = 'UNDO';
 
-const STATUS_TONE: Record<UpdateStatus, PillTone> = {
-  notChecked: 'muted',
-  checked: 'neutral',
-  corrected: 'neutral',
-};
-
 const asString = (v: FilterValue): string => (typeof v === 'string' ? v : '');
 const errorText = (error: any) => error?.response?.data?.detail || error?.message;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-// Null sorts last either way: a move nobody decided has no who or when, a
-// correction has no distance.
+// Null sorts last either way: a correction has no distance.
 const SORT: Record<Column, (it: UpdateItem) => string | number | null> = {
   date: (it) => it.day,
   camera: (it) => it.cameraLabel,
@@ -75,8 +72,6 @@ const SORT: Record<Column, (it: UpdateItem) => string | number | null> = {
   to: (it) => ends(it).to,
   distance: (it) => it.distanceM ?? null,
   status: (it) => STATUS_LABELS[updateStatus(it)],
-  by: (it) => decided(it)?.by ?? null,
-  decidedOn: (it) => decided(it)?.day ?? null,
 };
 
 // The Status filter: the three statuses, and Suspicious for the moves that
@@ -91,11 +86,11 @@ const Clip: React.FC<{ text: string }> = ({ text }) => (
   <span className="block truncate" title={text}>{text}</span>
 );
 
-// A fixed layout: the short columns get a set width, the four text columns
-// (camera, from, to, decided by; undefined here) share the rest equally,
-// and long text is cut to fit. All columns stay in view and every row is
-// one line. Below the minimum width the table scrolls sideways instead.
-const COLUMN_WIDTHS = ['2.5rem', '8rem', undefined, undefined, undefined, '5.5rem', '13rem', undefined, '7.5rem'];
+// A fixed layout: the short columns get a set width, the three text
+// columns (camera, from, to; undefined here) share the rest equally, and
+// long text is cut to fit. All columns stay in view and every row is one
+// line. Below the minimum width the table scrolls sideways instead.
+const COLUMN_WIDTHS = ['2.5rem', '8rem', undefined, undefined, undefined, '5.5rem', '8rem'];
 
 export const MovesPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject: canAdmin } = useProject();
@@ -214,7 +209,7 @@ export const MovesPage: React.FC = () => {
     onSuccess: (_, { rows, checked }) => {
       refresh();
       clear();
-      toast.success(checked ? `${plural(rows.length, 'move', 'moves')} marked right` : `${plural(rows.length, 'check', 'checks')} undone`);
+      toast.success(checked ? `${plural(rows.length, 'move', 'moves')} confirmed` : `${plural(rows.length, 'check', 'checks')} undone`);
     },
     onError: (error) => toast.error(`Could not save. ${errorText(error)}`),
   });
@@ -278,7 +273,7 @@ export const MovesPage: React.FC = () => {
         <BulkActionBar selected={selected.size} total={items.length} noun="rows" onClear={clear}>
           {toMarkRight.length > 0 && (
             <Button variant="outline" size="sm" disabled={busy} onClick={() => setChecked.mutate({ rows: toMarkRight, checked: true })}>
-              Mark {toMarkRight.length} right
+              Confirm {plural(toMarkRight.length, 'move', 'moves')}
             </Button>
           )}
           {toUncheck.length > 0 && (
@@ -322,21 +317,18 @@ export const MovesPage: React.FC = () => {
                     {header('To', 'to')}
                     {header('Distance', 'distance')}
                     {header('Status', 'status')}
-                    {header('Decided by', 'by')}
-                    {header('Decided on', 'decidedOn')}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {shown.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No moves match your filters.
                       </TableCell>
                     </TableRow>
                   )}
                   {shown.map((it) => {
                     const status = updateStatus(it);
-                    const who = decided(it);
                     return (
                       <TableRow
                         key={it.key}
@@ -362,13 +354,10 @@ export const MovesPage: React.FC = () => {
                           {it.distanceM !== undefined ? metresLabel(it.distanceM) : '-'}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <StatusPill tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</StatusPill>
-                            {it.suspicious && <SuspiciousPill />}
-                          </div>
+                          {/* Quiet: nothing for a move nobody checked. */}
+                          {it.suspicious ? <SuspiciousPill />
+                            : status !== 'notChecked' && <StatusPill tone="neutral">{STATUS_LABELS[status]}</StatusPill>}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{who?.by ? <Clip text={who.by} /> : '-'}</TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">{who ? dayLabel(who.day) : '-'}</TableCell>
                       </TableRow>
                     );
                   })}
