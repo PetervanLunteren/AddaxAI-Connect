@@ -137,9 +137,11 @@ export const bulkUploadApi = {
     body: {
       folder_name: string;
       // Exactly one of device_id (Mode A, profile-matched camera) or site_id
-      // (Mode B, manual site + synthetic camera).
+      // (Mode B, manual site). camera_id is Mode B only: an existing camera
+      // to attach the batch to instead of the default synthetic camera.
       device_id?: string;
       site_id?: number;
+      camera_id?: number;
       total_files: number;
       total_bytes: number;
       manifest: BulkUploadManifest;

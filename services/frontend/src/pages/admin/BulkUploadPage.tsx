@@ -8,7 +8,7 @@
  * row is non-terminal.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
@@ -40,6 +40,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
 import { sitesApi } from '../../api/sites';
 import { apiErrorMessage } from '../../api/client';
+import { camerasApi } from '../../api/cameras';
 import { SiteFormModal } from '../../components/sites/SiteFormModal';
 import { ClockOffsetDialog } from '../../components/ClockOffsetDialog';
 import { formatOffset, shiftEntries } from '../../utils/clock-offset';
@@ -206,6 +207,14 @@ export const BulkUploadPage: React.FC = () => {
   const [filter, setFilter] = useState<FilterKey>('active');
   const queryClient = useQueryClient();
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // link from a site's "Upload images" action: ?site=<id> 
+
+  const [presetSiteId] = useState<number | undefined>(() => {
+    const raw = searchParams.get('site');
+    return raw ? Number(raw) : undefined;
+  });
 
 
   const { data: jobs } = useQuery({
@@ -358,6 +367,15 @@ export const BulkUploadPage: React.FC = () => {
     setModalOpen(true);
   }, []);
 
+  useEffect(() => {
+    if (presetSiteId === undefined) return;
+    openModal();
+    searchParams.delete('site');
+    setSearchParams(searchParams, { replace: true });
+    // Runs once at mount only, to consume the deep link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -458,6 +476,7 @@ export const BulkUploadPage: React.FC = () => {
         projectId={projectId!}
         resumableJobs={(jobs ?? []).filter((j) => j.status === 'uploading')}
         initialResumeJob={resumeIntent}
+        initialSiteId={presetSiteId}
       />
 
       <ConfirmDialog
@@ -536,9 +555,11 @@ function manifestsLookCompatible(job: BulkUploadJob, entries: ScanEntry[]): bool
 
 interface UploadContext {
   // Exactly one of device_id (Mode A, profile-matched camera) or site_id
-  // (Mode B, manual site + synthetic camera).
+  // (Mode B, manual site). camera_id is Mode B only: an existing camera to
+  // attach the batch to instead of the default synthetic camera.
   device_id?: string;
   site_id?: number;
+  camera_id?: number;
   folder_name: string;
   manifest: BulkUploadManifest;
   // Paths of the files the server found already in the project. The
@@ -559,7 +580,10 @@ const BulkUploadModal: React.FC<{
   // Skips the banner-choose-which-job step and drops the user
   // straight at the folder picker for that job.
   initialResumeJob?: BulkUploadJob | null;
-}> = ({ open, onClose, projectId, resumableJobs, initialResumeJob }) => {
+  // Pre-populated from a site's "Upload images" action. Preselects the
+  // site once the user reaches the review step (manual mode only).
+  initialSiteId?: number;
+}> = ({ open, onClose, projectId, resumableJobs, initialResumeJob, initialSiteId }) => {
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -682,6 +706,7 @@ const BulkUploadModal: React.FC<{
               folderName={scanned.folderName}
               files={scanned.files}
               entries={scanned.entries}
+              initialSiteId={initialSiteId}
               onBack={() => setStep('pick')}
               onCancel={closeModal}
               onConfirm={(ctx) => {
@@ -690,6 +715,7 @@ const BulkUploadModal: React.FC<{
                   folderName: ctx.folder_name,
                   deviceId: ctx.device_id,
                   siteId: ctx.site_id,
+                  cameraId: ctx.camera_id,
                   manifest: ctx.manifest,
                   excludedPaths: ctx.excluded_paths,
                   timeOffsetSeconds: ctx.time_offset_seconds,
@@ -1023,12 +1049,17 @@ const ReviewStep: React.FC<{
   folderName: string;
   files: File[];
   entries: ScanEntry[];
+  // From a site's "Upload images" action. Only applies once the batch
+  // falls into manual mode (no camera profile matched).
+  initialSiteId?: number;
   onBack: () => void;
   onCancel: () => void;
   onConfirm: (ctx: UploadContext) => void;
-}> = ({ projectId, folderName, entries: rawEntries, files, onBack, onCancel, onConfirm }) => {
+}> = ({ projectId, folderName, entries: rawEntries, files, initialSiteId, onBack, onCancel, onConfirm }) => {
   const toast = useToast();
-  const [siteId, setSiteId] = useState<string>('');
+  const [siteId, setSiteId] = useState<string>(
+    initialSiteId !== undefined ? String(initialSiteId) : '',
+  );
   const [showCreateSite, setShowCreateSite] = useState(false);
   const [timeOffset, setTimeOffset] = useState(0);
   const [showClockOffset, setShowClockOffset] = useState(false);
@@ -1048,9 +1079,17 @@ const ReviewStep: React.FC<{
   // list. One shift in one place, so they cannot disagree.
   const entries = useMemo(() => shiftEntries(rawEntries, timeOffset), [rawEntries, timeOffset]);
 
+  // Manual mode only. Empty string = default synthetic per-site camera.
+  const [cameraId, setCameraId] = useState<string>('');
+
   const { data: sites } = useQuery({
     queryKey: ['sites', projectId],
     queryFn: () => sitesApi.list(projectId),
+  });
+
+  const { data: cameras } = useQuery({
+    queryKey: ['cameras', projectId],
+    queryFn: () => camerasApi.getAll(projectId),
   });
 
   // Compute manifest from the local scan. Same shape the server used
@@ -1102,12 +1141,15 @@ const ReviewStep: React.FC<{
 
   // Which files are already in the project, decided by the server. Runs for
   // a registered camera (profile mode) or, once a site is picked, for that
-  // site's bulk camera (manual mode). A camera that does not exist yet has
-  // no images, so there is nothing to ask.
+  // site's bulk camera (manual mode), or the existing camera picked for the
+  // batch. A camera that does not exist yet has no images, so there is
+  // nothing to ask.
   const duplicateTarget: DuplicateTarget | null =
     profile?.mode === 'profile'
       ? (profile.camera_registered && profile.camera_id ? { camera_id: profile.camera_id } : null)
-      : (siteId ? { site_id: Number(siteId) } : null);
+      : cameraId
+        ? { camera_id: Number(cameraId) }
+        : (siteId ? { site_id: Number(siteId) } : null);
   const {
     data: skipPaths,
     isError: duplicatesFailed,
@@ -1193,6 +1235,7 @@ const ReviewStep: React.FC<{
     }
     onConfirm({
       site_id: Number(siteId),
+      camera_id: cameraId ? Number(cameraId) : undefined,
       folder_name: folderName,
       manifest,
       excluded_paths: excludedPaths,
@@ -1302,6 +1345,27 @@ const ReviewStep: React.FC<{
           <p className="text-xs text-muted-foreground">
             Pick the place they were taken. Choose an existing site, or add a new one.
             All images in one upload must be from a single site and a single camera.
+          </p>
+        </div>
+      )}
+
+      {profile?.mode !== 'profile' && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Camera (optional)</label>
+          <Select
+            value={cameraId}
+            onChange={(e) => setCameraId(e.target.value)}
+          >
+            <option value="">Select a camera</option>
+            {(cameras ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.device_id}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Attach this batch to a camera you already track, instead of a new
+            one created just for the site.
           </p>
         </div>
       )}

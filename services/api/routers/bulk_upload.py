@@ -126,11 +126,14 @@ class CreateBulkUploadRequest(BaseModel):
       camera is resolved (and auto-created within this project if new), and
       each image's site + deployment are resolved from its own GPS, like FTPS.
     - **site_id (Mode B):** no profile matched, so the whole batch is pinned to
-      one user-chosen site via a synthetic per-site camera.
+      one user-chosen site. `camera_id` optionally names an existing camera in
+      this project to attach the batch to instead of the default synthetic
+      per-site camera; either way the batch still pins to `site_id`.
     """
     folder_name: str = Field(min_length=1, max_length=255)
     device_id: Optional[str] = Field(default=None, max_length=50)
     site_id: Optional[int] = None
+    camera_id: Optional[int] = None
     total_files: int = Field(ge=1, le=MAX_FILES_PER_JOB)
     # Sum of the byte sizes of the files about to be uploaded. Used to
     # refuse a job up front when it would not fit on the local data disk.
@@ -151,6 +154,8 @@ class CreateBulkUploadRequest(BaseModel):
             raise ValueError(
                 "Provide exactly one of device_id (profile mode) or site_id (manual mode)"
             )
+        if self.camera_id is not None and self.device_id is not None:
+            raise ValueError("camera_id only applies to manual mode (site_id)")
         return self
 
 
@@ -625,7 +630,8 @@ async def create_bulk_upload_job(
     _check_disk_headroom(body.total_bytes)
 
     # Resolve the target camera. Mode A uses the profile-matched device_id (auto
-    # -created if new); Mode B uses a synthetic per-site camera and pins the site.
+    # -created if new); Mode B pins a site, and either attaches an existing
+    # camera the user picked or falls back to a synthetic per-site camera.
     manifest = dict(body.manifest or {})
     if body.device_id:
         camera = await _get_or_create_camera_by_device_id(
@@ -645,7 +651,22 @@ async def create_bulk_upload_job(
                 status_code=400,
                 detail="Site does not belong to this project",
             )
-        camera = await _get_or_create_synthetic_camera(db, project_id, body.site_id)
+        if body.camera_id is not None:
+            camera = (
+                await db.execute(
+                    select(Camera).where(
+                        Camera.id == body.camera_id,
+                        Camera.project_id == project_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if camera is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Camera does not belong to this project",
+                )
+        else:
+            camera = await _get_or_create_synthetic_camera(db, project_id, body.site_id)
         # The chosen site rides along in the manifest so the worker can pin the
         # batch to it after the queue hop, without a dedicated column.
         manifest["site_id"] = body.site_id
