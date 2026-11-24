@@ -25,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { deploymentsApi } from '../api/deployments';
 import { sitesApi } from '../api/sites';
 import { CheckMovesModal } from '../components/deployments/CheckMovesModal';
-import { SuspiciousPill } from '../components/deployments/SuspiciousPill';
+import { MoveStatus } from '../components/deployments/MoveStatus';
 import {
   STATUS_LABELS, dateLabel, ends, metresLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
   updateStatus, type UpdateItem, type UpdateStatus,
@@ -39,7 +39,6 @@ import { FilterBar, type FilterFieldDef, type FilterValue } from '../components/
 import { ImpactBox } from '../components/ui/ImpactBox';
 import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
 import { SortableHeader, type SortState } from '../components/ui/SortableHeader';
-import { StatusPill } from '../components/ui/StatusPill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 import { useToast } from '../components/ui/Toaster';
 import { useProject } from '../contexts/ProjectContext';
@@ -328,7 +327,6 @@ export const MovesPage: React.FC = () => {
                     </TableRow>
                   )}
                   {shown.map((it) => {
-                    const status = updateStatus(it);
                     return (
                       <TableRow
                         key={it.key}
@@ -355,8 +353,7 @@ export const MovesPage: React.FC = () => {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {/* Quiet: nothing for a move nobody checked. */}
-                          {it.suspicious ? <SuspiciousPill />
-                            : status !== 'notChecked' && <StatusPill tone="neutral">{STATUS_LABELS[status]}</StatusPill>}
+                          <MoveStatus it={it} />
                         </TableCell>
                       </TableRow>
                     );

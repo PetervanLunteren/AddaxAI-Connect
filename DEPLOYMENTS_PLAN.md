@@ -606,6 +606,13 @@ Notes per step:
        tools next to Curation, its badge also on the closed group. The
        table lost Decided by and Decided on (the filter stays); Status is
        quiet, a pill only for Suspicious, Checked and Corrected.
+   21. The window's facts card shows the table's columns in the same order
+       (Date, Camera, From, To, Distance, Status) plus Decided by and
+       Decided on, and the status line under the buttons went. The two
+       photos have a caption again ("Last photo at Pond", "First photo at
+       Ridge"): on hover only, people did not know what they saw, and a
+       phone has no hover. `MoveStatus` is the one status pill for the
+       table and the window.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

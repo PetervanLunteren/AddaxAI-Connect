@@ -40,9 +40,9 @@ import { REVIEW_WINDOW_CLASS } from '../ui/review-window';
 import { useToast } from '../ui/Toaster';
 import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
-import { SuspiciousPill } from './SuspiciousPill';
+import { MoveStatus } from './MoveStatus';
 import {
-  dateLabel, dayLabel, metresLabel, placeName, route, siteIds, type UpdateItem,
+  dateLabel, dayLabel, decided, ends, metresLabel, placeName, siteIds, type UpdateItem,
 } from './update-items';
 
 interface Props {
@@ -299,23 +299,23 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                   </Card>
                 ) : (
                   <>
-                    {/* What the app says happened. */}
+                    {/* The row of the table, the same columns in the same
+                        order, plus who decided and when. Rows without a
+                        value do not show (DetailRow), so a move nobody
+                        checked has no Status, as in the table. */}
                     <Card>
                       <CardContent className="pt-4 pb-3 space-y-1 text-sm">
+                        <DetailRow label="Date">{dayLabel(it.day)}</DetailRow>
                         <DetailRow label="Camera">{it.cameraLabel}</DetailRow>
-                        <DetailRow label={it.kind === 'moved' ? 'Move' : 'Set to'}>{route(it)}</DetailRow>
-                        <DetailRow label={it.kind === 'moved' ? 'Date' : 'Days'}>{dateLabel(it)}</DetailRow>
-                        <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : null}</DetailRow>
-                        {it.correction && (
-                          <DetailRow label="By">
-                            {[it.correction.created_by, dayLabel(it.correction.created_at.slice(0, 10))].filter(Boolean).join(', ')}
-                          </DetailRow>
-                        )}
-                        {it.suspicious && (
-                          <div className="pt-1 text-right">
-                            <SuspiciousPill />
-                          </div>
-                        )}
+                        <DetailRow label="From">{ends(it).from ?? '-'}</DetailRow>
+                        <DetailRow label="To">{ends(it).to}</DetailRow>
+                        <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : '-'}</DetailRow>
+                        {it.correction && <DetailRow label="Days">{dateLabel(it)}</DetailRow>}
+                        {/* Called, not mounted: null for a move nobody checked
+                            hides the row, as the empty cell in the table. */}
+                        <DetailRow label="Status">{MoveStatus({ it })}</DetailRow>
+                        <DetailRow label="Decided by">{decided(it)?.by}</DetailRow>
+                        <DetailRow label="Decided on">{decided(it) ? dayLabel(decided(it)!.day) : null}</DetailRow>
                       </CardContent>
                     </Card>
 
@@ -324,9 +324,9 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                       <CardContent className="pt-4 pb-3 space-y-3 text-sm">
                         {d && (
                           <div className="grid grid-cols-2 gap-2">
-                            {p && <Photo projectId={projectId} photo={before?.[0]} label={`Last at ${placeName(p.site_name)}`} />}
+                            {p && <Photo projectId={projectId} photo={before?.[0]} label={`Last photo at ${placeName(p.site_name)}`} />}
                             {(after ?? []).map((photo, i) => (
-                              <Photo key={photo.uuid} projectId={projectId} photo={photo} label={i === 0 ? `First at ${placeName(d.site_name)}` : 'Next photo'} />
+                              <Photo key={photo.uuid} projectId={projectId} photo={photo} label={i === 0 ? `First photo at ${placeName(d.site_name)}` : 'Next photo'} />
                             ))}
                           </div>
                         )}
@@ -386,20 +386,29 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
 };
 
 /**
- * A small photo, no caption: what and when show on hover. A click opens it
- * in image verification in a new tab, so the check keeps its place.
+ * A small photo with one short caption under it ("Last photo at Pond"), so
+ * it is clear what it shows, also on a phone where nothing hovers. A long
+ * site name is cut; the full caption and the time show on hover. A click
+ * opens the photo in image verification in a new tab, so the check keeps
+ * its place.
  */
 const Photo: React.FC<{ projectId: number; photo: DeploymentPhoto | undefined; label: string }> = ({ projectId, photo, label }) => {
-  if (!photo) return <div className="w-full aspect-[4/3] rounded border bg-muted" title={label} />;
-  const title = `${label}, ${formatDateTime(photo.captured_at)}`;
+  const title = photo ? `${label}, ${formatDateTime(photo.captured_at)}` : label;
   return (
-    <a href={`/projects/${projectId}/images?image=${photo.uuid}`} target="_blank" rel="noopener noreferrer" title={title}>
-      <AuthenticatedImage
-        src={`/api/images/${photo.uuid}/thumbnail`}
-        alt={title}
-        className="w-full aspect-[4/3] object-cover rounded border hover:opacity-90"
-      />
-    </a>
+    <figure className="min-w-0 space-y-1">
+      {photo ? (
+        <a href={`/projects/${projectId}/images?image=${photo.uuid}`} target="_blank" rel="noopener noreferrer" title={title}>
+          <AuthenticatedImage
+            src={`/api/images/${photo.uuid}/thumbnail`}
+            alt={title}
+            className="w-full aspect-[4/3] object-cover rounded border hover:opacity-90"
+          />
+        </a>
+      ) : (
+        <div className="w-full aspect-[4/3] rounded border bg-muted" />
+      )}
+      <figcaption className="text-xs text-muted-foreground truncate" title={title}>{label}</figcaption>
+    </figure>
   );
 };
 
@@ -413,10 +422,6 @@ const Answers: React.FC<{
   onStayed: () => void;
   onNext: () => void;
 }> = ({ it, myAnswer, busy, canStay, onMoved, onUndo, onStayed, onNext }) => {
-  const d = it.deployment;
-  // The muted line under the buttons, as "Not verified yet" under Verify.
-  const status = (text: string) => <p className="text-muted-foreground text-center">{text}</p>;
-
   if (it.answered || myAnswer) {
     return (
       <div className="space-y-3">
@@ -430,10 +435,6 @@ const Answers: React.FC<{
             Undo
           </Button>
         )}
-        {status(!it.answered || it.kind === 'corrected'
-          ? 'Corrected'
-          : [`Checked by ${d?.checked_by ?? 'someone'}`, d?.checked_at && dayLabel(d.checked_at.slice(0, 10))]
-              .filter(Boolean).join(', '))}
       </div>
     );
   }
@@ -451,7 +452,6 @@ const Answers: React.FC<{
           <Kbd>W</Kbd>
         </Button>
       )}
-      {status('Not checked')}
     </div>
   );
 };
