@@ -394,13 +394,14 @@ const Photo: React.FC<{ projectId: number; photo: DeploymentPhoto | undefined; l
 
 /**
  * What a person decided, as a small caption under the buttons, where it is
- * decided: "Checked by peter@..., 24 Nov 2026", "Corrected by ...", "Not
- * checked", or the amber Suspicious pill for a move that looks like a GPS
- * error. The card above only shows what the app saw.
+ * decided: "Checked by peter@..., 24 Nov 2026", "Corrected by ...", or the
+ * amber Suspicious pill for a move that looks like a GPS error. Nothing for
+ * a move nobody checked, as in the table. The card above only shows what
+ * the app saw.
  */
 const Decision: React.FC<{ it: MoveRow | undefined; myAnswer: 'moved' | 'stayed' | undefined }> = ({ it, myAnswer }) => {
   const who = it ? decided(it) : null;
-  let text: React.ReactNode = 'Not checked';
+  let text: React.ReactNode = null;
   if (who) {
     text = `${it!.kind === 'corrected' ? 'Corrected' : 'Checked'} by ${[who.by ?? 'someone', dayLabel(who.day)].join(', ')}`;
   } else if (myAnswer) {
@@ -408,6 +409,7 @@ const Decision: React.FC<{ it: MoveRow | undefined; myAnswer: 'moved' | 'stayed'
   } else if (it?.suspicious) {
     text = <MoveStatus it={it} />;
   }
+  if (!text) return null;
   return <div className="text-xs text-muted-foreground text-center">{text}</div>;
 };
 
