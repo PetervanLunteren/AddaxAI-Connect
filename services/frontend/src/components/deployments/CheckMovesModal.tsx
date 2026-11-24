@@ -178,13 +178,12 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // confirmation is open or a field has focus. The listener reads the latest
   // state through a ref, so it is added once.
   const answer = current ? answers[current] : undefined;
-  const canStay = !!it && it.kind === 'moved' && !it.returnOfShortTrip;
   const keys = useRef({
-    goTo, index, it, answer, busy, canStay,
+    goTo, index, it, answer, busy,
     moved: () => right.mutate(true), stayed: () => notMoved.mutate(), blocked: false,
   });
   keys.current = {
-    goTo, index, it, answer, busy, canStay,
+    goTo, index, it, answer, busy,
     moved: () => right.mutate(true), stayed: () => notMoved.mutate(),
     blocked: confirmUndo !== null,
   };
@@ -202,7 +201,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
         e.preventDefault();
         if (k.it.answered || k.answer || k.it.kind !== 'moved') k.goTo(k.index + 1);
         else k.moved();
-      } else if ((e.key === 'w' || e.key === 'W') && k.canStay && !k.it!.answered && !k.answer && !k.busy) {
+      } else if ((e.key === 'w' || e.key === 'W') && !!k.it && !k.it.answered && !k.answer && !k.busy) {
         e.preventDefault();
         k.stayed();
       }
@@ -317,17 +316,10 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                       </div>
                     )}
 
-                    {it.returnOfShortTrip && !it.answered && (
-                      <p className="text-xs text-muted-foreground">
-                        The way back of a short trip. If the trip never happened, answer It stayed on the trip out.
-                      </p>
-                    )}
-
                     <Answers
                       it={it}
                       myAnswer={answer}
                       busy={busy}
-                      canStay={canStay}
                       onMoved={() => right.mutate(true)}
                       onUndo={
                         it.correction ? () => setConfirmUndo(it)
@@ -423,12 +415,11 @@ const Answers: React.FC<{
   it: MoveRow;
   myAnswer: 'moved' | 'stayed' | undefined;
   busy: boolean;
-  canStay: boolean; // not on the way back of a short trip
   onMoved: () => void;
   onUndo: () => void;
   onStayed: () => void;
   onNext: () => void;
-}> = ({ it, myAnswer, busy, canStay, onMoved, onUndo, onStayed, onNext }) => {
+}> = ({ it, myAnswer, busy, onMoved, onUndo, onStayed, onNext }) => {
   if (it.answered || myAnswer) {
     return (
       <div className="space-y-3">
@@ -453,13 +444,11 @@ const Answers: React.FC<{
         It moved
         <Kbd onPrimary>⏎</Kbd>
       </Button>
-      {canStay && (
-        <Button variant="outline" className="w-full" onClick={onStayed} disabled={busy}>
-          <X className="h-4 w-4 mr-2" />
-          It stayed at {placeName(it.previous?.site_name)}
-          <Kbd>W</Kbd>
-        </Button>
-      )}
+      <Button variant="outline" className="w-full" onClick={onStayed} disabled={busy}>
+        <X className="h-4 w-4 mr-2" />
+        It stayed at {placeName(it.previous?.site_name)}
+        <Kbd>W</Kbd>
+      </Button>
       <Decision it={it} myAnswer={myAnswer} />
     </div>
   );

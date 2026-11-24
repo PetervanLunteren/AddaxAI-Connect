@@ -36,10 +36,6 @@ export interface MoveRow {
   deployment?: DeploymentListItem;
   previous?: DeploymentListItem; // the deployment it moved from
   distanceM?: number; // from the previous pin to this one
-  // The out leg of a trip that came back within a week: the likely false move.
-  shortTrip?: boolean;
-  // The way back of such a trip. "It stayed at …" belongs on the out leg.
-  returnOfShortTrip?: boolean;
   correction?: FixedPeriod;
 }
 
@@ -87,10 +83,6 @@ export function moveRows(deployments: DeploymentListItem[], corrections: FixedPe
       const next = list[i + 1];
       const shortTrip = !!previous && !!next && next.start_at === d.end_at &&
         next.site_id === previous.site_id && daysBetween(d.start_at, d.end_at!) <= SHORT_TRIP_DAYS;
-      const beforePrevious = previous ? list[i - 2] : undefined;
-      const returnOfShortTrip = !!previous && !!beforePrevious && beforePrevious.end_at === previous.start_at &&
-        beforePrevious.site_id === d.site_id && previous.end_at !== null &&
-        daysBetween(previous.start_at, previous.end_at) <= SHORT_TRIP_DAYS;
       items.push({
         key: moveKey(d.camera_id, d.start_at),
         kind: 'moved',
@@ -102,8 +94,6 @@ export function moveRows(deployments: DeploymentListItem[], corrections: FixedPe
         deployment: d,
         previous,
         distanceM: metresBetween(previous, d),
-        shortTrip,
-        returnOfShortTrip,
       });
     });
   }
