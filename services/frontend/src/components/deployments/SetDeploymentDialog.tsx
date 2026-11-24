@@ -173,7 +173,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     selectedId={siteId}
                     onSelect={setSiteId}
                     fitIds={[prefill.siteId, siteId]}
-                    height={200}
+                    height={160}
                   />
                 </div>
               )}
