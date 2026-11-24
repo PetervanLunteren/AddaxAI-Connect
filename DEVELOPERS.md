@@ -1038,8 +1038,9 @@ used different limits for the same thing and which people learned to ignore.
   Only lines with something open, only projects with lines.
 - **The browser words it** (`src/lib/todo-lines.ts`): text and link per
   kind. Every link opens the page with the filter that shows exactly the
-  counted rows. `TodoMenu.tsx` groups them: inside a project For you, This
-  project and Server; outside a project one block per project.
+  counted rows. `TodoMenu.tsx` groups them: inside a project only that
+  project (For you, This project); outside a project one block per
+  project, then Server for server admins.
 - **Who sees what:** camera health (inactive, low battery, SD nearly full)
   for every member at the sites they may see; service tasks for whom they
   are assigned to; suspicious moves, photos without a site, rejecting

@@ -7,9 +7,10 @@
  * the problem is fixed. The server decides the lines
  * (services/api/utils/todo.py), lib/todo-lines.ts gives them words and links.
  *
- * Inside a project it shows that project: For you, This project, and Server
- * for a server admin. Outside a project (Projects, Account, server pages) it
- * shows every project that has something, one block each. The project comes
+ * Inside a project it shows that project only: For you and This project.
+ * Outside a project (Projects, Account, server pages) it shows every project
+ * that has something, one block each, and for a server admin the Server
+ * lines: server work is not about the project you are in. The project comes
  * from the address, not from the selected project, which stays set outside
  * projects too.
  *
@@ -58,8 +59,8 @@ export const TodoMenu: React.FC = () => {
     for (const project of data?.projects ?? []) {
       sections.push({ title: project.project_name, lines: linesOf(project.items, project.project_id) });
     }
+    sections.push({ title: 'Server', lines: linesOf(data?.server ?? [], null) });
   }
-  sections.push({ title: 'Server', lines: linesOf(data?.server ?? [], null) });
   const shown = sections.filter((s) => s.lines.length > 0);
   const count = shown.reduce((n, s) => n + s.lines.length, 0);
 
