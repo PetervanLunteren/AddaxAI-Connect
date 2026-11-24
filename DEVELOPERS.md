@@ -1043,8 +1043,10 @@ used different limits for the same thing and which people learned to ignore.
 - **The browser words it** (`src/lib/todo-lines.ts`): text and link per
   kind. Every link opens the page with the filter that shows exactly the
   counted rows. `TodoMenu.tsx` groups them: inside a project only that
-  project (For you, This project); outside a project one block per
-  project, then Server for server admins.
+  project (For you, then its lines). Outside a project an accordion: Server
+  first and open (server admins), then one closed group per project, those
+  with something new first, a "3 new" pill on each header, and a Dismiss
+  all per open group so you never dismiss lines you did not see.
 - **Who sees what:** a line goes to whoever can act on it.
   - Every member: camera health, fixed in the field (inactive, low battery,
     SD nearly full, rejecting files), at the sites they may see; a
