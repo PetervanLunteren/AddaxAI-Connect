@@ -1,5 +1,5 @@
 /**
- * On the page a To do line opens: "Marked not needed by peter@..., 25 Nov
+ * On the page a Needs attention line opens: "Marked not needed by peter@..., 25 Nov
  * 2026. Undo". Shown only while someone marked that line not needed
  * (TodoMenu), to whoever may undo it. Shared by the three pages whose lines
  * can be marked: project settings (species), server settings (Telegram) and
@@ -18,7 +18,7 @@ export const NotNeededNote: React.FC<{ kind: string; projectId?: number | null }
   return (
     // A span, not a p: it also sits inside a setting's description.
     <span className="block text-xs text-muted-foreground">
-      Marked not needed in To do by {mark.by ?? 'someone'}, {formatDate(mark.at)}.{' '}
+      Marked not needed by {mark.by ?? 'someone'}, {formatDate(mark.at)}.{' '}
       <button
         type="button"
         onClick={() => undo.mutate()}

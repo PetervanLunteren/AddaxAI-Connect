@@ -1,5 +1,6 @@
 /**
- * "To do" in the top bar: what needs somebody now, next to the account menu.
+ * "Needs attention" in the top bar: what needs somebody now, next to the
+ * account menu. Internally called To do (TodoMenu, /api/todo).
  *
  * The one nudge of the app. Pages show state and filters; they do not keep
  * badges or warning bars of their own. A line is the current state, not a
@@ -84,8 +85,8 @@ export const TodoMenu: React.FC = () => {
             'hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             open && 'bg-accent text-foreground',
           )}
-          aria-label={count > 0 ? `To do, ${count}` : 'To do'}
-          title="To do"
+          aria-label={count > 0 ? `Needs attention, ${count}` : 'Needs attention'}
+          title="Needs attention"
         >
           <ClipboardList className="h-5 w-5" />
           {count > 0 && (
@@ -95,10 +96,11 @@ export const TodoMenu: React.FC = () => {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-0">
-        <p className="border-b border-border px-4 py-3 text-sm font-semibold">To do</p>
+      {/* No title: the icon that opened it says what it is; the project
+          names and For you are the headings. */}
+      <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-0" aria-label="Needs attention">
         {shown.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nothing to do</p>
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nothing needs attention</p>
         ) : (
           <div className="max-h-[70vh] overflow-y-auto py-1">
             {shown.map((section, i) => (

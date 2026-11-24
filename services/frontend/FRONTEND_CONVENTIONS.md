@@ -77,9 +77,9 @@ sink. So on maps (decided 24 November 2026):
 - Every status marker that means "something is wrong" uses `ALERT_COLOR`
   (`#d62828`), on maps and on white: inactive, low battery, rejected files,
   a failed upload. `#882000` stays only as a chart and series colour.
-- A nudge is a line in To do (top bar, `components/layout/TodoMenu.tsx`),
+- A nudge is a line in Needs attention (top bar, `components/layout/TodoMenu.tsx`),
   never a badge in the navigation or a warning bar on a page. Pages show
-  state and offer filters; To do links to them with the filter set. A
+  state and offer filters; Needs attention links to them with the filter set. A
   callout stays only where the fix is, on the page you are on (photos
   without a site in the camera panel, Telegram on Notifications).
 - Health limits are the server's (`shared/camera_status.py`). The browser

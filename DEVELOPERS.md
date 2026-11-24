@@ -1024,10 +1024,14 @@ What the two share:
   restart, and a token cannot go stale. Point a dev project at
   `central-test.sensingclues.org` so nothing from dev reaches a real group.
 
-## To do
+## Needs attention (To do)
 
 The one nudge of the app (decided 24 November 2026): an icon in the top bar,
-next to the avatar, with what needs somebody now. It replaced the sidebar
+next to the avatar, with what needs somebody now. Users see it as "Needs
+attention" (the panel has no title, the tooltip and empty state use the
+name); the code calls it To do (`TodoMenu`, `/api/todo`, `utils/todo.py`).
+Not "To do" for users: most lines are states of the project, not tasks you
+tick off. It replaced the sidebar
 badges, the "Needs attention" bar and the Dashboard species banner, which
 used different limits for the same thing and which people learned to ignore.
 
