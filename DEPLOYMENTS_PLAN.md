@@ -457,8 +457,8 @@ Notes per step:
   twelve scenarios one by one in the browser and gives feedback; fixes are
   collected and made after S12, unless one blocks him.
   - Dev holds a "Deployment scenarios" project (id 5 since 24 Nov)
-    with only S01. The next scenario is added with
-    `docker compose exec -T ingestion python /app/scripts/dev_deployment_scenarios.py --only S02`
+    with S01 and S02. The next scenario is added with
+    `docker compose exec -T ingestion python /app/scripts/dev_deployment_scenarios.py --only S03`
     (one camera, its whole history at once). To start over, delete the
     project (images first, then cameras, sites, project) and run `--only S01`.
   - Per scenario, send Peter a card: what really happened, where to look,
