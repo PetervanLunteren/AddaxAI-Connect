@@ -44,7 +44,7 @@ import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
 import { MoveStatus } from './MoveStatus';
 import {
-  dateLabel, dayLabel, decided, ends, metresLabel, moveKey, placeName, siteIds, type MoveRow,
+  correctionKey, dateLabel, dayLabel, decided, ends, metresLabel, moveKey, placeName, siteIds, type MoveRow,
 } from './moves';
 
 interface Props {
@@ -302,7 +302,9 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                             <Undo2 className="h-4 w-4 mr-2" />
                             Undo
                           </Button>
-                          <p className="text-muted-foreground text-center">Corrected</p>
+                          {/* Who and when, as under the buttons of every row:
+                              the row of the correction just made. */}
+                          <Decision it={items.find((i) => i.key === correctionKey(corrections[current]))} myAnswer="stayed" />
                         </>
                       ) : current && undone.has(current) ? (
                         <p className="text-muted-foreground text-center">Undone, the GPS decides these days again</p>
@@ -431,14 +433,14 @@ const Photo: React.FC<{ projectId: number; photo: DeploymentPhoto | undefined; l
  * checked", or the amber Suspicious pill for a move that looks like a GPS
  * error. The card above only shows what the app saw.
  */
-const Decision: React.FC<{ it: MoveRow; myAnswer: 'moved' | 'stayed' | undefined }> = ({ it, myAnswer }) => {
-  const who = decided(it);
+const Decision: React.FC<{ it: MoveRow | undefined; myAnswer: 'moved' | 'stayed' | undefined }> = ({ it, myAnswer }) => {
+  const who = it ? decided(it) : null;
   let text: React.ReactNode = 'Not checked';
   if (who) {
-    text = `${it.kind === 'corrected' ? 'Corrected' : 'Checked'} by ${[who.by ?? 'someone', dayLabel(who.day)].join(', ')}`;
+    text = `${it!.kind === 'corrected' ? 'Corrected' : 'Checked'} by ${[who.by ?? 'someone', dayLabel(who.day)].join(', ')}`;
   } else if (myAnswer) {
     text = myAnswer === 'stayed' ? 'Corrected' : 'Checked';
-  } else if (it.suspicious) {
+  } else if (it?.suspicious) {
     text = <MoveStatus it={it} />;
   }
   return <div className="text-xs text-muted-foreground text-center">{text}</div>;

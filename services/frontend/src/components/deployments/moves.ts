@@ -63,6 +63,7 @@ const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 
  * (answers_move_at). Corrections are keyed by their own id, which is stable.
  */
 export const moveKey = (cameraId: number, startAt: string) => `m${cameraId}@${startAt}`;
+export const correctionKey = (statementId: number) => `s${statementId}`;
 
 /**
  * Every entry, answered or not, newest first. `corrections` are the
@@ -109,7 +110,7 @@ export function moveRows(deployments: DeploymentListItem[], corrections: FixedPe
   for (const c of corrections) {
     if (c.source !== 'person') continue;
     items.push({
-      key: `s${c.id}`,
+      key: correctionKey(c.id),
       kind: 'corrected',
       cameraId: c.camera_id,
       cameraLabel: c.camera_label,
