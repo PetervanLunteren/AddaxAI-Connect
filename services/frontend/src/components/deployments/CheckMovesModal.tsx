@@ -54,9 +54,6 @@ interface Props {
   onClose: () => void;
 }
 
-// Tall like the photo in image verification, but never taller than the screen.
-const MAP_HEIGHT = 'min(65vh, 640px)';
-
 function errMsg(err: unknown): string {
   const e = err as { response?: { data?: { detail?: string } }; message?: string };
   return e?.response?.data?.detail || e?.message || 'Unknown error';
@@ -263,13 +260,17 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
         ) : (
           <>
             <div className="flex flex-col gap-4 md:grid md:grid-cols-3 md:gap-6">
-              <div className="md:col-span-2 min-w-0 space-y-2">
+              {/* The map fills its column, as tall as the cards next to it
+                  and never lower than now: tall like the photo in image
+                  verification, never taller than the screen. On a phone,
+                  where the columns stack, it has that height. */}
+              <div className="md:col-span-2 min-w-0 h-[min(65vh,640px)] md:h-auto md:min-h-[min(65vh,640px)]">
                 <DeploymentsMap
                   key={current ?? 'none'}
                   sites={sites}
                   activeSiteIds={active.size === 0 ? null : active}
                   arrows={arrows}
-                  height={MAP_HEIGHT}
+                  height="100%"
                 />
               </div>
 
@@ -299,10 +300,9 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                   </Card>
                 ) : (
                   <>
-                    {/* The row of the table, the same columns in the same
-                        order, plus who decided and when. Rows without a
-                        value do not show (DetailRow), so a move nobody
-                        checked has no Status, as in the table. */}
+                    {/* What the app saw: the row of the table, the same
+                        columns in the same order. What a person decided is
+                        under the buttons. */}
                     <Card>
                       <CardContent className="pt-4 pb-3 space-y-1 text-sm">
                         <DetailRow label="Date">{dayLabel(it.day)}</DetailRow>
@@ -311,11 +311,6 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                         <DetailRow label="To">{ends(it).to}</DetailRow>
                         <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : '-'}</DetailRow>
                         {it.correction && <DetailRow label="Days">{dateLabel(it)}</DetailRow>}
-                        {/* Called, not mounted: null for a move nobody checked
-                            hides the row, as the empty cell in the table. */}
-                        <DetailRow label="Status">{MoveStatus({ it })}</DetailRow>
-                        <DetailRow label="Decided by">{decided(it)?.by}</DetailRow>
-                        <DetailRow label="Decided on">{decided(it) ? dayLabel(decided(it)!.day) : null}</DetailRow>
                       </CardContent>
                     </Card>
 
@@ -412,6 +407,25 @@ const Photo: React.FC<{ projectId: number; photo: DeploymentPhoto | undefined; l
   );
 };
 
+/**
+ * What a person decided, as a small caption under the buttons, where it is
+ * decided: "Checked by peter@..., 24 Nov 2026", "Corrected by ...", "Not
+ * checked", or the amber Suspicious pill for a move that looks like a GPS
+ * error. The card above only shows what the app saw.
+ */
+const Decision: React.FC<{ it: UpdateItem; myAnswer: 'right' | 'wrong' | undefined }> = ({ it, myAnswer }) => {
+  const who = decided(it);
+  let text: React.ReactNode = 'Not checked';
+  if (who) {
+    text = `${it.kind === 'corrected' ? 'Corrected' : 'Checked'} by ${[who.by ?? 'someone', dayLabel(who.day)].join(', ')}`;
+  } else if (myAnswer) {
+    text = myAnswer === 'wrong' ? 'Corrected' : 'Checked';
+  } else if (it.suspicious) {
+    text = <MoveStatus it={it} />;
+  }
+  return <div className="text-xs text-muted-foreground text-center">{text}</div>;
+};
+
 const Answers: React.FC<{
   it: UpdateItem;
   myAnswer: 'right' | 'wrong' | undefined;
@@ -435,6 +449,7 @@ const Answers: React.FC<{
             Undo
           </Button>
         )}
+        <Decision it={it} myAnswer={myAnswer} />
       </div>
     );
   }
@@ -452,6 +467,7 @@ const Answers: React.FC<{
           <Kbd>W</Kbd>
         </Button>
       )}
+      <Decision it={it} myAnswer={myAnswer} />
     </div>
   );
 };

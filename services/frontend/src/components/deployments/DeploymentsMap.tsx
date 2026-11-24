@@ -11,8 +11,8 @@
  * Nothing on it is clickable: the answer is in the card next to it.
  * The map fits to the move once; the check mounts a new map per update.
  */
-import { Fragment, useMemo } from 'react';
-import { MapContainer, Marker, Polyline, Tooltip } from 'react-leaflet';
+import { Fragment, useEffect, useMemo } from 'react';
+import { MapContainer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { FitBounds } from '../map/FitBounds';
@@ -35,7 +35,7 @@ interface Props {
   // The sites of the move, drawn magenta. Null = no move: every site plain.
   activeSiteIds: Set<number> | null;
   arrows: MapArrow[];
-  height: number | string; // px, or a CSS length such as min(65vh, 640px)
+  height: number | string; // px, or a CSS length such as 100% of its box
 }
 
 // The arrow runs from 15% to 85% of the way, as in flow maps: it never
@@ -70,6 +70,21 @@ function arrowHead(bearing: number, color: string): L.DivIcon {
 function bearing([lat1, lon1]: [number, number], [lat2, lon2]: [number, number]): number {
   const dx = (lon2 - lon1) * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180));
   return (Math.atan2(dx, lat2 - lat1) * 180) / Math.PI;
+}
+
+/**
+ * Redraw the map whenever its box changes size. Leaflet measures its box
+ * once; when the box grows later (the cards next to it get taller as their
+ * photos load, fullscreen, a resized window) the new part stays grey.
+ */
+function FollowSize() {
+  const map = useMap();
+  useEffect(() => {
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
 }
 
 export function DeploymentsMap({ sites, activeSiteIds, arrows, height }: Props) {
@@ -117,6 +132,7 @@ export function DeploymentsMap({ sites, activeSiteIds, arrows, height }: Props) 
       ))}
       <FitBounds points={fitPoints} maxZoom={16} />
       <FullscreenControl />
+      <FollowSize />
     </MapContainer>
   );
 }

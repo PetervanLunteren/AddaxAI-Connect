@@ -613,6 +613,12 @@ Notes per step:
        Ridge"): on hover only, people did not know what they saw, and a
        phone has no hover. `MoveStatus` is the one status pill for the
        table and the window.
+   22. The decision moved out of the facts card to a small caption under
+       the buttons, where it is made ("Checked by ..., 24 Nov 2026",
+       "Not checked", or the Suspicious pill); the card only shows what
+       the app saw. The map takes the height of the cards next to it (on a
+       phone a set height) and redraws when its box changes size, so no
+       grey strip when the photos load.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

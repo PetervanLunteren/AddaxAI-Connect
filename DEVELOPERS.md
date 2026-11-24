@@ -749,12 +749,14 @@ moves and Undo checks run at once (they change no data), Undo corrections
 asks with the cameras named and a typed word (`POST .../statements/undo`,
 all or none). The check uses the frame of image verification
 (`REVIEW_WINDOW_CLASS`): the map left on satellite with only the sites of
-the move in magenta, a facts card right with the table's columns in the
-table's order plus who decided and when (`DetailRow`; the status pill is
-`MoveStatus`, shared with the table), and an answer card with the two
-photos, each captioned ("Last photo at Pond"), and one question, did it
+the move in magenta, as tall as the cards next to it (it redraws when its
+box changes size), a facts card right with what the app saw, the table's
+columns in the table's order (`DetailRow`), and an answer card with the
+two photos, each captioned ("Last photo at Pond"), one question, did it
 really move, a button per answer with its key (`Kbd`, the same part as
-AddaxAI desktop).
+AddaxAI desktop), and under the buttons a small caption with what a
+person decided ("Checked by ..., 24 Nov 2026", or the Suspicious pill,
+`MoveStatus`, shared with the table).
 
 - A move is a deployment the GPS made (`site_source = 'auto'`) that starts
   where the camera's previous one ends.
