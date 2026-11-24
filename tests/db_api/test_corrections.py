@@ -245,6 +245,28 @@ async def test_undo_of_it_did_not_move_gives_the_move_back(session, admin):
     assert answered["answers_move_at"] == moved["start_at"]
 
 
+async def test_undo_of_it_stayed_on_a_short_trip_gives_both_moves_back(session, admin):
+    """S03 on dev: one burst read far away, then the camera is back home.
+    "It stayed" on the trip out takes both moves away; Undo gives both
+    back, the trip out under the same start, so the table is as before."""
+    project = make_project()
+    cam = make_camera("CAM01", project)
+    home = make_site(project, "Home", HOME)
+    history(cam, [(HOME, at(d)) for d in (2, 3, 4)] + [(FAR, at(10)), (FAR, at(10) + timedelta(seconds=1))]
+            + [(HOME, at(d)) for d in (11, 12, 13)])
+    before, trip, back = deployments(cam)
+    assert before["site_id"] == home and back["site_id"] == home and trip["site_id"] != home
+
+    result = await not_moved(project, trip["id"], session, admin)
+    assert len(deployments(cam)) == 1
+    await remove_statement(project, result.statement_id, session, admin)
+
+    again = deployments(cam)
+    assert [d["site_id"] == home for d in again] == [True, False, True]
+    assert [d["start_at"] for d in again] == [before["start_at"], trip["start_at"], back["start_at"]]
+    assert all(d["site_source"] == "auto" for d in again)
+
+
 async def test_the_answered_move_reads_the_same_as_the_move(session, admin, moved_camera):
     """The browser finds the move a correction answered by comparing two
     strings: the statement's answers_move_at and the move's start_at. They
