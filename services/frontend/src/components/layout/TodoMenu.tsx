@@ -16,13 +16,18 @@
  *
  * The number on the icon is the number of lines in view, not the sum of the
  * counts: twenty cameras low on battery are one thing to do.
+ *
+ * Each line carries the icon of the page it opens. Broken things come first.
+ * A line that is a choice, not a fault, has "Not needed" for whoever could
+ * fix it: hidden for everyone, undone from the note on its page
+ * (NotNeededNote). Nothing here is hidden for one person only.
  */
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ListChecks } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { ClipboardList } from 'lucide-react';
 import { todoApi, todoKeys, type TodoItem } from '../../api/todo';
-import { todoLine, type TodoLine } from '../../lib/todo-lines';
+import { brokenFirst, todoLine, type TodoLine } from '../../lib/todo-lines';
 import { useAuth } from '../../hooks/useAuth';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/Popover';
 import { StatusPill } from '../ui/StatusPill';
@@ -43,12 +48,15 @@ export const TodoMenu: React.FC = () => {
     enabled: !!user,
     refetchInterval: 5 * 60 * 1000,
   });
+  const notNeeded = useMutation({
+    mutationFn: (line: TodoLine) => todoApi.markNotNeeded(line.kind, line.projectId),
+  });
   if (!user) return null;
 
   const match = pathname.match(/^\/projects\/(\d+)/);
   const projectId = match ? Number(match[1]) : null;
   const linesOf = (items: TodoItem[], pid: number | null) =>
-    items.map((item) => todoLine(item, pid, user.id)).filter((l): l is TodoLine => l !== null);
+    brokenFirst(items.map((item) => todoLine(item, pid, user.id)).filter((l): l is TodoLine => l !== null));
 
   const sections: Section[] = [];
   if (projectId !== null) {
@@ -77,7 +85,7 @@ export const TodoMenu: React.FC = () => {
           aria-label={count > 0 ? `To do, ${count}` : 'To do'}
           title="To do"
         >
-          <ListChecks className="h-5 w-5" />
+          <ClipboardList className="h-5 w-5" />
           {count > 0 && (
             <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
               {count}
@@ -95,17 +103,30 @@ export const TodoMenu: React.FC = () => {
               <div key={section.title} className="py-1">
                 <p className="truncate px-4 pb-1 pt-2 text-xs font-medium text-muted-foreground">{section.title}</p>
                 {section.lines.map((line) => (
-                  <Link
-                    key={line.to}
-                    to={line.to}
-                    onClick={() => setOpen(false)}
-                    className="flex items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-accent"
-                  >
-                    <span className="min-w-0">{line.text}</span>
+                  <div key={line.to} className="flex items-center gap-2 pr-2 hover:bg-accent">
+                    <Link
+                      to={line.to}
+                      onClick={() => setOpen(false)}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-sm"
+                    >
+                      <line.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0">{line.text}</span>
+                    </Link>
                     {!!line.overdue && (
                       <StatusPill tone="error" className="shrink-0 px-2 py-0.5">{line.overdue} overdue</StatusPill>
                     )}
-                  </Link>
+                    {line.canBeNotNeeded && (
+                      <button
+                        type="button"
+                        onClick={() => notNeeded.mutate(line)}
+                        disabled={notNeeded.isPending}
+                        title="Hide this line for everyone. Undo on its page."
+                        className="shrink-0 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-foreground"
+                      >
+                        Not needed
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             ))}

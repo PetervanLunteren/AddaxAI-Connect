@@ -23,11 +23,33 @@ export interface Todo {
   server: TodoItem[];
 }
 
+/** A line someone marked not needed: hidden for everyone until undone. */
+export interface NotNeeded {
+  kind: string;
+  project_id: number | null; // null for a server line
+  by: string | null; // email
+  at: string;
+}
+
 export const todoApi = {
   get: async (): Promise<Todo> => {
     const { data } = await apiClient.get('/api/todo');
     return data;
   },
+  notNeeded: async (): Promise<NotNeeded[]> => {
+    const { data } = await apiClient.get('/api/todo/not-needed');
+    return data;
+  },
+  markNotNeeded: async (kind: string, projectId: number | null): Promise<void> => {
+    await apiClient.post('/api/todo/not-needed', { kind, project_id: projectId });
+  },
+  undoNotNeeded: async (kind: string, projectId: number | null): Promise<void> => {
+    await apiClient.delete('/api/todo/not-needed', { params: { kind, project_id: projectId ?? undefined } });
+  },
 };
 
-export const todoKeys = { all: ['todo'] as const };
+// Under one root, so any change refreshes the list and the marks together.
+export const todoKeys = {
+  all: ['todo'] as const,
+  notNeeded: ['todo', 'not-needed'] as const,
+};

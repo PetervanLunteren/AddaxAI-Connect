@@ -1,27 +1,38 @@
 /**
- * The words and the link of every To do line. The server says what and how
+ * The words, icon and link of every To do line. The server says what and how
  * many (services/api/utils/todo.py); this is the only place that knows how a
  * line reads and where it goes. Each link opens the page with the filter that
- * shows exactly the counted rows.
+ * shows exactly the counted rows, and the icon is that page's icon in the
+ * navigation, so a line shows at a glance what it belongs to.
  *
  * To add a nudge: count it in utils/todo.py, then give its kind a line here.
  */
+import type { LucideIcon } from 'lucide-react';
+import { Activity, ArrowLeftRight, Camera, Footprints, Radio, Settings, Upload, Wrench } from 'lucide-react';
 import type { TodoItem } from '../api/todo';
 
 export type TodoGroup = 'you' | 'project' | 'server';
 
 export interface TodoLine {
+  kind: string;
+  projectId: number | null; // null for a server line
   group: TodoGroup;
+  icon: LucideIcon;
   text: string;
   to: string;
   overdue?: number;
+  // Something is broken rather than due: listed first in its group.
+  broken?: boolean;
+  // A choice, not a fault: an admin may mark it not needed, for everyone
+  // (NOT_NEEDED_KINDS in utils/todo.py).
+  canBeNotNeeded?: boolean;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-const INTEGRATION_NAMES: Record<string, string> = {
-  earthranger: 'EarthRanger',
-  sensingclues: 'Sensing Clues',
+const INTEGRATIONS: Record<string, { name: string; icon: LucideIcon }> = {
+  earthranger: { name: 'EarthRanger', icon: Radio },
+  sensingclues: { name: 'Sensing Clues', icon: Footprints },
 };
 
 /** The line of one item, or null for a kind this browser does not know yet
@@ -29,39 +40,46 @@ const INTEGRATION_NAMES: Record<string, string> = {
 export function todoLine(item: TodoItem, projectId: number | null, userId: number): TodoLine | null {
   const p = `/projects/${projectId}`;
   const n = item.count;
+  const line = (group: TodoGroup, icon: LucideIcon, text: string, to: string, extra: Partial<TodoLine> = {}): TodoLine =>
+    ({ kind: item.kind, projectId, group, icon, text, to, ...extra });
   switch (item.kind) {
     case 'my_tasks':
-      return { group: 'you', text: `${plural(n, 'service task', 'service tasks')} for you`,
-               to: `${p}/service?person=${userId}`, overdue: item.overdue ?? 0 };
+      return line('you', Wrench, `${plural(n, 'service task', 'service tasks')} for you`,
+        `${p}/service?person=${userId}`, { overdue: item.overdue ?? 0 });
     case 'overdue_tasks':
-      return { group: 'project', text: plural(n, 'overdue service task', 'overdue service tasks'), to: `${p}/service?due=overdue` };
+      return line('project', Wrench, plural(n, 'overdue service task', 'overdue service tasks'), `${p}/service?due=overdue`);
     case 'suspicious_moves':
-      return { group: 'project', text: plural(n, 'suspicious move', 'suspicious moves'), to: `${p}/moves?status=suspicious` };
+      return line('project', ArrowLeftRight, plural(n, 'suspicious move', 'suspicious moves'), `${p}/moves?status=suspicious`);
     case 'unplaced_photos':
-      return { group: 'project', text: `${plural(n, 'camera', 'cameras')} with photos without a site`, to: `${p}/cameras?unplaced=yes` };
+      return line('project', Camera, `${plural(n, 'camera', 'cameras')} with photos without a site`, `${p}/cameras?unplaced=yes`);
     case 'rejecting':
-      return { group: 'project', text: `${plural(n, 'camera', 'cameras')} rejecting files`, to: `${p}/cameras?rejected=rejecting` };
+      return line('project', Camera, `${plural(n, 'camera', 'cameras')} rejecting files`, `${p}/cameras?rejected=rejecting`, { broken: true });
     case 'sim_expiring':
-      return { group: 'project', text: `${plural(n, 'SIM card', 'SIM cards')} expiring`, to: `${p}/cameras?sim=expiring` };
+      return line('project', Camera, `${plural(n, 'SIM card', 'SIM cards')} expiring`, `${p}/cameras?sim=expiring`);
     case 'integration_error': {
-      const target = item.target ?? '';
-      return { group: 'project', text: `${INTEGRATION_NAMES[target] ?? 'An integration'} is failing`, to: `${p}/integrations/${target}` };
+      const integration = INTEGRATIONS[item.target ?? ''];
+      return line('project', integration?.icon ?? Radio, `${integration?.name ?? 'An integration'} is failing`,
+        `${p}/integrations/${item.target}`, { broken: true });
     }
     case 'choose_species':
-      return { group: 'project', text: 'Choose the species for this project', to: `${p}/settings` };
+      return line('project', Settings, 'Choose the species for this project', `${p}/settings`, { canBeNotNeeded: true });
     case 'inactive':
-      return { group: 'project', text: plural(n, 'inactive camera', 'inactive cameras'), to: `${p}/cameras?status=inactive` };
+      return line('project', Camera, plural(n, 'inactive camera', 'inactive cameras'), `${p}/cameras?status=inactive`, { broken: true });
     case 'low_battery':
-      return { group: 'project', text: `${plural(n, 'camera', 'cameras')} low on battery`, to: `${p}/cameras?battery=low` };
+      return line('project', Camera, `${plural(n, 'camera', 'cameras')} low on battery`, `${p}/cameras?battery=low`);
     case 'sd_nearly_full':
-      return { group: 'project', text: `${plural(n, 'SD card', 'SD cards')} nearly full`, to: `${p}/cameras?sd_usage=high` };
+      return line('project', Camera, `${plural(n, 'SD card', 'SD cards')} nearly full`, `${p}/cameras?sd_usage=high`);
     case 'services_down':
-      return { group: 'server', text: `${plural(n, 'service', 'services')} not running`, to: '/server/health' };
+      return line('server', Activity, `${plural(n, 'service', 'services')} not running`, '/server/health', { broken: true });
     case 'unknown_camera_files':
-      return { group: 'server', text: `${plural(n, 'file', 'files')} from unknown cameras this week`, to: '/server/file-management' };
+      return line('server', Upload, `${plural(n, 'file', 'files')} from unknown cameras this week`, '/server/file-management', { canBeNotNeeded: true });
     case 'telegram_not_set_up':
-      return { group: 'server', text: 'Telegram is not set up', to: '/server/settings' };
+      return line('server', Settings, 'Telegram is not set up', '/server/settings', { canBeNotNeeded: true });
     default:
       return null;
   }
 }
+
+/** Broken first, then the rest, each in the server's order. */
+export const brokenFirst = (lines: TodoLine[]): TodoLine[] =>
+  [...lines.filter((l) => l.broken), ...lines.filter((l) => !l.broken)];

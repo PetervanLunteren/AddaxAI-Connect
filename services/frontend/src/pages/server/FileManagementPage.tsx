@@ -33,6 +33,7 @@ import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { formatDateTime } from '../../utils/datetime';
 import { rejectionReasonLabel } from '../../utils/rejectionReason';
 import { uploadFile } from '../../api/devtools';
+import { NotNeededNote } from '../../components/NotNeededNote';
 import {
   getRejectedFiles,
   deleteRejectedFiles,
@@ -431,6 +432,7 @@ export const FileManagementPage: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="space-y-2">
               <CardTitle>Rejected files</CardTitle>
+              <NotNeededNote kind="unknown_camera_files" />
               <CardDescription>
                 Files rejected by the ingestion pipeline. Rejected files older than 30 days are
                 automatically deleted daily at midnight UTC.

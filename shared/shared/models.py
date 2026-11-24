@@ -999,6 +999,24 @@ class Rejection(Base):
     )
 
 
+class TodoNotNeeded(Base):
+    """A To do line a person marked not needed (services/api/utils/todo.py).
+
+    Only lines that are a choice can be: a project without a species list,
+    a server without Telegram, files from unknown cameras. Hidden for
+    everyone who would see the line, until undone; the unknown files line
+    comes back when a newer file arrives. project_id is NULL for a server
+    line. One row per line.
+    """
+    __tablename__ = "todo_not_needed"
+
+    id = Column(Integer, primary_key=True)
+    kind = Column(String(50), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class TelegramConfig(Base):
     """System-wide Telegram bot configuration (admin only, single row)"""
     __tablename__ = "telegram_config"

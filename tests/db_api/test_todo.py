@@ -246,3 +246,69 @@ async def test_server_lines_for_server_admins_only(session, monkeypatch):
 
 async def test_a_healthy_server_has_no_lines(session):
     assert await lines(session, server_admin()) == {}
+
+
+# Not needed: only for the lines that are a choice, for everyone, undoable
+
+
+async def test_choose_species_marked_not_needed_hides_it_for_everyone(session):
+    from utils.todo import list_not_needed, mark_not_needed, may_mark, undo_not_needed
+    project = make_project(model=FIXED_MODEL)
+    admin = member(project, "project-admin", email="project-admin@example.org")
+    other_admin = server_admin()
+    viewer = member(project, email="viewer@example.org")
+    assert not await may_mark(viewer, "choose_species", project, session)
+    assert await may_mark(admin, "choose_species", project, session)
+
+    await mark_not_needed(admin, "choose_species", project, session)
+    assert await lines(session, admin, project) == {}
+    assert await lines(session, other_admin, project) == {}
+    [mark] = await list_not_needed(other_admin, session)
+    assert (mark.kind, mark.project_id, mark.by) == ("choose_species", project, "project-admin@example.org")
+    assert await list_not_needed(viewer, session) == []
+
+    await undo_not_needed("choose_species", project, session)
+    assert await lines(session, admin, project) == {"choose_species": 1}
+
+
+async def test_a_mark_stays_with_its_project(session):
+    from utils.todo import mark_not_needed
+    a, b = make_project("A", model=FIXED_MODEL), make_project("B", model=FIXED_MODEL)
+    admin = server_admin()
+    await mark_not_needed(admin, "choose_species", a, session)
+    assert await lines(session, admin, a) == {}
+    assert await lines(session, admin, b) == {"choose_species": 1}
+
+
+async def test_only_lines_that_are_a_choice_can_be_marked(session):
+    from utils.todo import may_mark
+    project = make_project()
+    admin = server_admin()
+    for kind in ("low_battery", "suspicious_moves", "services_down", "my_tasks"):
+        assert not await may_mark(admin, kind, project, session)
+        assert not await may_mark(admin, kind, None, session)
+    # A server line is a server admin's, and has no project.
+    project_admin = member(project, "project-admin")
+    assert not await may_mark(project_admin, "telegram_not_set_up", None, session)
+    assert not await may_mark(admin, "telegram_not_set_up", project, session)
+    assert await may_mark(admin, "telegram_not_set_up", None, session)
+
+
+async def test_unknown_files_come_back_with_a_newer_file(session):
+    from utils.todo import mark_not_needed
+    admin = server_admin()
+    make_rejection(None, None, days_ago=1)
+    await mark_not_needed(admin, "unknown_camera_files", None, session)
+    assert await lines(session, admin) == {}
+    make_rejection(None, None)  # arrives after the mark
+    assert await lines(session, admin) == {"unknown_camera_files": 1}
+
+
+async def test_telegram_marked_not_needed(session):
+    from utils.todo import mark_not_needed, undo_not_needed
+    execute("UPDATE telegram_config SET is_configured = false")
+    admin = server_admin()
+    await mark_not_needed(admin, "telegram_not_set_up", None, session)
+    assert await lines(session, admin) == {}
+    await undo_not_needed("telegram_not_set_up", None, session)
+    assert await lines(session, admin) == {"telegram_not_set_up": 1}

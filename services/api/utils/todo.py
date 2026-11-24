@@ -10,6 +10,12 @@ Each line says what and how many (`kind`, `count`). Words and links are
 the browser's (src/lib/todo-lines.ts). To add a nudge: count it here, give
 it a line there.
 
+Most lines leave only when fixed. The few that are a choice, not a fault
+(`NOT_NEEDED_KINDS`), can be marked not needed by whoever could fix them:
+hidden for everyone, with who and when kept, until undone. Not a personal
+hide: a shared problem that each person hides for themselves gets fixed
+by nobody.
+
 Who sees what:
 - the camera health lines (inactive, low battery, SD nearly full): every
   member, for the cameras they may see; a site-restricted viewer only the
@@ -28,13 +34,13 @@ from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.classification_models import SPECIESNET, get_model
 from shared.models import (
     Camera, CameraServiceTask, Project, ProjectIntegration, ProjectMembership, Rejection,
-    TelegramConfig, User,
+    TelegramConfig, TodoNotNeeded, User,
 )
 
 # A move nobody answered that came back to the site it left within
@@ -59,6 +65,16 @@ SUSPICIOUS_MOVES_SQL = f"""
 # Rejected files of no known camera: a camera that is not registered yet, or
 # a file without a device id. Only a server admin can act on them.
 UNKNOWN_FILES_DAYS = 7
+
+# The lines that may be marked not needed, and whose they are: a project
+# line is a project admin's, a server line a server admin's. Unknown files
+# come back when a file newer than the mark arrives; the others stay hidden
+# until undone.
+NOT_NEEDED_KINDS = {
+    'choose_species': 'project',
+    'telegram_not_set_up': 'server',
+    'unknown_camera_files': 'server',
+}
 
 
 class TodoItem(BaseModel):
@@ -109,6 +125,8 @@ async def todo_for(user: User, db: AsyncSession) -> TodoResponse:
     from routers.cameras import camera_responses
 
     memberships = await _memberships(user, db)
+    marked = {(r.kind, r.project_id): r.created_at
+              for r in (await db.execute(select(TodoNotNeeded))).scalars().all()}
     by_project = {m.project.id: m for m in memberships}
     project_ids = list(by_project)
     admin_ids = [pid for pid, m in by_project.items() if m.is_admin]
@@ -176,7 +194,8 @@ async def todo_for(user: User, db: AsyncSession) -> TodoResponse:
                 add(pid, 'integration_error', 1, target=row.kind)
         # SpeciesNet ignores the species list, so only a fixed-class model
         # asks for one.
-        if get_model(project.classification_model).kind != SPECIESNET and not project.included_species:
+        if (get_model(project.classification_model).kind != SPECIESNET and not project.included_species
+                and ('choose_species', pid) not in marked):
             add(pid, 'choose_species', 1)
 
     # Camera health, for every member.
@@ -189,16 +208,17 @@ async def todo_for(user: User, db: AsyncSession) -> TodoResponse:
         TodoProject(project_id=pid, project_name=by_project[pid].project.name, items=items[pid])
         for pid in project_ids if items[pid]
     ]
-    return TodoResponse(projects=projects, server=await _server_items(user, db))
+    return TodoResponse(projects=projects, server=await _server_items(user, db, marked))
 
 
-async def _server_items(user: User, db: AsyncSession) -> List[TodoItem]:
+async def _server_items(user: User, db: AsyncSession, marked: dict) -> List[TodoItem]:
     if not user.is_superuser:
         return []
     from routers.health import collect_services_health
 
     services = await collect_services_health(db)
     since = datetime.now(timezone.utc) - timedelta(days=UNKNOWN_FILES_DAYS)
+    since = max(since, marked.get(('unknown_camera_files', None), since))
     unknown_files = (await db.execute(
         select(func.count(Rejection.id))
         .where(Rejection.project_id.is_(None), Rejection.rejected_at > since)
@@ -208,6 +228,64 @@ async def _server_items(user: User, db: AsyncSession) -> List[TodoItem]:
     server = [
         TodoItem(kind='services_down', count=sum(1 for s in services if s.status != 'healthy')),
         TodoItem(kind='unknown_camera_files', count=unknown_files),
-        TodoItem(kind='telegram_not_set_up', count=0 if telegram else 1),
+        TodoItem(kind='telegram_not_set_up',
+                 count=0 if telegram or ('telegram_not_set_up', None) in marked else 1),
     ]
     return [item for item in server if item.count > 0]
+
+
+# Not needed
+
+
+class NotNeededItem(BaseModel):
+    kind: str
+    project_id: Optional[int] = None
+    by: Optional[str] = None  # email, None when that account is gone
+    at: str  # ISO time
+
+
+async def may_mark(user: User, kind: str, project_id: Optional[int], db: AsyncSession) -> bool:
+    """Whoever could fix the line may mark it: a project admin a project
+    line, a server admin a server line. Any other kind is never marked."""
+    from auth.permissions import can_admin_project
+
+    whose = NOT_NEEDED_KINDS.get(kind)
+    if whose == 'server':
+        return project_id is None and user.is_superuser
+    if whose == 'project':
+        return project_id is not None and await can_admin_project(user, project_id, db)
+    return False
+
+
+def _row_filter(kind: str, project_id: Optional[int]):
+    project = (TodoNotNeeded.project_id.is_(None) if project_id is None
+               else TodoNotNeeded.project_id == project_id)
+    return TodoNotNeeded.kind == kind, project
+
+
+async def mark_not_needed(user: User, kind: str, project_id: Optional[int], db: AsyncSession) -> None:
+    """Mark a line not needed, now and by this user. Marking again moves the
+    mark to now: for unknown files, that hides the files that came since."""
+    await db.execute(delete(TodoNotNeeded).where(*_row_filter(kind, project_id)))
+    db.add(TodoNotNeeded(kind=kind, project_id=project_id, user_id=user.id))
+    await db.commit()
+
+
+async def undo_not_needed(kind: str, project_id: Optional[int], db: AsyncSession) -> None:
+    await db.execute(delete(TodoNotNeeded).where(*_row_filter(kind, project_id)))
+    await db.commit()
+
+
+async def list_not_needed(user: User, db: AsyncSession) -> List[NotNeededItem]:
+    """The marks this user may see and undo, for the note on the page each
+    line links to."""
+    rows = (await db.execute(
+        select(TodoNotNeeded, User.email)
+        .outerjoin(User, User.id == TodoNotNeeded.user_id)
+        .order_by(TodoNotNeeded.id)
+    )).all()
+    return [
+        NotNeededItem(kind=r.kind, project_id=r.project_id, by=email, at=r.created_at.isoformat())
+        for r, email in rows
+        if await may_mark(user, r.kind, r.project_id, db)
+    ]

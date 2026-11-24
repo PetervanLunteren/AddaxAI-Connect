@@ -1053,6 +1053,21 @@ used different limits for the same thing and which people learned to ignore.
   80, SIM expiring before the 1st of the month after next. The email report
   and the SIM email read them too. Retired cameras and cameras that never
   reported never warn.
+- **Each line has the icon of the page it opens** (Moves, Cameras, Service,
+  Settings, the integration, System health, File management), so it shows
+  what it belongs to. Broken things (inactive, rejecting, a failing
+  integration or service) come first in their group.
+- **Not needed, for the lines that are a choice only** (`NOT_NEEDED_KINDS`
+  in `utils/todo.py`): choose the species, Telegram not set up, files from
+  unknown cameras. Whoever could fix the line (project admin, or server
+  admin for a server line) may mark it; it is hidden for everyone, with who
+  and when in `todo_not_needed`, and undone from the note on the page it
+  links to (`NotNeededNote`). Unknown files come back when a newer file
+  arrives. Every other line leaves only when fixed, and nothing is hidden
+  for one person: that is the model of Sentry's Archive and Datadog's mute
+  for shared problems; personal "done" (GitHub, Linear) is for messages,
+  and a shared problem each person hides for themselves gets fixed by
+  nobody. Decided 25 November 2026.
 - **Fresh:** polled every 5 minutes, and any successful change in the app
   refreshes it (`MutationCache` in `src/lib/query-client.ts`).
 - **Adding a nudge:** count it in `todo_for`, add its kind to
