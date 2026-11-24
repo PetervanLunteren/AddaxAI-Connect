@@ -141,6 +141,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
       .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''));
     const dep = here.find((d) => d.end_date == null) ?? here[0];
     return {
+      deploymentId: dep?.id ?? null,
       siteId: null,
       fromDate: dep?.start_date ?? new Date().toISOString().slice(0, 10),
       untilDate: dep?.end_date ?? null,

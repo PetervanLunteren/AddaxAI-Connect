@@ -55,6 +55,7 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
     const dep = deployments.find((d) => d.id === item.id);
     if (!dep) return;
     setPrefill({
+      deploymentId: dep.id,
       siteId: dep.site_id,
       fromDate: dep.start_date ?? today(),
       untilDate: dep.end_date,
@@ -64,7 +65,7 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
   };
 
   const newDeployment = (fromDate: string, untilDate: string | null) =>
-    setPrefill({ siteId: null, fromDate, untilDate, lat: null, lon: null });
+    setPrefill({ deploymentId: null, siteId: null, fromDate, untilDate, lat: null, lon: null });
 
   return (
     <div className="space-y-6">
@@ -113,7 +114,6 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
         <SetDeploymentDialog
           projectId={pid}
           camera={camera}
-          title={prefill.siteId != null ? 'Edit deployment' : 'Set site'}
           prefill={prefill}
           onClose={() => setPrefill(null)}
         />

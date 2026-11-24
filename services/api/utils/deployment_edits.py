@@ -8,7 +8,7 @@ is the only code that writes deployments; it runs on the request's own
 session (through run_sync), so a correction and its rebuild are saved
 together or not at all.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 from sqlalchemy import func, select, text
@@ -42,14 +42,18 @@ async def state(
     until_at: Optional[datetime],
     user_id: Optional[int],
     answers_move_at: Optional[datetime] = None,
+    replaces: Iterable[DeploymentStatement] = (),
+    removed_by: Optional[int] = None,
 ) -> int:
     """
     Record that the camera stood at the site from from_at until until_at, and
     rebuild it. With until_at None the camera is still there: the period is
     fixed up to its newest photo, and after that the GPS carries on, so a
     later move is still seen. answers_move_at is the start of the move this
-    takes back, for "It stayed" only. Returns the statement's id, so the
-    screen can offer Undo at once. Does not commit.
+    takes back, for "It stayed" only. `replaces` are the statements this one
+    takes the place of (Edit deployment): they are marked removed, with this
+    statement as what replaced them, so Undo brings them back. Returns the
+    statement's id, so the screen can offer Undo at once. Does not commit.
     """
     fixed_until_at = await newest_photo_at(db, camera_id) if until_at is None else None
     statement = DeploymentStatement(
@@ -63,6 +67,12 @@ async def state(
         created_by_user_id=user_id,
     )
     db.add(statement)
+    await db.flush()
+    now = datetime.now(timezone.utc)
+    for old in replaces:
+        old.removed_at = now
+        old.removed_by_user_id = removed_by
+        old.replaced_by_statement_id = statement.id
     await db.flush()
     await rebuild(db, [camera_id])
     return statement.id

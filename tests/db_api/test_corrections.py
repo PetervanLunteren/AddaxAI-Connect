@@ -416,3 +416,65 @@ async def test_a_site_made_on_top_of_another_does_not_take_its_cameras(session, 
     await remove_statement(project, result.statement_id, session, admin)
     [dep] = deployments(cam)
     assert dep["site_id"] == home
+
+
+def _s04(project):
+    """A camera at Stream west on days 1-14 and 180 m east from day 15."""
+    west = make_site(project, "Stream west", HOME)
+    east_point = offset(HOME, east_m=180)
+    east = make_site(project, "Stream east", east_point)
+    cam = make_camera("S04", project)
+    history(cam, [(HOME, at(d)) for d in range(1, 15)] + [(east_point, at(d)) for d in range(15, 21)])
+    return cam, west, east
+
+
+async def edit(session, admin, project, cam, deployment_id, site, from_day, until_day=None):
+    return await set_deployment(project, SetDeploymentRequest(
+        camera_id=cam, site_id=site, from_date=day(from_day),
+        until_date=day(until_day) if until_day else None, deployment_id=deployment_id), session, admin)
+
+
+async def test_editing_a_corrected_deployment_replaces_its_correction(session, admin):
+    """The days an edit leaves out go back to the app, also when a person
+    made the deployment: the edit replaces that correction instead of
+    stacking on it, where the older one would keep those days."""
+    project = make_project()
+    cam, west, east = _s04(project)
+    [one] = deployments(cam)
+    await edit(session, admin, project, cam, one["id"], east, 1)  # first try: Stream east all along
+    [corrected] = deployments(cam)
+    assert (corrected["site_id"], corrected["site_source"]) == (east, "manual")
+
+    await edit(session, admin, project, cam, corrected["id"], east, 15)  # then: only from day 15
+    before, after = deployments(cam)
+    assert (before["site_id"], before["site_source"], before["end_date"]) == (west, "auto", day(14))
+    assert (after["site_id"], after["site_source"], after["start_date"]) == (east, "manual", day(15))
+    assert len([s for s in statements(cam) if s["removed_at"] is None]) == 1
+
+
+async def test_undo_of_an_edit_brings_back_what_it_replaced(session, admin):
+    project = make_project()
+    cam, west, east = _s04(project)
+    [one] = deployments(cam)
+    first = await edit(session, admin, project, cam, one["id"], east, 1)
+    [corrected] = deployments(cam)
+    second = await edit(session, admin, project, cam, corrected["id"], east, 15)
+
+    await remove_statement(project, second.statement_id, session, admin)
+    [back] = deployments(cam)
+    assert (back["site_id"], back["site_source"], back["start_date"]) == (east, "manual", day(1))
+    [live] = [s for s in statements(cam) if s["removed_at"] is None]
+    assert live["id"] == first.statement_id and live["replaced_by_statement_id"] is None
+
+
+async def test_editing_a_deployment_the_gps_made_replaces_nothing(session, admin):
+    project = make_project()
+    cam, west, east = _s04(project)
+    other = make_camera("OTHER", project)
+    history(other, [(HOME, at(1))])
+    await set_deployment(project, SetDeploymentRequest(
+        camera_id=other, site_id=east, from_date=day(1)), session, admin)
+    [one] = deployments(cam)
+    await edit(session, admin, project, cam, one["id"], east, 15)
+    # The other camera's correction is untouched, and this camera had none.
+    assert [s["removed_at"] for s in statements(other)] == [None]

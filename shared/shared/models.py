@@ -376,6 +376,10 @@ class DeploymentStatement(Base):
     # (camera clock, naive, as deployments.start_at). NULL for every other
     # statement. Undo leads to exactly that move again.
     answers_move_at = Column(DateTime(timezone=False), nullable=True)
+    # Set on a statement an edit of its deployment replaced (removed_at is set
+    # then too): the statement that replaced it. Undo of that one brings this
+    # one back, so an edit is undone to what was there before.
+    replaced_by_statement_id = Column(Integer, ForeignKey("deployment_statements.id", ondelete="SET NULL"), nullable=True)
     # 'person' = a correction in the app, 'upload' = an upload to a chosen
     # site, 'carried_over' = written once by scripts/carry_over_deployments.py
     # to keep history from before phase 2 as it was.

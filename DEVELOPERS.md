@@ -790,14 +790,20 @@ are the one record; nothing about a move is stored apart from them.
   - a GPS part keeps the site its stored row had only when the GPS chose
     it (`deployment_rebuild.py`): after Undo the GPS decides again.
 - **Corrections elsewhere.** The camera panel lists them as "Corrections",
-  each with Undo; each deployment has Edit, which opens the one placement
-  form as "Edit deployment" with its site and days (`SetDeploymentDialog`;
-  "Set site" for a camera without a site). It covers a wrong site, a move
-  the GPS missed (the new site from the day of the move), a camera without
-  GPS, a first day before the first photo. Only the days given are
-  written; the app works out every other day again from the GPS, which the
-  form says in a sentence above Save, next to the days the camera has
-  photos (so a wrong year stands out).
+  each with Undo; each deployment has Edit. A deployment is a camera, a
+  site and a period, and Edit deployment (`SetDeploymentDialog`) shows just
+  those: the camera fixed (photos belong to the camera that took them), the
+  site and the first and last day editable; "Add deployment" for a camera
+  without a site. One rule covers every placement fix: the days given are
+  at that site, and days an edit leaves out go back to the app, which
+  places them from the GPS. A move the GPS missed is a later first day, a
+  first photo a week late an earlier one. An edit replaces the corrections
+  that made the deployment (`deployment_id` on the request; the replaced
+  statements get `replaced_by_statement_id`), so leaving days out really
+  gives them back instead of an older correction keeping them; Undo of the
+  edit brings them back. Lines above Save name the days that go back to the
+  app and the days that move here from another deployment, and under the
+  days the camera's photo days, so a wrong year stands out.
   The site panel has Name this site and, when two cameras share a site,
   Give it its own site. A correction deletes a site it emptied when that
   site still has the app's name (`drop_unnamed_sites_left_empty`); a site

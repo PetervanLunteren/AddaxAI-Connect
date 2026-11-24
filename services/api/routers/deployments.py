@@ -145,6 +145,10 @@ class SetDeploymentRequest(BaseModel):
     from_date: date
     # The last day the camera stood there. None means it still stands there.
     until_date: Optional[date] = None
+    # The deployment this edits (Edit deployment), None when adding one. The
+    # corrections that made it are replaced, so the days the edit leaves out
+    # go back to the app.
+    deployment_id: Optional[int] = None
 
 
 class SetDeploymentResponse(BaseModel):
@@ -265,7 +269,9 @@ async def set_deployment(
     from_at, until_at = period_of_days(request.from_date, request.until_date)
     before = await _deployment_count(db, request.camera_id)
     sites_before = await _camera_site_ids(db, request.camera_id)
-    statement_id = await state(db, request.camera_id, request.site_id, from_at, until_at, user.id)
+    replaced = await _statements_of(db, request.camera_id, request.deployment_id)
+    statement_id = await state(db, request.camera_id, request.site_id, from_at, until_at, user.id,
+                               replaces=replaced, removed_by=user.id)
     await drop_unnamed_sites_left_empty(db, sites_before)
     merged = max(0, before - await _deployment_count(db, request.camera_id))
     await db.commit()
@@ -274,6 +280,34 @@ async def set_deployment(
         site_id=request.site_id, from_date=str(request.from_date), until_date=str(request.until_date),
     )
     return SetDeploymentResponse(statement_id=statement_id, merged=merged)
+
+
+async def _statements_of(db: AsyncSession, camera_id: int, deployment_id: Optional[int]) -> List[DeploymentStatement]:
+    """The live corrections that made this deployment: the camera's
+    statements whose period overlaps it. None for a deployment the GPS made,
+    or when adding one."""
+    if deployment_id is None:
+        return []
+    deployment = (await db.execute(
+        select(Deployment).where(Deployment.id == deployment_id, Deployment.camera_id == camera_id)
+    )).scalar_one_or_none()
+    if deployment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
+    if deployment.site_source != 'manual':
+        return []
+    rows = (await db.execute(
+        select(DeploymentStatement).where(
+            DeploymentStatement.camera_id == camera_id,
+            DeploymentStatement.removed_at.is_(None),
+        )
+    )).scalars().all()
+
+    def overlaps(s: DeploymentStatement) -> bool:
+        s_end = s.until_at or s.fixed_until_at
+        starts_before_end = deployment.end_at is None or s.from_at < deployment.end_at
+        ends_after_start = s_end is None or s_end > deployment.start_at
+        return starts_before_end and ends_after_start
+    return [s for s in rows if overlaps(s)]
 
 
 async def _remove_statements(db: AsyncSession, project_id: int, statement_ids: List[int], user: User) -> None:
@@ -299,6 +333,14 @@ async def _remove_statements(db: AsyncSession, project_id: int, statement_ids: L
     for row in rows:
         row.removed_at = now
         row.removed_by_user_id = user.id
+    # An edit undone: what it replaced is back.
+    replaced = (await db.execute(
+        select(DeploymentStatement).where(DeploymentStatement.replaced_by_statement_id.in_(wanted))
+    )).scalars().all()
+    for row in replaced:
+        row.removed_at = None
+        row.removed_by_user_id = None
+        row.replaced_by_statement_id = None
     await db.flush()
     await rebuild(db, [row.camera_id for row in rows])
     await db.commit()

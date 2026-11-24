@@ -41,6 +41,9 @@ export interface SetDeploymentRequest {
   site_id: number;
   from_date: string; // YYYY-MM-DD
   until_date: string | null; // YYYY-MM-DD, the last day; null = still there
+  // The deployment this edits; its corrections are replaced, so the days
+  // the edit leaves out go back to the app. Absent when adding one.
+  deployment_id?: number | null;
 }
 
 // `merged` is how many deployments fewer the camera has afterwards: periods
