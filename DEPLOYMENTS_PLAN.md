@@ -456,14 +456,17 @@ Notes per step:
 - **Walkthrough with Peter**, started 20 November 2026. Peter walks the
   twelve scenarios one by one in the browser and gives feedback; fixes are
   collected and made after S12, unless one blocks him.
-  - Dev holds an otherwise empty "Deployment scenarios" project (id 12)
+  - Dev holds a "Deployment scenarios" project (id 5 since 24 Nov)
     with only S01. The next scenario is added with
     `docker compose exec -T ingestion python /app/scripts/dev_deployment_scenarios.py --only S02`
     (one camera, its whole history at once). To start over, delete the
     project (images first, then cameras, sites, project) and run `--only S01`.
   - Per scenario, send Peter a card: what really happened, where to look,
     what he should see, what to do. Then wait for "next" or feedback.
-  - Status: S02 under review (reset on 21 Nov, S01 and S02 re-added).
+  - Status: S02 done (It moved). On 24 Nov the dev database was replaced;
+    S01 and S02 were re-added (project 5), S02 marked checked again, and
+    the "Moves layout test" project was made again (project 6, made by a
+    throwaway script in the session scratchpad, not in the repo).
   - Feedback, numbered:
     1. S01, camera panel: Set site, Change site and an empty "Set by
        people" on a camera that needs nothing is too much. Fixed at once:
