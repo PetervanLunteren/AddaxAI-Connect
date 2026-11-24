@@ -288,7 +288,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                   where the columns stack, it has that height. */}
               <div className="md:col-span-2 min-w-0 h-[min(65vh,640px)] md:h-auto md:min-h-[min(65vh,640px)]">
                 <DeploymentsMap
-                  key={current ?? 'none'}
+                  key={it?.key ?? current ?? 'none'}
                   sites={sites}
                   activeSiteIds={active.size === 0 ? null : active}
                   arrows={arrows}
