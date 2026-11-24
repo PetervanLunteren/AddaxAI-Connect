@@ -35,7 +35,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 2b | done, release with the branch | `deployments-phase-2` |
 | 2c | done, release with the branch | `deployments-phase-2` |
 | 3a | done, release with the branch | `deployments-phase-2` |
-| 3b | done, walkthrough with Peter in progress | `deployments-phase-2` |
+| 3b | done, walkthrough with Peter at S03 | `deployments-phase-2` |
 | 3c | dropped, see the notes of 3b | |
 | 4 | not started | `deployments-phase-2` |
 | docs | not started | `deployments-phase-2` |
@@ -341,306 +341,83 @@ Notes per step:
     route sits in `RequireProjectAdmin`, the phone layout switches at
     768 px.
 
-- **3b**, planned on 20 November 2026 after mock-ups of four ways to show
-  moves (a polished timeline, a moves review, a date slider, video
-  playback). Peter chose the moves review, grown into the one place for
-  everything the camera updates panel did. Playback stays rejected: cameras
-  jump, they do not travel, and animation is for presenting, not checking.
-  - Decided: "Correct" stores who checked and when on the deployment
-    (`checked_at`, `checked_by_user_id`) and fixes nothing; only a
-    correction writes a fixed period, which always looks back. Change site
-    is a click on the map, then the Set deployment form. Two tabs, To check
-    and History. Built in two parts: the review list (part 1), then adding
-    sites on the map with hand-placed pins that stay (part 2, which takes
-    the add-site part of 3c).
-  - Part 1 built and deployed on 20 November 2026 (`56aeccbb`, fix
-    `bfcb0e6a`). The feed table, router, panel and Updates button are gone,
-    the badge moved to Deployments. Migration `20261121_deployment_checked`
-    keeps open feed entries to check and reviewed ones with who and when;
-    tested on a throwaway database. A correction removes a site it emptied
-    when nobody named it.
-  - On dev with the "Deployment scenarios" project: 19 to check after the
-    migration (18 open feed entries and S06). S12's move, which the old
-    feed never listed, is on the list. Tested in the browser: Correct and
-    Undo (S02), It did not move on S03's trip out (one bar at Meadow, the
-    unnamed site gone, badge 19 to 16), Set site by a click on Meadow
-    (S06), Change site to Fen from 1 October (S11), Name this site on a new
-    camera at a new place, Mark all as checked (empty list, badge gone), no
-    Updates button on the Cameras page, History shows the corrections as
-    fixed bars. Two map bugs found and fixed: arrow heads under the pins,
-    and no refit after the selection cleared.
+- **3b, where it ended** (24 November 2026, after six rounds and a
+  walkthrough of S01 and S02 with Peter). The details of what exists are
+  in `DEVELOPERS.md`, "Moves". In short:
+  - **Moves**, a page under Admin tools next to Curation: a table of every
+    move the app saw and every correction a person made. An overview to
+    look things up in, not a to-do list; the app is automatic first.
+  - A row click opens a check window like image verification with one
+    question, did it really move: **It moved** (Enter) records that a
+    person looked and fixes nothing; **It stayed at Pond** (W) writes a
+    correction at once, with Undo on the spot.
+  - Only **suspicious** moves (back at the same site within a week) get an
+    amber pill and count for the badge.
+  - A move to the wrong site is fixed elsewhere: merging sites (Sites page)
+    or Wrong site? (camera panel). Started cameras are named in the site
+    panel; photos without a site are the Cameras page's.
+  - Undo is exact: a move is keyed by camera and start, which come from
+    the photos, and "It stayed" records the move it answered
+    (`answers_move_at`, migration `20261124_statement_answers_move`).
+  - Two rules of the rebuild changed on the way, both bugs found in the
+    walkthrough, each with a test that fails without the fix: a correction
+    never moves a site pin, and after Undo the GPS decides again (a stored
+    site is only kept when the GPS chose it).
+  - Rules that hold for the rest of the plan: before adding a screen, a
+    button or a word, ask what the user must never have to do and what can
+    go; a deterministic rule over a heuristic, also in the screens; finish
+    the walkthrough before more polish.
+  - Open before the release: re-run the comparison on restored production
+    data (step 2c), because the two rebuild rules above changed after it.
+    And a glitch seen while testing, older than this work: a page opened
+    in a fresh tab right after a frontend deploy sometimes says "Please
+    select a project" until reloaded.
+  - History, one line each (details in git):
+    - 20 Nov: a Deployments page with a timeline (3a), then a review page
+      with To check and History tabs.
+    - 20 Nov: simplified after an audit ("it feels like an administration
+      website"): one Camera updates page, Right and Wrong, no timeline.
+    - 20 Nov: the check one at a time like image verification; then no
+      page, a chip on the Cameras page.
+    - 21 Nov, walkthrough S01: one "Wrong site?" per deployment in the
+      camera panel; Corrections hidden while empty; slide-out tabs on one
+      row; date fields on iPhone.
+    - 21 Nov, walkthrough S02: the check in the image verification frame;
+      a menu, then the page back as a table with filters and bulk actions
+      (finding one decision among hundreds needs a table); only moves and
+      corrections; named Moves; columns split, one line per row, distance.
+    - 21 Nov: two rebuild bugs fixed (pins, Undo), see above.
+    - 22 Nov: quieter, automatic first: one question, under Admin tools,
+      fewer columns, the decision as a caption under the buttons.
+    - 24 Nov: the window guessed which move an undone correction belonged
+      to and could pick the wrong one; replaced by the exact keys above.
+  - Step 3c (moving a pin, a merge that can be reversed) stays dropped
+    until someone asks for it.
 
-  - **Simplified on 20 November 2026, after an audit.** Peter: it felt
-    like an administration website, while the app should be automatic
-    first and only let people fix its mistakes. What went wrong: the page
-    asked a person to approve everything the app did, the storage words
-    (fixed period, automatic, checked) were on the screens, the same fix
-    could be made in three places, and the history timeline of 3a answered
-    a question nobody had. Every planning round added, none removed.
-  - What it is now: one page, **Camera updates**, a map next to one list
-    by week. Per update Right or Wrong, and nobody has to answer. Wrong
-    asks what happened: it stands at another site (click it on the map),
-    or it did not move. A place the app named gets Name this site, photos
-    without a site get Set site. The badge counts only what needs a
-    person: photos without a site, an unnamed place, a move that came back
-    within a week.
-  - Removed: the History tab and its timeline, the To check and All
-    switch, the detail card extras, the links from the camera and site
-    panels, the words "fixed period" and "Set deployment" on the screens
-    (the camera panel says "Set by people" with Undo, the form is "Set
-    site").
-  - Sites are added on the Sites page: Add site, single or from a CSV
-    (Name, Latitude, Longitude, Notes). No add mode on the map, no pin
-    column: a pin a person placed stays until a GPS camera lands there,
-    then it follows the readings.
-  - Step 3c (moving a pin, a merge that can be reversed) is dropped until
-    someone asks for it.
-  - A rule for the rest of this plan: before adding a screen, a button or
-    a word, ask what the user must never have to do, and what can go.
-  - **Round 3, the check**, planned and built on 20 November 2026. The
-    page still felt odd: the map and the list did not work together, and
-    Right and Wrong on every row suggested work that was not needed. Now
-    the page is a summary with Check updates, the map and a read-only log,
-    and the check shows one update at a time like image verification: the
-    map of that camera, the last photo before the move next to the first
-    after it, Right (Enter) or Wrong (W), then the next. Decided: in the
-    check are moves, starts at a new place and photos without a site; a
-    start at a site you have is not asked about.
-  - Deployed and tested on dev on 20 November 2026 (`9f71d421`, fix
-    `9665e76e`), on a fresh scenario project: "8 updates to check, 2 need
-    you", the check opened at 1 of 8 with S06 and S03 first. Arrow right
-    stepped on. W and It did not move on S03 went to the next by itself.
-    W, another site on S11: Fen clicked on the check's map, first day 1
-    October, saved, next. Enter marked the rest right; the end screen
-    counted them. A log line opened the check at that update with its
-    answer and Undo; Esc closed. Set site on S06 by a click on Meadow.
-    One fix found there: an update that disappears during a check (the way
-    back of a trip taken back) is now stepped over and not counted as
-    skipped. The test photos showed blurred because detection had not
-    reached them yet: the app blurs a photo fully until it is checked for
-    people. Real photos are processed and show sharp.
-  - Deployed and tested on dev on 20 November 2026 (`e984f1e3`), on a
-    fresh "Deployment scenarios" project: 2 updates needed a person (S06
-    photos without a site, S03 back within a week), 17 more were optional.
-    Wrong on S03, It did not move: the badge went to 1. Right on S02: greyed
-    with who and when, Undo shown. Wrong on S11, another site: Fen clicked
-    on the map, first day set to 1 October. Set site on S06 by clicking an
-    empty spot: Add site opened at that spot, Willow pool created, the
-    camera placed there. Then "Nothing needs you" and no badge. Sites page:
-    Add site with both choices, a CSV with 4 rows gave 2 added and 2 clear
-    reasons (name in use, a comma as decimal sign). The camera CSV import,
-    now on the shared reader, still works.
-  - **Round 4**, planned and built on 20 November 2026. Peter: most of it
-    goes right by itself, so why a page? What goes right by itself: a
-    camera that stays, starts or moves between known sites, GPS noise,
-    late photos, a camera that goes silent. What a person does: place a
-    camera without GPS (the check), look at moves (the check, all moves,
-    the ones back within a week first, one click for the rest). What a
-    person may do: name a place the app named and give a camera its own
-    site when two share one (both in the site panel, not to-dos). A move on
-    the wrong day: nothing new. The Camera updates page and its sidebar
-    item went; the check opens from a chip on the Cameras page and the
-    badge sits on Cameras again.
-  - Deployed and tested on dev on 20 November 2026 (`706817db`), fresh
-    scenario project: no Camera updates item, badge 2 on Cameras, chip "8
-    camera updates to check". In the check: It did not move on S03, Enter
-    once, the way back of S03 stepped over by itself, then "This one and
-    the 3 moves after it are right": "5 right, 1 wrong, 1 skipped" (S06).
-    Afterwards "1 camera update to check" and badge 1. Site panel: Name
-    this site on a new camera's place, saved as Hazel corner. Pond's
-    Cameras tab: Give it its own site for S10, Add site on the camera's
-    pin, Set site from 15 Aug (its start at Pond), saved; Pond keeps only
-    S01. The new site's pin follows the camera's own GPS, as every pin
-    does, so a typed spot is moved to where the photos say the camera is.
-
-- **Walkthrough with Peter**, started 20 November 2026. Peter walks the
-  twelve scenarios one by one in the browser and gives feedback; fixes are
-  collected and made after S12, unless one blocks him.
-  - Dev holds a "Deployment scenarios" project (id 5 since 24 Nov)
-    with S01 and S02. The next scenario is added with
-    `docker compose exec -T ingestion python /app/scripts/dev_deployment_scenarios.py --only S03`
-    (one camera, its whole history at once). To start over, delete the
-    project (images first, then cameras, sites, project) and run `--only S01`.
-  - Per scenario, send Peter a card: what really happened, where to look,
-    what he should see, what to do. Then wait for "next" or feedback.
-  - Status: S02 done (It moved). On 24 Nov the dev database was replaced;
-    S01 and S02 were re-added (project 5), S02 marked checked again, and
-    the "Moves layout test" project was made again (project 6, made by a
-    throwaway script in the session scratchpad, not in the repo).
-  - Feedback, numbered:
-    1. S01, camera panel: Set site, Change site and an empty "Set by
-       people" on a camera that needs nothing is too much. Fixed at once:
-       one "Wrong site?" per deployment (the first day can be moved for a
-       missed move), the separate Set site only for photos without a site
-       or a camera without deployments, "Set by people" hidden while empty.
-       Fixing where a camera stood stays in the camera panel; the Sites
-       page is about the place itself.
-    2. S01, after a test correction: "Set by people" with its explanation
-       was too much text. Fixed at once: the list is "Corrections", one
-       line of help, rows "Fen from 1 Aug 2026" over "by <email>, 20 Nov
-       2026". Not "Pond to Fen": what the app had before is not stored.
-    3. Slide-outs: the camera panel's five tabs wrapped to two rows, and the
-       SIM expiry date field was a grey, too wide pill on iPhone. Fixed at
-       once: sheets are max-w-xl, tabs scroll sideways instead of wrapping
-       (TabStrip), and date fields on iOS look like the other fields
-       (index.css, iOS only).
-    4. S02: should camera updates get a tab or a history page, so people
-       can reach them when nothing waits? Decided no (YAGNI, it would bring
-       back the page removed in round 4). But the chip had two looks
-       (outlined with "Needs attention", or a lone ghost button). Fixed at
-       once: a fixed Camera updates button in the Cameras page header for
-       admins, always there, with a count that is amber when something
-       needs a person and grey for ordinary moves. The attention strip is
-       back to field problems only.
-    5. S02, the check window read like a report (title, long sentences, a
-       paragraph with the rule) and the button counted ordinary moves.
-       Fixed at once: the check uses the image verification frame (shared
-       `REVIEW_WINDOW_CLASS` and `PopoverLink`), a big map left, one card
-       right with camera, "Pond → Ridge", day and distance, two small
-       photos without captions (kept: on a real camera they settle a false
-       move at a glance; a click opens the photo), Right and Wrong full
-       width, a status line, shortcuts behind a link. The button counts
-       only what needs a person; ordinary moves are findable, not asking.
-    6. S02: going back to earlier decisions. Fixed at once: the Camera
-       updates button is a menu with Needs you, Not checked yet and Checked,
-       each with its count and opening the check with that group; empty
-       groups show greyed. Also the review window got a set width, so the
-       map no longer keeps a narrow first size when the photos load.
-    7. Design issue, to plan and fix after S12: site pins follow the mean
-       GPS of every deployment at the site, also deployments a correction
-       placed. A wrong correction drags the pin to that camera's GPS, and
-       the build then snaps other cameras to the moved pin. Undo does not
-       bring the pin back. Seen on dev 21 Nov: Peter's test corrections
-       (S01 at Fen, S02 at Pond from 1 Sep) moved Fen onto Pond's spot and
-       Pond onto Ridge's, so S02's August became Fen and Pond and Ridge
-       overlapped. It blocked S03 ("It did not move" did the same to Pond),
-       so fixed at once on 21 Nov: only deployments the app placed itself
-       (site_source auto) move a pin (`RECOMPUTE_SITE_LOCATION_SQL`), which
-       is also what "A pin set by a person stays where it is" in the Sites
-       section asked for. Test project reset afterwards.
-    8. S02, the check window: facts as label and value rows in their own
-       card (`DetailRow`, shared with Show details), Right and Wrong on one
-       row with keys (`Kbd`, copied from AddaxAI desktop, also on Verify
-       and Same as last in image verification), Wrong a menu (opened by W
-       too), the map on satellite, everything of the camera magenta, the
-       arrow from 15% to 85%, no separate deployment pin, a legend.
-    9. S02, simpler still: the map shows only site A, the arrow and site B,
-       all magenta; the GPS dots, the noise ring and the legend went, and
-       with them the readings endpoint (`GET .../cameras/{id}/readings`),
-       its models and tests. The GPS columns and their backfill stay: they
-       are the input of the build. Right and Wrong back on their own rows,
-       so they do not read as belonging to one photo.
-   10. S02, Wrong from the user's side: "It stayed at Pond" (was "It did
-       not move", the GPS was off) and "It moved, but not to Ridge" (was
-       "It stands at another site": the camera moved to an existing site
-       whose pin is over 250 m from its GPS, or the app snapped to the
-       wrong one of two close sites). No confirmation before Wrong; it
-       stays on screen with Undo (the API now returns the statement id).
-       Peter could not find how to undo a Wrong: corrected moves are in
-       none of the three groups, only under Corrections in the camera
-       panel. Show GPS of photos as a toggle: decide at S03.
-   11. S02: Checked is everything a person decided, Right and Wrong, to
-       review and undo in one place. Corrections a person made (not upload
-       or carried-over periods) are items in Checked: camera, Set to, Days,
-       By, the site magenta on the map, Next and Undo. Same endpoint as the
-       camera panel's Corrections, without camera_id for the project.
-   12. S02: Undo of "It stayed at Pond" left the camera at Pond. The
-       rebuild kept the site of the stored row for a GPS part, also when a
-       person had set that site. Fixed at once: only a site the GPS chose
-       is kept, so after Undo the GPS decides again. Test with more photos
-       after the move than before, as S02 has; it failed before the fix.
-       In the check, Undo now forgets the answer, so the move that comes
-       back asks Right or Wrong again. Test data reset (project 15).
-   13. S02: the menu with three counts hid what people want to see, and
-       one decision among hundreds could not be found. Built: the Camera
-       updates page (sidebar under Cameras, the badge moved there), a
-       table of moves, started, photos without a site and corrections
-       with the shared filter bar; a row opens the check window. Bulk
-       with checkboxes: Mark right, Undo checks, and Undo corrections
-       behind a typed word (`POST .../statements/undo`). The menu on the
-       Cameras page and "Right, and the next N too" went. A page, not a
-       tab: in this app a tab is another view of the same rows.
-   14. Simplified to two kinds: Camera updates lists moves and
-       corrections only. Started needs nothing (naming is in the site
-       panel); photos without a site are a camera's problem, on the
-       Cameras page (attention chip, Set site in the panel). The badge
-       counts only moves back within a week. The deployments list lost
-       its photo days and its photos without a site, which only these
-       rows used.
-   15. The page is called Moves (sidebar, title, `/moves`, `MovesPage`,
-       `CheckMovesModal`): one word like the other pages, and not a second
-       item starting with Cameras. The What column and filter went: Status
-       (Corrected) and Where (one site or an arrow) already tell a move
-       from a correction. Live feed keeps its name. The user docs
-       (`docs/sites-and-deployments.md`) still say Camera updates; the
-       docs step rewrites them.
-   16. One fact per cell: Status, Decided by and Decided on are three
-       sortable columns. Status is what a person decided: Not checked,
-       Checked, Corrected. Suspicious (back at the same site within a
-       week) is what the app thinks, an amber pill next to Not checked,
-       gone once someone answers; a Status filter option, on top of the
-       table, and what the badge counts. `SuspiciousPill` is shared by the
-       table and the window.
-   17. A Distance column, sortable by metres. Not part of the Suspicious
-       rule: GPS errors and real moves both come short and long, so
-       distance alone does not tell them apart; the person judges it.
-   18. Layout, tested on a dev project of 20 rows with long names ("Moves
-       layout test", id 16, throwaway): Where wrapped into rows ten lines
-       high. Now From and To are two sortable columns, long names and
-       camera ids are cut on one line with the full text on hover, and
-       headers do not wrap. A fixed layout fits all nine columns at laptop
-       width (short columns set, the four text columns share the rest;
-       below 64rem it scrolls), and Date shows the first day only.
-   19. Seen while testing, not fixed: a page opened in a fresh tab right
-       after a frontend deploy sometimes says "Please select a project"
-       until reloaded (Moves and Cameras alike). Looks like the project
-       context loading race, older than this work.
-   20. Quieter, automatic first (22 Nov). The check asks one question,
-       did it really move: "It moved" (Enter) or "It stayed at Pond" (W,
-       at once, Undo on the spot). "It moved, but not to Ridge" went: a
-       new place where a site exists is fixed by merging sites, a snap to
-       the wrong close site by Wrong site? in the camera panel. No
-       shortcuts pop-up (keys are on the buttons); the shared PopoverLink
-       now closes on a click outside and on Escape (caught in the capture
-       phase, so the window behind stays open). Moves moved under Admin
-       tools next to Curation, its badge also on the closed group. The
-       table lost Decided by and Decided on (the filter stays); Status is
-       quiet, a pill only for Suspicious, Checked and Corrected.
-   21. The window's facts card shows the table's columns in the same order
-       (Date, Camera, From, To, Distance, Status) plus Decided by and
-       Decided on, and the status line under the buttons went. The two
-       photos have a caption again ("Last photo at Pond", "First photo at
-       Ridge"): on hover only, people did not know what they saw, and a
-       phone has no hover. `MoveStatus` is the one status pill for the
-       table and the window.
-   22. The decision moved out of the facts card to a small caption under
-       the buttons, where it is made ("Checked by ..., 24 Nov 2026",
-       "Not checked", or the Suspicious pill); the card only shows what
-       the app saw. The map takes the height of the cards next to it (on a
-       phone a set height) and redraws when its box changes size, so no
-       grey strip when the photos load.
-   23. A correction in the window shows three rows: Date (its whole
-       period), Camera, Site. No empty From or Distance, no date twice.
-       What the correction replaced is not shown: it is not stored.
-   24. Undo after "It stayed" in the window showed "Undone" instead of the
-       question: the merged move comes back as a new row with a new id.
-       The window now remembers the move by camera and start, finds it
-       again, and asks It moved or It stayed again. The case Peter hit was
-       the other one: a correction opened from the table (filter
-       Corrected) and undone there. The window now shows the camera's
-       first move within the correction's days; only without one it says
-       Undone.
-  - The scenarios, what really happened, and the answer on the screens:
-    S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
-    check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not
-    move). S04 moved 180 m on 15 Sep, unseen (camera panel, Set site
-    Stream east from 15 Sep). S05 one stray fix 3 km off (nothing). S06 no
-    GPS at Meadow from 1 Oct (check, Set site). S07 GPS gaps in October
-    (nothing). S08 silent since 20 Sep (nothing, shows inactive). S09 Old
-    mill, Beech wood in September, Old mill (Right twice). S10 next to S01
-    at Pond, own spot (site panel, Give it its own site). S11 moved 1 Oct,
-    first photo 8 Oct (Wrong, another site, Fen from 1 Oct). S12 moved 1
-    Sep, August photos from an old card arrive last (Right).
+- **Walkthrough with Peter**, started 20 November 2026, S01 and S02 done.
+  Peter walks the scenarios one by one; feedback is collected and fixed
+  after S12, unless it blocks.
+  - Dev: "Deployment scenarios" is project 5, with S01 and S02 (S02 an
+    unchecked move, as Peter left it). "Moves layout test" is project 6, 20
+    rows with long names, made by a throwaway script, not in the repo. The
+    next scenario: `docker compose exec -T ingestion python
+    /app/scripts/dev_deployment_scenarios.py --only S03`. To start over,
+    delete the project (images first, then cameras, sites, project) and
+    run `--only S01`.
+  - Per scenario, a card for Peter: what really happened, where to look,
+    what he should see, what to do. Then "next" or feedback.
+  - The scenarios, what really happened, and the answer on today's
+    screens: S01 stays at Pond (nothing). S02 Pond to Ridge on 1 Sep (It
+    moved). S03 a false move by a GPS burst on 10 Sep (suspicious; It
+    stayed, on the trip out). S04 moved 180 m on 15 Sep, unseen (camera
+    panel, Wrong site?, Stream east from 15 Sep). S05 one stray fix 3 km
+    off (nothing). S06 no GPS, at Meadow from 1 Oct (Cameras page, photos
+    without a site, Set site). S07 GPS gaps in October (nothing). S08
+    silent since 20 Sep (nothing, shows inactive). S09 Old mill, Beech
+    wood in September, Old mill (It moved twice). S10 next to S01 at Pond,
+    its own spot (site panel, Give it its own site). S11 moved on 1 Oct,
+    first photo on 8 Oct (camera panel, Wrong site?, first day 1 Oct). S12
+    moved on 1 Sep, August photos from an old card arrive last (It moved).
   - Test photos show blurred until detection processes them.
 
 ## How to work on this plan

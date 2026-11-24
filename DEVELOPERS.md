@@ -725,96 +725,78 @@ Three readers' rules, each in one place (step 2c):
   report, the timeline and the Camtrap DP `deploymentEnd`.
   `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
 
-**Moves** (step 3b, project admins only) is how people see what
-the app noticed and say when it got one wrong. It replaced the camera
-updates panel and its `feed_events` table; the deployments are the one
-record. The page `pages/MovesPage.tsx` sits under Admin tools next to
-Curation: the app is automatic first, so it is an overview to look things
-up in, not a to-do list. Its badge (also summed on the closed Admin tools
-header) counts suspicious moves. It is a table (Date, Camera, From, To,
-Distance, Status; one line per row, long names cut with a full-text
-tooltip) of every move and every correction a person made, built in the
-browser by `updateItems` in `update-items.ts`. Nothing else: a camera
-that started somewhere has nothing to check (naming a place is in the
-site panel), and photos without a site are a camera's problem, shown by
-the attention chip on the Cameras page with Set site in the camera panel.
-Status is quiet: a move nobody checked shows nothing, only Suspicious,
-Checked and Corrected get a pill. Who decided and when are not columns:
-the Decided by filter finds them and the check window shows them. It
-opens with suspicious moves on top (`defaultOrder`), headers sort, the
-shared `FilterBar` filters (camera, site, status, date, decided by). A
-row click opens the check window at that row, and its arrows step
-through the rows as shown. Checkboxes with the shared bulk bar: Confirm
-moves and Undo checks run at once (they change no data), Undo corrections
-asks with the cameras named and a typed word (`POST .../statements/undo`,
-all or none). The check uses the frame of image verification
-(`REVIEW_WINDOW_CLASS`): the map left on satellite with only the sites of
-the move in magenta, as tall as the cards next to it (it redraws when its
-box changes size), a facts card right with what the app saw, the table's
-columns in the table's order (`DetailRow`), and an answer card with the
-two photos, each captioned ("Last photo at Pond"), one question, did it
-really move, a button per answer with its key (`Kbd`, the same part as
-AddaxAI desktop), and under the buttons a small caption with what a
-person decided ("Checked by ..., 24 Nov 2026", or the Suspicious pill,
-`MoveStatus`, shared with the table).
+**Moves** (step 3b) is where people see where the app saw a camera move
+and fix it when it got one wrong. The app is automatic first, so it is an
+overview to look things up in, not a to-do list: `pages/MovesPage.tsx`,
+under Admin tools next to Curation, project admins only. The deployments
+are the one record; nothing about a move is stored apart from them.
 
-- A move is a deployment the GPS made (`site_source = 'auto'`) that starts
-  where the camera's previous one ends.
-- The check (`components/deployments/CheckMovesModal.tsx`) shows one at a
-  time like image verification: Enter is "It moved" and next, W is "It
-  stayed at Pond", the arrows step, Esc closes. The keys are on the
-  buttons, so there is no shortcuts pop-up. Its queue is the table's rows as shown when it
-  opened. Undoing an older correction asks first. It shows the last photo before a move next to the first
-  after it (`GET .../deployments/{id}/thumbnails?order=last|first`).
-- Nobody has to answer. Right (`PUT .../deployments/checked`) only records
-  who looked and when in `checked_at` and `checked_by_user_id`. It fixes
-  nothing: the GPS can still change the deployment.
-- "It stayed at Pond" is the one wrong answer: the GPS was off
-  (`POST .../deployments/{id}/not-moved`), one fixed period over the
-  deployment before the move and this one, at the old site. It returns the
-  statement id, and the check shows Undo on the spot
-  (`DELETE .../statements/{id}`) instead of asking for confirmation first.
-  A move to the wrong site is not answered in the check: the app making a
-  new place where a site exists is fixed by merging the two on the Sites
-  page, a snap to the wrong one of two close sites by Wrong site? in the
-  camera panel. Later, Undo is on the Moves page, which lists everything
-  a person decided: moves answered It moved and every correction a person
-  made (`GET .../statements` without `camera_id` gives the project's;
-  periods an upload set or the update carried over are left out, nobody
-  decided those). The camera panel's Corrections list is the same data
-  per camera.
-- A move nobody checked yet that came back to the same site within a week
-  is suspicious, the usual shape of a GPS error: an amber pill next to its
-  status (Not checked, Checked, Corrected), on top of the table, and the
-  only thing the badge on Moves counts. The browser marks it (`suspicious`
-  in `update-items.ts`), the badge counts the
-  same rule in SQL (`ATTENTION_COUNT_SQL` in `routers/deployments.py`), and
-  `tests/db_api/test_review.py` holds the two together.
-- Naming a place the app named, and giving a camera its own site when two
-  share one, are optional actions in the site panel (`SiteDetailSheet`),
-  not to-dos. The second is the Set site form with a new site.
-- Going back in time is the camera panel. Each deployment has Wrong site?,
-  the Set site form prefilled with its site and days; moving the first day
-  fixes a move the GPS missed. A separate Set site button shows only when
-  there is no deployment to click: photos without a site, or a camera
-  without any deployment. "Corrections", with Undo for each one,
-  shows once there is one.
-- A site's pin follows only the deployments the app placed from the GPS
-  (`RECOMPUTE_SITE_LOCATION_SQL` in `shared/geo.py`). A correction never
-  moves a pin: the build snaps other cameras to pins, so a pin pulled by a
-  correction misplaced them. A site with only corrected deployments keeps
-  its pin, also one a person typed or clicked.
-- A correction deletes a site it emptied when that site still has the name
-  the app gave it (`drop_unnamed_sites_left_empty` in
-  `utils/deployment_edits.py`, `is_auto_site_name` in `shared/geo.py`). A
-  site a person named is never deleted by the app.
-- The page reads `GET .../deployments` (every deployment, a plain list).
-  The check's map shows only
-  the two sites of a move and the arrow between them, not the GPS of the
-  photos: a person decides a move by whether they moved the camera, and the
-  two photos show that. The GPS stays the input of the build.
-- The screens never say "fixed period" or "statement". The camera panel
-  lists them as "Corrections", each with Undo.
+- **Rows** (`components/deployments/moves.ts`, built in the browser from
+  `GET .../deployments` and the project's corrections, `GET .../statements`
+  without `camera_id`):
+  - a move: a deployment the GPS made (`site_source = 'auto'`) that starts
+    where the camera's previous one ends;
+  - a correction a person made (`source = 'person'`; periods an upload set
+    or the update carried over are left out, nobody decided those).
+  A camera that started somewhere is not a row (naming a place is in the
+  site panel); photos without a site are the Cameras page's (attention
+  chip, Set site in the camera panel).
+- **Keys.** A move is keyed by its camera and its start (`moveKey`), which
+  come from the photos, not by its row id, which a rebuild may change. A
+  correction by its statement id. Both stay the same after any rebuild.
+- **Table:** Date, Camera, From, To, Distance, Status; one line per row,
+  long names cut with the full text on hover; shared `FilterBar` (camera,
+  site, status, date, decided by), headers sort, suspicious moves on top
+  (`defaultOrder`). Status is quiet: nothing for a move nobody checked, a
+  pill for Suspicious, Checked and Corrected (`MoveStatus`, shared with the
+  check window).
+- **Suspicious:** a move nobody checked that came back to the same site
+  within a week, the usual shape of a GPS error. The only thing the badge
+  counts (`ATTENTION_COUNT_SQL` in `routers/deployments.py`, the same rule
+  as `suspicious` in `moves.ts`; `tests/db_api/test_review.py` holds them
+  together). The badge also shows on the closed Admin tools header.
+- **Check window** (`CheckMovesModal.tsx`, the frame of image verification,
+  `REVIEW_WINDOW_CLASS`): a row click opens it there and the arrows step
+  through the rows as shown. Map on satellite with the two sites of the
+  move and the arrow, as tall as the cards (it redraws when its box
+  changes size); a card with what the app saw (Date, Camera, From, To,
+  Distance); the last photo before the move next to the first after it,
+  captioned (`GET .../deployments/{id}/thumbnails?order=last|first`); one
+  question, did it really move:
+  - **It moved** (Enter, `PUT .../deployments/checked`) only records who
+    looked and when (`checked_at`, `checked_by_user_id`); it fixes nothing.
+  - **It stayed at Pond** (W, `POST .../deployments/{id}/not-moved`): the
+    GPS was off. One correction over the stay before the move and the move,
+    at the old site, with `answers_move_at` = the move's start. At once,
+    with Undo on the spot instead of a confirmation before it.
+  - Under the buttons, small: who decided and when, or "Not checked", or
+    the Suspicious pill. Keys are on the buttons, no shortcuts pop-up.
+  - A move to the wrong site is not answered here: the app making a new
+    place where a site exists is fixed by merging sites (Sites page), a
+    snap to the wrong one of two close sites by Wrong site? in the camera
+    panel.
+- **Undo** finds the move exactly, no search: after "It stayed" the move
+  comes back under its own key; a correction opened from the table leads
+  to `moveKey(camera, answers_move_at)`. A correction that answered no move
+  (camera panel, or made before `answers_move_at` existed) says "Undone".
+  Undoing an older correction asks first.
+- **Bulk** (shared bulk bar): Confirm moves and Undo checks run at once,
+  they change no data; Undo corrections asks with the cameras named and a
+  typed word (`POST .../statements/undo`, all or none).
+- **Two rules of the rebuild that corrections rely on:**
+  - a site's pin follows only the deployments the app placed from the GPS
+    (`RECOMPUTE_SITE_LOCATION_SQL` in `shared/geo.py`): a correction never
+    moves a pin, since the build snaps other cameras to pins;
+  - a GPS part keeps the site its stored row had only when the GPS chose
+    it (`deployment_rebuild.py`): after Undo the GPS decides again.
+- **Corrections elsewhere.** The camera panel lists them as "Corrections",
+  each with Undo; each deployment has Wrong site? (the Set site form with
+  its site and days; moving the first day fixes a move the GPS missed).
+  The site panel has Name this site and, when two cameras share a site,
+  Give it its own site. A correction deletes a site it emptied when that
+  site still has the app's name (`drop_unnamed_sites_left_empty`); a site
+  a person named is never deleted by the app. The screens never say
+  "fixed period" or "statement".
 - Sites are added on the Sites page, one at a time or from a CSV
   (`POST .../sites/import-csv`). `utils/csv_upload.py` reads the file for
   this import and the camera import.

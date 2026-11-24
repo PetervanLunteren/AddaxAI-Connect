@@ -18,7 +18,7 @@ import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { DeploymentJourney, type JourneyItem } from './DeploymentJourney';
 import { FixedPeriodsList } from './deployments/FixedPeriodsList';
-import { dayLabel } from './deployments/update-items';
+import { dayLabel } from './deployments/moves';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';

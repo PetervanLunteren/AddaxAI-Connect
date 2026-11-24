@@ -18,7 +18,7 @@ import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toaster';
 
-import { dayLabel } from './update-items';
+import { dayLabel } from './moves';
 
 function daysLabel(p: FixedPeriod): string {
   return p.until_date

@@ -1,12 +1,12 @@
 /**
- * The moves: what the app noticed, worked out from the deployments
- * list. Plain functions, no React.
+ * The rows of the Moves page, worked out from the deployments list and the
+ * corrections. Plain functions, no React.
  *
- * An update is one of two kinds:
+ * A row is one of two kinds:
  * - moved: a deployment the GPS made that starts where the camera's
  *   previous one ends
- * - corrected: a correction a person made (a statement), from Wrong in the
- *   check or from the camera panel
+ * - corrected: a correction a person made (a statement), from "It stayed"
+ *   in the check or from the camera panel
  * The rest is handled where it belongs: a camera that started somewhere
  * has nothing to check (naming a new place is in the site panel), and
  * photos without a site are a camera's problem, on the Cameras page.
@@ -25,7 +25,7 @@ import { isAutoSiteName } from '../../utils/site-names';
 // no data. The same number as SHORT_TRIP_DAYS in routers/deployments.py.
 const SHORT_TRIP_DAYS = 7;
 
-export interface UpdateItem {
+export interface MoveRow {
   key: string;
   kind: 'moved' | 'corrected';
   cameraId: number;
@@ -69,14 +69,14 @@ export const moveKey = (cameraId: number, startAt: string) => `m${cameraId}@${st
  * project's statements in force; only those a person made count, not the
  * ones an upload set or the update carried over: nobody decided those.
  */
-export function updateItems(deployments: DeploymentListItem[], corrections: FixedPeriod[] = []): UpdateItem[] {
+export function moveRows(deployments: DeploymentListItem[], corrections: FixedPeriod[] = []): MoveRow[] {
   const byCamera = new Map<number, DeploymentListItem[]>();
   for (const d of deployments) {
     const list = byCamera.get(d.camera_id) ?? [];
     list.push(d);
     byCamera.set(d.camera_id, list);
   }
-  const items: UpdateItem[] = [];
+  const items: MoveRow[] = [];
   for (const list of byCamera.values()) {
     list.sort((a, b) => a.start_at.localeCompare(b.start_at));
     list.forEach((d, i) => {
@@ -128,20 +128,20 @@ export const metresLabel = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${
  * What a person decided, the Status column of the Moves page.
  * - notChecked: a move nobody answered.
  * - checked: a move a person said is right.
- * - corrected: a correction a person made (a move answered Wrong is gone,
+ * - corrected: a correction a person made (a move answered "It stayed" is gone,
  *   its correction is what is left).
  * Suspicious is not a status but what the app thinks of a move nobody
  * checked yet (`suspicious` on the item), shown as a pill next to it.
  */
-export type UpdateStatus = 'notChecked' | 'checked' | 'corrected';
+export type RowStatus = 'notChecked' | 'checked' | 'corrected';
 
-export const STATUS_LABELS: Record<UpdateStatus, string> = {
+export const STATUS_LABELS: Record<RowStatus, string> = {
   notChecked: 'Not checked',
   checked: 'Checked',
   corrected: 'Corrected',
 };
 
-export function updateStatus(it: UpdateItem): UpdateStatus {
+export function rowStatus(it: MoveRow): RowStatus {
   if (it.kind === 'corrected') return 'corrected';
   return it.answered ? 'checked' : 'notChecked';
 }
@@ -150,29 +150,29 @@ export function updateStatus(it: UpdateItem): UpdateStatus {
 export const SUSPICIOUS_REASON = 'Back at the same site within a week, often a GPS error';
 
 /** Who decided and on which day (YYYY-MM-DD), for checked and corrected rows. */
-export function decided(it: UpdateItem): { by: string | null; day: string } | null {
+export function decided(it: MoveRow): { by: string | null; day: string } | null {
   if (it.correction) return { by: it.correction.created_by, day: it.correction.created_at.slice(0, 10) };
   const d = it.deployment;
   if (it.answered && d?.checked_at) return { by: d.checked_by, day: d.checked_at.slice(0, 10) };
   return null;
 }
 
-const STATUS_ORDER: UpdateStatus[] = ['notChecked', 'checked', 'corrected'];
+const STATUS_ORDER: RowStatus[] = ['notChecked', 'checked', 'corrected'];
 
 /** The table's first order: suspicious moves, then the rest nobody checked,
  *  then history, each newest first. */
-export function defaultOrder(items: UpdateItem[]): UpdateItem[] {
-  const rank = (it: UpdateItem) => (it.suspicious ? -1 : STATUS_ORDER.indexOf(updateStatus(it)));
+export function defaultOrder(items: MoveRow[]): MoveRow[] {
+  const rank = (it: MoveRow) => (it.suspicious ? -1 : STATUS_ORDER.indexOf(rowStatus(it)));
   return [...items].sort((a, b) => rank(a) - rank(b) || b.day.localeCompare(a.day));
 }
 
-/** The sites an update is about: both ends of a move, else its one site. */
-export function siteIds(it: UpdateItem): number[] {
+/** The sites a row is about: both ends of a move, else its one site. */
+export function siteIds(it: MoveRow): number[] {
   return [it.deployment?.site_id, it.previous?.site_id, it.correction?.site_id]
     .filter((id): id is number => id != null);
 }
 
-// Words for an update in the check.
+// Words for a row, in the table and the check.
 
 // Plain day labels from YYYY-MM-DD, never shifted by the browser's timezone.
 export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
@@ -181,19 +181,19 @@ export const placeName = (name: string | null | undefined) =>
   !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
 
 /** The site a move left (null for a correction) and the site it went to. */
-export function ends(it: UpdateItem): { from: string | null; to: string } {
+export function ends(it: MoveRow): { from: string | null; to: string } {
   if (it.kind === 'corrected') return { from: null, to: it.correction!.site_name };
   return { from: placeName(it.previous?.site_name), to: placeName(it.deployment?.site_name) };
 }
 
 /** Where the camera went, short: "Pond → Ridge", or a correction's site. */
-export function route(it: UpdateItem): string {
+export function route(it: MoveRow): string {
   const { from, to } = ends(it);
   return from === null ? to : `${from} → ${to}`;
 }
 
 /** The day of a move, or the days of a correction. */
-export function dateLabel(it: UpdateItem): string {
+export function dateLabel(it: MoveRow): string {
   if (it.kind === 'corrected') {
     const c = it.correction!;
     return `${dayLabel(c.from_date)} to ${c.until_date ? dayLabel(c.until_date) : 'now'}`;

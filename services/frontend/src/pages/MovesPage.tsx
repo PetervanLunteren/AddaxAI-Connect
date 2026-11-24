@@ -4,7 +4,7 @@
  * this is an overview to look things up in, not a to-do list.
  *
  * One table of every move the app saw and every correction a person made
- * (rows from update-items.ts). A camera that started somewhere is not
+ * (rows from moves.ts). A camera that started somewhere is not
  * here (nothing to check; naming a place is in the site panel), nor are
  * photos without a site (a camera's problem, on the Cameras page). The
  * Status column is quiet: a move nobody checked shows nothing, only the
@@ -27,9 +27,9 @@ import { sitesApi } from '../api/sites';
 import { CheckMovesModal } from '../components/deployments/CheckMovesModal';
 import { MoveStatus } from '../components/deployments/MoveStatus';
 import {
-  STATUS_LABELS, dateLabel, ends, metresLabel, dayLabel, decided, defaultOrder, route, siteIds, updateItems,
-  updateStatus, type UpdateItem, type UpdateStatus,
-} from '../components/deployments/update-items';
+  STATUS_LABELS, dateLabel, ends, metresLabel, dayLabel, decided, defaultOrder, route, siteIds, moveRows,
+  rowStatus, type MoveRow, type RowStatus,
+} from '../components/deployments/moves';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
@@ -64,20 +64,20 @@ const errorText = (error: any) => error?.response?.data?.detail || error?.messag
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // Null sorts last either way: a correction has no distance.
-const SORT: Record<Column, (it: UpdateItem) => string | number | null> = {
+const SORT: Record<Column, (it: MoveRow) => string | number | null> = {
   date: (it) => it.day,
   camera: (it) => it.cameraLabel,
   from: (it) => ends(it).from,
   to: (it) => ends(it).to,
   distance: (it) => it.distanceM ?? null,
-  status: (it) => STATUS_LABELS[updateStatus(it)],
+  status: (it) => STATUS_LABELS[rowStatus(it)],
 };
 
 // The Status filter: the three statuses, and Suspicious for the moves that
 // look like a GPS error.
 const STATUS_OPTIONS = [
   { value: 'suspicious', label: 'Suspicious' },
-  ...(Object.keys(STATUS_LABELS) as UpdateStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+  ...(Object.keys(STATUS_LABELS) as RowStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
 ];
 
 /** One line of text, cut with "…" at the column's width, the whole text on hover. */
@@ -124,7 +124,7 @@ export const MovesPage: React.FC = () => {
     enabled,
   });
   const items = useMemo(
-    () => (deployments ? updateItems(deployments, corrections) : []),
+    () => (deployments ? moveRows(deployments, corrections) : []),
     [deployments, corrections],
   );
 
@@ -169,7 +169,7 @@ export const MovesPage: React.FC = () => {
       return (
         (!f.camera || String(it.cameraId) === f.camera) &&
         (!f.site || siteIds(it).some((id) => String(id) === f.site)) &&
-        (!f.status || (f.status === 'suspicious' ? it.suspicious : updateStatus(it) === f.status)) &&
+        (!f.status || (f.status === 'suspicious' ? it.suspicious : rowStatus(it) === f.status)) &&
         (!f.by || who?.by === f.by) &&
         (!f.from || it.day >= f.from) &&
         (!f.to || it.day <= f.to)
@@ -191,7 +191,7 @@ export const MovesPage: React.FC = () => {
   // What each bulk action fits among the selected rows. A selection survives
   // filtering, so these count every selected row, shown or not.
   const chosen = items.filter((it) => selected.has(it.key));
-  const toMarkRight = chosen.filter((it) => it.kind === 'moved' && !it.answered);
+  const toConfirm = chosen.filter((it) => it.kind === 'moved' && !it.answered);
   const toUncheck = chosen.filter((it) => it.kind === 'moved' && it.answered);
   const toUndo = chosen.filter((it) => it.kind === 'corrected');
 
@@ -203,7 +203,7 @@ export const MovesPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['cameras'] });
   };
   const setChecked = useMutation({
-    mutationFn: ({ rows, checked }: { rows: UpdateItem[]; checked: boolean }) =>
+    mutationFn: ({ rows, checked }: { rows: MoveRow[]; checked: boolean }) =>
       deploymentsApi.setChecked(projectId, rows.map((it) => it.deployment!.id), checked),
     onSuccess: (_, { rows, checked }) => {
       refresh();
@@ -213,7 +213,7 @@ export const MovesPage: React.FC = () => {
     onError: (error) => toast.error(`Could not save. ${errorText(error)}`),
   });
   const undoCorrections = useMutation({
-    mutationFn: (rows: UpdateItem[]) => deploymentsApi.removeFixedPeriods(projectId, rows.map((it) => it.correction!.id)),
+    mutationFn: (rows: MoveRow[]) => deploymentsApi.removeFixedPeriods(projectId, rows.map((it) => it.correction!.id)),
     onSuccess: (_, rows) => {
       refresh();
       clear();
@@ -270,9 +270,9 @@ export const MovesPage: React.FC = () => {
 
       {selected.size > 0 && (
         <BulkActionBar selected={selected.size} total={items.length} noun="rows" onClear={clear}>
-          {toMarkRight.length > 0 && (
-            <Button variant="outline" size="sm" disabled={busy} onClick={() => setChecked.mutate({ rows: toMarkRight, checked: true })}>
-              Confirm {plural(toMarkRight.length, 'move', 'moves')}
+          {toConfirm.length > 0 && (
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => setChecked.mutate({ rows: toConfirm, checked: true })}>
+              Confirm {plural(toConfirm.length, 'move', 'moves')}
             </Button>
           )}
           {toUncheck.length > 0 && (
@@ -389,7 +389,7 @@ export const MovesPage: React.FC = () => {
               heading: 'This will',
               bullets: [
                 'move photos to the site their GPS points to, or to no site when they have no GPS',
-                'bring back moves that a Wrong answer took away, unchecked',
+                'bring back moves that It stayed took away, unchecked',
               ],
             }]}
             rows={toUndo.map((it) => ({

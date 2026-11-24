@@ -44,12 +44,12 @@ import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
 import { MoveStatus } from './MoveStatus';
 import {
-  dateLabel, dayLabel, decided, ends, metresLabel, moveKey, placeName, siteIds, type UpdateItem,
-} from './update-items';
+  dateLabel, dayLabel, decided, ends, metresLabel, moveKey, placeName, siteIds, type MoveRow,
+} from './moves';
 
 interface Props {
   projectId: number;
-  items: UpdateItem[]; // every update, kept fresh by the page
+  items: MoveRow[]; // every update, kept fresh by the page
   sites: SitePin[];
   keys: string[]; // the rows of the table as shown, in order
   startKey: string; // the row clicked
@@ -69,8 +69,8 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   const [current, setCurrent] = useState<string | null>(startKey);
   const [done, setDone] = useState(queue.length === 0);
   // What was answered in this check, by update, for going back and the summary.
-  const [answers, setAnswers] = useState<Record<string, 'right' | 'wrong'>>({});
-  // A Wrong answer is a correction: its id, for Undo right here. No
+  const [answers, setAnswers] = useState<Record<string, 'moved' | 'stayed'>>({});
+  // "It stayed" is a correction: its id, for Undo right here. No
   // confirmation before Wrong, Undo after it instead: everything is
   // reversible, and a dialog on every answer slows the check down.
   const [corrections, setCorrections] = useState<Record<string, number>>({});
@@ -81,10 +81,10 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // the move comes back under its own key.
   const [undoneTo, setUndoneTo] = useState<Record<string, string | null>>({});
   // An older correction, waiting for "Undo this?".
-  const [confirmUndo, setConfirmUndo] = useState<UpdateItem | null>(null);
+  const [confirmUndo, setConfirmUndo] = useState<MoveRow | null>(null);
 
   // The row of a key: itself, or the move an undone correction answered.
-  const lookup = (key: string): UpdateItem | undefined => {
+  const lookup = (key: string): MoveRow | undefined => {
     const target = undoneTo[key];
     return items.find((i) => i.key === key) ?? (target ? items.find((i) => i.key === target) : undefined);
   };
@@ -94,7 +94,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   const d = it?.deployment;
   const p = it?.previous;
 
-  // An update can disappear while the check is open: taking back a trip
+  // A move can disappear while the check is open: taking back a trip
   // out removes its way back too. The check steps over those.
   const gone = (key: string) => !answers[key] && !lookup(key);
   const goTo = (target: number) => {
@@ -105,14 +105,14 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
     else if (i >= 0) setCurrent(queue[i]);
   };
   const next = () => goTo(index + 1);
-  const answered = (how: 'right' | 'wrong') => {
+  const answered = (how: 'moved' | 'stayed') => {
     if (current) setAnswers((a) => ({ ...a, [current]: how }));
     next();
   };
-  // Wrong stays on the update, so its Undo is in view.
+  // "It stayed" keeps the window on this move, so its Undo is in view.
   const corrected = (statementId: number) => {
     if (!current) return;
-    setAnswers((a) => ({ ...a, [current]: 'wrong' }));
+    setAnswers((a) => ({ ...a, [current]: 'stayed' }));
     setCorrections((c) => ({ ...c, [current]: statementId }));
     setUndone((u) => { const next = new Set(u); next.delete(current); return next; });
   };
@@ -142,7 +142,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
     mutationFn: (checked: boolean) => deploymentsApi.setChecked(projectId, [d!.id], checked),
     onSuccess: (_, checked) => {
       refresh();
-      if (checked) answered('right');
+      if (checked) answered('moved');
       else setAnswers((a) => { const { [current!]: _gone, ...rest } = a; return rest; });
     },
     onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
@@ -225,8 +225,8 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // the one site of a correction.
   const active = useMemo(() => new Set(it ? siteIds(it) : []), [it]);
 
-  const rightCount = Object.values(answers).filter((a) => a === 'right').length;
-  const wrongCount = Object.entries(answers).filter(([key, a]) => a === 'wrong' && !undone.has(key)).length;
+  const movedCount = Object.values(answers).filter((a) => a === 'moved').length;
+  const stayedCount = Object.entries(answers).filter(([key, a]) => a === 'stayed' && !undone.has(key)).length;
   const skipped = queue.filter((key) => !answers[key] && !gone(key)).length;
 
   // Previous, next, position and close, as in the image verification panel.
@@ -264,7 +264,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
               </p>
               {queue.length > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {rightCount} right, {wrongCount} wrong, {skipped} skipped
+                  {movedCount} moved, {stayedCount} stayed, {skipped} skipped
                 </p>
               )}
               <Button onClick={onClose}>Close</Button>
@@ -431,13 +431,13 @@ const Photo: React.FC<{ projectId: number; photo: DeploymentPhoto | undefined; l
  * checked", or the amber Suspicious pill for a move that looks like a GPS
  * error. The card above only shows what the app saw.
  */
-const Decision: React.FC<{ it: UpdateItem; myAnswer: 'right' | 'wrong' | undefined }> = ({ it, myAnswer }) => {
+const Decision: React.FC<{ it: MoveRow; myAnswer: 'moved' | 'stayed' | undefined }> = ({ it, myAnswer }) => {
   const who = decided(it);
   let text: React.ReactNode = 'Not checked';
   if (who) {
     text = `${it.kind === 'corrected' ? 'Corrected' : 'Checked'} by ${[who.by ?? 'someone', dayLabel(who.day)].join(', ')}`;
   } else if (myAnswer) {
-    text = myAnswer === 'wrong' ? 'Corrected' : 'Checked';
+    text = myAnswer === 'stayed' ? 'Corrected' : 'Checked';
   } else if (it.suspicious) {
     text = <MoveStatus it={it} />;
   }
@@ -445,8 +445,8 @@ const Decision: React.FC<{ it: UpdateItem; myAnswer: 'right' | 'wrong' | undefin
 };
 
 const Answers: React.FC<{
-  it: UpdateItem;
-  myAnswer: 'right' | 'wrong' | undefined;
+  it: MoveRow;
+  myAnswer: 'moved' | 'stayed' | undefined;
   busy: boolean;
   canStay: boolean; // not on the way back of a short trip
   onMoved: () => void;
@@ -461,7 +461,7 @@ const Answers: React.FC<{
           Next
           <Kbd>→</Kbd>
         </Button>
-        {(it.answered || myAnswer === 'wrong') && (
+        {(it.answered || myAnswer === 'stayed') && (
           <Button variant="outline" className="w-full" onClick={onUndo} disabled={busy}>
             <Undo2 className="h-4 w-4 mr-2" />
             Undo

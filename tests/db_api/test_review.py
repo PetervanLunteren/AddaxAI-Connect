@@ -1,11 +1,12 @@
 """
-Step 3b: the moves check.
+Step 3b: the Moves page and its check.
 
-An entry is a deployment the GPS made. A person may say it is right, which
-records who looked and when and fixes nothing. Only a move that came back
-within a week needs a person. The badge counts those in SQL, the page marks
-them in the browser from the deployments list, and the two must say the
-same. Photos without a site are the Cameras page's, not counted here.
+A move is a deployment the GPS made. A person may say "It moved", which
+records who looked and when and fixes nothing. A move nobody checked that
+came back within a week is suspicious; the badge on Moves counts those in
+SQL, the page marks them in the browser from the deployments list, and the
+two must say the same. Photos without a site are the Cameras page's, not
+counted here.
 """
 from datetime import datetime
 
@@ -31,7 +32,7 @@ def rebuild(camera_id):
 
 
 def list_rule(listed) -> int:
-    """suspicious in components/deployments/update-items.ts, in Python."""
+    """suspicious in components/deployments/moves.ts, in Python."""
     by_camera = {}
     for d in listed:
         by_camera.setdefault(d.camera_id, []).append(d)

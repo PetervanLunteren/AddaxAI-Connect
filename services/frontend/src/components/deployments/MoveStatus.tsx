@@ -4,14 +4,14 @@
  *
  * Quiet: a move nobody checked shows nothing. A suspicious one (a move
  * nobody checked that came back within a week, `suspicious` in
- * update-items.ts) shows an amber pill with the reason on hover; a checked
+ * moves.ts) shows an amber pill with the reason on hover; a checked
  * move or a correction shows a plain pill.
  */
 import { AlertTriangle } from 'lucide-react';
 import { StatusPill } from '../ui/StatusPill';
-import { STATUS_LABELS, SUSPICIOUS_REASON, updateStatus, type UpdateItem } from './update-items';
+import { STATUS_LABELS, SUSPICIOUS_REASON, rowStatus, type MoveRow } from './moves';
 
-export function MoveStatus({ it }: { it: UpdateItem }) {
+export function MoveStatus({ it }: { it: MoveRow }) {
   if (it.suspicious) {
     return (
       <span title={SUSPICIOUS_REASON}>
@@ -22,7 +22,7 @@ export function MoveStatus({ it }: { it: UpdateItem }) {
       </span>
     );
   }
-  const status = updateStatus(it);
+  const status = rowStatus(it);
   if (status === 'notChecked') return null;
   return <StatusPill tone="neutral">{STATUS_LABELS[status]}</StatusPill>;
 }
