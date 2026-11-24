@@ -7,7 +7,8 @@
  * the problem is fixed. The server decides the lines
  * (services/api/utils/todo.py), lib/todo-lines.ts gives them words and links.
  *
- * Inside a project it shows that project only: For you and This project.
+ * Inside a project it shows that project only: For you, then the project's
+ * lines without a heading, since they are always this project's.
  * Outside a project (Projects, Account, server pages) it shows every project
  * that has something, one block each, and for a server admin the Server
  * lines: server work is not about the project you are in. The project comes
@@ -34,7 +35,8 @@ import { StatusPill } from '../ui/StatusPill';
 import { cn } from '../../lib/utils';
 
 interface Section {
-  title: string;
+  key: string;
+  title: string | null; // null: no heading (the project you are in)
   lines: TodoLine[];
 }
 
@@ -61,13 +63,13 @@ export const TodoMenu: React.FC = () => {
   const sections: Section[] = [];
   if (projectId !== null) {
     const here = linesOf(data?.projects.find((p) => p.project_id === projectId)?.items ?? [], projectId);
-    sections.push({ title: 'For you', lines: here.filter((l) => l.group === 'you') });
-    sections.push({ title: 'This project', lines: here.filter((l) => l.group === 'project') });
+    sections.push({ key: 'you', title: 'For you', lines: here.filter((l) => l.group === 'you') });
+    sections.push({ key: 'project', title: null, lines: here.filter((l) => l.group === 'project') });
   } else {
     for (const project of data?.projects ?? []) {
-      sections.push({ title: project.project_name, lines: linesOf(project.items, project.project_id) });
+      sections.push({ key: String(project.project_id), title: project.project_name, lines: linesOf(project.items, project.project_id) });
     }
-    sections.push({ title: 'Server', lines: linesOf(data?.server ?? [], null) });
+    sections.push({ key: 'server', title: 'Server', lines: linesOf(data?.server ?? [], null) });
   }
   const shown = sections.filter((s) => s.lines.length > 0);
   const count = shown.reduce((n, s) => n + s.lines.length, 0);
@@ -99,18 +101,28 @@ export const TodoMenu: React.FC = () => {
           <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nothing to do</p>
         ) : (
           <div className="max-h-[70vh] overflow-y-auto py-1">
-            {shown.map((section) => (
-              <div key={section.title} className="py-1">
-                <p className="truncate px-4 pb-1 pt-2 text-xs font-medium text-muted-foreground">{section.title}</p>
+            {shown.map((section, i) => (
+              <div key={section.key} className={cn('py-1', !section.title && i > 0 && 'mt-1 border-t border-border')}>
+                {section.title && (
+                  <p className="truncate px-4 pb-1 pt-2 text-xs font-medium text-muted-foreground">{section.title}</p>
+                )}
                 {section.lines.map((line) => (
-                  <div key={line.to} className="flex items-center gap-2 pr-2 hover:bg-accent">
+                  // One line per row, cut with "..." and the full text on
+                  // hover. "Not needed" shows over the end of the row on
+                  // hover, as Gmail's row actions do; on a touch screen,
+                  // which has no hover, it stays in view.
+                  <div key={line.to} className="group relative flex items-center gap-2 pr-2 hover:bg-accent">
                     <Link
                       to={line.to}
                       onClick={() => setOpen(false)}
-                      className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-sm"
+                      title={line.text}
+                      className={cn(
+                        'flex min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-sm',
+                        line.canBeNotNeeded && '[@media(hover:none)]:pr-24',
+                      )}
                     >
                       <line.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0">{line.text}</span>
+                      <span className="min-w-0 truncate">{line.text}</span>
                     </Link>
                     {!!line.overdue && (
                       <StatusPill tone="error" className="shrink-0 px-2 py-0.5">{line.overdue} overdue</StatusPill>
@@ -121,7 +133,10 @@ export const TodoMenu: React.FC = () => {
                         onClick={() => notNeeded.mutate(line)}
                         disabled={notNeeded.isPending}
                         title="Hide this line for everyone. Undo on its page."
-                        className="shrink-0 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-foreground"
+                        className={cn(
+                          'absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:text-foreground',
+                          '[@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                        )}
                       >
                         Not needed
                       </button>
