@@ -746,8 +746,8 @@ are the one record; nothing about a move is stored apart from them.
   correction by its statement id. Both stay the same after any rebuild.
 - **Table:** Date, Camera, From, To, Distance, Status; one line per row,
   long names cut with the full text on hover; shared `FilterBar` (camera,
-  site, status, date, decided by), headers sort, suspicious moves on top
-  (`defaultOrder`). Status is quiet: nothing for a move nobody checked, a
+  site, status, date, decided by), newest first until a header sorts, so
+  rows stay put while you answer. Status is quiet: nothing for a move nobody checked, a
   pill for Suspicious, Checked and Corrected (`MoveStatus`, shared with the
   check window).
 - **Suspicious:** a move nobody checked that came back to the same site

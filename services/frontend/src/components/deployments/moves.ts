@@ -148,15 +148,6 @@ export function decided(it: MoveRow): { by: string | null; day: string } | null 
   return null;
 }
 
-const STATUS_ORDER: RowStatus[] = ['notChecked', 'checked', 'corrected'];
-
-/** The table's first order: suspicious moves, then the rest nobody checked,
- *  then history, each newest first. */
-export function defaultOrder(items: MoveRow[]): MoveRow[] {
-  const rank = (it: MoveRow) => (it.suspicious ? -1 : STATUS_ORDER.indexOf(rowStatus(it)));
-  return [...items].sort((a, b) => rank(a) - rank(b) || b.day.localeCompare(a.day));
-}
-
 /** The sites a row is about: both ends of a move, else its one site. */
 export function siteIds(it: MoveRow): number[] {
   return [it.deployment?.site_id, it.previous?.site_id, it.correction?.site_id]

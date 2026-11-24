@@ -10,8 +10,9 @@
  * Status column is quiet: a move nobody checked shows nothing, only the
  * exceptions get a pill (Suspicious, Checked, Corrected). Who decided and
  * when are not columns: the Decided by filter finds them and the check
- * window shows them. It opens with suspicious moves on top, then the rest,
- * newest first; a header sorts. A row click opens the check window at that
+ * window shows them. It opens newest first, and stays in that order while
+ * you answer, so rows do not jump; a header sorts. Suspicious moves are
+ * found by the badge and the Status filter. A row click opens the check window at that
  * row, and its arrows step through the rows as shown.
  *
  * Checkboxes on every row. The bulk bar offers each action for the rows it
@@ -27,7 +28,7 @@ import { sitesApi } from '../api/sites';
 import { CheckMovesModal } from '../components/deployments/CheckMovesModal';
 import { MoveStatus } from '../components/deployments/MoveStatus';
 import {
-  STATUS_LABELS, dateLabel, ends, metresLabel, dayLabel, decided, defaultOrder, route, siteIds, moveRows,
+  STATUS_LABELS, dateLabel, ends, metresLabel, dayLabel, decided, route, siteIds, moveRows,
   rowStatus, type MoveRow, type RowStatus,
 } from '../components/deployments/moves';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
@@ -128,7 +129,7 @@ export const MovesPage: React.FC = () => {
     [deployments, corrections],
   );
 
-  const [sort, setSort] = useState<SortState<Column>>({ column: null, direction: 'asc' });
+  const [sort, setSort] = useState<SortState<Column>>({ column: 'date', direction: 'desc' });
   const { selected, toggle, clear, setMany } = useBulkSelection<string>();
   const [opened, setOpened] = useState<{ keys: string[]; start: string } | null>(null);
   const [undoOpen, setUndoOpen] = useState(false);
@@ -175,16 +176,17 @@ export const MovesPage: React.FC = () => {
         (!f.to || it.day <= f.to)
       );
     });
-    if (!sort.column) return defaultOrder(rows);
-    const value = SORT[sort.column];
+    const value = SORT[sort.column ?? 'date'];
     const sign = sort.direction === 'asc' ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const va = value(a);
-      const vb = value(b);
+    const compare = (va: string | number | null, vb: string | number | null) => {
       if (va === null || vb === null) return va === vb ? 0 : va === null ? 1 : -1;
       if (typeof va === 'number' && typeof vb === 'number') return sign * (va - vb);
       return sign * String(va).localeCompare(String(vb), undefined, { sensitivity: 'base' });
-    });
+    };
+    // Ties go by camera, then by row key, so equal rows never swap places
+    // when the list reloads after an answer.
+    return [...rows].sort((a, b) =>
+      compare(value(a), value(b)) || a.cameraLabel.localeCompare(b.cameraLabel) || a.key.localeCompare(b.key));
   }, [items, f.camera, f.site, f.status, f.by, f.from, f.to, sort]);
   const isFiltered = Object.values(f).some(Boolean);
 
