@@ -21,7 +21,10 @@ from auth.project_access import (
 )
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
-from shared.camera_status import camera_status as _camera_status, is_rejecting
+from shared.camera_status import (
+    camera_status as _camera_status, counts_for_health, is_low_battery, is_rejecting, is_sd_nearly_full,
+    is_sim_expiring,
+)
 from utils.csv_upload import read_csv_upload
 from utils.camera_recency import fetch_camera_recency
 from utils.deployment_edits import rebuild
@@ -67,7 +70,7 @@ class CameraResponse(BaseModel):
     # showing a zero that is not true.
     rejected_count_recent: Optional[int] = None
     # True while the latest rejected file is newer than the latest live image,
-    # see shared.camera_status.is_rejecting. Drives the attention chip and the
+    # see shared.camera_status.is_rejecting. Drives the To do line and the
     # filter, so a camera that rejected a photo before its GPS fix and then
     # recovered stops warning at once. None exactly when the count is None.
     rejecting: Optional[bool] = None
@@ -77,6 +80,12 @@ class CameraResponse(BaseModel):
     unplaced_photo_count: Optional[int] = None
     unplaced_first_day: Optional[str] = None
     unplaced_last_day: Optional[str] = None
+    # The health warnings, by the rules of shared.camera_status, so the
+    # page, the To do list and the email report flag the same cameras. False
+    # for a retired camera or one that never reported.
+    low_battery: bool = False
+    sd_nearly_full: bool = False
+    sim_expiring: bool = False
 
     class Config:
         from_attributes = True
@@ -209,6 +218,8 @@ def camera_to_response(
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
     display_name = _camera_label(camera)
+    status = _camera_status(last_report_arrival, last_image_arrival, retired_at=camera.retired_at)
+    warns = counts_for_health(status)
 
     rejected_count_recent: Optional[int] = None
     rejecting: Optional[bool] = None
@@ -236,7 +247,7 @@ def camera_to_response(
         sd_utilization_percentage=health_data.get('sd_utilization_percentage'),
         last_report_timestamp=_localize(last_reported_at, tz),
         last_image_timestamp=_localize(last_captured_at, tz),
-        status=_camera_status(last_report_arrival, last_image_arrival, retired_at=camera.retired_at),
+        status=status,
         total_images=health_data.get('total_images'),
         sent_images=health_data.get('sent_images'),
         reference_image_url=f"/reference-images/{camera.reference_image_path}" if camera.reference_image_path else None,
@@ -248,6 +259,9 @@ def camera_to_response(
         unplaced_photo_count=unplaced_photo_count,
         unplaced_first_day=unplaced_first_day,
         unplaced_last_day=unplaced_last_day,
+        low_battery=warns and is_low_battery(health_data.get('battery_percentage')),
+        sd_nearly_full=warns and is_sd_nearly_full(health_data.get('sd_utilization_percentage')),
+        sim_expiring=camera.retired_at is None and is_sim_expiring(camera.sim_expiry_date, datetime.now(tz).date()),
     )
 
 
@@ -307,6 +321,72 @@ async def camera_detail_response(
     )
 
 
+async def camera_responses(
+    db: AsyncSession,
+    cameras: List[Camera],
+    open_project_ids: set[int],
+) -> List[CameraResponse]:
+    """The Cameras page rows for `cameras`, in a fixed number of grouped
+    queries however many cameras and projects. Shared by the cameras list
+    and the To do list (utils/todo.py), so both read the same flags.
+
+    `open_project_ids` are the projects where the viewer is not limited to
+    some sites. Only there do rejections and photos without a site show: a
+    site-restricted viewer cannot see those photos.
+    """
+    camera_ids = [c.id for c in cameras]
+    recency = await fetch_camera_recency(db, camera_ids)
+    visible_ids = [c.id for c in cameras if c.project_id in open_project_ids]
+    recent_rejections = await fetch_recent_rejections(db, visible_ids)
+    unplaced = await fetch_unplaced(db, visible_ids)
+    last_maintenance_map: dict[int, date] = {}
+    if camera_ids:
+        maintenance_rows = await db.execute(
+            select(CameraMaintenanceEvent.camera_id, func.max(CameraMaintenanceEvent.event_date))
+            .where(CameraMaintenanceEvent.camera_id.in_(camera_ids))
+            .group_by(CameraMaintenanceEvent.camera_id)
+        )
+        last_maintenance_map = {cam_id: d for cam_id, d in maintenance_rows.all()}
+
+    # Each camera's current site, see shared/deployment_queries.py.
+    current_site_map: dict[int, dict] = {}
+    if camera_ids:
+        site_rows = await db.execute(
+            text(f"""
+                SELECT cur.camera_id, s.id AS site_id, s.name AS site_name
+                FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+                LEFT JOIN sites s ON s.id = cur.site_id
+                WHERE cur.camera_id = ANY(:cam_ids)
+            """),
+            {"cam_ids": camera_ids},
+        )
+        for r in site_rows.mappings().all():
+            if r["site_id"] is not None:
+                current_site_map[r["camera_id"]] = {
+                    "id": r["site_id"], "name": r["site_name"],
+                }
+
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+
+    return [
+        camera_to_response(
+            camera,
+            tz=tz,
+            last_captured_at=recency.last_captured.get(camera.id),
+            last_reported_at=recency.last_reported.get(camera.id),
+            last_report_arrival=recency.last_report_arrival.get(camera.id),
+            last_image_arrival=recency.last_image_arrival.get(camera.id),
+            current_site=current_site_map.get(camera.id),
+            last_maintenance_date=last_maintenance_map.get(camera.id),
+            rejections_visible=camera.project_id in open_project_ids,
+            recent_rejections=recent_rejections.get(camera.id),
+            unplaced=unplaced.get(camera.id),
+        )
+        for camera in cameras
+    ]
+
+
 @router.get(
     "",
     response_model=List[CameraResponse],
@@ -350,61 +430,8 @@ async def list_cameras(
     result = await db.execute(query)
     cameras = result.scalars().all()
 
-    camera_ids = [c.id for c in cameras]
-    recency = await fetch_camera_recency(db, camera_ids)
-    # Restricted viewers see no rejections at all (a rejection has no site),
-    # so their count stays None and the UI hides it.
-    recent_rejections: dict[int, RecentRejections] = {}
-    unplaced: dict[int, UnplacedPhotos] = {}
-    if site_scope is None:
-        recent_rejections = await fetch_recent_rejections(db, camera_ids)
-        unplaced = await fetch_unplaced(db, camera_ids)
-    last_maintenance_map: dict[int, date] = {}
-    if camera_ids:
-        maintenance_rows = await db.execute(
-            select(CameraMaintenanceEvent.camera_id, func.max(CameraMaintenanceEvent.event_date))
-            .where(CameraMaintenanceEvent.camera_id.in_(camera_ids))
-            .group_by(CameraMaintenanceEvent.camera_id)
-        )
-        last_maintenance_map = {cam_id: d for cam_id, d in maintenance_rows.all()}
-
-    # Each camera's current site, see shared/deployment_queries.py.
-    current_site_map: dict[int, dict] = {}
-    if camera_ids:
-        site_rows = await db.execute(
-            text(f"""
-                SELECT cur.camera_id, s.id AS site_id, s.name AS site_name
-                FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
-                LEFT JOIN sites s ON s.id = cur.site_id
-                WHERE cur.camera_id = ANY(:cam_ids)
-            """),
-            {"cam_ids": camera_ids},
-        )
-        for r in site_rows.mappings().all():
-            if r["site_id"] is not None:
-                current_site_map[r["camera_id"]] = {
-                    "id": r["site_id"], "name": r["site_name"],
-                }
-
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-
-    return [
-        camera_to_response(
-            camera,
-            tz=tz,
-            last_captured_at=recency.last_captured.get(camera.id),
-            last_reported_at=recency.last_reported.get(camera.id),
-            last_report_arrival=recency.last_report_arrival.get(camera.id),
-            last_image_arrival=recency.last_image_arrival.get(camera.id),
-            current_site=current_site_map.get(camera.id),
-            last_maintenance_date=last_maintenance_map.get(camera.id),
-            rejections_visible=site_scope is None,
-            recent_rejections=recent_rejections.get(camera.id),
-            unplaced=unplaced.get(camera.id),
-        )
-        for camera in cameras
-    ]
+    open_ids = set(accessible_project_ids) if site_scope is None else set()
+    return await camera_responses(db, cameras, open_ids)
 
 
 @router.get(

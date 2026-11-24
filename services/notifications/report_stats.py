@@ -13,7 +13,7 @@ from shared.models import (
     Image, Camera, CameraHealthReport, Detection, Classification, Project, HumanObservation,
     Deployment, Site
 )
-from shared.camera_status import camera_status
+from shared.camera_status import camera_status, is_low_battery, is_sd_nearly_full
 from shared.classification_threshold import classification_passes_threshold
 from sqlalchemy import union_all
 from shared.logger import get_logger
@@ -324,20 +324,13 @@ def get_species_distribution(
     ]
 
 
-def get_camera_health_summary(
-    db: Session,
-    project_id: int,
-    battery_threshold: int = 30,
-    sd_threshold: int = 80
-) -> Dict[str, Any]:
+def get_camera_health_summary(db: Session, project_id: int) -> Dict[str, Any]:
     """
     Get camera health summary for project.
 
     Args:
         db: Database session
         project_id: Project to query
-        battery_threshold: Battery % below which camera is considered low
-        sd_threshold: SD card % above which camera is considered full
 
     Returns:
         Dictionary with:
@@ -401,7 +394,7 @@ def get_camera_health_summary(
 
         if battery is not None:
             battery_values.append(battery)
-            if battery <= battery_threshold:
+            if is_low_battery(battery):
                 low_battery_cameras.append({
                     'name': camera.device_id,
                     'battery': battery
@@ -410,16 +403,18 @@ def get_camera_health_summary(
         # Check SD card usage - first try direct columns, then config
         sd_percent = None
         if camera.sd_used_mb is not None and camera.sd_total_mb is not None and camera.sd_total_mb > 0:
-            sd_percent = int((camera.sd_used_mb / camera.sd_total_mb) * 100)
+            sd_percent = (camera.sd_used_mb / camera.sd_total_mb) * 100
         elif camera.config:
             health = camera.config.get('last_health_report', {})
             sd_percent = health.get('sd_utilization_percentage')
-            if sd_percent is not None:
-                sd_percent = int(sd_percent)
 
         if sd_percent is not None:
+            # The limit tests the reading itself, as the app does; the
+            # email shows it rounded down.
+            nearly_full = is_sd_nearly_full(sd_percent)
+            sd_percent = int(sd_percent)
             sd_values.append(sd_percent)
-            if sd_percent >= sd_threshold:
+            if nearly_full:
                 high_sd_cameras.append({
                     'name': camera.device_id,
                     'sd_percent': sd_percent

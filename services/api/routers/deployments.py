@@ -373,42 +373,6 @@ async def set_checked(
     return CheckedResponse(updated=result.rowcount)
 
 
-# What needs a person, for the badge on Moves: a move nobody
-# answered that came back to the site it left within SHORT_TRIP_DAYS, the
-# mark of a false move. The same rule as the page (suspicious in
-# components/deployments/moves.ts); tests/db_api/test_review.py holds
-# the two together. Photos without a site are not counted here: they are a
-# camera's problem, shown on the Cameras page.
-SHORT_TRIP_DAYS = 7
-ATTENTION_COUNT_SQL = f"""
-    SELECT count(*) FROM deployments d
-    JOIN cameras c ON c.id = d.camera_id
-    WHERE c.project_id = :project_id AND d.site_source = 'auto' AND d.checked_at IS NULL
-      AND EXISTS (
-        SELECT 1 FROM deployments before_it, deployments after_it
-        WHERE before_it.camera_id = d.camera_id AND before_it.end_at = d.start_at
-          AND after_it.camera_id = d.camera_id AND after_it.start_at = d.end_at
-          AND after_it.site_id = before_it.site_id
-          AND d.end_at - d.start_at <= interval '{SHORT_TRIP_DAYS} days'
-      )
-"""
-
-
-class AttentionCount(BaseModel):
-    count: int
-
-
-@router.get("/attention-count", response_model=AttentionCount)
-async def attention_count(
-    project_id: int,
-    db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(require_project_admin_access),
-):
-    """How many moves need a person, for the sidebar badge."""
-    count = (await db.execute(text(ATTENTION_COUNT_SQL), {"project_id": project_id})).scalar_one()
-    return AttentionCount(count=count)
-
-
 @router.post("/{deployment_id}/not-moved", response_model=SetDeploymentResponse)
 async def not_moved(
     project_id: int,

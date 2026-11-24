@@ -111,8 +111,9 @@ class TestRejectingFlag:
 
 
 class TestNoEndpointBuildsTheResponseItself:
-    """`camera_to_response` may only be called by the list endpoint and by
-    `camera_detail_response`. Anything else drifts back into the bug."""
+    """`camera_to_response` may only be called by `camera_responses` (the
+    list endpoint and the To do list) and by `camera_detail_response`.
+    Anything else drifts back into the bug."""
 
     @pytest.mark.parametrize("path", SINGLE_CAMERA_FILES, ids=lambda p: p.name)
     def test_only_sanctioned_callers(self, path: Path):
@@ -130,7 +131,7 @@ class TestNoEndpointBuildsTheResponseItself:
                 ):
                     callers.append(node.name)
 
-        assert set(callers) <= {"list_cameras", "camera_detail_response"}, (
+        assert set(callers) <= {"camera_responses", "camera_detail_response"}, (
             f"{path.name}: camera_to_response called from {sorted(set(callers))}. "
             "Single-camera endpoints must call camera_detail_response instead, "
             "or they will report a healthy camera as never_reported."
@@ -157,7 +158,7 @@ class TestNoEndpointBuildsTheResponseItself:
                 continue
             body = ast.unparse(node)
             assert (
-                "camera_detail_response(" in body or "camera_to_response(" in body
+                "camera_detail_response(" in body or "camera_responses(" in body
             ), f"{path.name}:{node.name} returns a CameraResponse but builds nothing"
             if node.name != "list_cameras":
                 assert "camera_detail_response(" in body, (

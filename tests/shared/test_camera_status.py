@@ -4,11 +4,14 @@ The bug these guard against: the status used to read health reports only,
 so a camera model that sends no daily report (INSTAR) stayed on
 "No live signal yet" forever while it delivered photos every day.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from shared.camera_status import CAMERA_SILENCE_DAYS, camera_status, is_rejecting
+from shared.camera_status import (
+    CAMERA_SILENCE_DAYS, camera_status, counts_for_health, is_low_battery, is_rejecting,
+    is_sd_nearly_full, is_sim_expiring, sim_expiry_threshold,
+)
 
 
 def _ago(**kwargs) -> datetime:
@@ -118,3 +121,44 @@ class TestIsRejecting:
             is_rejecting(datetime(2026, 10, 29, 9, 0), None)
         with pytest.raises(ValueError):
             is_rejecting(_ago(hours=1), datetime(2026, 10, 29, 9, 0))
+
+
+class TestHealthLimits:
+    """One limit per reading, for the Cameras page, To do and the report."""
+
+    def test_battery_under_30_is_low(self):
+        assert is_low_battery(29) is True
+        assert is_low_battery(29.9) is True
+        assert is_low_battery(30) is False
+        assert is_low_battery(None) is False
+
+    def test_sd_over_80_is_nearly_full(self):
+        assert is_sd_nearly_full(80.1) is True
+        assert is_sd_nearly_full(80) is False
+        assert is_sd_nearly_full(None) is False
+
+    def test_only_reporting_cameras_count(self):
+        assert counts_for_health('active') and counts_for_health('inactive')
+        assert not counts_for_health('retired')
+        assert not counts_for_health('never_reported')
+
+
+class TestSimExpiry:
+    """Expiring = on or before the 1st of the month after next. The monthly
+    email on the 1st then lists a card a whole month ahead."""
+
+    def test_threshold_is_first_of_month_after_next(self):
+        assert sim_expiry_threshold(date(2026, 5, 1)) == date(2026, 7, 1)
+        assert sim_expiry_threshold(date(2026, 5, 31)) == date(2026, 7, 1)
+
+    def test_threshold_wraps_the_year(self):
+        assert sim_expiry_threshold(date(2026, 11, 1)) == date(2027, 1, 1)
+        assert sim_expiry_threshold(date(2026, 12, 31)) == date(2027, 2, 1)
+
+    def test_expiring_cases(self):
+        today = date(2026, 5, 7)
+        assert is_sim_expiring(date(2024, 1, 1), today) is True  # expired long ago
+        assert is_sim_expiring(date(2026, 6, 30), today) is True
+        assert is_sim_expiring(date(2026, 7, 1), today) is True  # the threshold itself
+        assert is_sim_expiring(date(2026, 7, 2), today) is False
+        assert is_sim_expiring(None, today) is False

@@ -222,3 +222,18 @@ def has_project_access(db, user_id: int, project_id: int) -> bool:
         )
     ).scalar_one_or_none()
     return membership is not None
+
+
+def is_project_admin(db, user: User, project_id: int) -> bool:
+    """Sync twin of auth.permissions.can_admin_project, for scheduled jobs
+    whose preference rows can outlive an admin role: server admins always,
+    others only with role 'project-admin' on the project."""
+    if user.is_superuser:
+        return True
+    role = db.execute(
+        select(ProjectMembership.role).where(
+            ProjectMembership.user_id == user.id,
+            ProjectMembership.project_id == project_id,
+        )
+    ).scalar_one_or_none()
+    return role == "project-admin"

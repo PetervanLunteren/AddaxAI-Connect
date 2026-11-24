@@ -21,7 +21,7 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log, get_server_timezone
+from db_operations import create_notification_log, get_server_timezone, is_project_admin
 
 logger = get_logger("notifications.project_inactivity")
 settings = get_settings()
@@ -59,11 +59,13 @@ def send_project_inactivity_alerts() -> None:
             logger.info("No users with notification preferences found")
             return
 
-        # Filter to users with project_inactivity alerts enabled
+        # Filter to users with project_inactivity alerts enabled who are
+        # still admin of the project: a toggle saved while admin outlives a
+        # downgrade, the same check as the SIM expiry email.
         eligible = []
         for pref, user, project in preferences:
             config = _get_project_inactivity_config(pref)
-            if config:
+            if config and is_project_admin(db, user, project.id):
                 eligible.append((pref, user, project))
 
         if not eligible:

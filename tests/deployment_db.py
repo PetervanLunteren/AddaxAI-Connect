@@ -12,6 +12,7 @@ every test empties the tables.
 """
 import math
 import os
+import json
 import uuid
 from datetime import date, datetime
 from typing import Optional
@@ -84,10 +85,10 @@ def execute(sql: str, **params):
         return result.scalar() if result.returns_rows else None
 
 
-def make_project(name: str = "Griend") -> int:
+def make_project(name: str = "Griend", model: str = "SPECIESNET-v4-0-1-A-v1") -> int:
     return execute(
-        "INSERT INTO projects (name, classification_model) VALUES (:n, 'speciesnet') RETURNING id",
-        n=name,
+        "INSERT INTO projects (name, classification_model) VALUES (:n, :m) RETURNING id",
+        n=name, m=model,
     )
 
 
@@ -103,6 +104,45 @@ def make_user(email: str = "admin@example.org") -> int:
         """INSERT INTO users (email, hashed_password, is_active, is_superuser, is_verified)
            VALUES (:e, 'x', true, true, true) RETURNING id""",
         e=email,
+    )
+
+
+def make_member(project_id: int, role: str = "project-viewer", site_ids: Optional[list] = None,
+                email: str = "member@example.org") -> int:
+    """A user who is not a server admin, with one membership."""
+    user = execute(
+        """INSERT INTO users (email, hashed_password, is_active, is_superuser, is_verified)
+           VALUES (:e, 'x', true, false, true) RETURNING id""",
+        e=email,
+    )
+    execute(
+        """INSERT INTO project_memberships (user_id, project_id, role, site_ids)
+           VALUES (:u, :p, :r, CAST(:s AS json))""",
+        u=user, p=project_id, r=role, s=None if site_ids is None else json.dumps(site_ids),
+    )
+    return user
+
+
+def make_task(camera_id: int, assigned_to: Optional[int] = None, due: Optional[date] = None) -> int:
+    return execute(
+        """INSERT INTO camera_service_tasks (camera_id, action_types, due_date, assigned_to_user_id)
+           VALUES (:c, CAST('["battery"]' AS json), :d, :a) RETURNING id""",
+        c=camera_id, d=due, a=assigned_to,
+    )
+
+
+def set_health(camera_id: int, battery: Optional[float] = None, sd: Optional[float] = None) -> None:
+    """The camera's last health report, as ingestion keeps it in its config."""
+    report = {"battery_percentage": battery, "sd_utilization_percentage": sd}
+    execute("UPDATE cameras SET config = CAST(:c AS json) WHERE id = :i",
+            c=json.dumps({"last_health_report": report}), i=camera_id)
+
+
+def make_rejection(camera_id: Optional[int], project_id: Optional[int], days_ago: float = 0) -> int:
+    return execute(
+        """INSERT INTO rejections (filename, disk_path, reason, camera_id, project_id, rejected_at)
+           VALUES ('x.jpg', 'x', 'no_gps', :c, :p, now() - make_interval(secs => :s)) RETURNING id""",
+        c=camera_id, p=project_id, s=days_ago * 86400,
     )
 
 

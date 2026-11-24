@@ -3,9 +3,9 @@ Step 3b: the Moves page and its check.
 
 A move is a deployment the GPS made. A person may say "It moved", which
 records who looked and when and fixes nothing. A move nobody checked that
-came back within a week is suspicious; the badge on Moves counts those in
-SQL, the page marks them in the browser from the deployments list, and the
-two must say the same. Photos without a site are the Cameras page's, not
+came back within a week is suspicious; the To do list counts those in
+SQL (utils/todo.py), the page marks them in the browser from the
+deployments list, and the two must say the same. Photos without a site are the Cameras page's, not
 counted here.
 """
 from datetime import datetime
@@ -17,7 +17,10 @@ from deployment_db import (
     make_statement, offset, rows, to_check,
     execute,
 )
-from routers.deployments import CheckedRequest, attention_count, list_deployments, set_checked
+from sqlalchemy import text
+
+from routers.deployments import CheckedRequest, list_deployments, set_checked
+from utils.todo import SUSPICIOUS_MOVES_SQL
 
 pytestmark = pytest.mark.asyncio
 
@@ -29,6 +32,12 @@ def rebuild(camera_id):
     from shared.deployment_rebuild import rebuild_camera
     with get_db_session() as s:
         rebuild_camera(s, camera_id)
+
+
+async def suspicious(project, session) -> int:
+    """The To do count of suspicious moves of one project."""
+    rows = await session.execute(text(SUSPICIOUS_MOVES_SQL), {"project_ids": [project]})
+    return dict(rows.all()).get(project, 0)
 
 
 def list_rule(listed) -> int:
@@ -79,11 +88,11 @@ def project_with_news():
 async def test_what_needs_a_person(session, admin, project_with_news):
     """Nothing here needs a person. The mover's moves are updates nobody
     answered, which is fine; the fixed camera is a person's word; the
-    camera without GPS is the Cameras page's to show, not the badge's."""
+    camera without GPS is the Cameras page's to show, not this count's."""
     project, mover, fixed, lost = project_with_news
     assert len(to_check(mover)) == 2
     assert to_check(fixed) == []
-    assert (await attention_count(project, session, admin)).count == 0
+    assert await suspicious(project, session) == 0
 
 
 async def test_a_move_that_came_back_within_a_week_needs_a_person(session, admin):
@@ -99,10 +108,10 @@ async def test_a_move_that_came_back_within_a_week_needs_a_person(session, admin
 
     # Only the trip out is marked, not the start and not the way back. The
     # page's rule says the same.
-    assert (await attention_count(project, session, admin)).count == 1
+    assert await suspicious(project, session) == 1
     assert list_rule(await list_deployments(project, session, admin, None)) == 1
     await set_checked(project, CheckedRequest(deployment_ids=[trip["id"]], checked=True), session, admin)
-    assert (await attention_count(project, session, admin)).count == 0
+    assert await suspicious(project, session) == 0
     assert list_rule(await list_deployments(project, session, admin, None)) == 0
 
 
@@ -145,14 +154,14 @@ async def test_a_checked_deployment_stays_checked_through_a_rebuild(session, adm
     assert [d["id"] for d in to_check(mover)] == [second["id"]]
 
 
-async def test_the_badge_count_equals_the_list(session, admin, project_with_news):
+async def test_the_todo_count_equals_the_list(session, admin, project_with_news):
     project, mover, *_ = project_with_news
     first, _ = deployments(mover)
     for checked in ([], [first["id"]]):
         if checked:
             await set_checked(project, CheckedRequest(deployment_ids=checked, checked=True), session, admin)
         listed = await list_deployments(project, session, admin, None)
-        count = (await attention_count(project, session, admin)).count
+        count = await suspicious(project, session)
         assert list_rule(listed) == count
     assert count == 0
 

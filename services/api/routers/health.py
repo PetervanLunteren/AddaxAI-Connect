@@ -351,8 +351,18 @@ async def get_services_health(
         Status of all services
     """
     logger.info("Health check requested", user_id=current_user.id)
+    services = await collect_services_health(db)
+    logger.info(
+        "Health check completed",
+        healthy_count=sum(1 for s in services if s.status == "healthy"),
+        total_count=len(services)
+    )
+    return ServicesHealthResponse(services=services)
 
-    # Check all services
+
+async def collect_services_health(db: AsyncSession) -> List[ServiceStatus]:
+    """Every check of the System health page, in page order. Also read by the
+    To do list (utils/todo.py), which shows a line when one is unhealthy."""
     services = []
 
     # Infrastructure services
@@ -383,11 +393,4 @@ async def get_services_health(
     services.append(check_heartbeat("notifications-sensingclues", HEARTBEAT_KEY_NOTIFICATIONS_SENSINGCLUES, QUEUE_NOTIFICATION_SENSINGCLUES))
     services.append(check_cold_tier_watchdog())
     services.append(check_backup())
-
-    logger.info(
-        "Health check completed",
-        healthy_count=sum(1 for s in services if s.status == "healthy"),
-        total_count=len(services)
-    )
-
-    return ServicesHealthResponse(services=services)
+    return services

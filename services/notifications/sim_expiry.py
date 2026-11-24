@@ -17,7 +17,6 @@ from shared.database import get_sync_session
 from shared.models import (
     Camera,
     Project,
-    ProjectMembership,
     ProjectNotificationPreference,
     User,
 )
@@ -25,14 +24,12 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log
+from shared.camera_status import sim_expiry_threshold
+
+from db_operations import create_notification_log, is_project_admin
 
 logger = get_logger("notifications.sim_expiry")
 settings = get_settings()
-
-# How far ahead the cron looks. Calendar-aligned: a camera matches if its
-# sim_expiry_date is on or before the 1st of (run_month + LOOKAHEAD_MONTHS).
-LOOKAHEAD_MONTHS = 2
 
 # Inside this many days of expiry we tag the camera as "expiring soon" in the
 # email. Cameras already past their expiry get the harder "expired" tag.
@@ -48,12 +45,13 @@ def send_sim_expiry_alerts() -> None:
     logger.info("Starting SIM expiry alert check")
 
     run_date = date.today()
-    threshold = _start_of_month_plus(run_date, LOOKAHEAD_MONTHS)
+    # The same rule as the To do list and the Cameras page.
+    threshold = sim_expiry_threshold(run_date)
 
     with get_sync_session() as db:
         # All admins who opted in, grouped per project. Server admins are
         # included implicitly by the membership query plus the is_superuser
-        # branch in _is_project_admin below.
+        # branch in is_project_admin.
         eligible = _load_eligible_admins(db)
 
         if not eligible:
@@ -168,20 +166,6 @@ def send_sim_expiry_alerts() -> None:
         )
 
 
-def _start_of_month_plus(reference: date, months: int) -> date:
-    """
-    Return the 1st day of the month `months` calendar months after the
-    reference's month. Wraps year boundaries cleanly. Leap years are not a
-    concern because we always anchor on day 1.
-    """
-    year = reference.year
-    month = reference.month + months
-    while month > 12:
-        month -= 12
-        year += 1
-    return date(year, month, 1)
-
-
 def _load_eligible_admins(db) -> List[tuple]:
     """
     Materialise every (user_id, email, project_id, project_name) tuple where
@@ -207,7 +191,7 @@ def _load_eligible_admins(db) -> List[tuple]:
     for pref, user, project in rows:
         if not _sim_expiry_enabled(pref):
             continue
-        if not _is_project_admin(db, user, project.id):
+        if not is_project_admin(db, user, project.id):
             continue
         eligible.append((user.id, user.email, project.id, project.name))
     return eligible
@@ -222,23 +206,6 @@ def _sim_expiry_enabled(pref: ProjectNotificationPreference) -> bool:
     if not isinstance(config, dict):
         return False
     return bool(config.get("enabled", False))
-
-
-def _is_project_admin(db, user: User, project_id: int) -> bool:
-    """
-    Sync version of auth.permissions.can_admin_project. Server admins always
-    qualify; regular users qualify only when their project_memberships row has
-    role == 'project-admin'.
-    """
-    if user.is_superuser:
-        return True
-    role = db.execute(
-        select(ProjectMembership.role).where(
-            ProjectMembership.user_id == user.id,
-            ProjectMembership.project_id == project_id,
-        )
-    ).scalar_one_or_none()
-    return role == "project-admin"
 
 
 def _expiring_cameras(
