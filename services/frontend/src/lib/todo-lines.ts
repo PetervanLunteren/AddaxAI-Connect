@@ -16,6 +16,8 @@ export type TodoGroup = 'you' | 'project' | 'server';
 export interface TodoLine {
   kind: string;
   projectId: number | null; // null for a server line
+  target: string | null; // integration_error: which integration
+  quiet: boolean; // dismissed by me, nothing new since
   group: TodoGroup;
   icon: LucideIcon;
   text: string;
@@ -38,7 +40,7 @@ export function todoLine(item: TodoItem, projectId: number | null, userId: numbe
   const p = `/projects/${projectId}`;
   const n = item.count;
   const line = (group: TodoGroup, icon: LucideIcon, text: string, to: string, extra: Partial<TodoLine> = {}): TodoLine =>
-    ({ kind: item.kind, projectId, group, icon, text, to, ...extra });
+    ({ kind: item.kind, projectId, target: item.target ?? null, quiet: item.quiet, group, icon, text, to, ...extra });
   switch (item.kind) {
     case 'my_tasks':
       return line('you', Wrench, `${plural(n, 'service task', 'service tasks')} for you`,
@@ -77,6 +79,8 @@ export function todoLine(item: TodoItem, projectId: number | null, userId: numbe
   }
 }
 
-/** Broken first, then the rest, each in the server's order. */
-export const brokenFirst = (lines: TodoLine[]): TodoLine[] =>
-  [...lines.filter((l) => l.broken), ...lines.filter((l) => !l.broken)];
+/** New before quiet, and within each broken first, else the server's order. */
+export const inOrder = (lines: TodoLine[]): TodoLine[] => {
+  const rank = (l: TodoLine) => (l.quiet ? 2 : 0) + (l.broken ? 0 : 1);
+  return [...lines].sort((a, b) => rank(a) - rank(b));
+};

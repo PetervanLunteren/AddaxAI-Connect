@@ -32,7 +32,6 @@ import type { LabelChangeImpact, ProjectUpdate, IndependenceSummaryResponse, Det
 import { Select } from '../../components/ui/Select';
 import { Switch } from '../../components/ui/Switch';
 import { SettingRow, SettingRowDivider } from '../../components/ui/SettingRow';
-import { NotNeededNote } from '../../components/NotNeededNote';
 
 const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 0, label: 'Disabled' },
@@ -704,9 +703,6 @@ export const ProjectSettingsPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground mt-1">
                     All species are selected by default. Remove the ones that do not occur in your area to make classification more accurate. This applies to new images only, already classified images are not affected.
                   </p>
-                  <div className="mt-1">
-                    <NotNeededNote kind="choose_species" projectId={currentProject.id} />
-                  </div>
                 </div>
                 <div className="flex-1">
                   <MultiSelect

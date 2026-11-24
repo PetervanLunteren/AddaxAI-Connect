@@ -36,8 +36,8 @@ def rebuild(camera_id):
 
 async def suspicious(project, session) -> int:
     """The To do count of suspicious moves of one project."""
-    rows = await session.execute(text(SUSPICIOUS_MOVES_SQL), {"project_ids": [project]})
-    return dict(rows.all()).get(project, 0)
+    result = await session.execute(text(SUSPICIOUS_MOVES_SQL), {"project_ids": [project]})
+    return len(result.all())
 
 
 def list_rule(listed) -> int:

@@ -1065,21 +1065,24 @@ used different limits for the same thing and which people learned to ignore.
   Settings, the integration, System health, File management), so it shows
   what it belongs to. Broken things (inactive, rejecting, a failing
   integration or service) come first in their group.
-- **Not needed, for the lines that are a choice only** (`NOT_NEEDED_KINDS`
-  in `utils/todo.py`): choose the species, Telegram not set up, files from
-  unknown cameras. Whoever could fix the line (project admin, or server
-  admin for a server line) may mark it; it is hidden for everyone, with who
-  and when in `todo_not_needed`. Both marking and undoing are on the page
-  the line opens (`NotNeededNote`), never in the panel: the panel only
-  links, every decision is made where its context is. Unknown files come back when a newer file
-  arrives. Every other line leaves only when fixed, and nothing is hidden
-  for one person: that is the model of Sentry's Archive and Datadog's mute
-  for shared problems; personal "done" (GitHub, Linear) is for messages,
-  and a shared problem each person hides for themselves gets fixed by
-  nobody. Decided 25 November 2026.
+- **Dismiss makes a line quiet, for you only.** Every line stays in the
+  list; a new one is loud (bold, light teal, counted on the icon), a
+  dismissed one is a plain row you can still click. Dismiss on hover, or
+  Dismiss all at the bottom. A dismissal (`todo_dismissals`) remembers the
+  items the line held: camera, move, task or file ids (`keys` on each item,
+  never sent to the browser). The line turns loud again when an item
+  appears that was not there; the API keeps only the keys still in the
+  line, so the same camera failing again after it recovered is new too.
+  Species and Telegram have nothing to add, so once dismissed they stay
+  quiet. Why: a count that never changes teaches people to ignore the icon
+  (badge fatigue), and hiding would lose the overview. The read model of
+  Discourse and Gmail, with the resurfacing of Sentry's "archive until
+  escalating" and Linear's snooze. Per person, so nobody quiets a problem
+  for someone else. Decided 25 November 2026, replacing a shared "Not
+  needed" on three lines.
 - **Fresh:** polled every 5 minutes, and any successful change in the app
   refreshes it (`MutationCache` in `src/lib/query-client.ts`).
-- **Adding a nudge:** count it in `todo_for`, add its kind to
+- **Adding a nudge:** count it in `_lines` with the keys of what it counts, add its kind to
   `todo-lines.ts`, add a test in `tests/db_api/test_todo.py`. An unknown
   kind is ignored by an older browser.
 

@@ -10,6 +10,8 @@ export interface TodoItem {
   count: number;
   overdue?: number | null; // my_tasks: how many of them are overdue
   target?: string | null; // integration_error: earthranger | sensingclues
+  // Dismissed by me and nothing new since: a plain row, not counted.
+  quiet: boolean;
 }
 
 export interface TodoProject {
@@ -23,33 +25,15 @@ export interface Todo {
   server: TodoItem[];
 }
 
-/** A line someone marked not needed: hidden for everyone until undone. */
-export interface NotNeeded {
-  kind: string;
-  project_id: number | null; // null for a server line
-  by: string | null; // email
-  at: string;
-}
-
 export const todoApi = {
   get: async (): Promise<Todo> => {
     const { data } = await apiClient.get('/api/todo');
     return data;
   },
-  notNeeded: async (): Promise<NotNeeded[]> => {
-    const { data } = await apiClient.get('/api/todo/not-needed');
-    return data;
-  },
-  markNotNeeded: async (kind: string, projectId: number | null): Promise<void> => {
-    await apiClient.post('/api/todo/not-needed', { kind, project_id: projectId });
-  },
-  undoNotNeeded: async (kind: string, projectId: number | null): Promise<void> => {
-    await apiClient.delete('/api/todo/not-needed', { params: { kind, project_id: projectId ?? undefined } });
+  /** Make lines quiet for me, until something new appears in them. */
+  dismiss: async (lines: { kind: string; project_id: number | null; target?: string | null }[]): Promise<void> => {
+    await apiClient.post('/api/todo/dismiss', { lines });
   },
 };
 
-// Under one root, so any change refreshes the list and the marks together.
-export const todoKeys = {
-  all: ['todo'] as const,
-  notNeeded: ['todo', 'not-needed'] as const,
-};
+export const todoKeys = { all: ['todo'] as const };

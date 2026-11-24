@@ -999,21 +999,22 @@ class Rejection(Base):
     )
 
 
-class TodoNotNeeded(Base):
-    """A To do line a person marked not needed (services/api/utils/todo.py).
+class TodoDismissal(Base):
+    """A Needs attention line one person dismissed (services/api/utils/todo.py).
 
-    Only lines that are a choice can be: a project without a species list,
-    a server without Telegram, files from unknown cameras. Hidden for
-    everyone who would see the line, until undone; the unknown files line
-    comes back when a newer file arrives. project_id is NULL for a server
-    line. One row per line.
+    The line stays in their list as a quiet row and is not counted on the
+    icon, until an item appears that is not in `keys` (a camera, move, task
+    or file id). The API keeps only the keys that are still in the line, so
+    an item that left and comes back is new again. project_id is NULL for a
+    server line. One row per person and line.
     """
-    __tablename__ = "todo_not_needed"
+    __tablename__ = "todo_dismissals"
 
     id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
     kind = Column(String(50), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    keys = Column(JSON, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 

@@ -18,7 +18,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toaster';
 import { adminApi } from '../../api/admin';
-import { NotNeededNote } from '../../components/NotNeededNote';
 
 // Generate random 5-character hash for bot username
 const generateBotUsername = (): string => {
@@ -267,7 +266,7 @@ export const ServerSettingsPage: React.FC = () => {
             title="Telegram notifications"
             description={isTelegramConfigured && telegramConfig
               ? <>Bot <code className="text-xs bg-muted px-1 py-0.5 rounded">@{telegramConfig.bot_username}</code> is active. Users link their own chat from project settings. <button onClick={() => setShowProfilePicModal(true)} className="text-primary hover:underline">Add a profile picture</button>.</>
-              : <>Send alerts to Telegram. One bot per server. Users link their own chat from project settings.<span className="mt-1 block"><NotNeededNote kind="telegram_not_set_up" /></span></>}
+              : 'Send alerts to Telegram. One bot per server. Users link their own chat from project settings.'}
           >
             {telegramLoading ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />

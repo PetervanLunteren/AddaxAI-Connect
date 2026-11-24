@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from deployment_db import (
-    HOME, at, execute, make_camera, make_deployment, make_image, make_member, make_project,
+    HOME, at, execute, rows, make_camera, make_deployment, make_image, make_member, make_project,
     make_rejection, make_site, make_task, make_user, set_health,
 )
 from utils.todo import todo_for
@@ -30,7 +30,7 @@ def healthy_server(monkeypatch):
     import routers.health
 
     async def all_healthy(db):
-        return [SimpleNamespace(status="healthy")]
+        return [SimpleNamespace(name="api", status="healthy")]
     monkeypatch.setattr(routers.health, "collect_services_health", all_healthy)
     execute("DELETE FROM telegram_config")
     execute("INSERT INTO telegram_config (is_configured) VALUES (true)")
@@ -234,7 +234,7 @@ async def test_server_lines_for_server_admins_only(session, monkeypatch):
     import routers.health
 
     async def one_down(db):
-        return [SimpleNamespace(status="healthy"), SimpleNamespace(status="unhealthy")]
+        return [SimpleNamespace(name="api", status="healthy"), SimpleNamespace(name="redis", status="unhealthy")]
     monkeypatch.setattr(routers.health, "collect_services_health", one_down)
     execute("UPDATE telegram_config SET is_configured = false")
     make_rejection(None, None)  # a file of no known camera
@@ -251,67 +251,92 @@ async def test_a_healthy_server_has_no_lines(session):
     assert await lines(session, server_admin()) == {}
 
 
-# Not needed: only for the lines that are a choice, for everyone, undoable
+# Dismiss: quiet for one person, loud again when something new appears
 
 
-async def test_choose_species_marked_not_needed_hides_it_for_everyone(session):
-    from utils.todo import list_not_needed, mark_not_needed, may_mark, undo_not_needed
-    project = make_project(model=FIXED_MODEL)
-    admin = member(project, "project-admin", email="project-admin@example.org")
-    other_admin = server_admin()
-    viewer = member(project, email="viewer@example.org")
-    assert not await may_mark(viewer, "choose_species", project, session)
-    assert await may_mark(admin, "choose_species", project, session)
-
-    await mark_not_needed(admin, "choose_species", project, session)
-    assert await lines(session, admin, project) == {}
-    assert await lines(session, other_admin, project) == {}
-    [mark] = await list_not_needed(other_admin, session)
-    assert (mark.kind, mark.project_id, mark.by) == ("choose_species", project, "project-admin@example.org")
-    assert await list_not_needed(viewer, session) == []
-
-    await undo_not_needed("choose_species", project, session)
-    assert await lines(session, admin, project) == {"choose_species": 1}
+async def quiet(session, user, project=None):
+    """{kind: quiet} of one project, or of the server when project is None."""
+    todo = await todo_for(user, session)
+    items = todo.server if project is None else next(
+        (p.items for p in todo.projects if p.project_id == project), [])
+    return {i.kind: i.quiet for i in items}
 
 
-async def test_a_mark_stays_with_its_project(session):
-    from utils.todo import mark_not_needed
-    a, b = make_project("A", model=FIXED_MODEL), make_project("B", model=FIXED_MODEL)
-    admin = server_admin()
-    await mark_not_needed(admin, "choose_species", a, session)
-    assert await lines(session, admin, a) == {}
-    assert await lines(session, admin, b) == {"choose_species": 1}
-
-
-async def test_only_lines_that_are_a_choice_can_be_marked(session):
-    from utils.todo import may_mark
+async def test_a_dismissed_line_stays_quiet_until_a_new_camera_joins(session):
+    from utils.todo import DismissLine, dismiss
     project = make_project()
+    site = make_site(project, "Home", HOME)
+    first = placed_camera("CAM1", project, site)
+    set_health(first, battery=10)
     admin = server_admin()
-    for kind in ("low_battery", "suspicious_moves", "services_down", "my_tasks"):
-        assert not await may_mark(admin, kind, project, session)
-        assert not await may_mark(admin, kind, None, session)
-    # A server line is a server admin's, and has no project.
-    project_admin = member(project, "project-admin")
-    assert not await may_mark(project_admin, "telegram_not_set_up", None, session)
-    assert not await may_mark(admin, "telegram_not_set_up", project, session)
-    assert await may_mark(admin, "telegram_not_set_up", None, session)
+    await dismiss(admin, [DismissLine(kind="low_battery", project_id=project)], session)
+    # Still in the list, with its count, but quiet.
+    assert await lines(session, admin, project) == {"low_battery": 1}
+    assert await quiet(session, admin, project) == {"low_battery": True}
+
+    set_health(placed_camera("CAM2", project, site), battery=12)
+    assert await lines(session, admin, project) == {"low_battery": 2}
+    assert await quiet(session, admin, project) == {"low_battery": False}
 
 
-async def test_unknown_files_come_back_with_a_newer_file(session):
-    from utils.todo import mark_not_needed
+async def test_the_same_camera_failing_again_is_new(session):
+    from utils.todo import DismissLine, dismiss
+    project = make_project()
+    cam = placed_camera("CAM", project, make_site(project, "Home", HOME))
+    set_health(cam, battery=10)
+    admin = server_admin()
+    await dismiss(admin, [DismissLine(kind="low_battery", project_id=project)], session)
+    set_health(cam, battery=100)
+    assert await lines(session, admin, project) == {}  # fixed: the line and its dismissal go
+    set_health(cam, battery=10)
+    assert await quiet(session, admin, project) == {"low_battery": False}
+
+
+async def test_dismiss_is_for_one_person(session):
+    from utils.todo import DismissLine, dismiss
+    project = make_project()
+    set_health(placed_camera("CAM", project, make_site(project, "Home", HOME)), battery=10)
+    me = member(project, email="me@example.org")
+    colleague = member(project, email="colleague@example.org")
+    await dismiss(me, [DismissLine(kind="low_battery", project_id=project)], session)
+    assert await quiet(session, me, project) == {"low_battery": True}
+    assert await quiet(session, colleague, project) == {"low_battery": False}
+
+
+async def test_dismiss_all_and_the_lines_nobody_can_add_to(session):
+    """Species and Telegram never get a new item: once dismissed they stay
+    quiet. Lines the user is not shown cannot be dismissed."""
+    from utils.todo import DismissLine, dismiss
+    execute("UPDATE telegram_config SET is_configured = false")
+    project = make_project(model=FIXED_MODEL)
+    admin = server_admin()
+    await dismiss(admin, [DismissLine(kind="choose_species", project_id=project),
+                          DismissLine(kind="telegram_not_set_up"),
+                          DismissLine(kind="low_battery", project_id=project)], session)
+    assert await quiet(session, admin, project) == {"choose_species": True}
+    assert await quiet(session, admin) == {"telegram_not_set_up": True}
+    assert rows("SELECT kind FROM todo_dismissals ORDER BY kind") == [
+        {"kind": "choose_species"}, {"kind": "telegram_not_set_up"}]
+
+
+async def test_one_integration_dismissed_leaves_the_other_loud(session):
+    from utils.todo import DismissLine, dismiss
+    project = make_project()
+    for kind in ("earthranger", "sensingclues"):
+        execute("""INSERT INTO project_integrations (project_id, kind, config, health_status)
+                   VALUES (:p, :k, CAST('{}' AS json), 'error')""", p=project, k=kind)
+    admin = server_admin()
+    await dismiss(admin, [DismissLine(kind="integration_error", project_id=project, target="earthranger")], session)
+    todo = await todo_for(admin, session)
+    assert {i.target: i.quiet for i in todo.projects[0].items} == {"earthranger": True, "sensingclues": False}
+
+
+async def test_unknown_files_turn_loud_with_a_new_file(session):
+    from utils.todo import DismissLine, dismiss
     admin = server_admin()
     make_rejection(None, None, days_ago=1)
-    await mark_not_needed(admin, "unknown_camera_files", None, session)
-    assert await lines(session, admin) == {}
-    make_rejection(None, None)  # arrives after the mark
-    assert await lines(session, admin) == {"unknown_camera_files": 1}
-
-
-async def test_telegram_marked_not_needed(session):
-    from utils.todo import mark_not_needed, undo_not_needed
-    execute("UPDATE telegram_config SET is_configured = false")
-    admin = server_admin()
-    await mark_not_needed(admin, "telegram_not_set_up", None, session)
-    assert await lines(session, admin) == {}
-    await undo_not_needed("telegram_not_set_up", None, session)
-    assert await lines(session, admin) == {"telegram_not_set_up": 1}
+    await dismiss(admin, [DismissLine(kind="unknown_camera_files")], session)
+    assert await quiet(session, admin) == {"unknown_camera_files": True}
+    make_rejection(None, None)
+    assert await quiet(session, admin) == {"unknown_camera_files": False}
+    assert await lines(session, admin) == {"unknown_camera_files": 2}
