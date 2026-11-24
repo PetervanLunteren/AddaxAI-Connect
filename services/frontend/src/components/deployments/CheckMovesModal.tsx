@@ -73,10 +73,14 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // reversible, and a dialog on every answer slows the check down.
   const [corrections, setCorrections] = useState<Record<string, number>>({});
   const [undone, setUndone] = useState<Set<string>>(new Set());
-  // Which move a correction took back, by camera and start. "It stayed"
-  // merges the move into the stay before it, and Undo brings it back as a
-  // new row with a new id: this finds it again, so the question returns.
-  const [movedAs, setMovedAs] = useState<Record<string, { cameraId: number; startAt: string }>>({});
+  // What a row was, to find its move again after an Undo. "It stayed"
+  // merges the move into the stay before it, and Undo can bring it back as
+  // a new row with a new id: then the move with the same camera and start.
+  // A correction opened from the table is gone after its Undo: then the
+  // camera's first move that starts within the correction's days. Found,
+  // the question shows again; not found, the window says it is undone.
+  type Was = { cameraId: number; startAt: string } | { cameraId: number; from: string; until: string | null };
+  const [movedAs, setMovedAs] = useState<Record<string, Was>>({});
   // An older correction, waiting for "Undo this?".
   const [confirmUndo, setConfirmUndo] = useState<UpdateItem | null>(null);
 
@@ -85,8 +89,12 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   const lookup = (key: string): UpdateItem | undefined => {
     const found = items.find((i) => i.key === key);
     const was = movedAs[key];
-    return found ?? (was && items.find((i) =>
-      i.kind === 'moved' && i.cameraId === was.cameraId && i.deployment!.start_at === was.startAt));
+    if (found || !was) return found;
+    return items
+      .filter((i) => i.kind === 'moved' && i.cameraId === was.cameraId && ('startAt' in was
+        ? i.deployment!.start_at === was.startAt
+        : i.day >= was.from && (was.until === null || i.day <= was.until)))
+      .sort((a, b) => a.day.localeCompare(b.day))[0];
   };
 
   const index = current ? queue.indexOf(current) : -1;
@@ -376,7 +384,11 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
         open={confirmUndo !== null}
         onClose={() => setConfirmUndo(null)}
         onConfirm={() => {
-          if (confirmUndo?.correction) undoCorrection.mutate(confirmUndo.correction.id);
+          const c = confirmUndo?.correction;
+          if (c && current) {
+            setMovedAs((m) => ({ ...m, [current]: { cameraId: c.camera_id, from: c.from_date, until: c.until_date } }));
+            undoCorrection.mutate(c.id);
+          }
           setConfirmUndo(null);
         }}
         title="Undo this correction?"

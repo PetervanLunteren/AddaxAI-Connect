@@ -625,7 +625,11 @@ Notes per step:
    24. Undo after "It stayed" in the window showed "Undone" instead of the
        question: the merged move comes back as a new row with a new id.
        The window now remembers the move by camera and start, finds it
-       again, and asks It moved or It stayed again.
+       again, and asks It moved or It stayed again. The case Peter hit was
+       the other one: a correction opened from the table (filter
+       Corrected) and undone there. The window now shows the camera's
+       first move within the correction's days; only without one it says
+       Undone.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not
