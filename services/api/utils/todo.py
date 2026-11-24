@@ -79,8 +79,12 @@ class TodoItem(BaseModel):
     # Dismissed by this user and nothing new since: a plain row, not counted
     # on the icon.
     quiet: bool = False
-    # What the line counts (camera ids, task ids, ...), for dismissals only.
-    keys: List[str] = Field(default_factory=list, exclude=True)
+    # Loud again after a dismissal: how many of `count` came since. None
+    # when the user never dismissed the line (then all of it is new).
+    new: Optional[int] = None
+    # What the line counts (camera ids, task ids, move and file keys), all
+    # things the user can see. Dismiss sends back the keys the user saw.
+    keys: List[str] = Field(default_factory=list)
 
 
 class TodoProject(BaseModel):
@@ -269,7 +273,9 @@ async def todo_for(user: User, db: AsyncSession) -> TodoResponse:
             else:
                 await db.delete(dismissal)
         for item in items:
-            item.quiet = set(item.keys) <= set(kept)
+            fresh = len(set(item.keys) - set(kept))
+            item.quiet = fresh == 0
+            item.new = fresh or None
     if changed:
         await db.commit()
 
@@ -285,17 +291,19 @@ class DismissLine(BaseModel):
     kind: str
     project_id: Optional[int] = None  # None for a server line
     target: Optional[str] = None  # integration_error: which integration
+    keys: List[str]  # the items the user saw in the line
 
 
 async def dismiss(user: User, wanted: List[DismissLine], db: AsyncSession) -> None:
-    """Make lines quiet for this user: remember the items they hold now.
-    A line the user is not shown is ignored, so nobody can store keys they
-    cannot see."""
+    """Make lines quiet for this user: remember the items they saw. Only
+    keys still in the line count, so an item that arrived after the panel
+    opened stays new, and nobody can store keys they are not shown."""
     lines = await _lines(user, db)
     stored = {(d.project_id, d.kind): d for d in (await db.execute(
         select(TodoDismissal).where(TodoDismissal.user_id == user.id))).scalars().all()}
     for line in wanted:
-        keys = [k for item in _items_of(lines, line.project_id, line.kind, line.target) for k in item.keys]
+        current = {k for item in _items_of(lines, line.project_id, line.kind, line.target) for k in item.keys}
+        keys = current & set(line.keys)
         if not keys:
             continue
         dismissal = stored.get((line.project_id, line.kind))
@@ -303,5 +311,5 @@ async def dismiss(user: User, wanted: List[DismissLine], db: AsyncSession) -> No
             dismissal = TodoDismissal(user_id=user.id, project_id=line.project_id, kind=line.kind, keys=[])
             db.add(dismissal)
             stored[(line.project_id, line.kind)] = dismissal
-        dismissal.keys = sorted(set(dismissal.keys) | set(keys))
+        dismissal.keys = sorted(set(dismissal.keys) | keys)
     await db.commit()

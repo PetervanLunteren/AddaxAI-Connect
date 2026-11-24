@@ -12,6 +12,11 @@ export interface TodoItem {
   target?: string | null; // integration_error: earthranger | sensingclues
   // Dismissed by me and nothing new since: a plain row, not counted.
   quiet: boolean;
+  // Loud again after I dismissed it: how many of count came since.
+  new?: number | null;
+  // What the line counts (camera, task, move or file ids); Dismiss sends
+  // back the ones I saw.
+  keys: string[];
 }
 
 export interface TodoProject {
@@ -31,7 +36,9 @@ export const todoApi = {
     return data;
   },
   /** Make lines quiet for me, until something new appears in them. */
-  dismiss: async (lines: { kind: string; project_id: number | null; target?: string | null }[]): Promise<void> => {
+  dismiss: async (
+    lines: { kind: string; project_id: number | null; target?: string | null; keys: string[] }[],
+  ): Promise<void> => {
     await apiClient.post('/api/todo/dismiss', { lines });
   },
 };

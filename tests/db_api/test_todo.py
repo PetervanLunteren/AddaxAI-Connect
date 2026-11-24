@@ -256,87 +256,135 @@ async def test_a_healthy_server_has_no_lines(session):
 
 async def quiet(session, user, project=None):
     """{kind: quiet} of one project, or of the server when project is None."""
+    return {i.kind: i.quiet for i in await items_of(session, user, project)}
+
+
+async def items_of(session, user, project=None):
     todo = await todo_for(user, session)
-    items = todo.server if project is None else next(
+    return todo.server if project is None else next(
         (p.items for p in todo.projects if p.project_id == project), [])
-    return {i.kind: i.quiet for i in items}
+
+
+async def dismiss_as_seen(session, user, project, *kinds, target=None):
+    """Dismiss lines as the panel does: with the keys the user was shown."""
+    from utils.todo import DismissLine, dismiss
+    shown = await items_of(session, user, project)
+    await dismiss(user, [
+        DismissLine(kind=i.kind, project_id=project, target=i.target, keys=i.keys)
+        for i in shown if i.kind in kinds and (target is None or i.target == target)
+    ], session)
 
 
 async def test_a_dismissed_line_stays_quiet_until_a_new_camera_joins(session):
+    project = make_project()
+    site = make_site(project, "Home", HOME)
+    set_health(placed_camera("CAM1", project, site), battery=10)
+    admin = server_admin()
+    await dismiss_as_seen(session, admin, project, "low_battery")
+    # Still in the list, with its count, but quiet.
+    [line] = await items_of(session, admin, project)
+    assert (line.count, line.quiet, line.new) == (1, True, None)
+
+    set_health(placed_camera("CAM2", project, site), battery=12)
+    [line] = await items_of(session, admin, project)
+    assert (line.count, line.quiet, line.new) == (2, False, 1)
+
+
+async def test_a_line_never_dismissed_has_no_new_count(session):
+    project = make_project()
+    set_health(placed_camera("CAM", project, make_site(project, "Home", HOME)), battery=10)
+    [line] = await items_of(session, server_admin(), project)
+    assert (line.quiet, line.new) == (False, None)
+
+
+async def test_a_camera_that_arrived_after_the_panel_opened_stays_new(session):
+    """Dismiss stores what the user saw, not what the server has at the
+    click."""
     from utils.todo import DismissLine, dismiss
     project = make_project()
     site = make_site(project, "Home", HOME)
     first = placed_camera("CAM1", project, site)
     set_health(first, battery=10)
     admin = server_admin()
-    await dismiss(admin, [DismissLine(kind="low_battery", project_id=project)], session)
-    # Still in the list, with its count, but quiet.
-    assert await lines(session, admin, project) == {"low_battery": 1}
-    assert await quiet(session, admin, project) == {"low_battery": True}
+    [seen] = await items_of(session, admin, project)  # the panel opens
+    set_health(placed_camera("CAM2", project, site), battery=12)  # arrives meanwhile
+    await dismiss(admin, [DismissLine(kind="low_battery", project_id=project, keys=seen.keys)], session)
+    [line] = await items_of(session, admin, project)
+    assert (line.count, line.quiet, line.new) == (2, False, 1)
 
-    set_health(placed_camera("CAM2", project, site), battery=12)
-    assert await lines(session, admin, project) == {"low_battery": 2}
-    assert await quiet(session, admin, project) == {"low_battery": False}
+
+async def test_keys_the_user_was_not_shown_are_not_stored(session):
+    from utils.todo import DismissLine, dismiss
+    project = make_project()
+    set_health(placed_camera("CAM", project, make_site(project, "Home", HOME)), battery=10)
+    admin = server_admin()
+    await dismiss(admin, [DismissLine(kind="low_battery", project_id=project, keys=["99999"])], session)
+    assert rows("SELECT 1 FROM todo_dismissals") == []
 
 
 async def test_the_same_camera_failing_again_is_new(session):
-    from utils.todo import DismissLine, dismiss
     project = make_project()
     cam = placed_camera("CAM", project, make_site(project, "Home", HOME))
     set_health(cam, battery=10)
     admin = server_admin()
-    await dismiss(admin, [DismissLine(kind="low_battery", project_id=project)], session)
+    await dismiss_as_seen(session, admin, project, "low_battery")
     set_health(cam, battery=100)
     assert await lines(session, admin, project) == {}  # fixed: the line and its dismissal go
     set_health(cam, battery=10)
     assert await quiet(session, admin, project) == {"low_battery": False}
 
 
+async def test_partly_recovered_stays_quiet(session):
+    project = make_project()
+    site = make_site(project, "Home", HOME)
+    cams = [placed_camera(f"CAM{n}", project, site) for n in range(3)]
+    for cam in cams:
+        set_health(cam, battery=10)
+    admin = server_admin()
+    await dismiss_as_seen(session, admin, project, "low_battery")
+    set_health(cams[0], battery=100)
+    [line] = await items_of(session, admin, project)
+    assert (line.count, line.quiet) == (2, True)
+
+
 async def test_dismiss_is_for_one_person(session):
-    from utils.todo import DismissLine, dismiss
     project = make_project()
     set_health(placed_camera("CAM", project, make_site(project, "Home", HOME)), battery=10)
     me = member(project, email="me@example.org")
     colleague = member(project, email="colleague@example.org")
-    await dismiss(me, [DismissLine(kind="low_battery", project_id=project)], session)
+    await dismiss_as_seen(session, me, project, "low_battery")
     assert await quiet(session, me, project) == {"low_battery": True}
     assert await quiet(session, colleague, project) == {"low_battery": False}
 
 
-async def test_dismiss_all_and_the_lines_nobody_can_add_to(session):
+async def test_lines_nobody_can_add_to_stay_quiet(session):
     """Species and Telegram never get a new item: once dismissed they stay
-    quiet. Lines the user is not shown cannot be dismissed."""
-    from utils.todo import DismissLine, dismiss
+    quiet."""
     execute("UPDATE telegram_config SET is_configured = false")
     project = make_project(model=FIXED_MODEL)
     admin = server_admin()
-    await dismiss(admin, [DismissLine(kind="choose_species", project_id=project),
-                          DismissLine(kind="telegram_not_set_up"),
-                          DismissLine(kind="low_battery", project_id=project)], session)
+    await dismiss_as_seen(session, admin, project, "choose_species")
+    await dismiss_as_seen(session, admin, None, "telegram_not_set_up")
     assert await quiet(session, admin, project) == {"choose_species": True}
     assert await quiet(session, admin) == {"telegram_not_set_up": True}
-    assert rows("SELECT kind FROM todo_dismissals ORDER BY kind") == [
-        {"kind": "choose_species"}, {"kind": "telegram_not_set_up"}]
 
 
 async def test_one_integration_dismissed_leaves_the_other_loud(session):
-    from utils.todo import DismissLine, dismiss
     project = make_project()
     for kind in ("earthranger", "sensingclues"):
         execute("""INSERT INTO project_integrations (project_id, kind, config, health_status)
                    VALUES (:p, :k, CAST('{}' AS json), 'error')""", p=project, k=kind)
     admin = server_admin()
-    await dismiss(admin, [DismissLine(kind="integration_error", project_id=project, target="earthranger")], session)
-    todo = await todo_for(admin, session)
-    assert {i.target: i.quiet for i in todo.projects[0].items} == {"earthranger": True, "sensingclues": False}
+    await dismiss_as_seen(session, admin, project, "integration_error", target="earthranger")
+    assert {i.target: i.quiet for i in await items_of(session, admin, project)} == {
+        "earthranger": True, "sensingclues": False}
 
 
 async def test_unknown_files_turn_loud_with_a_new_file(session):
-    from utils.todo import DismissLine, dismiss
     admin = server_admin()
     make_rejection(None, None, days_ago=1)
-    await dismiss(admin, [DismissLine(kind="unknown_camera_files")], session)
+    await dismiss_as_seen(session, admin, None, "unknown_camera_files")
     assert await quiet(session, admin) == {"unknown_camera_files": True}
     make_rejection(None, None)
-    assert await quiet(session, admin) == {"unknown_camera_files": False}
-    assert await lines(session, admin) == {"unknown_camera_files": 2}
+    [line] = await items_of(session, admin)
+    assert (line.count, line.quiet, line.new) == (2, False, 1)

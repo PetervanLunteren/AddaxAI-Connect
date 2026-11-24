@@ -11,8 +11,9 @@
  * New lines are loud: bold on a light teal background, and counted on the
  * icon. Dismiss makes a line quiet for you, never hides it: it stays as a
  * plain row you can still click, and turns loud again when something new
- * appears in it (another camera, or the same one failing again). Only for
- * you. As Discourse and Gmail do with read and unread.
+ * appears in it (another camera, or the same one failing again), with a
+ * "1 new" pill to say what changed. Only for you. As Discourse and Gmail do
+ * with read and unread.
  *
  * Inside a project it shows that project only: For you, then the project's
  * lines without a heading, since they are always this project's. Outside a
@@ -41,8 +42,10 @@ interface Section {
   lines: TodoLine[];
 }
 
+// With the keys you were shown: a camera that arrived while the panel was
+// open stays new.
 const asDismissed = (lines: TodoLine[]) =>
-  lines.map((l) => ({ kind: l.kind, project_id: l.projectId, target: l.target }));
+  lines.map((l) => ({ kind: l.kind, project_id: l.projectId, target: l.target, keys: l.keys }));
 
 export const TodoMenu: React.FC = () => {
   const { user } = useAuth();
@@ -131,6 +134,10 @@ export const TodoMenu: React.FC = () => {
                       >
                         <line.icon className={cn('h-4 w-4 shrink-0', line.quiet ? 'text-muted-foreground' : 'text-primary')} />
                         <span className="min-w-0 flex-1 truncate">{line.text}</span>
+                        {/* Back after you dismissed it: what changed. */}
+                        {line.fresh > 0 && (
+                          <StatusPill tone="neutral" className="shrink-0 px-2 py-0.5 font-medium">{line.fresh} new</StatusPill>
+                        )}
                         {!!line.overdue && (
                           <StatusPill tone="error" className="shrink-0 px-2 py-0.5 font-medium">{line.overdue} overdue</StatusPill>
                         )}

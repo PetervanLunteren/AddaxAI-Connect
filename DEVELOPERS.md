@@ -1073,6 +1073,10 @@ used different limits for the same thing and which people learned to ignore.
   never sent to the browser). The line turns loud again when an item
   appears that was not there; the API keeps only the keys still in the
   line, so the same camera failing again after it recovered is new too.
+  A line back after a dismissal shows the total and a "1 new" pill.
+  Dismiss sends the keys the user was shown, and only keys still in the
+  line are stored: a camera that arrived while the panel was open stays
+  new, and nobody stores keys they cannot see.
   Species and Telegram have nothing to add, so once dismissed they stay
   quiet. Why: a count that never changes teaches people to ignore the icon
   (badge fatigue), and hiding would lose the overview. The read model of

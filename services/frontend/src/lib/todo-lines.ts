@@ -18,6 +18,8 @@ export interface TodoLine {
   projectId: number | null; // null for a server line
   target: string | null; // integration_error: which integration
   quiet: boolean; // dismissed by me, nothing new since
+  fresh: number; // loud again after a dismissal: how many are new, else 0
+  keys: string[]; // what it counts, sent back by Dismiss
   group: TodoGroup;
   icon: LucideIcon;
   text: string;
@@ -40,7 +42,8 @@ export function todoLine(item: TodoItem, projectId: number | null, userId: numbe
   const p = `/projects/${projectId}`;
   const n = item.count;
   const line = (group: TodoGroup, icon: LucideIcon, text: string, to: string, extra: Partial<TodoLine> = {}): TodoLine =>
-    ({ kind: item.kind, projectId, target: item.target ?? null, quiet: item.quiet, group, icon, text, to, ...extra });
+    ({ kind: item.kind, projectId, target: item.target ?? null, quiet: item.quiet, fresh: item.new ?? 0,
+       keys: item.keys, group, icon, text, to, ...extra });
   switch (item.kind) {
     case 'my_tasks':
       return line('you', Wrench, `${plural(n, 'service task', 'service tasks')} for you`,
