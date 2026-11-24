@@ -10,13 +10,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { MapContainer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
-import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
+import { FOCUS_COLOR, SITE_COLOR, dotIcon } from '../map/marker-style';
 import 'leaflet/dist/leaflet.css';
 
-const SELECTED_COLOR = '#882000'; // destructive-ish, stands out from existing sites
-const SITE_COLOR = '#0f6064'; // primary teal, matches SitesMapView
 
 interface Props {
   value: { lat: number; lon: number } | null;
@@ -24,19 +22,6 @@ interface Props {
   sites: SiteListItem[];
   excludeSiteId?: number;
   height?: number;
-}
-
-function markerIcon(color: string, size: number) {
-  return L.divIcon({
-    className: 'site-picker-marker',
-    html: `<div style="
-      width: ${size}px; height: ${size}px; border-radius: 50%;
-      background-color: ${color}; border: 2px solid #555555;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    "></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
 }
 
 function ClickToSet({ onChange }: { onChange: (lat: number, lon: number) => void }) {
@@ -107,8 +92,8 @@ export function SiteLocationPicker({ value, onChange, sites, excludeSiteId, heig
     return [52.0, 5.0];
   }, [value, points]);
 
-  const selectedIcon = useMemo(() => markerIcon(SELECTED_COLOR, 18), []);
-  const siteIcon = useMemo(() => markerIcon(SITE_COLOR, 14), []);
+  const selectedIcon = useMemo(() => dotIcon(FOCUS_COLOR, 18), []);
+  const siteIcon = useMemo(() => dotIcon(SITE_COLOR, 14), []);
 
   return (
     <div className="rounded-md border overflow-hidden" style={{ height }}>

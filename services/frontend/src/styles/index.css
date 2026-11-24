@@ -201,3 +201,10 @@ input[type="range"]::-moz-range-thumb {
   font-size: 11px;
   max-width: 70vw;
 }
+
+/* The white ring of map markers drawn as SVG (marker-style.ts, ringPath):
+   a thin dark shadow keeps it visible on a light map, the white keeps it
+   visible on satellite imagery. */
+.map-ring {
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+}

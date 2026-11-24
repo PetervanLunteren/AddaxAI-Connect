@@ -26,9 +26,9 @@ import {
 import { Button } from '../ui/Button';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from './BaseLayersControl';
 import { FitBounds } from './FitBounds';
+import { FOCUS_COLOR, SITE_COLOR, ringPath } from './marker-style';
 import 'leaflet/dist/leaflet.css';
 
-const PRIMARY = '#0f6064';
 // A drag shorter than this many pixels is a click, not a box.
 const MIN_BOX_PX = 5;
 
@@ -110,7 +110,7 @@ function ShiftBoxSelect({ onBox }: { onBox: (bounds: L.LatLngBounds) => void }) 
         rect.setBounds(bounds);
       } else {
         rect = L.rectangle(bounds, {
-          color: PRIMARY,
+          color: FOCUS_COLOR,
           weight: 1,
           fillOpacity: 0.1,
           interactive: false,
@@ -238,12 +238,7 @@ export function MapSelectDialog({
                   key={i.id}
                   center={[i.latitude, i.longitude]}
                   radius={8}
-                  pathOptions={{
-                    color: PRIMARY,
-                    weight: 2,
-                    fillColor: on ? PRIMARY : '#ffffff',
-                    fillOpacity: 1,
-                  }}
+                  pathOptions={ringPath(on ? FOCUS_COLOR : SITE_COLOR)}
                   eventHandlers={{ click: () => toggle(i.id) }}
                 >
                   <Tooltip direction="top" offset={[0, -8]}>

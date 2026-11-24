@@ -18,6 +18,7 @@ import { FullscreenControl } from '../map/FullscreenControl';
 import { FitBounds } from '../map/FitBounds';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { SiteMarkersLayer, SITE_COLOR } from './SiteMarkersLayer';
+import { dotStyle } from '../map/marker-style';
 import { getLegendItems, type ColorByMetric } from '../../utils/camera-colors';
 import { getSiteColor, type SiteColorMode, type SiteHealth } from '../../utils/site-health';
 import 'leaflet/dist/leaflet.css';
@@ -57,15 +58,7 @@ function SiteMapLegend({ colorMode }: { colorMode: ColorByMetric }) {
           .map(
             (item) => `
           <div style="display: flex; align-items: center; margin-bottom: 4px;">
-            <span style="
-              width: 14px;
-              height: 14px;
-              border-radius: 50%;
-              background: ${item.color};
-              border: 1px solid #555555;
-              margin-right: 8px;
-              flex-shrink: 0;
-            "></span>
+            <span style="${dotStyle(item.color, 14)}; margin-right: 8px; flex-shrink: 0;"></span>
             <span style="font-size: 11px;">${item.label}</span>
           </div>
         `,

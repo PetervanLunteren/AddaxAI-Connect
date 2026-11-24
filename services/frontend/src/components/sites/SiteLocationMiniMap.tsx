@@ -7,22 +7,11 @@
  * around, the zoom buttons to zoom.
  */
 import { MapContainer, Marker, TileLayer } from 'react-leaflet';
-import L from 'leaflet';
 import { MapAttribution, SATELLITE_LAYER as SATELLITE } from '../map/BaseLayersControl';
+import { SITE_COLOR, dotIcon } from '../map/marker-style';
 import 'leaflet/dist/leaflet.css';
 
-const SITE_COLOR = '#0f6064'; // primary teal, matches the other site maps
-
-const siteIcon = L.divIcon({
-  className: 'site-mini-marker',
-  html: `<div style="
-    width: 16px; height: 16px; border-radius: 50%;
-    background-color: ${SITE_COLOR}; border: 2px solid #555555;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-  "></div>`,
-  iconSize: [16, 16],
-  iconAnchor: [8, 8],
-});
+const siteIcon = dotIcon(SITE_COLOR);
 
 interface Props {
   latitude: number;

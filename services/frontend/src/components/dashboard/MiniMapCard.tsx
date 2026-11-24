@@ -23,10 +23,7 @@ import { latLngBounds } from 'leaflet';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
 import type { LabelSource } from '../../api/types';
-import {
-  getDetectionRateColor,
-  calculateColorScaleDomain,
-} from '../../utils/color-scale';
+import { calculateRateDomain, getRateColor } from '../../lib/heat-color-scale';
 import { LightBaseLayer, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
 
@@ -79,9 +76,7 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
 
   const domain = useMemo(
     () =>
-      calculateColorScaleDomain(
-        features.map((f) => f.properties.detection_rate_per_100),
-      ),
+      calculateRateDomain(features.map((f) => f.properties.detection_rate_per_100)),
     [features],
   );
 
@@ -142,10 +137,8 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
               <LightBaseLayer />
               {features.map((feature) => {
                 const [lon, lat] = feature.geometry.coordinates;
-                const color = getDetectionRateColor(
-                  feature.properties.detection_rate_per_100,
-                  domain.max,
-                );
+                // The same ramp and cap as the Insights map's default.
+                const color = getRateColor(feature.properties.detection_rate_per_100, domain.cap);
                 // Two stacked circles per site, a wide translucent halo and a
                 // solid core, which reads as a coarse heat surface without a
                 // heatmap library.

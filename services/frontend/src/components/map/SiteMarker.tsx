@@ -6,6 +6,7 @@ import { CircleMarker, Popup } from 'react-leaflet';
 import type { SiteFeature } from '../../api/types';
 import type { MapMetric } from '../../utils/map-metrics';
 import { SitePopup } from './SitePopup';
+import { ringPath } from './marker-style';
 
 interface SiteMarkerProps {
   feature: SiteFeature;
@@ -28,13 +29,7 @@ export function SiteMarker({ feature, color, metric }: SiteMarkerProps) {
     <CircleMarker
       center={[lat, lon]}
       radius={8}
-      pathOptions={{
-        fillColor: color,
-        fillOpacity: isZero ? 0 : 0.7,
-        color: '#555555', // Dark grey border to match hexagons
-        weight: isZero ? 2 : 1,
-        opacity: 1,
-      }}
+      pathOptions={ringPath(color, isZero ? 0 : 0.85, isZero ? 3 : 2)}
     >
       <Popup>
         <SitePopup properties={feature.properties} metric={metric} />

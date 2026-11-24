@@ -104,6 +104,7 @@ import {
   BulkSetNotesDialog,
 } from '../components/BulkEditDialogs';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
+import { getBatteryColor } from '../utils/camera-colors';
 import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
 import { useToast } from '../components/ui/Toaster';
 import { cameraColumnPrefs, type ColumnId } from '../components/cameras/columnDefs';
@@ -544,14 +545,8 @@ export const CamerasPage: React.FC = () => {
     );
   };
 
-  // Helper functions for formatting
-  const getBatteryColor = (percentage: number | null) => {
-    if (percentage === null) return '#9ca3af';
-    if (percentage > 70) return '#0f6064';
-    if (percentage > 40) return '#71b7ba';
-    return '#882000';
-  };
-
+  // Helper functions for formatting. Battery colours come from
+  // utils/camera-colors.ts, shared with the sites map and the site panel.
   const getSignalLabel = (csq: number | null) => {
     if (csq === null) return 'N/A';
     if (csq >= 20) return 'Excellent';

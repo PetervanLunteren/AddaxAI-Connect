@@ -11,10 +11,7 @@ import { statisticsApi } from '../../api/statistics';
 import { useProject } from '../../contexts/ProjectContext';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from './BaseLayersControl';
 import type { DetectionRateMapFilters } from '../../api/types';
-import {
-  getDetectionRateColor,
-  calculateColorScaleDomain,
-} from '../../utils/color-scale';
+import { calculateRateDomain, getRateColor, type RateRamp } from '../../lib/heat-color-scale';
 import {
   generateHexGrid,
   aggregateSitesToHexes,
@@ -33,6 +30,7 @@ interface DetectionRateMapProps {
   filters: DetectionRateMapFilters;
   viewMode: ViewMode;
   metric: MapMetricId;
+  ramp: RateRamp;
 }
 
 /**
@@ -115,7 +113,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-export function DetectionRateMap({ filters, viewMode, metric: metricId }: DetectionRateMapProps) {
+export function DetectionRateMap({ filters, viewMode, metric: metricId, ramp }: DetectionRateMapProps) {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
   const metric = MAP_METRICS[metricId];
@@ -148,15 +146,12 @@ export function DetectionRateMap({ filters, viewMode, metric: metricId }: Detect
     });
   }, [data, mapBounds]);
 
-  // Calculate color scale domain from visible data only
-  const colorDomain = useMemo(() => {
-    if (!visibleSites || visibleSites.length === 0) {
-      return { min: 0, max: 0, p33: 0, p66: 0 };
-    }
-
-    const values = visibleSites.map((f) => metric.siteValue(f.properties));
-    return calculateColorScaleDomain(values);
-  }, [visibleSites, metric]);
+  // The colour scale over the visible sites only. It ends at their 95th
+  // percentile (the cap), so one busy site does not make the rest pale.
+  const colorDomain = useMemo(
+    () => calculateRateDomain((visibleSites ?? []).map((f) => metric.siteValue(f.properties))),
+    [visibleSites, metric],
+  );
 
   // Convert Leaflet bounds to bbox array for hex grid generation
   const bboxBounds = useMemo<[number, number, number, number] | null>(() => {
@@ -248,10 +243,7 @@ export function DetectionRateMap({ filters, viewMode, metric: metricId }: Detect
         {/* Render markers, clusters, or hexbin layer based on view mode */}
         {viewMode === 'points' ? (
           visibleSites?.map((feature) => {
-            const color = getDetectionRateColor(
-              metric.siteValue(feature.properties),
-              colorDomain.max
-            );
+            const color = getRateColor(metric.siteValue(feature.properties), colorDomain.cap, ramp);
 
             return (
               <SiteMarker
@@ -267,13 +259,9 @@ export function DetectionRateMap({ filters, viewMode, metric: metricId }: Detect
             <ClusterLayer
               sites={visibleSites}
               metric={metric}
-              domainMax={colorDomain.max}
-              getMarkerColor={(feature) =>
-                getDetectionRateColor(
-                  metric.siteValue(feature.properties),
-                  colorDomain.max
-                )
-              }
+              cap={colorDomain.cap}
+              ramp={ramp}
+              getMarkerColor={(feature) => getRateColor(metric.siteValue(feature.properties), colorDomain.cap, ramp)}
             />
           )
         ) : (
@@ -283,13 +271,15 @@ export function DetectionRateMap({ filters, viewMode, metric: metricId }: Detect
               zoomLevel={zoomLevel}
               mapBounds={bboxBounds}
               metric={metric}
-              domainMax={colorDomain.max}
+              cap={colorDomain.cap}
+              ramp={ramp}
             />
           )
         )}
 
         <MapLegend
           domain={colorDomain}
+          ramp={ramp}
           title={metric.legendLines}
           emptyLabel={metric.emptyLabel}
           formatShort={metric.formatShort}

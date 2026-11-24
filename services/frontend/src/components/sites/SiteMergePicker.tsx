@@ -12,18 +12,17 @@
 import { useMemo, useEffect, useRef } from 'react';
 import { MapContainer, Marker, Tooltip, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
-import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { FullscreenControl } from '../map/FullscreenControl';
+import { ALERT_COLOR, FOCUS_COLOR, SITE_COLOR, dotCss, dotIcon } from '../map/marker-style';
 import 'leaflet/dist/leaflet.css';
 
-// From FRONTEND_CONVENTIONS.md: red = removed, primary teal = kept,
-// light teal = other selectable site.
-const REMOVED_COLOR = '#882000';
-const KEPT_COLOR = '#0f6064';
-const OTHER_COLOR = '#71b7ba';
-
+// The shared map colours (marker-style.ts): the site a merge removes is
+// the alert red, the one it keeps the focus magenta, the rest plain sites.
+const REMOVED_COLOR = ALERT_COLOR;
+const KEPT_COLOR = FOCUS_COLOR;
+const OTHER_COLOR = SITE_COLOR;
 
 interface Props {
   sites: SiteListItem[];
@@ -32,21 +31,6 @@ interface Props {
   selectedTargetId: number | null;
   onSelectTarget: (siteId: number) => void;
   height?: number;
-}
-
-// Same divIcon shape as SiteLocationPicker, kept local rather than shared
-// (it is two states there, three here, and not worth a refactor).
-function markerIcon(color: string, size: number) {
-  return L.divIcon({
-    className: 'site-merge-marker',
-    html: `<div style="
-      width: ${size}px; height: ${size}px; border-radius: 50%;
-      background-color: ${color}; border: 2px solid #555555;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    "></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-  });
 }
 
 // Fit to all plotted sites once, so every merge candidate is visible.
@@ -66,12 +50,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
 }
 
 function LegendDot({ color }: { color: string }) {
-  return (
-    <span
-      className="inline-block h-3 w-3 rounded-full border border-[#555555] align-middle"
-      style={{ backgroundColor: color }}
-    />
-  );
+  return <span className="inline-block align-middle" style={dotCss(color, 12)} />;
 }
 
 export function SiteMergePicker({
@@ -107,9 +86,9 @@ export function SiteMergePicker({
     return [52.0, 5.0];
   }, [source, points]);
 
-  const removedIcon = useMemo(() => markerIcon(REMOVED_COLOR, 18), []);
-  const keptIcon = useMemo(() => markerIcon(KEPT_COLOR, 18), []);
-  const otherIcon = useMemo(() => markerIcon(OTHER_COLOR, 14), []);
+  const removedIcon = useMemo(() => dotIcon(REMOVED_COLOR, 18), []);
+  const keptIcon = useMemo(() => dotIcon(KEPT_COLOR, 18), []);
+  const otherIcon = useMemo(() => dotIcon(OTHER_COLOR, 14), []);
 
   if (others.length === 0) {
     return (

@@ -14,7 +14,8 @@ import {
   type HexCell,
 } from '../../utils/hex-grid';
 import type { MapMetric } from '../../utils/map-metrics';
-import { getDetectionRateColor } from '../../utils/color-scale';
+import { getRateColor, type RateRamp } from '../../lib/heat-color-scale';
+import { ringPath } from './marker-style';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { HexPopup } from './HexPopup';
 
@@ -23,7 +24,8 @@ interface HexbinLayerProps {
   zoomLevel: number;
   mapBounds: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
   metric: MapMetric;
-  domainMax: number; // For color scale normalization
+  cap: number; // where the ramp ends (calculateRateDomain)
+  ramp: RateRamp;
 }
 
 // Store hex cell data in feature properties for popup access
@@ -34,7 +36,7 @@ interface HexFeatureProperties {
   isZero: boolean;
 }
 
-export function HexbinLayer({ sites, zoomLevel, mapBounds, metric, domainMax }: HexbinLayerProps) {
+export function HexbinLayer({ sites, zoomLevel, mapBounds, metric, cap, ramp }: HexbinLayerProps) {
   // Generate hex grid and aggregate sites
   const hexCells = useMemo(() => {
     if (sites.length === 0) {
@@ -56,7 +58,7 @@ export function HexbinLayer({ sites, zoomLevel, mapBounds, metric, domainMax }: 
       const members = hexCell.sites.map((s) => s.properties);
       const value = metric.aggregate(members);
       const isZero = members.every((p) => metric.isEmpty(p));
-      const color = getDetectionRateColor(value, domainMax);
+      const color = getRateColor(value, cap, ramp);
 
       return {
         ...hexCell.hex,
@@ -70,7 +72,7 @@ export function HexbinLayer({ sites, zoomLevel, mapBounds, metric, domainMax }: 
     });
 
     return featureCollection(features) as FeatureCollection<Polygon, HexFeatureProperties>;
-  }, [hexCells, metric, domainMax]);
+  }, [hexCells, metric, cap, ramp]);
 
   // Stable style function using useCallback
   // Leaflet types the style callback as receiving any Feature, so the
@@ -82,13 +84,7 @@ export function HexbinLayer({ sites, zoomLevel, mapBounds, metric, domainMax }: 
     // Hollow hex for cells with no data for this metric. They are real data
     // (cameras deployed, nothing seen) and should stay distinguishable from
     // the low end of the colour gradient.
-    return {
-      fillColor: props.color,
-      fillOpacity: props.isZero ? 0 : 0.8,
-      color: '#555555', // Dark grey border
-      weight: 1,
-      opacity: 0.8,
-    };
+    return ringPath(props.color, props.isZero ? 0 : 0.8, props.isZero ? 2 : 1);
   }, []); // No dependencies - uses data from feature properties
 
   // Popup content depends on the metric, so the handler must rebuild when it

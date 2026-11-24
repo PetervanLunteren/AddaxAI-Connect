@@ -391,6 +391,11 @@ Notes per step:
       fewer columns, the decision as a caption under the buttons.
     - 24 Nov: the window guessed which move an undone correction belonged
       to and could pick the wrong one; replaced by the exact keys above.
+    - 24 Nov: maps made readable on satellite, all of them, not only the
+      moves map: a white ring on every marker (one shared part instead of
+      four copies), magenta for what you look at, a bright alert red, and
+      the colour ramps of AddaxAI desktop with Heat as default
+      (`FRONTEND_CONVENTIONS.md`, "Maps are different").
   - Step 3c (moving a pin, a merge that can be reversed) stays dropped
     until someone asks for it.
 

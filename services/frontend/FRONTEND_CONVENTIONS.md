@@ -56,6 +56,23 @@ from (dark, first alphabetically) = #0f6064
 to (light, last alphabetically)   = #f9f871
 For example, species specific colors are calculated based on the number of species and mapped using this gradient (see `src/utils/species-colors.ts`). 
 
+### Maps are different: visibility first
+The colours above are for charts and pages on white. A map can sit on
+satellite imagery (dark forest, pale sand), where dark teal and dark red
+sink. So on maps (decided 24 November 2026):
+- Every point has a white ring with a soft shadow, never a dark grey one:
+  `components/map/marker-style.ts` (`dotIcon`, `dotCss`/`dotStyle`,
+  `ringPath` for SVG shapes). Do not build a marker of your own.
+- One colour, one meaning, on every map: `SITE_COLOR` (teal) a site,
+  `FOCUS_COLOR` (magenta) what you look at or choose, `ALERT_COLOR`
+  (bright red `#d62828`) something wrong. The camera status and battery
+  red is `ALERT_COLOR` too, also in the cameras table.
+- Value ramps (rates per site, hexagons, clusters) come from
+  `src/lib/heat-color-scale.ts`, the same file as AddaxAI desktop: Heat by
+  default, Teal, Viridis, Rainbow and Thermal as a choice in the Display
+  menu. The ramp ends at the 95th percentile (`calculateRateDomain`), the
+  legend prints the cap with a "+" when sites lie above it.
+
 ### Typography
 
 - Font: System font stack (default Tailwind)

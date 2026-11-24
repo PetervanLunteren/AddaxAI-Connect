@@ -34,6 +34,7 @@ import {
   type MapMetricId,
 } from '../../utils/map-metrics';
 import type { DetectionRateMapFilters } from '../../api/types';
+import { DEFAULT_RAMP, RATE_RAMPS, isRateRamp, type RateRamp } from '../../lib/heat-color-scale';
 
 import { LABELS_FIELD, LABELS_SCHEMA, labelSourceParam } from '../../lib/labels-filter';
 
@@ -45,6 +46,8 @@ const FILTER_SCHEMA: FilterSchema = {
   site_ids: 'string[]',
   species: 'string[]',
   view_mode: 'string',
+  // The colour ramp, a display choice: Clear all keeps it.
+  colours: 'string',
   ...LABELS_SCHEMA,
 };
 
@@ -75,6 +78,9 @@ export const InsightsMapPage: React.FC = () => {
   const viewMode = (parsed.view_mode === 'hexbins' || parsed.view_mode === 'clusters'
     ? parsed.view_mode
     : 'points') as ViewMode;
+  // No one ramp reads on every background, so it is a choice (as in
+  // AddaxAI desktop); Heat by default, it reads on satellite imagery too.
+  const ramp: RateRamp = isRateRamp(parsed.colours) ? parsed.colours : DEFAULT_RAMP;
   const rawMetric = asString(parsed.metric);
   const metricId: MapMetricId = Object.hasOwn(MAP_METRICS, rawMetric)
     ? (rawMetric as MapMetricId)
@@ -91,6 +97,7 @@ export const InsightsMapPage: React.FC = () => {
     date_to: endDate || undefined,
     view_mode: viewMode === 'points' ? undefined : viewMode,
     labels: labelSource,
+    colours: ramp === DEFAULT_RAMP ? undefined : ramp,
   };
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
@@ -101,7 +108,9 @@ export const InsightsMapPage: React.FC = () => {
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), { replace: true });
   };
   const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
-  const onClearAll = () => setSearchParams(new URLSearchParams(), { replace: true });
+  const onClearAll = () => writeAll(Object.fromEntries(
+    Object.keys(FILTER_SCHEMA).filter((k) => k !== 'colours').map((k) => [k, undefined]),
+  ));
 
   const { data: sites } = useQuery({
     queryKey: ['sites', projectId],
@@ -229,6 +238,13 @@ export const InsightsMapPage: React.FC = () => {
           values={filterValues}
           onChange={onFilterChange}
           onClearAll={onClearAll}
+          displayControls={[{
+            key: 'colours',
+            label: 'Colours',
+            options: RATE_RAMPS.map((r) => ({ value: r.id, label: r.label })),
+          }]}
+          displayValues={{ colours: ramp }}
+          onDisplayChange={(_key, value) => writeAll({ colours: value === DEFAULT_RAMP ? undefined : value })}
         />
       </div>
       <div className="rounded-lg border bg-card p-4">
@@ -236,6 +252,7 @@ export const InsightsMapPage: React.FC = () => {
           filters={mapFilters}
           viewMode={viewMode}
           metric={metricId}
+          ramp={ramp}
         />
       </div>
       <PlotExplainer

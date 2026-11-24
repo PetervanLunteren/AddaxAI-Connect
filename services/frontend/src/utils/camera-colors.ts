@@ -3,11 +3,13 @@
  * table, the camera status badge, and the sites map (which colours each site
  * by the worst camera there).
  */
+import { ALERT_COLOR } from '../components/map/marker-style';
 
-// Status colors matching the app's color palette
+// Status colors. Red is the shared alert red of the maps (marker-style.ts),
+// bright enough to read on satellite imagery too; the old dark red sank.
 export const STATUS_COLORS = {
   active: '#0f6064',
-  inactive: '#882000',
+  inactive: ALERT_COLOR,
   never_reported: '#71b7ba',
   // Grey on purpose, a retired camera is neither good nor bad news.
   retired: '#9ca3af',
@@ -40,7 +42,7 @@ export function getBatteryColor(percentage: number | null): string {
   if (percentage === null) return UNKNOWN_COLOR;
   if (percentage > 70) return '#0f6064';
   if (percentage > 40) return '#71b7ba';
-  return '#882000';
+  return ALERT_COLOR;
 }
 
 /**
@@ -51,7 +53,7 @@ export function getSignalColor(csq: number | null): string {
   if (csq === null) return UNKNOWN_COLOR;
   if (csq >= 15) return '#0f6064';
   if (csq >= 10) return '#71b7ba';
-  return '#882000';
+  return ALERT_COLOR;
 }
 
 /**
@@ -88,14 +90,14 @@ export function getLegendItems(colorBy: ColorByMetric): LegendItem[] {
       return [
         { color: '#0f6064', label: 'Good (>70%)' },
         { color: '#71b7ba', label: 'Medium (40-70%)' },
-        { color: '#882000', label: 'Low (<40%)' },
+        { color: ALERT_COLOR, label: 'Low (<40%)' },
         { color: UNKNOWN_COLOR, label: 'Unknown' },
       ];
     case 'signal':
       return [
         { color: '#0f6064', label: 'Good (\u226515)' },
         { color: '#71b7ba', label: 'Medium (10-15)' },
-        { color: '#882000', label: 'Poor (<10)' },
+        { color: ALERT_COLOR, label: 'Poor (<10)' },
         { color: UNKNOWN_COLOR, label: 'Unknown' },
       ];
   }

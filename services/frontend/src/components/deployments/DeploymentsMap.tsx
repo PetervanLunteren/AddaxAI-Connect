@@ -17,10 +17,12 @@ import L from 'leaflet';
 import { BaseLayersControl, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import { FitBounds } from '../map/FitBounds';
 import { FullscreenControl } from '../map/FullscreenControl';
-import { SITE_COLOR, SiteMarkersLayer, type SitePin } from '../sites/SiteMarkersLayer';
+import { FOCUS_COLOR, SITE_COLOR } from '../map/marker-style';
+import { SiteMarkersLayer, type SitePin } from '../sites/SiteMarkersLayer';
 import 'leaflet/dist/leaflet.css';
 
-const MOVE = '#e6007e'; // magenta, stands out on forest, heath and sand alike
+// The move is the focus colour shared by every map (marker-style.ts).
+const MOVE = FOCUS_COLOR;
 
 /** A move drawn as an arrow from the old site to the new one. */
 export interface MapArrow {
