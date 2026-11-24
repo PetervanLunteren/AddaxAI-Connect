@@ -23,9 +23,6 @@ export interface TodoLine {
   overdue?: number;
   // Something is broken rather than due: listed first in its group.
   broken?: boolean;
-  // A choice, not a fault: an admin may mark it not needed, for everyone
-  // (NOT_NEEDED_KINDS in utils/todo.py).
-  canBeNotNeeded?: boolean;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -62,7 +59,7 @@ export function todoLine(item: TodoItem, projectId: number | null, userId: numbe
         `${p}/integrations/${item.target}`, { broken: true });
     }
     case 'choose_species':
-      return line('project', Settings, 'Choose the species for this project', `${p}/settings`, { canBeNotNeeded: true });
+      return line('project', Settings, 'Choose the species for this project', `${p}/settings`);
     case 'inactive':
       return line('project', Camera, plural(n, 'inactive camera', 'inactive cameras'), `${p}/cameras?status=inactive`, { broken: true });
     case 'low_battery':
@@ -72,9 +69,9 @@ export function todoLine(item: TodoItem, projectId: number | null, userId: numbe
     case 'services_down':
       return line('server', Activity, `${plural(n, 'service', 'services')} not running`, '/server/health', { broken: true });
     case 'unknown_camera_files':
-      return line('server', Upload, `${plural(n, 'file', 'files')} from unknown cameras this week`, '/server/file-management', { canBeNotNeeded: true });
+      return line('server', Upload, `${plural(n, 'file', 'files')} from unknown cameras this week`, '/server/file-management');
     case 'telegram_not_set_up':
-      return line('server', Settings, 'Telegram is not set up', '/server/settings', { canBeNotNeeded: true });
+      return line('server', Settings, 'Telegram is not set up', '/server/settings');
     default:
       return null;
   }

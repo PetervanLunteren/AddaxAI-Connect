@@ -32,7 +32,7 @@ from shared.models import (
     Site,
     User,
 )
-from auth.permissions import require_project_access, require_project_admin_access
+from auth.permissions import can_admin_project, require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
 from mailer.sender import get_email_sender
 from routers.cameras import _camera_label
@@ -600,11 +600,23 @@ async def cancel_tasks(
 async def complete_tasks(
     project_id: int,
     request: CompleteTasksRequest,
-    user: User = Depends(require_project_admin_access),
+    user: User = Depends(require_project_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Mark the selected tasks done: one visit each, tasks deleted, one commit."""
+    """Mark the selected tasks done: one visit each, tasks deleted, one commit.
+
+    An admin may complete any task. Anyone else only tasks assigned to them,
+    performed by themselves: the person in the field reports their own work
+    (Needs attention shows them their tasks). Planning, assigning and
+    cancelling stay with admins.
+    """
     tasks = await _load_tasks(db, project_id, request.task_ids)
+    if not await can_admin_project(user, project_id, db):
+        if any(t.assigned_to_user_id != user.id for t in tasks):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only mark your own tasks done")
+        if request.performed_by_user_id not in (None, user.id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only log your own work")
+        request.performed_by_user_id = user.id
     today = await _server_today(db)
     await _check_member(db, request.performed_by_user_id, project_id, "Performed-by user")
 

@@ -17,9 +17,10 @@ hide: a shared problem that each person hides for themselves gets fixed
 by nobody.
 
 Who sees what:
-- the camera health lines (inactive, low battery, SD nearly full): every
-  member, for the cameras they may see; a site-restricted viewer only the
-  cameras at their sites.
+- the camera health lines (inactive, low battery, SD nearly full, rejecting
+  files): every member, for the cameras they may see; a site-restricted
+  viewer only the cameras at their sites, and no rejections (a rejection
+  has no site, so they see none anywhere). These are fixed in the field.
 - service tasks assigned to you: you.
 - the other project lines: project admins (and server admins).
 - the server lines: server admins.
@@ -187,7 +188,6 @@ async def todo_for(user: User, db: AsyncSession) -> TodoResponse:
         project = by_project[pid].project
         add(pid, 'suspicious_moves', suspicious.get(pid, 0))
         add(pid, 'unplaced_photos', sum(1 for r in seen[pid] if r.unplaced_photo_count))
-        add(pid, 'rejecting', sum(1 for r in seen[pid] if r.rejecting))
         add(pid, 'sim_expiring', sum(1 for r in seen[pid] if r.sim_expiring))
         for row in failing:
             if row.project_id == pid:
@@ -203,6 +203,8 @@ async def todo_for(user: User, db: AsyncSession) -> TodoResponse:
         add(pid, 'inactive', sum(1 for r in seen[pid] if r.status == 'inactive'))
         add(pid, 'low_battery', sum(1 for r in seen[pid] if r.low_battery))
         add(pid, 'sd_nearly_full', sum(1 for r in seen[pid] if r.sd_nearly_full))
+        # None for a site-restricted viewer, so it counts nothing for them.
+        add(pid, 'rejecting', sum(1 for r in seen[pid] if r.rejecting))
 
     projects = [
         TodoProject(project_id=pid, project_name=by_project[pid].project.name, items=items[pid])

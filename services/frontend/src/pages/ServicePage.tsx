@@ -6,7 +6,8 @@
  * log. Marking a task done logs it as a visit and removes the task, so
  * Done is the one history. Every member can read, scoped to their sites by
  * the API; project admins plan, log and act on selected rows from the bulk
- * bar, and a row click edits a task. The camera and site slide-outs only
+ * bar, and a row click edits a task. Anyone else can mark their own tasks
+ * done. The camera and site slide-outs only
  * link here.
  */
 import React, { useEffect, useMemo, useState } from 'react';
@@ -28,6 +29,7 @@ import { AssignTasksDialog, LogVisitDialog, PlanServiceDialog, sharedAssignee } 
 import { usePlanService } from '../components/service/usePlanService';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import { useProject } from '../contexts/ProjectContext';
+import { useAuth } from '../hooks/useAuth';
 import { sitesApi } from '../api/sites';
 import { camerasApi } from '../api/cameras';
 import {
@@ -117,6 +119,10 @@ const RowCheckbox: React.FC<{ label: string; checked: boolean; onToggle: () => v
 
 export const ServicePage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject: canAdmin } = useProject();
+  const { user } = useAuth();
+  // Someone who is not an admin may mark their own tasks done, the one
+  // change they can make here (complete_tasks in routers/service.py).
+  const isMine = (task: ServiceTask) => !canAdmin && task.assigned_to_user_id === user?.id;
   const projectId = selectedProject?.id ?? 0;
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -480,7 +486,13 @@ export const ServicePage: React.FC = () => {
                             )}
                           </TableCell>
                           <TableCell className="text-sm">
-                            {task.assigned_to_email ?? <span className="text-muted-foreground">Nobody yet</span>}
+                            {isMine(task) ? (
+                              <Button variant="outline" size="sm" onClick={() => setDoneTasks([task])}>
+                                Mark done
+                              </Button>
+                            ) : (
+                              task.assigned_to_email ?? <span className="text-muted-foreground">Nobody yet</span>
+                            )}
                           </TableCell>
                           <TableCell><NoteCell note={task.note} /></TableCell>
                         </TableRow>
@@ -553,6 +565,19 @@ export const ServicePage: React.FC = () => {
         </Card>
       )}
 
+      {/* For everyone: admins log visits and complete any task, others
+          complete their own (isMine). */}
+      <LogVisitDialog
+        open={logOpen || doneTasks !== null}
+        onClose={() => {
+          setLogOpen(false);
+          setDoneTasks(null);
+        }}
+        projectId={projectId}
+        tasks={doneTasks ?? undefined}
+        isPending={logMutation.isPending}
+        onConfirm={(cameraIds, fields) => logMutation.mutate({ cameraIds, fields })}
+      />
       {canAdmin && (
         <>
           <PlanServiceDialog
@@ -565,17 +590,6 @@ export const ServicePage: React.FC = () => {
             task={editTask}
             isPending={planMutation.isPending}
             onConfirm={(cameraIds, fields) => planMutation.mutate({ taskId: editTask?.id, cameraIds, fields })}
-          />
-          <LogVisitDialog
-            open={logOpen || doneTasks !== null}
-            onClose={() => {
-              setLogOpen(false);
-              setDoneTasks(null);
-            }}
-            projectId={projectId}
-            tasks={doneTasks ?? undefined}
-            isPending={logMutation.isPending}
-            onConfirm={(cameraIds, fields) => logMutation.mutate({ cameraIds, fields })}
           />
           <AssignTasksDialog
             open={assignOpen}

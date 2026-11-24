@@ -126,7 +126,7 @@ def make_member(project_id: int, role: str = "project-viewer", site_ids: Optiona
 def make_task(camera_id: int, assigned_to: Optional[int] = None, due: Optional[date] = None) -> int:
     return execute(
         """INSERT INTO camera_service_tasks (camera_id, action_types, due_date, assigned_to_user_id)
-           VALUES (:c, CAST('["battery"]' AS json), :d, :a) RETURNING id""",
+           VALUES (:c, CAST('["battery_change"]' AS json), :d, :a) RETURNING id""",
         c=camera_id, d=due, a=assigned_to,
     )
 

@@ -188,10 +188,11 @@ async def test_a_viewer_sees_camera_health_and_own_tasks_only(session):
     site = make_site(project, "Home", HOME)
     cam = placed_camera("CAM", project, site)
     set_health(cam, battery=10)
+    make_rejection(cam, project)  # fixed in the field, like a battery
     execute("UPDATE cameras SET sim_expiry_date = CURRENT_DATE WHERE id = :c", c=cam)
     live_camera("UNPLACED", project)
     viewer = member(project)
-    assert await lines(session, viewer, project) == {"low_battery": 1}
+    assert await lines(session, viewer, project) == {"low_battery": 1, "rejecting": 1}
 
 
 async def test_a_site_restricted_viewer_sees_only_cameras_at_their_sites(session):
@@ -201,6 +202,8 @@ async def test_a_site_restricted_viewer_sees_only_cameras_at_their_sites(session
         set_health(placed_camera(name, project, site), battery=10)
     nowhere = live_camera("NOWHERE", project)  # no current site
     set_health(nowhere, battery=10)
+    # A rejection has no site: a restricted viewer sees none anywhere.
+    make_rejection(nowhere, project)
     viewer = member(project, site_ids=[mine])
     assert await lines(session, viewer, project) == {"low_battery": 1}
     assert (await lines(session, server_admin(), project))["low_battery"] == 3

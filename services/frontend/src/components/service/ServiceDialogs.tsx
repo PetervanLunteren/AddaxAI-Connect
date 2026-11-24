@@ -27,6 +27,7 @@ import { projectsApi } from '../../api/projects';
 import type { Camera, MaintenanceActionType } from '../../api/types';
 import type { CompleteFields, ServiceTask, TaskFields } from '../../api/service';
 import { useAuth } from '../../hooks/useAuth';
+import { useProject } from '../../contexts/ProjectContext';
 import { ACTION_LABELS, ACTION_TYPES, NOTE_MAX_LENGTH, localToday } from '../../lib/service-actions';
 import { Select } from '../ui/Select';
 
@@ -303,7 +304,10 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
   open, onClose, projectId, tasks, isPending, onConfirm,
 }) => {
   const { user } = useAuth();
-  const { members, onlyMember } = useMembers(projectId, open);
+  // Someone who is not an admin only completes their own task, as
+  // themselves (the server holds them to it), so there is no one to pick.
+  const { canAdminCurrentProject: canAdmin } = useProject();
+  const { members, onlyMember } = useMembers(projectId, open && canAdmin);
   const completing = tasks !== undefined && tasks.length > 0;
   const single = completing && tasks.length === 1 ? tasks[0] : null;
   const showDetails = !completing || single !== null;
@@ -375,9 +379,11 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
               <ActionCheckboxes value={actions} onChange={setActions} />
             </Field>
           )}
-          <Field label="Performed by">
-            <MemberSelect value={performer} onChange={setPerformedBy} members={members} emptyLabel="Not specified" />
-          </Field>
+          {canAdmin && (
+            <Field label="Performed by">
+              <MemberSelect value={performer} onChange={setPerformedBy} members={members} emptyLabel="Not specified" />
+            </Field>
+          )}
           {showDetails && (
             <Field label="Note">
               <textarea
@@ -398,7 +404,7 @@ export const LogVisitDialog: React.FC<LogVisitDialogProps> = ({
             onClick={() =>
               onConfirm(cameraIds, {
                 event_date: date,
-                performed_by_user_id: performer === '' ? null : performer,
+                performed_by_user_id: !canAdmin ? (user?.id ?? null) : performer === '' ? null : performer,
                 action_types: showDetails ? actions : null,
                 note: showDetails ? note.trim() || null : null,
               })

@@ -1045,12 +1045,16 @@ used different limits for the same thing and which people learned to ignore.
   counted rows. `TodoMenu.tsx` groups them: inside a project only that
   project (For you, This project); outside a project one block per
   project, then Server for server admins.
-- **Who sees what:** camera health (inactive, low battery, SD nearly full)
-  for every member at the sites they may see; service tasks for whom they
-  are assigned to; suspicious moves, photos without a site, rejecting
-  cameras, SIM cards expiring, failing integrations, overdue tasks of others
-  and "Choose the species" for project admins; services not running, files
-  of unknown cameras and Telegram not set up for server admins.
+- **Who sees what:** a line goes to whoever can act on it.
+  - Every member: camera health, fixed in the field (inactive, low battery,
+    SD nearly full, rejecting files), at the sites they may see; a
+    site-restricted viewer gets no rejecting line, they see no rejections
+    anywhere. And their own service tasks, which they can mark done.
+  - Project admins also: suspicious moves, photos without a site, SIM cards
+    expiring, failing integrations, others' overdue tasks, choose the
+    species. Only admins can fix those in the app.
+  - Server admins also, outside a project: services not running, files of
+    unknown cameras, Telegram not set up.
 - **One set of camera rules.** The camera lines count the same rows as the
   Cameras page (`camera_responses` in `routers/cameras.py`) and their flags,
   whose limits live in `shared/camera_status.py`: battery under 30, SD over
@@ -1065,8 +1069,9 @@ used different limits for the same thing and which people learned to ignore.
   in `utils/todo.py`): choose the species, Telegram not set up, files from
   unknown cameras. Whoever could fix the line (project admin, or server
   admin for a server line) may mark it; it is hidden for everyone, with who
-  and when in `todo_not_needed`, and undone from the note on the page it
-  links to (`NotNeededNote`). Unknown files come back when a newer file
+  and when in `todo_not_needed`. Both marking and undoing are on the page
+  the line opens (`NotNeededNote`), never in the panel: the panel only
+  links, every decision is made where its context is. Unknown files come back when a newer file
   arrives. Every other line leaves only when fixed, and nothing is hidden
   for one person: that is the model of Sentry's Archive and Datadog's mute
   for shared problems; personal "done" (GitHub, Linear) is for messages,
@@ -1207,7 +1212,10 @@ User docs: `docs/service.md`.
   a task's site is the camera's current site. Both come from `site_of_camera` in
   `utils/site_scope.py`, which is also what the viewer scope filters on,
   so a row without a site is invisible to a restricted viewer.
-- Every member reads, admins write. The frontend has one place to act,
+- Every member reads, admins write, with one exception: whoever a task is
+  assigned to may mark it done, as their own work (`complete_tasks`), so a
+  viewer in the field can close what Needs attention shows them. Planning,
+  assigning and cancelling stay with admins. The frontend has one place to act,
   the Service page; the camera and site slide-outs only summarise
   (`ServiceSummaryRows`) and link there.
 - The action vocabulary is `ACTION_LABELS` in `service.py`, mirrored in

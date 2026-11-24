@@ -20,13 +20,12 @@
  * counts: twenty cameras low on battery are one thing to do.
  *
  * Each line carries the icon of the page it opens. Broken things come first.
- * A line that is a choice, not a fault, has "Not needed" for whoever could
- * fix it: hidden for everyone, undone from the note on its page
- * (NotNeededNote). Nothing here is hidden for one person only.
+ * The panel only links: every fix, and "Not needed" for the lines that are
+ * a choice (NotNeededNote), is on the page a line opens.
  */
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
 import { todoApi, todoKeys, type TodoItem } from '../../api/todo';
 import { brokenFirst, todoLine, type TodoLine } from '../../lib/todo-lines';
@@ -50,9 +49,6 @@ export const TodoMenu: React.FC = () => {
     queryFn: todoApi.get,
     enabled: !!user,
     refetchInterval: 5 * 60 * 1000,
-  });
-  const notNeeded = useMutation({
-    mutationFn: (line: TodoLine) => todoApi.markNotNeeded(line.kind, line.projectId),
   });
   if (!user) return null;
 
@@ -110,41 +106,20 @@ export const TodoMenu: React.FC = () => {
                 )}
                 {section.lines.map((line) => (
                   // One line per row, cut with "..." and the full text on
-                  // hover. "Not needed" shows over the end of the row on
-                  // hover, as Gmail's row actions do; on a touch screen,
-                  // which has no hover, it stays in view.
-                  <div key={line.to} className="group relative flex items-center gap-2 pr-2 hover:bg-accent">
-                    <Link
-                      to={line.to}
-                      onClick={() => setOpen(false)}
-                      title={line.text}
-                      className={cn(
-                        'flex min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-sm',
-                        // Room for the button, so the text ends in "..." before it.
-                        line.canBeNotNeeded && '[@media(hover:none)]:pr-24 group-hover:pr-24',
-                      )}
-                    >
-                      <line.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 truncate">{line.text}</span>
-                    </Link>
+                  // hover. The whole row is the link.
+                  <Link
+                    key={line.to}
+                    to={line.to}
+                    onClick={() => setOpen(false)}
+                    title={line.text}
+                    className="flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent"
+                  >
+                    <line.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate">{line.text}</span>
                     {!!line.overdue && (
                       <StatusPill tone="error" className="shrink-0 px-2 py-0.5">{line.overdue} overdue</StatusPill>
                     )}
-                    {line.canBeNotNeeded && (
-                      <button
-                        type="button"
-                        onClick={() => notNeeded.mutate(line)}
-                        disabled={notNeeded.isPending}
-                        title="Hide this line for everyone. Undo on its page."
-                        className={cn(
-                          'absolute right-2 top-1/2 -translate-y-1/2 rounded border border-border bg-card px-2 py-1 text-xs text-muted-foreground hover:text-foreground',
-                          '[@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-                        )}
-                      >
-                        Not needed
-                      </button>
-                    )}
-                  </div>
+                  </Link>
                 ))}
               </div>
             ))}
