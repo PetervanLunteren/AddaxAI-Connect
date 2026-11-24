@@ -207,29 +207,32 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                 This camera has photos from {dayLabel(firstPhotoDay)} to {dayLabel(lastPhotoDay)}.
               </p>
             )}
-            {untilBeforeFrom ? (
-              <p className="text-sm text-destructive">The last day cannot be before the first day.</p>
-            ) : (
-              siteName && fromDate && (
-                // What will happen. Only these days are written; the app
-                // works out every other day again, so they may change too.
-                <p className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-                  {siteName} from {dayLabel(fromDate)} {untilDate ? `until ${dayLabel(untilDate)}` : 'until now'}.
-                  {' '}The app works out the other days again from the GPS.
-                </p>
-              )
-            )}
             {/* Pinned to the bottom: with the map the form can be taller
-                than the window, and Save must not scroll out of view. */}
-            <DialogFooter className="sticky -bottom-6 -mx-6 -mb-6 border-t bg-background px-6 py-4">
-              <Button type="button" variant="outline" onClick={onClose} disabled={save.isPending}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={!canSave}>
-                {save.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Save
-              </Button>
-            </DialogFooter>
+                than the window. What will happen and Save stay in view
+                together, so the result is read before the click. */}
+            <div className="sticky -bottom-6 -mx-6 -mb-6 space-y-3 border-t bg-background px-6 py-4">
+              {untilBeforeFrom ? (
+                <p className="text-sm text-destructive">The last day cannot be before the first day.</p>
+              ) : (
+                siteName && fromDate && (
+                  // Only these days are written; the app works out every
+                  // other day again, so they may change too.
+                  <p className="text-sm">
+                    {siteName} from {dayLabel(fromDate)} {untilDate ? `until ${dayLabel(untilDate)}` : 'until now'}.
+                    {' '}The app works out the other days again from the GPS.
+                  </p>
+                )
+              )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={onClose} disabled={save.isPending}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={!canSave}>
+                  {save.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Save
+                </Button>
+              </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
