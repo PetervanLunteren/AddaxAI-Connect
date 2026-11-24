@@ -10,6 +10,11 @@
  * Whole days on purpose: a day belongs to one deployment, the day of a move
  * to the new one, the same rule as everywhere in the app. The caller prefills
  * the days and the site.
+ *
+ * A small map under the site (SitePickMap, as in Merge site) shows where the
+ * sites are, the chosen one magenta, and a click on a pin chooses it: site
+ * names often say nothing about place. It starts on the site the camera has
+ * now and the chosen one.
  */
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +22,7 @@ import { Loader2 } from 'lucide-react';
 import { deploymentsApi } from '../../api/deployments';
 import { sitesApi } from '../../api/sites';
 import { SiteFormModal } from '../sites/SiteFormModal';
+import { SitePickMap } from '../sites/SitePickMap';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
@@ -133,6 +139,17 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
               >
                 Or create a new site
               </button>
+              {sites && (
+                <div className="mt-2">
+                  <SitePickMap
+                    sites={sites}
+                    selectedId={siteId}
+                    onSelect={setSiteId}
+                    fitIds={[prefill.siteId, siteId]}
+                    height={200}
+                  />
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
