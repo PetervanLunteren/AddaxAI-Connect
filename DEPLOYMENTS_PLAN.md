@@ -379,7 +379,7 @@ Notes per step:
       website"): one Camera updates page, Right and Wrong, no timeline.
     - 20 Nov: the check one at a time like image verification; then no
       page, a chip on the Cameras page.
-    - 21 Nov, walkthrough S01: one "Edit" per deployment in the
+    - 21 Nov, walkthrough S01: one "Wrong site?" (now Edit) per deployment in the
       camera panel; Corrections hidden while empty; slide-out tabs on one
       row; date fields on iPhone.
     - 21 Nov, walkthrough S02: the check in the image verification frame;

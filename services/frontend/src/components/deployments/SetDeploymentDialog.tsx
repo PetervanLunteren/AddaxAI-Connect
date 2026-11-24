@@ -219,7 +219,9 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                 </p>
               )
             )}
-            <DialogFooter>
+            {/* Pinned to the bottom: with the map the form can be taller
+                than the window, and Save must not scroll out of view. */}
+            <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 border-t bg-background px-6 py-4">
               <Button type="button" variant="outline" onClick={onClose} disabled={save.isPending}>
                 Cancel
               </Button>
