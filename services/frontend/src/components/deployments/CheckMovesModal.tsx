@@ -67,7 +67,6 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
 
   const [queue] = useState<string[]>(rowKeys);
   const [current, setCurrent] = useState<string | null>(startKey);
-  const [done, setDone] = useState(queue.length === 0);
   // What was answered in this check, by update, for going back and the summary.
   const [answers, setAnswers] = useState<Record<string, 'moved' | 'stayed'>>({});
   // "It stayed" is a correction: its id, for Undo right here. No
@@ -101,7 +100,9 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
     const step = target < index ? -1 : 1;
     let i = target;
     while (i >= 0 && i < queue.length && gone(queue[i])) i += step;
-    if (i >= queue.length) setDone(true);
+    // Past the last row the window closes, as image verification does:
+    // the table behind it shows what was decided.
+    if (i >= queue.length) onClose();
     else if (i >= 0) setCurrent(queue[i]);
   };
   const next = () => goTo(index + 1);
@@ -185,7 +186,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   keys.current = {
     goTo, index, it, answer, busy, canStay,
     moved: () => right.mutate(true), stayed: () => notMoved.mutate(),
-    blocked: done || confirmUndo !== null,
+    blocked: confirmUndo !== null,
   };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -225,21 +226,17 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // the one site of a correction.
   const active = useMemo(() => new Set(it ? siteIds(it) : []), [it]);
 
-  const movedCount = Object.values(answers).filter((a) => a === 'moved').length;
-  const stayedCount = Object.entries(answers).filter(([key, a]) => a === 'stayed' && !undone.has(key)).length;
-  const skipped = queue.filter((key) => !answers[key] && !gone(key)).length;
-
   // Previous, next, position and close, as in the image verification panel.
   const header = (
     <div className="flex items-center gap-0.5">
-      <Button variant="ghost" size="icon" onClick={() => goTo(index - 1)} disabled={done || index <= 0} title="Previous (←)">
+      <Button variant="ghost" size="icon" onClick={() => goTo(index - 1)} disabled={index <= 0} title="Previous (←)">
         <ChevronLeft className="h-5 w-5" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={next} disabled={done} title="Next (→)">
+      <Button variant="ghost" size="icon" onClick={next} title="Next (→)">
         <ChevronRight className="h-5 w-5" />
       </Button>
       <span className="flex-1 ml-1 text-sm text-muted-foreground tabular-nums">
-        {!done && queue.length > 0 && `${index + 1} of ${queue.length}`}
+        {`${index + 1} of ${queue.length}`}
       </span>
       <Button variant="ghost" size="icon" onClick={onClose} title="Close (Esc)">
         <X className="h-5 w-5" />
@@ -250,127 +247,103 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <div className={`${REVIEW_WINDOW_CLASS} overflow-y-auto overflow-x-hidden`} role="dialog" aria-label="Check moves">
-        {done ? (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <Button variant="ghost" size="icon" onClick={onClose} title="Close (Esc)">
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="pb-16 text-center space-y-3">
-              <Check className="h-10 w-10 mx-auto text-primary" />
-              <p className="text-lg font-medium">
-                {queue.length === 0 ? 'Nothing here' : 'Done'}
-              </p>
-              {queue.length > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {movedCount} moved, {stayedCount} stayed, {skipped} skipped
-                </p>
-              )}
-              <Button onClick={onClose}>Close</Button>
-            </div>
+        <div className="flex flex-col gap-4 md:grid md:grid-cols-3 md:gap-6">
+          {/* The map fills its column, as tall as the cards next to it
+              and never lower than now: tall like the photo in image
+              verification, never taller than the screen. On a phone,
+              where the columns stack, it has that height. */}
+          <div className="md:col-span-2 min-w-0 h-[min(65vh,640px)] md:h-auto md:min-h-[min(65vh,640px)]">
+            <DeploymentsMap
+              key={it?.key ?? current ?? 'none'}
+              sites={sites}
+              activeSiteIds={active.size === 0 ? null : active}
+              arrows={arrows}
+              height="100%"
+            />
           </div>
-        ) : (
-          <>
-            <div className="flex flex-col gap-4 md:grid md:grid-cols-3 md:gap-6">
-              {/* The map fills its column, as tall as the cards next to it
-                  and never lower than now: tall like the photo in image
-                  verification, never taller than the screen. On a phone,
-                  where the columns stack, it has that height. */}
-              <div className="md:col-span-2 min-w-0 h-[min(65vh,640px)] md:h-auto md:min-h-[min(65vh,640px)]">
-                <DeploymentsMap
-                  key={it?.key ?? current ?? 'none'}
-                  sites={sites}
-                  activeSiteIds={active.size === 0 ? null : active}
-                  arrows={arrows}
-                  height="100%"
-                />
-              </div>
 
-              <div className="space-y-4 min-w-0">
-                {header}
-                {!it ? (
-                  <Card>
-                    <CardContent className="pt-4 pb-3 space-y-3 text-sm">
-                      {current && corrections[current] !== undefined ? (
-                        <>
-                          <Button className="w-full" onClick={next}>
-                            Next
-                            <Kbd onPrimary>→</Kbd>
-                          </Button>
-                          <Button variant="outline" className="w-full" onClick={() => undoCorrection.mutate(corrections[current])} disabled={busy}>
-                            <Undo2 className="h-4 w-4 mr-2" />
-                            Undo
-                          </Button>
-                          {/* Who and when, as under the buttons of every row:
-                              the row of the correction just made. */}
-                          <Decision it={items.find((i) => i.key === correctionKey(corrections[current]))} myAnswer="stayed" />
-                        </>
-                      ) : current && undone.has(current) ? (
-                        <p className="text-muted-foreground text-center">Undone, the GPS decides these days again</p>
-                      ) : (
-                        <p className="text-muted-foreground text-center">This update no longer exists</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <>
-                    {/* What the app saw: the row of the table, the same
-                        columns in the same order. What a person decided is
-                        under the buttons. */}
-                    <Card>
-                      <CardContent className="pt-4 pb-3 space-y-1 text-sm">
-                        {/* A correction has no move: its whole period as the
-                            date, its one site, and no empty From or Distance. */}
-                        <DetailRow label="Date">{dateLabel(it)}</DetailRow>
-                        <DetailRow label="Camera">{it.cameraLabel}</DetailRow>
-                        <DetailRow label="From">{ends(it).from}</DetailRow>
-                        <DetailRow label={it.correction ? 'Site' : 'To'}>{ends(it).to}</DetailRow>
-                        <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : null}</DetailRow>
-                      </CardContent>
-                    </Card>
+          <div className="space-y-4 min-w-0">
+            {header}
+            {!it ? (
+              <Card>
+                <CardContent className="pt-4 pb-3 space-y-3 text-sm">
+                  {current && corrections[current] !== undefined ? (
+                    <>
+                      <Button className="w-full" onClick={next}>
+                        Next
+                        <Kbd onPrimary>→</Kbd>
+                      </Button>
+                      <Button variant="outline" className="w-full" onClick={() => undoCorrection.mutate(corrections[current])} disabled={busy}>
+                        <Undo2 className="h-4 w-4 mr-2" />
+                        Undo
+                      </Button>
+                      {/* Who and when, as under the buttons of every row:
+                          the row of the correction just made. */}
+                      <Decision it={items.find((i) => i.key === correctionKey(corrections[current]))} myAnswer="stayed" />
+                    </>
+                  ) : current && undone.has(current) ? (
+                    <p className="text-muted-foreground text-center">Undone, the GPS decides these days again</p>
+                  ) : (
+                    <p className="text-muted-foreground text-center">This update no longer exists</p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* What the app saw: the row of the table, the same
+                    columns in the same order. What a person decided is
+                    under the buttons. */}
+                <Card>
+                  <CardContent className="pt-4 pb-3 space-y-1 text-sm">
+                    {/* A correction has no move: its whole period as the
+                        date, its one site, and no empty From or Distance. */}
+                    <DetailRow label="Date">{dateLabel(it)}</DetailRow>
+                    <DetailRow label="Camera">{it.cameraLabel}</DetailRow>
+                    <DetailRow label="From">{ends(it).from}</DetailRow>
+                    <DetailRow label={it.correction ? 'Site' : 'To'}>{ends(it).to}</DetailRow>
+                    <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : null}</DetailRow>
+                  </CardContent>
+                </Card>
 
-                    {/* The evidence and the answer, as the verification card. */}
-                    <Card>
-                      <CardContent className="pt-4 pb-3 space-y-3 text-sm">
-                        {d && (
-                          <div className="grid grid-cols-2 gap-2">
-                            {p && <Photo projectId={projectId} photo={before?.[0]} label={`Last photo at ${placeName(p.site_name)}`} />}
-                            {(after ?? []).map((photo, i) => (
-                              <Photo key={photo.uuid} projectId={projectId} photo={photo} label={i === 0 ? `First photo at ${placeName(d.site_name)}` : 'Next photo'} />
-                            ))}
-                          </div>
-                        )}
+                {/* The evidence and the answer, as the verification card. */}
+                <Card>
+                  <CardContent className="pt-4 pb-3 space-y-3 text-sm">
+                    {d && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {p && <Photo projectId={projectId} photo={before?.[0]} label={`Last photo at ${placeName(p.site_name)}`} />}
+                        {(after ?? []).map((photo, i) => (
+                          <Photo key={photo.uuid} projectId={projectId} photo={photo} label={i === 0 ? `First photo at ${placeName(d.site_name)}` : 'Next photo'} />
+                        ))}
+                      </div>
+                    )}
 
-                        {it.returnOfShortTrip && !it.answered && (
-                          <p className="text-xs text-muted-foreground">
-                            The way back of a short trip. If the trip never happened, answer It stayed on the trip out.
-                          </p>
-                        )}
+                    {it.returnOfShortTrip && !it.answered && (
+                      <p className="text-xs text-muted-foreground">
+                        The way back of a short trip. If the trip never happened, answer It stayed on the trip out.
+                      </p>
+                    )}
 
-                        <Answers
-                          it={it}
-                          myAnswer={answer}
-                          busy={busy}
-                          canStay={canStay}
-                          onMoved={() => right.mutate(true)}
-                          onUndo={
-                            it.correction ? () => setConfirmUndo(it)
-                              : current && corrections[current] !== undefined ? () => undoCorrection.mutate(corrections[current])
-                                : () => right.mutate(false)
-                          }
-                          onStayed={() => notMoved.mutate()}
-                          onNext={next}
-                        />
-                      </CardContent>
-                    </Card>
-                  </>
-                )}
-              </div>
-            </div>
+                    <Answers
+                      it={it}
+                      myAnswer={answer}
+                      busy={busy}
+                      canStay={canStay}
+                      onMoved={() => right.mutate(true)}
+                      onUndo={
+                        it.correction ? () => setConfirmUndo(it)
+                          : current && corrections[current] !== undefined ? () => undoCorrection.mutate(corrections[current])
+                            : () => right.mutate(false)
+                      }
+                      onStayed={() => notMoved.mutate()}
+                      onNext={next}
+                    />
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
+        </div>
 
-          </>
-        )}
       </div>
 
       <ConfirmDialog
