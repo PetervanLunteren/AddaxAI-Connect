@@ -402,8 +402,12 @@ Notes per step:
 - **Walkthrough with Peter**, started 20 November 2026, S01 and S02 done.
   Peter walks the scenarios one by one; feedback is collected and fixed
   after S12, unless it blocks.
-  - Dev: "Deployment scenarios" is project 5, with S01 and S02 (S02 an
-    unchecked move, as Peter left it). "Moves layout test" is project 6, 20
+  - Dev: "Deployment scenarios" is project 5, with S01 and S02 (S02's
+    move checked by Peter on 24 Nov). Next is S03, after Peter's feedback
+    points that follow the map colour change.
+  - Not yet seen on screen after the map colour change: the site picker
+    (Add site) and the merge picker (Sites, Merge); they use the shared
+    marker part, so they should be fine. "Moves layout test" is project 6, 20
     rows with long names, made by a throwaway script, not in the repo. The
     next scenario: `docker compose exec -T ingestion python
     /app/scripts/dev_deployment_scenarios.py --only S03`. To start over,
