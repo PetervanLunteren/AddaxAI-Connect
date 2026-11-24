@@ -553,8 +553,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
       {ownSite && (
         <SetDeploymentDialog
           projectId={projectId}
-          cameraId={ownSite.camera.id}
-          cameraName={ownSite.camera.device_id ?? ownSite.camera.name}
+          camera={ownSite.camera}
           prefill={ownSite.prefill}
           newSite
           onClose={() => setOwnSite(null)}

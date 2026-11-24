@@ -16,7 +16,7 @@
  *   stays on screen with Undo instead of a confirmation before it.
  *   A move to the wrong site is not answered here: the app making a new
  *   place where a site exists is fixed by merging the two on the Sites
- *   page, a snap to the wrong one of two close sites by Wrong site? in
+ *   page, a snap to the wrong one of two close sites by Edit in
  *   the camera panel.
  * - A correction from history can be undone, after a confirmation: it moves
  *   photos between sites, and you did not just make it. After Undo the

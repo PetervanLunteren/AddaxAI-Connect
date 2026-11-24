@@ -695,7 +695,7 @@ The rules:
 - A person sets a deployment with `POST /api/projects/{id}/deployments/statements`
   (camera, site, first day, last day or none). The days become a period by
   `period_of_days`: from the start of the first day to the start of the day
-  after the last. The camera panel's Wrong site? on a deployment uses the same endpoint,
+  after the last. The camera panel's Edit on a deployment uses the same endpoint,
   prefilled with the deployment's own days. `GET .../statements?camera_id=` lists the fixed
   periods in force, `DELETE .../statements/{id}` takes one back.
 - GPS for alerts, integrations and exports comes from `images.gps_lat` and
@@ -773,7 +773,7 @@ are the one record; nothing about a move is stored apart from them.
     the Suspicious pill. Keys are on the buttons, no shortcuts pop-up.
   - A move to the wrong site is not answered here: the app making a new
     place where a site exists is fixed by merging sites (Sites page), a
-    snap to the wrong one of two close sites by Wrong site? in the camera
+    snap to the wrong one of two close sites by Edit in the camera
     panel.
 - **Undo** finds the move exactly, no search: after "It stayed" the move
   comes back under its own key; a correction opened from the table leads
@@ -790,8 +790,14 @@ are the one record; nothing about a move is stored apart from them.
   - a GPS part keeps the site its stored row had only when the GPS chose
     it (`deployment_rebuild.py`): after Undo the GPS decides again.
 - **Corrections elsewhere.** The camera panel lists them as "Corrections",
-  each with Undo; each deployment has Wrong site? (the Set site form with
-  its site and days; moving the first day fixes a move the GPS missed).
+  each with Undo; each deployment has Edit, which opens the one placement
+  form as "Edit deployment" with its site and days (`SetDeploymentDialog`;
+  "Set site" for a camera without a site). It covers a wrong site, a move
+  the GPS missed (the new site from the day of the move), a camera without
+  GPS, a first day before the first photo. Only the days given are
+  written; the app works out every other day again from the GPS, which the
+  form says in a sentence above Save, next to the days the camera has
+  photos (so a wrong year stands out).
   The site panel has Name this site and, when two cameras share a site,
   Give it its own site. A correction deletes a site it emptied when that
   site still has the app's name (`drop_unnamed_sites_left_empty`); a site

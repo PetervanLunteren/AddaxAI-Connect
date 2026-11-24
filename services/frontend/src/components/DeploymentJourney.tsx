@@ -107,7 +107,7 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onC
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
                   <Pencil className="h-3.5 w-3.5" />
-                  Wrong site?
+                  Edit
                 </button>
               )}
             </div>

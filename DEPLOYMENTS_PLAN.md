@@ -354,7 +354,7 @@ Notes per step:
   - Only **suspicious** moves (back at the same site within a week) get an
     amber pill and count for the badge.
   - A move to the wrong site is fixed elsewhere: merging sites (Sites page)
-    or Wrong site? (camera panel). Started cameras are named in the site
+    or Edit (camera panel). Started cameras are named in the site
     panel; photos without a site are the Cameras page's.
   - Undo is exact: a move is keyed by camera and start, which come from
     the photos, and "It stayed" records the move it answered
@@ -379,7 +379,7 @@ Notes per step:
       website"): one Camera updates page, Right and Wrong, no timeline.
     - 20 Nov: the check one at a time like image verification; then no
       page, a chip on the Cameras page.
-    - 21 Nov, walkthrough S01: one "Wrong site?" per deployment in the
+    - 21 Nov, walkthrough S01: one "Edit" per deployment in the
       camera panel; Corrections hidden while empty; slide-out tabs on one
       row; date fields on iPhone.
     - 21 Nov, walkthrough S02: the check in the image verification frame;
@@ -423,13 +423,13 @@ Notes per step:
     screens: S01 stays at Pond (nothing). S02 Pond to Ridge on 1 Sep (It
     moved). S03 a false move by a GPS burst on 10 Sep (suspicious; It
     stayed, on the trip out). S04 moved 180 m on 15 Sep, unseen (camera
-    panel, Wrong site?, Stream east from 15 Sep). S05 one stray fix 3 km
+    panel, Edit, Stream east from 15 Sep). S05 one stray fix 3 km
     off (nothing). S06 no GPS, at Meadow from 1 Oct (Cameras page, photos
     without a site, Set site). S07 GPS gaps in October (nothing). S08
     silent since 20 Sep (nothing, shows inactive). S09 Old mill, Beech
     wood in September, Old mill (It moved twice). S10 next to S01 at Pond,
     its own spot (site panel, Give it its own site). S11 moved on 1 Oct,
-    first photo on 8 Oct (camera panel, Wrong site?, first day 1 Oct). S12
+    first photo on 8 Oct (camera panel, Edit, first day 1 Oct). S12
     moved on 1 Sep, August photos from an old card arrive last (It moved).
   - Test photos show blurred until detection processes them.
 

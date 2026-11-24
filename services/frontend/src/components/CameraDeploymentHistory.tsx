@@ -86,7 +86,7 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
         </Callout>
       )}
 
-      {/* Every other fix starts from a step, with Wrong site?. */}
+      {/* Every other fix starts from a deployment, with Edit. */}
       {canEdit && unplaced === 0 && deployments.length === 0 && (
         <Button size="sm" variant="outline" onClick={() => newDeployment(today(), null)}>
           <MapPinPlus className="h-4 w-4 mr-2" />
@@ -112,8 +112,8 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
       {prefill && pid !== undefined && (
         <SetDeploymentDialog
           projectId={pid}
-          cameraId={camera.id}
-          cameraName={camera.name}
+          camera={camera}
+          title={prefill.siteId != null ? 'Edit deployment' : 'Set site'}
           prefill={prefill}
           onClose={() => setPrefill(null)}
         />

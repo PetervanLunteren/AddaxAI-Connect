@@ -1,6 +1,10 @@
 /**
- * Set site: say where a camera stood, from one day until another, or
- * until now.
+ * Edit deployment (from a deployment in the camera panel) or Set site (a
+ * camera without a site, "Give it its own site"): say where a camera stood,
+ * from one day until another, or until now. One form for every placement
+ * fix: a wrong site, a move the GPS missed (the new site from the day of the
+ * move), a camera without GPS, a camera that needs its own site, a first day
+ * earlier than the first photo.
  *
  * The one form for every way to place a camera: placing a camera without
  * GPS, changing the site of a deployment the GPS made, and correcting the
@@ -15,11 +19,18 @@
  * sites are, the chosen one magenta, and a click on a pin chooses it: site
  * names often say nothing about place. It starts on the site the camera has
  * now and the chosen one.
+ *
+ * Two lines say what will happen, since the form writes only these days and
+ * the app works out the rest again from the GPS: a sentence with the result,
+ * and the days the camera has photos, so a wrong year stands out.
  */
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { deploymentsApi } from '../../api/deployments';
+import { camerasApi } from '../../api/cameras';
+import type { Camera } from '../../api/types';
+import { dayLabel } from './moves';
 import { sitesApi } from '../../api/sites';
 import { SiteFormModal } from '../sites/SiteFormModal';
 import { SitePickMap } from '../sites/SitePickMap';
@@ -39,8 +50,9 @@ export interface SetDeploymentPrefill {
 
 interface Props {
   projectId: number;
-  cameraId: number;
-  cameraName: string;
+  camera: Camera;
+  // "Edit deployment" from a deployment, "Set site" otherwise.
+  title?: string;
   prefill: SetDeploymentPrefill;
   onClose: () => void;
   // Open on "create a new site" at the prefilled spot: a click on an empty
@@ -56,7 +68,10 @@ function errMsg(err: unknown): string {
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
 
-export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, cameraName, prefill, onClose, newSite = false, onSaved }) => {
+export const SetDeploymentDialog: React.FC<Props> = ({
+  projectId, camera, title = 'Set site', prefill, onClose, newSite = false, onSaved,
+}) => {
+  const cameraId = camera.id;
   const queryClient = useQueryClient();
   const toast = useToast();
   const [siteId, setSiteId] = useState<number | null>(prefill.siteId);
@@ -74,6 +89,18 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
     queryKey: ['sites', projectId],
     queryFn: () => sitesApi.list(projectId),
   });
+
+  // The days the camera has photos: its first deployment or its first photo
+  // without a site, to its last photo (camera clock).
+  const { data: deployments } = useQuery({
+    queryKey: ['camera-deployments', cameraId],
+    queryFn: () => camerasApi.getDeployments(cameraId),
+  });
+  const firstPhotoDay = [...(deployments ?? []).map((d) => d.start_date), camera.unplaced_first_day]
+    .filter((d): d is string => !!d)
+    .sort()[0];
+  const lastPhotoDay = camera.last_image_timestamp?.slice(0, 10);
+  const siteName = sites?.find((s) => s.id === siteId)?.name;
 
   const save = useMutation({
     mutationFn: (site: number) =>
@@ -106,9 +133,9 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
       <Dialog open onOpenChange={(o) => !o && onClose()}>
         <DialogContent onClose={onClose}>
           <DialogHeader>
-            <DialogTitle>Set site</DialogTitle>
+            <DialogTitle>{title}</DialogTitle>
             <DialogDescription>
-              Where camera {cameraName} stood. The photos of these days move to
+              Where camera {camera.name} stood. The photos of these days move to
               this site. You can undo this in the camera panel.
             </DialogDescription>
           </DialogHeader>
@@ -175,8 +202,22 @@ export const SetDeploymentDialog: React.FC<Props> = ({ projectId, cameraId, came
                 <p className="text-xs text-muted-foreground mt-1">Leave empty when the camera is still there.</p>
               </div>
             </div>
-            {untilBeforeFrom && (
+            {firstPhotoDay && lastPhotoDay && (
+              <p className="text-xs text-muted-foreground -mt-2">
+                This camera has photos from {dayLabel(firstPhotoDay)} to {dayLabel(lastPhotoDay)}.
+              </p>
+            )}
+            {untilBeforeFrom ? (
               <p className="text-sm text-destructive">The last day cannot be before the first day.</p>
+            ) : (
+              siteName && fromDate && (
+                // What will happen. Only these days are written; the app
+                // works out every other day again, so they may change too.
+                <p className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+                  {siteName} from {dayLabel(fromDate)} {untilDate ? `until ${dayLabel(untilDate)}` : 'until now'}.
+                  {' '}The app works out the other days again from the GPS.
+                </p>
+              )
             )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose} disabled={save.isPending}>
