@@ -41,13 +41,15 @@ async def state(
     from_at: datetime,
     until_at: Optional[datetime],
     user_id: Optional[int],
+    answers_move_at: Optional[datetime] = None,
 ) -> int:
     """
     Record that the camera stood at the site from from_at until until_at, and
     rebuild it. With until_at None the camera is still there: the period is
     fixed up to its newest photo, and after that the GPS carries on, so a
-    later move is still seen. Returns the statement's id, so the screen can
-    offer Undo at once. Does not commit.
+    later move is still seen. answers_move_at is the start of the move this
+    takes back, for "It stayed" only. Returns the statement's id, so the
+    screen can offer Undo at once. Does not commit.
     """
     fixed_until_at = await newest_photo_at(db, camera_id) if until_at is None else None
     statement = DeploymentStatement(
@@ -56,6 +58,7 @@ async def state(
         from_at=from_at,
         until_at=until_at,
         fixed_until_at=fixed_until_at,
+        answers_move_at=answers_move_at,
         source="person",
         created_by_user_id=user_id,
     )

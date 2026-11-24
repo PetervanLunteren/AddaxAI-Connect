@@ -56,6 +56,15 @@ export function metresBetween(a: DeploymentListItem, b: DeploymentListItem): num
 const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
 
 /**
+ * The key of a move: its camera and the moment it starts. Both come from
+ * the photos (the first photo at the new place), not from the row id, which
+ * a rebuild may change: after "It stayed" and Undo the same move has the
+ * same key, and a correction can point at the move it answered
+ * (answers_move_at). Corrections are keyed by their own id, which is stable.
+ */
+export const moveKey = (cameraId: number, startAt: string) => `m${cameraId}@${startAt}`;
+
+/**
  * Every entry, answered or not, newest first. `corrections` are the
  * project's statements in force; only those a person made count, not the
  * ones an upload set or the update carried over: nobody decided those.
@@ -82,7 +91,7 @@ export function updateItems(deployments: DeploymentListItem[], corrections: Fixe
         beforePrevious.site_id === d.site_id && previous.end_at !== null &&
         daysBetween(previous.start_at, previous.end_at) <= SHORT_TRIP_DAYS;
       items.push({
-        key: `d${d.id}`,
+        key: moveKey(d.camera_id, d.start_at),
         kind: 'moved',
         cameraId: d.camera_id,
         cameraLabel: d.camera_label ?? `Camera ${d.camera_id}`,

@@ -62,6 +62,9 @@ export interface FixedPeriod {
   source: string;
   created_by: string | null; // email, null when the account is gone
   created_at: string;
+  // The start of the move an "It stayed" took back (as start_at of a
+  // deployment), null for every other correction.
+  answers_move_at: string | null;
 }
 
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;

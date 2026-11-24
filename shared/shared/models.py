@@ -372,6 +372,10 @@ class DeploymentStatement(Base):
     from_at = Column(DateTime(timezone=False), nullable=False)
     until_at = Column(DateTime(timezone=False), nullable=True)
     fixed_until_at = Column(DateTime(timezone=False), nullable=True)
+    # The start of the move an "It stayed" in the Moves check took back
+    # (camera clock, naive, as deployments.start_at). NULL for every other
+    # statement. Undo leads to exactly that move again.
+    answers_move_at = Column(DateTime(timezone=False), nullable=True)
     # 'person' = a correction in the app, 'upload' = an upload to a chosen
     # site, 'carried_over' = written once by scripts/carry_over_deployments.py
     # to keep history from before phase 2 as it was.

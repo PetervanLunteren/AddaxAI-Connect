@@ -130,6 +130,8 @@ async def test_the_list_says_who_and_which_days(session, admin, setup):
     [item] = await list_statements(project, cam, session, admin)
     assert (item.site_name, item.from_date, item.until_date) == ("Pond", "2026-03-01", "2026-03-05")
     assert item.source == "person" and item.created_by == "admin@example.org"
+    # A site set by hand answered no move.
+    assert item.answers_move_at is None
 
 
 async def test_a_closed_period_is_exactly_its_days(session, admin, setup):

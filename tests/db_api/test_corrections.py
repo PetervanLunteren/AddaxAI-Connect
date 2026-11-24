@@ -20,7 +20,9 @@ from deployment_db import (
     DAY, HOME, at, close, deployments, execute, image_deployment, make_camera,
     make_image, make_project, make_site, make_user, offset, rows, scalar, site,
 )
-from routers.deployments import SetDeploymentRequest, not_moved, remove_statement, set_deployment
+from routers.deployments import (
+    SetDeploymentRequest, list_deployments, list_statements, not_moved, remove_statement, set_deployment,
+)
 from routers.sites import MergeSiteRequest, delete_site, merge_site
 
 pytestmark = pytest.mark.asyncio
@@ -189,6 +191,7 @@ async def test_a_chain_of_three_folds_into_one(session, admin):
 
 async def test_it_did_not_move_folds_back_and_removes_the_unnamed_site(session, admin, moved_camera):
     m = moved_camera
+    move_start = deployments(m["cam"])[1]["start_at"]
     result = await not_moved(m["project"], m["second"], session, admin)
 
     assert result.merged == 1
@@ -201,6 +204,8 @@ async def test_it_did_not_move_folds_back_and_removes_the_unnamed_site(session, 
     assert result.statement_id == statement["id"]
     assert statement["from_at"] == at(2) and statement["site_id"] == m["home"]
     assert statement["created_by_user_id"] == admin.id
+    # It records which move it took back, for an exact Undo.
+    assert statement["answers_move_at"] == move_start
 
 
 async def test_it_did_not_move_leaves_the_pin_where_the_gps_put_it(session, admin, moved_camera):
@@ -233,6 +238,22 @@ async def test_undo_of_it_did_not_move_gives_the_move_back(session, admin):
     assert first["site_id"] == home and first["site_source"] == "auto"
     assert second["site_id"] != home and second["site_source"] == "auto"
     assert close(site(second["site_id"])["lon"], FAR[1], metres=20)
+    # The same move is back, by camera and start: what the Moves check
+    # finds it by after an Undo, whatever its row id is now.
+    assert second["start_at"] == moved["start_at"]
+    [answered] = rows("SELECT answers_move_at FROM deployment_statements WHERE id = :i", i=result.statement_id)
+    assert answered["answers_move_at"] == moved["start_at"]
+
+
+async def test_the_answered_move_reads_the_same_as_the_move(session, admin, moved_camera):
+    """The browser finds the move a correction answered by comparing two
+    strings: the statement's answers_move_at and the move's start_at. They
+    must be written alike."""
+    m = moved_camera
+    [_, move] = [d for d in await list_deployments(m["project"], session, admin, None) if d.camera_id == m["cam"]]
+    await not_moved(m["project"], m["second"], session, admin)
+    [statement] = await list_statements(m["project"], m["cam"], session, admin)
+    assert statement.answers_move_at == move.start_at
 
 
 async def test_it_did_not_move_twice_finds_no_deployment(session, admin, moved_camera):

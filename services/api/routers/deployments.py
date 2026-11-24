@@ -133,6 +133,10 @@ class StatementItem(BaseModel):
     source: str
     created_by: Optional[str] = None
     created_at: str
+    # The start of the move an "It stayed" took back, in the same format as
+    # DeploymentListItem.start_at, so the browser finds that move by camera
+    # and start. None for every other statement.
+    answers_move_at: Optional[str] = None
 
 
 class SetDeploymentRequest(BaseModel):
@@ -227,6 +231,7 @@ async def list_statements(
             source=st.source,
             created_by=email,
             created_at=st.created_at.isoformat(),
+            answers_move_at=st.answers_move_at.isoformat() if st.answers_move_at else None,
         )
         for st, camera_label, site_name, email in rows
     ]
@@ -426,7 +431,10 @@ async def not_moved(
         )
     before = await _deployment_count(db, deployment.camera_id)
     false_site = deployment.site_id
-    statement_id = await state(db, deployment.camera_id, before_move.site_id, before_move.start_at, deployment.end_at, user.id)
+    statement_id = await state(
+        db, deployment.camera_id, before_move.site_id, before_move.start_at, deployment.end_at, user.id,
+        answers_move_at=deployment.start_at,
+    )
     await drop_unnamed_sites_left_empty(db, [false_site])
     merged = max(0, before - await _deployment_count(db, deployment.camera_id))
     await db.commit()

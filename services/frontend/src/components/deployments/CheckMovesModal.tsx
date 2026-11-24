@@ -19,7 +19,9 @@
  *   page, a snap to the wrong one of two close sites by Wrong site? in
  *   the camera panel.
  * - A correction from history can be undone, after a confirmation: it moves
- *   photos between sites, and you did not just make it.
+ *   photos between sites, and you did not just make it. After Undo the
+ *   window shows the move it answered again, found exactly by its key
+ *   (camera and start, see moveKey); one that answered no move says so.
  * Marking many moves right is done in the table, with its checkboxes. The
  * arrows step back and forward without answering, Esc closes. The end shows
  * a short summary.
@@ -42,7 +44,7 @@ import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
 import { MoveStatus } from './MoveStatus';
 import {
-  dateLabel, dayLabel, decided, ends, metresLabel, placeName, siteIds, type UpdateItem,
+  dateLabel, dayLabel, decided, ends, metresLabel, moveKey, placeName, siteIds, type UpdateItem,
 } from './update-items';
 
 interface Props {
@@ -73,28 +75,18 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // reversible, and a dialog on every answer slows the check down.
   const [corrections, setCorrections] = useState<Record<string, number>>({});
   const [undone, setUndone] = useState<Set<string>>(new Set());
-  // What a row was, to find its move again after an Undo. "It stayed"
-  // merges the move into the stay before it, and Undo can bring it back as
-  // a new row with a new id: then the move with the same camera and start.
-  // A correction opened from the table is gone after its Undo: then the
-  // camera's first move that starts within the correction's days. Found,
-  // the question shows again; not found, the window says it is undone.
-  type Was = { cameraId: number; startAt: string } | { cameraId: number; from: string; until: string | null };
-  const [movedAs, setMovedAs] = useState<Record<string, Was>>({});
+  // A correction opened from the table and undone: the move it answered
+  // (moveKey of its answers_move_at), or null when it answered none. The
+  // window then shows that move again. A fresh "It stayed" needs nothing:
+  // the move comes back under its own key.
+  const [undoneTo, setUndoneTo] = useState<Record<string, string | null>>({});
   // An older correction, waiting for "Undo this?".
   const [confirmUndo, setConfirmUndo] = useState<UpdateItem | null>(null);
 
-  // The row of a key: itself, or the move it was before a correction that
-  // has since been undone.
+  // The row of a key: itself, or the move an undone correction answered.
   const lookup = (key: string): UpdateItem | undefined => {
-    const found = items.find((i) => i.key === key);
-    const was = movedAs[key];
-    if (found || !was) return found;
-    return items
-      .filter((i) => i.kind === 'moved' && i.cameraId === was.cameraId && ('startAt' in was
-        ? i.deployment!.start_at === was.startAt
-        : i.day >= was.from && (was.until === null || i.day <= was.until)))
-      .sort((a, b) => a.day.localeCompare(b.day))[0];
+    const target = undoneTo[key];
+    return items.find((i) => i.key === key) ?? (target ? items.find((i) => i.key === target) : undefined);
   };
 
   const index = current ? queue.indexOf(current) : -1;
@@ -120,7 +112,6 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // Wrong stays on the update, so its Undo is in view.
   const corrected = (statementId: number) => {
     if (!current) return;
-    if (d) setMovedAs((m) => ({ ...m, [current]: { cameraId: d.camera_id, startAt: d.start_at } }));
     setAnswers((a) => ({ ...a, [current]: 'wrong' }));
     setCorrections((c) => ({ ...c, [current]: statementId }));
     setUndone((u) => { const next = new Set(u); next.delete(current); return next; });
@@ -166,9 +157,9 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   });
   const undoCorrection = useMutation({
     mutationFn: (statementId: number) => deploymentsApi.removeFixedPeriod(projectId, statementId),
-    // The answer is forgotten: a move that comes back (often with the same
-    // row) asks Right or Wrong again. One that does not come back, as a
-    // correction from the camera panel, says it is undone.
+    // The answer is forgotten: the move that comes back (under its own key,
+    // camera and start) asks the question again. A correction that answered
+    // no move, as one from the camera panel, says it is undone.
     onSuccess: () => {
       refresh();
       if (!current) return;
@@ -386,7 +377,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
         onConfirm={() => {
           const c = confirmUndo?.correction;
           if (c && current) {
-            setMovedAs((m) => ({ ...m, [current]: { cameraId: c.camera_id, from: c.from_date, until: c.until_date } }));
+            setUndoneTo((u) => ({ ...u, [current]: c.answers_move_at ? moveKey(c.camera_id, c.answers_move_at) : null }));
             undoCorrection.mutate(c.id);
           }
           setConfirmUndo(null);
