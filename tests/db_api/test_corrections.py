@@ -372,3 +372,47 @@ async def test_an_unused_site_can_be_deleted(session, admin, moved_camera):
     spare = make_site(m["project"], "Spare", offset(HOME, north_m=8000))
     await delete_site(m["project"], spare, admin, session)
     assert site(spare) is None
+
+
+async def test_a_move_the_gps_missed_is_fixed_from_its_day(session, admin):
+    """S04 on dev: moved 180 m on day 15, inside the 250 m the GPS rule
+    allows, so the app saw one stay. Set site with the new site from day 15
+    and no last day splits it: the old site keeps the days before, and its
+    pin goes back to where the camera stood there."""
+    project = make_project()
+    west = make_site(project, "Stream west", HOME)
+    east_point = offset(HOME, east_m=180)
+    east = make_site(project, "Stream east", east_point)
+    cam = make_camera("S04", project)
+    history(cam, [(HOME, at(d)) for d in range(1, 15)] + [(east_point, at(d)) for d in range(15, 21)])
+    [one] = deployments(cam)
+    assert one["site_id"] == west  # the missed move
+    assert not close(site(west)["lon"], HOME[1], metres=50)  # its pin drifted east
+
+    [dep] = rows("SELECT start_date FROM deployments WHERE camera_id = :c", c=cam)
+    await set_deployment(project, SetDeploymentRequest(
+        camera_id=cam, site_id=east, from_date=day(15), until_date=None), session, admin)
+
+    before, after = deployments(cam)
+    assert (before["site_id"], before["site_source"], before["end_date"]) == (west, "auto", day(14))
+    assert (after["site_id"], after["site_source"], after["start_date"]) == (east, "manual", day(15))
+    assert close(site(west)["lon"], HOME[1], metres=20)  # the pin is back
+
+
+async def test_a_site_made_on_top_of_another_does_not_take_its_cameras(session, admin):
+    """On dev a new site was made exactly on an existing pin, used in a
+    correction and the correction undone: the camera then landed on the new
+    site, because the nearest of two equally near sites was left to chance.
+    The older site wins a tie. Which of two tied rows the database returns
+    depends on how they happen to be stored, so this test cannot force the
+    wrong order; it holds the outcome, ORDER BY dist, id holds the rule."""
+    project = make_project()
+    home = make_site(project, "Stream west", HOME)
+    cam = make_camera("S04", project)
+    history(cam, [(HOME, at(d)) for d in range(1, 5)])
+    on_top = make_site(project, "stream NO", HOME)
+    result = await set_deployment(project, SetDeploymentRequest(
+        camera_id=cam, site_id=on_top, from_date=day(2), until_date=None), session, admin)
+    await remove_statement(project, result.statement_id, session, admin)
+    [dep] = deployments(cam)
+    assert dep["site_id"] == home

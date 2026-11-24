@@ -378,11 +378,16 @@ def _nearest_or_new_site(session: Session, project_id: int, lat: float, lon: flo
     the project within SITE_THRESHOLD_METERS, else a new site named from the
     coordinates. Plain nearest site, no memory per camera: fieldworkers take
     cameras from the truck at random, so a camera's previous site says nothing
-    about its next one. A person corrects it afterwards where needed."""
+    about its next one. A person corrects it afterwards where needed.
+
+    Two sites at the same distance: the older one, so the answer never
+    depends on the order the database happens to return. A site made on
+    top of another (a new site at a deployment's GPS spot) then never takes
+    over the cameras of the one that was there first."""
     wkt = f"POINT({lon} {lat})"
     nearest = session.execute(text("""
         SELECT id, ST_Distance(location, ST_GeogFromText(:wkt)) AS dist
-        FROM sites WHERE project_id = :project_id ORDER BY dist LIMIT 1
+        FROM sites WHERE project_id = :project_id ORDER BY dist, id LIMIT 1
     """), {"wkt": wkt, "project_id": project_id}).first()
     if nearest is not None and nearest.dist <= SITE_THRESHOLD_METERS:
         return nearest.id, False
