@@ -540,7 +540,7 @@ export const CamerasPage: React.FC = () => {
       key: 'sim',
       label: 'SIM card',
       primary: false,
-      options: [{ value: 'expiring', label: 'Expiring' }],
+      options: [{ value: 'expiring', label: 'SIM expiring' }],
     },
   ];
   // Site-restricted viewers see neither rejections nor photos without a site.
