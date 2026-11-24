@@ -30,7 +30,7 @@ date) and attributed to the camera by its device id. The rule counts the
 rows of the last 24 hours before the run, and fires only for a camera that
 is still rejecting at run time: its latest rejection is newer than its
 latest live image (`shared.camera_status.is_rejecting`, the same flag as
-the attention chip). After a battery change a camera rejects a photo or
+the To do line). After a battery change a camera rejects a photo or
 two before its GPS fix and then recovers; it must not alarm the next
 morning. A camera that rejected yesterday and is fine today re-arms. Only
 rejections that resolved to a registered camera count; files without a

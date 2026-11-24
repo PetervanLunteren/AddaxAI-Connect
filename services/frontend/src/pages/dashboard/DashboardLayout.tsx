@@ -13,7 +13,6 @@
 import React from 'react';
 import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
 import { tabClass } from '../../components/ui/TabStrip';
-import { SpeciesFilterHintBanner } from '../../components/dashboard';
 
 // One line per tab, because the two tabs answer different questions. How the
 // numbers are counted is explained on the card it applies to, not here.
@@ -38,7 +37,6 @@ export const DashboardLayout: React.FC = () => {
       </div>
 
       {/* Species filtering hint (DeepFaune projects, admins, not yet narrowed) */}
-      <SpeciesFilterHintBanner />
 
       <div className="flex border-b">
         {/* `end` is required, otherwise the Explore route would also mark

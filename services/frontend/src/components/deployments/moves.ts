@@ -13,8 +13,8 @@
  *
  * Nobody has to answer. A move nobody checked yet that came back to the
  * same site within a week is suspicious, the usual shape of a GPS error.
- * The server counts the same rule for the badge (ATTENTION_COUNT_SQL in
- * routers/deployments.py); a test holds the two together.
+ * The server counts the same rule for To do (SUSPICIOUS_MOVES_SQL in
+ * utils/todo.py); a test holds the two together.
  */
 import type { DeploymentListItem, FixedPeriod } from '../../api/deployments';
 import { formatDate } from '../../utils/datetime';
@@ -22,7 +22,7 @@ import { isAutoSiteName } from '../../utils/site-names';
 
 // A move that comes back to the site it left within this many days is
 // marked "Back within a week": the usual shape of a false move. It changes
-// no data. The same number as SHORT_TRIP_DAYS in routers/deployments.py.
+// no data. The same number as SHORT_TRIP_DAYS in utils/todo.py.
 const SHORT_TRIP_DAYS = 7;
 
 export interface MoveRow {

@@ -27,8 +27,6 @@ interface StatTileProps {
   series?: number[];
   /** 0 to 1. Draws a progress bar instead of a sparkline. */
   progress?: number;
-  /** Colours the value when the number itself is the warning. */
-  tone?: 'normal' | 'bad';
   loading?: boolean;
   /** Grid placement from the page. The tile does not choose its own width. */
   className?: string;
@@ -41,7 +39,6 @@ export const StatTile: React.FC<StatTileProps> = ({
   note,
   series,
   progress,
-  tone = 'normal',
   loading = false,
   className = '',
 }) => {
@@ -54,11 +51,7 @@ export const StatTile: React.FC<StatTileProps> = ({
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}
         </p>
-        <p
-          className={`text-2xl font-bold tabular-nums leading-none ${
-            tone === 'bad' ? 'text-[#882000] dark:text-[#f0917a]' : ''
-          }`}
-        >
+        <p className="text-2xl font-bold tabular-nums leading-none">
           {loading ? '...' : value}
         </p>
 

@@ -78,11 +78,6 @@ export const deploymentsApi = {
   setChecked: async (projectId: number, deploymentIds: number[], checked: boolean): Promise<void> => {
     await apiClient.put(`${base(projectId)}/checked`, { deployment_ids: deploymentIds, checked });
   },
-  // How many moves need a person, for the sidebar badge.
-  attentionCount: async (projectId: number): Promise<number> => {
-    const { data } = await apiClient.get(`${base(projectId)}/attention-count`);
-    return data.count;
-  },
   // The GPS saw a move that did not happen: back to the site before it.
   notMoved: async (projectId: number, deploymentId: number): Promise<SetDeploymentResponse> => {
     const { data } = await apiClient.post(`${base(projectId)}/${deploymentId}/not-moved`);

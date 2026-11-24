@@ -3,7 +3,7 @@
 A photo has no deployment when no deployment covers its capture time: a
 camera without GPS that nobody placed yet, or photos older than the first
 deployment. One grouped query, whatever the number of cameras. The count
-drives the column, the attention chip and the callout in the camera panel,
+drives the column, the To do line and the callout in the camera panel,
 and the first and last day prefill the Set deployment form.
 
 Site-restricted viewers never see these photos (site_scope.site_image_clause

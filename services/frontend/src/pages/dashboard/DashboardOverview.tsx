@@ -9,8 +9,8 @@
  * What changed and why:
  *
  * The camera activity doughnut is gone. Camera health is a status question,
- * not a proportion question, and it now sits in the attention list with the
- * other things a person can act on.
+ * not a proportion question, and it now sits in To do in the top bar with
+ * the other things a person can act on.
  *
  * The species bar chart is gone, replaced by a ranked list. The bars were
  * coloured from a continuous scale even though the name was already on the
@@ -39,14 +39,11 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../../api/statistics';
-import { camerasApi } from '../../api/cameras';
-import { serviceApi, serviceKeys } from '../../api/service';
 import { useProject } from '../../contexts/ProjectContext';
 import type { DateRange } from '../../components/dashboard';
 import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
 import { SpeciesChart } from '../../components/dashboard/SpeciesChart';
 import { VerificationProgressCard } from '../../components/dashboard/VerificationProgressCard';
-import { CameraAttentionBar } from '../../components/cameras/CameraAttentionBar';
 import { StatTile } from '../../components/dashboard/StatTile';
 
 /** Verification progress covers the project's whole history. */
@@ -78,19 +75,6 @@ export const DashboardOverview: React.FC = () => {
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['statistics', 'overview', projectId, undefined],
     queryFn: () => statisticsApi.getOverview(projectId),
-    enabled: projectId !== undefined,
-  });
-
-  const { data: cameras } = useQuery({
-    queryKey: ['cameras', projectId],
-    queryFn: () => camerasApi.getAll(projectId),
-    enabled: projectId !== undefined,
-  });
-
-  // Same list the Service page and sidebar badge read, one cache entry.
-  const { data: serviceTasks } = useQuery({
-    queryKey: serviceKeys.tasks(projectId ?? 0),
-    queryFn: () => serviceApi.listTasks(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -139,15 +123,6 @@ export const DashboardOverview: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* The same strip the Cameras page shows, not a second opinion. It
-          renders nothing when every camera is fine, so a healthy project sees
-          no card at all rather than a reassuring one. */}
-      <CameraAttentionBar
-        cameras={cameras}
-        projectId={projectId}
-        overdueServiceTasks={serviceTasks?.filter((t) => t.overdue).length}
-      />
-
       {/* The photograph earns the most room. The stat with a chart in it gets
           double width; the two bare numbers sit beneath at single width. */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

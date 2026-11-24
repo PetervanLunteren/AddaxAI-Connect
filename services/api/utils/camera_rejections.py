@@ -5,7 +5,7 @@ cameras, over the last REJECTED_RECENT_DAYS only. It gives two things per
 camera: the count, for the Rejected files column and the slide-out Overview
 row, and the time of the latest rejection, which with the latest live image
 decides whether the camera is still rejecting (`shared.camera_status.
-is_rejecting`). That flag drives the attention chip and the filter.
+is_rejecting`). That flag drives the To do line and the filter.
 
 Recent and not all-time on purpose: a count over the whole 30-day
 retention cannot separate "sent one setup shot before the GPS fix, weeks

@@ -106,8 +106,8 @@ export const serviceApi = {
   },
 };
 
-/** Query keys, shared so the page, sidebar badge, dashboard chip and
- * slide-out summaries all refresh from one invalidation. */
+/** Query keys, shared so the page and the slide-out summaries all refresh
+ * from one invalidation. */
 export const serviceKeys = {
   tasks: (projectId: number) => ['service-tasks', projectId] as const,
   visits: (projectId: number) => ['service-visits', projectId] as const,

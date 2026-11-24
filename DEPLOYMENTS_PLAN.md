@@ -396,15 +396,19 @@ Notes per step:
       four copies), magenta for what you look at, a bright alert red, and
       the colour ramps of AddaxAI desktop with Heat as default
       (`FRONTEND_CONVENTIONS.md`, "Maps are different").
+    - 24 Nov, walkthrough S03: the check window closes after the last row;
+      every move asks the same question (the way back of a short trip had
+      its own); the table stays newest first so rows do not jump.
+    - 24 Nov: all nudges in one place, To do in the top bar (DEVELOPERS.md,
+      "To do"); the Moves badge went with the rest.
   - Step 3c (moving a pin, a merge that can be reversed) stays dropped
     until someone asks for it.
 
-- **Walkthrough with Peter**, started 20 November 2026, S01 and S02 done.
+- **Walkthrough with Peter**, started 20 November 2026, S01 to S03 done.
   Peter walks the scenarios one by one; feedback is collected and fixed
   after S12, unless it blocks.
-  - Dev: "Deployment scenarios" is project 5, with S01 and S02 (S02's
-    move checked by Peter on 24 Nov). Next is S03, after Peter's feedback
-    points that follow the map colour change.
+  - Dev: "Deployment scenarios" is project 5, with S01 to S03 (S02's
+    move checked by Peter on 24 Nov, S03 answered It stayed). Next is S04.
   - Not yet seen on screen after the map colour change: the site picker
     (Add site) and the merge picker (Sites, Merge); they use the shared
     marker part, so they should be fine. "Moves layout test" is project 6, 20

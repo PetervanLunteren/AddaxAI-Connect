@@ -56,6 +56,7 @@ import {
   type ActiveUpload,
 } from '../../lib/bulkUploadStore';
 import { downloadBlob } from '../../utils/download';
+import { ALERT_COLOR } from '../../components/map/marker-style';
 
 const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed', 'cancelled']);
 
@@ -78,7 +79,7 @@ function statusLabel(status: BulkUploadJob['status']): string {
 }
 
 // Status badges use the project palette (FRONTEND_CONVENTIONS.md):
-// good=#0f6064, middle=#71b7ba, bad=#882000. Done is the only
+// good=#0f6064, middle=#71b7ba, bad=ALERT_COLOR. Done is the only
 // success terminal state, failed is the only failure state, everything
 // else is in-flight/pending and shares the middle colour.
 function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties {
@@ -86,7 +87,7 @@ function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties 
     case 'done':
       return { backgroundColor: '#0f6064', color: 'white' };
     case 'failed':
-      return { backgroundColor: '#882000', color: 'white' };
+      return { backgroundColor: ALERT_COLOR, color: 'white' };
     case 'cancelled':
       // Stopped on purpose, not an error: muted grey rather than the bad colour.
       return { backgroundColor: '#6b7280', color: 'white' };

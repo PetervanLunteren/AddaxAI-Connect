@@ -35,14 +35,10 @@ import {
   Footprints,
   Wrench,
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
 import { useProject } from '../../contexts/ProjectContext';
 import { cn } from '../../lib/utils';
 import { LastUpdate } from '../LastUpdate';
 import { InstallAppButton } from '../InstallApp';
-import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
-import { deploymentsApi } from '../../api/deployments';
-import { serviceApi, serviceKeys } from '../../api/service';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -89,55 +85,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Naive occupancy' },
   ];
 
-  // Background poll for in-flight bulk-upload jobs so we can badge
-  // the admin entry. Fast tick (5 s) when a job is actively
-  // uploading or processing so the badge updates in near-real-time.
-  // Stretch to 5 min when idle: badge changes are rare in that
-  // state and the only consequence of a slow refresh is the user
-  // missing the start of a fresh upload they themselves did not
-  // initiate. Anyone starting their own upload triggers an
-  // immediate query invalidation, so they never wait.
-  const numericProjectId = projectId ? Number(projectId) : undefined;
-
-  // Moves that need a person, for the badge on Moves (under Admin tools): a
-  // to-do count, so admins only. Rare events, so a slow poll is enough; every
-  // answer on the page invalidates it.
-  const { data: needYou } = useQuery({
-    queryKey: ['deployments', numericProjectId, 'attention-count'],
-    queryFn: () => deploymentsApi.attentionCount(numericProjectId!),
-    enabled: numericProjectId !== undefined && isProjectAdmin,
-    refetchInterval: 300000,
-  });
-
-  // Open service tasks for the badge, same admin-only to-do rule. Reads
-  // the list the Service page uses, so one invalidation updates both.
-  const { data: serviceTasks } = useQuery({
-    queryKey: serviceKeys.tasks(numericProjectId ?? 0),
-    queryFn: () => serviceApi.listTasks(numericProjectId!),
-    enabled: numericProjectId !== undefined && isProjectAdmin,
-    refetchInterval: 300000,
-  });
-
-  const navBadges: Record<string, number | undefined> = {
-    Service: serviceTasks?.length,
-  };
-
-  const { data: bulkJobs } = useQuery({
-    queryKey: ['bulk-upload-jobs', numericProjectId],
-    queryFn: () => bulkUploadApi.list(numericProjectId!),
-    enabled: numericProjectId !== undefined && isProjectAdmin,
-    refetchInterval: (q) => {
-      const data = q.state.data as BulkUploadJob[] | undefined;
-      const anyInFlight = (data ?? []).some(
-        (j) => j.status === 'uploading' || j.status === 'processing',
-      );
-      return anyInFlight ? 5000 : 300000;
-    },
-  });
-  const inFlightBulkCount = (bulkJobs ?? []).filter(
-    (j) => j.status === 'uploading' || j.status === 'processing',
-  ).length;
-
   // Integrations - outbound connections to other platforms, one page each.
   // Project level, so project admins only. Every integration is listed
   // whether it is set up or not, so people discover what exists.
@@ -146,31 +93,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/integrations/sensingclues`, icon: Footprints, label: 'Sensing Clues' },
   ];
 
-  // Admin tools - visible to project admins and server admins. The
-  // bulk-upload entry carries a live badge with the number of jobs in
-  // flight so users notice work in progress from any page. Moves sits next
-  // to Curation, the other place to clean up what the app did: the app is
-  // automatic first, so it is found when needed, not asking. Its badge
-  // counts the suspicious moves nobody checked.
+  // Admin tools - visible to project admins and server admins. Moves sits
+  // next to Curation, the other place to clean up what the app did. No
+  // badges here or anywhere in the navigation: what needs somebody is in
+  // To do in the top bar (components/layout/TodoMenu.tsx).
   const adminTools = [
     { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Users', requiresAdmin: true },
     { to: `/projects/${projectId}/manage-images`, icon: ListChecks, label: 'Curation' },
-    {
-      to: `/projects/${projectId}/moves`,
-      icon: ArrowLeftRight,
-      label: 'Moves',
-      badge: needYou ? needYou : undefined,
-    },
-    {
-      to: `/projects/${projectId}/bulk-upload`,
-      icon: Upload,
-      label: 'Bulk upload',
-      badge: inFlightBulkCount > 0 ? inFlightBulkCount : undefined,
-    },
+    { to: `/projects/${projectId}/moves`, icon: ArrowLeftRight, label: 'Moves' },
+    { to: `/projects/${projectId}/bulk-upload`, icon: Upload, label: 'Bulk upload' },
   ];
-
-  const adminBadgeTotal = adminTools.reduce((sum, tool) => sum + ((tool as { badge?: number }).badge ?? 0), 0);
 
   return (
     <>
@@ -250,15 +183,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
                 </div>
-                {/* Admin to-do count: open service tasks. */}
-                {(navBadges[item.label] ?? 0) > 0 && (
-                  <span
-                    className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-                    style={{ backgroundColor: '#71b7ba', color: 'white' }}
-                  >
-                    {navBadges[item.label]}
-                  </span>
-                )}
               </NavLink>
             </React.Fragment>
           ))}
@@ -358,23 +282,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <ShieldAlert className="h-5 w-5" />
                   <span>Admin tools</span>
                 </div>
-                {/* The tools' badges add up here while the group is closed,
-                    so a suspicious move or a running upload stays in view. */}
-                <div className="flex items-center gap-2">
-                  {!adminToolsOpen && adminBadgeTotal > 0 && (
-                    <span
-                      className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-                      style={{ backgroundColor: '#71b7ba', color: 'white' }}
-                    >
-                      {adminBadgeTotal}
-                    </span>
-                  )}
-                  {adminToolsOpen ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                </div>
+                {adminToolsOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
               </button>
 
               {/* Admin Tools Submenu */}
@@ -398,14 +310,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                         <tool.icon className="h-4 w-4 shrink-0" />
                         <span className="truncate">{tool.label}</span>
                       </div>
-                      {(tool as { badge?: number }).badge !== undefined && (
-                        <span
-                          className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-                          style={{ backgroundColor: '#71b7ba', color: 'white' }}
-                        >
-                          {(tool as { badge?: number }).badge}
-                        </span>
-                      )}
                     </NavLink>
                   ))}
                 </div>

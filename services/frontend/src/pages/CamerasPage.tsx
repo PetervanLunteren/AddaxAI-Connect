@@ -73,6 +73,7 @@ type CameraFilterState = {
   site: string;
   rejected: string;
   unplaced: string;
+  sim: string;
 };
 
 const FILTER_SCHEMA: FilterSchema = {
@@ -85,6 +86,7 @@ const FILTER_SCHEMA: FilterSchema = {
   site: 'string',
   rejected: 'string',
   unplaced: 'string',
+  sim: 'string',
   search: 'string',
 };
 
@@ -104,12 +106,12 @@ import {
   BulkSetNotesDialog,
 } from '../components/BulkEditDialogs';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
-import { getBatteryColor } from '../utils/camera-colors';
-import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
+import { ALERT_COLOR } from '../components/map/marker-style';
+import { getBatteryColor, getSdColor, getSignalColor, getSignalLabel, getTimestampColor } from '../utils/camera-colors';
 import { useToast } from '../components/ui/Toaster';
 import { cameraColumnPrefs, type ColumnId } from '../components/cameras/columnDefs';
 import { formatRelative } from '../utils/datetime';
-import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
+import { formatSimExpiryStatus, simExpiryClass } from '../utils/sim-expiry';
 import { useDropzone } from 'react-dropzone';
 
 export const CamerasPage: React.FC = () => {
@@ -172,6 +174,7 @@ export const CamerasPage: React.FC = () => {
     site: asString(parsedFilters.site),
     rejected: asString(parsedFilters.rejected),
     unplaced: asString(parsedFilters.unplaced),
+    sim: asString(parsedFilters.sim),
   };
   const searchQuery = asString(parsedFilters.search);
 
@@ -185,6 +188,7 @@ export const CamerasPage: React.FC = () => {
     site: filters.site || undefined,
     rejected: filters.rejected || undefined,
     unplaced: filters.unplaced || undefined,
+    sim: filters.sim || undefined,
     search: searchQuery || undefined,
   };
 
@@ -531,6 +535,13 @@ export const CamerasPage: React.FC = () => {
         { value: 'no', label: 'All photos have a site' },
       ],
     },
+    {
+      kind: 'select',
+      key: 'sim',
+      label: 'SIM card',
+      primary: false,
+      options: [{ value: 'expiring', label: 'Expiring' }],
+    },
   ];
   // Site-restricted viewers see neither rejections nor photos without a site.
   const filterFields = allFilterFields.filter(
@@ -545,42 +556,8 @@ export const CamerasPage: React.FC = () => {
     );
   };
 
-  // Helper functions for formatting. Battery colours come from
-  // utils/camera-colors.ts, shared with the sites map and the site panel.
-  const getSignalLabel = (csq: number | null) => {
-    if (csq === null) return 'N/A';
-    if (csq >= 20) return 'Excellent';
-    if (csq >= 15) return 'Good';
-    if (csq >= 10) return 'Fair';
-    if (csq >= 2) return 'Poor';
-    return 'No signal';
-  };
-
-  const getSignalColor = (csq: number | null) => {
-    if (csq === null) return '#9ca3af';
-    if (csq >= 15) return '#0f6064';
-    if (csq >= 10) return '#71b7ba';
-    return '#882000';
-  };
-
-  const getSDColor = (sdUsed: number | null) => {
-    if (sdUsed === null) return '#9ca3af';
-    if (sdUsed < 50) return '#0f6064';      // Green: less than 50% used
-    if (sdUsed < 80) return '#71b7ba';      // Teal: 50-80% used
-    return '#882000';                        // Red: more than 80% used
-  };
-
-  const getTimestampColor = (timestamp: string | null) => {
-    if (!timestamp) return '#9ca3af';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays <= 1) return '#0f6064';
-    if (diffDays <= 7) return '#71b7ba';
-    return '#882000';
-  };
-
+  // Colours and signal words come from utils/camera-colors.ts, shared with
+  // the sites map and the site panel.
   const getGoogleMapsUrl = (location: { lat: number; lon: number }) => {
     return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
   };
@@ -624,7 +601,7 @@ export const CamerasPage: React.FC = () => {
         const b = c.battery_percentage;
         if (filters.battery === 'unknown') return b === null;
         if (b === null) return false;
-        if (filters.battery === 'low') return b < 30;
+        if (filters.battery === 'low') return c.low_battery;
         if (filters.battery === 'medium') return b >= 30 && b <= 70;
         return b > 70; // high
       });
@@ -648,7 +625,7 @@ export const CamerasPage: React.FC = () => {
         if (sd === null) return false;
         if (filters.sd_usage === 'low') return sd < 50;
         if (filters.sd_usage === 'medium') return sd >= 50 && sd <= 80;
-        return sd > 80; // high
+        return c.sd_nearly_full; // high
       });
     }
     if (filters.location) {
@@ -660,19 +637,23 @@ export const CamerasPage: React.FC = () => {
       result = result.filter((c) => String(c.current_site?.id) === filters.site);
     }
     if (filters.rejected) {
-      // Same flag as the attention chip, so the chip count and the filtered
-      // table agree. Null means the viewer sees no rejections; neither fits.
+      // The flag To do counts, so its line and this filter agree. Null means
+      // the viewer sees no rejections; neither option fits.
       result = result.filter((c) =>
         filters.rejected === 'rejecting' ? c.rejecting === true : c.rejecting === false
       );
     }
     if (filters.unplaced) {
-      // Same test as the attention chip.
+      // The test To do counts.
       result = result.filter((c) =>
         filters.unplaced === 'yes'
           ? (c.unplaced_photo_count ?? 0) > 0
           : c.unplaced_photo_count === 0
       );
+    }
+
+    if (filters.sim) {
+      result = result.filter((c) => c.sim_expiring);
     }
 
     // Sort (nulls last). Non-sortable columns return null and fall through
@@ -717,7 +698,7 @@ export const CamerasPage: React.FC = () => {
   const isFiltered = searchQuery.trim() !== '' ||
     !!filters.status || !!filters.tag ||
     !!filters.battery || !!filters.signal || !!filters.sd_usage ||
-    !!filters.location || !!filters.site || !!filters.rejected || !!filters.unplaced;
+    !!filters.location || !!filters.site || !!filters.rejected || !!filters.unplaced || !!filters.sim;
 
   // Point-in-time health readings (battery, signal, SD, temperature) keep
   // showing the last value a camera reported even after it goes silent,
@@ -800,7 +781,7 @@ export const CamerasPage: React.FC = () => {
       case 'sd_used':
         return renderMetricCell(
           isActive,
-          getSDColor(camera.sd_utilization_percentage),
+          getSdColor(camera.sd_utilization_percentage),
           camera.sd_utilization_percentage !== null
             ? `${Math.round(camera.sd_utilization_percentage)}%`
             : 'N/A',
@@ -848,7 +829,7 @@ export const CamerasPage: React.FC = () => {
         // The 30-day total is in the slide-out. Null (restricted viewer)
         // reads the same, they see no rejections anywhere.
         return camera.rejected_count_recent ? (
-          <span className="text-sm font-medium" style={{ color: '#882000' }}>
+          <span className="text-sm font-medium" style={{ color: ALERT_COLOR }}>
             {camera.rejected_count_recent}
           </span>
         ) : (
@@ -857,7 +838,7 @@ export const CamerasPage: React.FC = () => {
       case 'unplaced':
         // Blank at zero, like rejected files: the number is a to-do.
         return camera.unplaced_photo_count ? (
-          <span className="text-sm font-medium" style={{ color: '#882000' }}>
+          <span className="text-sm font-medium" style={{ color: ALERT_COLOR }}>
             {camera.unplaced_photo_count}
           </span>
         ) : (
@@ -868,7 +849,7 @@ export const CamerasPage: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <span
               className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: camera.location ? '#0f6064' : '#882000' }}
+              style={{ backgroundColor: camera.location ? '#0f6064' : ALERT_COLOR }}
             />
             <span className="text-sm">{camera.location ? 'Known' : 'Unknown'}</span>
             {camera.location && (
@@ -897,7 +878,7 @@ export const CamerasPage: React.FC = () => {
         );
       case 'sim_expiry':
         return (
-          <span className={`text-sm ${simExpiryStatusClass(camera.sim_expiry_date)}`}>
+          <span className={`text-sm ${simExpiryClass(camera.sim_expiring)}`}>
             {formatSimExpiryStatus(camera.sim_expiry_date)}
           </span>
         );
@@ -952,14 +933,6 @@ export const CamerasPage: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Page-wide counts of cameras that want a visit, independent of the
-          table filters. Clicking a count applies the matching filter. Shared
-          with the dashboard so the thresholds cannot drift apart. */}
-      <CameraAttentionBar
-        cameras={cameras}
-        onSelect={onFilterChange}
-      />
 
       {/* Shared filter bar */}
       {cameras && cameras.length > 0 && (

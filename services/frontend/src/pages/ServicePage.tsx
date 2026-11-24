@@ -47,7 +47,7 @@ type TaskColumn = 'site' | 'camera' | 'due' | 'assignee';
 type VisitColumn = 'date' | 'site' | 'camera' | 'performer';
 
 // The remembered filters. The tab is not one of them: it is where you are,
-// so the sidebar link (whose badge counts open tasks) always opens Open.
+// so the sidebar link always opens Open.
 const FILTER_SCHEMA: FilterSchema = {
   site: 'string',
   camera: 'string',

@@ -43,7 +43,7 @@ import type { Camera } from '../api/types';
 import { formatDateTime } from '../utils/datetime';
 import { getSignalLabel } from '../utils/camera-colors';
 import { CameraStatusBadge } from './CameraStatusBadge';
-import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
+import { formatSimExpiryStatus, simExpiryClass } from '../utils/sim-expiry';
 import { useToast } from './ui/Toaster';
 
 interface CameraDetailSheetProps {
@@ -367,12 +367,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                           }
                           className="w-full px-3 py-2 border rounded-md text-sm"
                         />
-                        <p className={`text-xs mt-1 ${simExpiryStatusClass(editForm.sim_expiry_date)}`}>
+                        <p className="text-xs mt-1 text-muted-foreground">
                           {formatSimExpiryStatus(editForm.sim_expiry_date)}
                         </p>
                       </>
                     ) : (
-                      <p className={`text-sm mt-1 ${simExpiryStatusClass(camera.sim_expiry_date)}`}>
+                      <p className={`text-sm mt-1 ${simExpiryClass(camera.sim_expiring)}`}>
                         {camera.sim_expiry_date
                           ? `${camera.sim_expiry_date} (${formatSimExpiryStatus(camera.sim_expiry_date)})`
                           : 'Not set'}

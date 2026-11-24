@@ -16,12 +16,13 @@ import { liveFeedApi, type LiveFeedItem } from '../api/liveFeed';
 import { AuthenticatedImage } from '../components/AuthenticatedImage';
 import { Button } from '../components/ui/Button';
 import { rejectionReasonLabel as reasonLabel } from '../utils/rejectionReason';
+import { ALERT_COLOR } from '../components/map/marker-style';
 
 // Status colours follow the repo convention: teal done, light teal in flight,
-// burnt orange for failure or rejection.
+// the shared alert red for failure or rejection.
 const COLOR_DONE = '#0f6064';
 const COLOR_IN_FLIGHT = '#71b7ba';
-const COLOR_BAD = '#882000';
+const COLOR_BAD = ALERT_COLOR;
 
 function statusLabel(status: string | null | undefined): string {
   switch (status) {

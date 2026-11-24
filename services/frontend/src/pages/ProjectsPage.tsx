@@ -6,20 +6,17 @@
  * Server admins and project admins can manage their projects.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus } from 'lucide-react';
 import { adminApi } from '../api/admin';
 import { useProject } from '../contexts/ProjectContext';
 import { Card, CardContent } from '../components/ui/Card';
-import { Callout } from '../components/ui/Callout';
 import { Button } from '../components/ui/Button';
 import { ProjectCard } from '../components/projects/ProjectCard';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 
 export const ProjectsPage: React.FC = () => {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { projects, loading, isServerAdmin } = useProject();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -76,27 +73,6 @@ export const ProjectsPage: React.FC = () => {
         )
       }
     >
-        {/* Telegram not configured banner (server admins only) */}
-        {isServerAdmin && setupStatus && !setupStatus.telegram && (
-          <Callout
-            variant="info"
-            className="mb-6"
-            action={
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={() => navigate('/server/settings')}
-                className="whitespace-nowrap"
-              >
-                Server settings
-              </Button>
-            }
-          >
-            Telegram bot is not configured. This is optional, but without it no
-            one will be able to sign up for real-time notifications.
-          </Callout>
-        )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">

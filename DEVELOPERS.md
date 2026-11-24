@@ -751,10 +751,10 @@ are the one record; nothing about a move is stored apart from them.
   pill for Suspicious, Checked and Corrected (`MoveStatus`, shared with the
   check window).
 - **Suspicious:** a move nobody checked that came back to the same site
-  within a week, the usual shape of a GPS error. The only thing the badge
-  counts (`ATTENTION_COUNT_SQL` in `routers/deployments.py`, the same rule
-  as `suspicious` in `moves.ts`; `tests/db_api/test_review.py` holds them
-  together). The badge also shows on the closed Admin tools header.
+  within a week, the usual shape of a GPS error. The only thing To do
+  counts for Moves (`SUSPICIOUS_MOVES_SQL` in `utils/todo.py`, the same
+  rule as `suspicious` in `moves.ts`; `tests/db_api/test_review.py` holds
+  them together).
 - **Check window** (`CheckMovesModal.tsx`, the frame of image verification,
   `REVIEW_WINDOW_CLASS`): a row click opens it there and the arrows step
   through the rows as shown. Map on satellite with the two sites of the
@@ -1024,6 +1024,40 @@ What the two share:
   restart, and a token cannot go stale. Point a dev project at
   `central-test.sensingclues.org` so nothing from dev reaches a real group.
 
+## To do
+
+The one nudge of the app (decided 24 November 2026): an icon in the top bar,
+next to the avatar, with what needs somebody now. It replaced the sidebar
+badges, the "Needs attention" bar and the Dashboard species banner, which
+used different limits for the same thing and which people learned to ignore.
+
+- **A line is state, not a message.** No read state, no dismiss, no history,
+  no table. A line is there while its rule holds and leaves when it is fixed.
+- **The server decides** (`services/api/utils/todo.py`, `GET /api/todo`):
+  per project a list of `{kind, count}`, plus server lines for server admins.
+  Only lines with something open, only projects with lines.
+- **The browser words it** (`src/lib/todo-lines.ts`): text and link per
+  kind. Every link opens the page with the filter that shows exactly the
+  counted rows. `TodoMenu.tsx` groups them: inside a project For you, This
+  project and Server; outside a project one block per project.
+- **Who sees what:** camera health (inactive, low battery, SD nearly full)
+  for every member at the sites they may see; service tasks for whom they
+  are assigned to; suspicious moves, photos without a site, rejecting
+  cameras, SIM cards expiring, failing integrations, overdue tasks of others
+  and "Choose the species" for project admins; services not running, files
+  of unknown cameras and Telegram not set up for server admins.
+- **One set of camera rules.** The camera lines count the same rows as the
+  Cameras page (`camera_responses` in `routers/cameras.py`) and their flags,
+  whose limits live in `shared/camera_status.py`: battery under 30, SD over
+  80, SIM expiring before the 1st of the month after next. The email report
+  and the SIM email read them too. Retired cameras and cameras that never
+  reported never warn.
+- **Fresh:** polled every 5 minutes, and any successful change in the app
+  refreshes it (`MutationCache` in `src/lib/query-client.ts`).
+- **Adding a nudge:** count it in `todo_for`, add its kind to
+  `todo-lines.ts`, add a test in `tests/db_api/test_todo.py`. An unknown
+  kind is ignored by an older browser.
+
 ## Camera liveness status
 
 The `active / inactive / never_reported` badge has one rule, in
@@ -1080,7 +1114,7 @@ the table; nothing scans the filesystem at read time.
 - The warning is a state, not a count. A camera is *rejecting* while its
   latest rejection in that window is newer than its latest live image
   (`is_rejecting` in `shared/shared/camera_status.py`, server receive
-  times, bulk uploads never clear it). It drives the attention chip ("N
+  times, bulk uploads never clear it). It drives the To do line ("N
   cameras rejecting files"), the Cameras filter, and the daily rejection
   rule, which fires only for cameras with N or more in the last day that
   are still rejecting at run time. The reason is the drenthe battery round

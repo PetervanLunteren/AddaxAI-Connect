@@ -12,7 +12,7 @@
  * when are not columns: the Decided by filter finds them and the check
  * window shows them. It opens newest first, and stays in that order while
  * you answer, so rows do not jump; a header sorts. Suspicious moves are
- * found by the badge and the Status filter. A row click opens the check window at that
+ * found by To do and the Status filter. A row click opens the check window at that
  * row, and its arrows step through the rows as shown.
  *
  * Checkboxes on every row. The bulk bar offers each action for the rows it

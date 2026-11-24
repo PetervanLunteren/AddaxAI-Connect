@@ -34,7 +34,7 @@ export type ColumnId =
 // purpose", so bumping the key resets everyone once and the new default
 // shows. v2: 'rejected' added, August 2026. 'rejected' went off by default
 // in November 2026 without a bump on purpose: saved lists keep it, new ones
-// do not. The attention chip is the warning now, the column is detail.
+// do not. To do is the warning now, the column is detail.
 // 'unplaced' came in November 2026 off by default, also without a bump.
 export const cameraColumnPrefs = makeColumnPrefs<ColumnId>('cameras-visible-columns-v2', [
   { id: 'device_id', label: 'Camera ID', defaultVisible: true, sortable: true },
