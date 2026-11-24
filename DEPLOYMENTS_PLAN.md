@@ -619,6 +619,9 @@ Notes per step:
        the app saw. The map takes the height of the cards next to it (on a
        phone a set height) and redraws when its box changes size, so no
        grey strip when the photos load.
+   23. A correction in the window shows three rows: Date (its whole
+       period), Camera, Site. No empty From or Distance, no date twice.
+       What the correction replaced is not shown: it is not stored.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

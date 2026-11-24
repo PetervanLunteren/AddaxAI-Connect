@@ -305,12 +305,13 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
                         under the buttons. */}
                     <Card>
                       <CardContent className="pt-4 pb-3 space-y-1 text-sm">
-                        <DetailRow label="Date">{dayLabel(it.day)}</DetailRow>
+                        {/* A correction has no move: its whole period as the
+                            date, its one site, and no empty From or Distance. */}
+                        <DetailRow label="Date">{dateLabel(it)}</DetailRow>
                         <DetailRow label="Camera">{it.cameraLabel}</DetailRow>
-                        <DetailRow label="From">{ends(it).from ?? '-'}</DetailRow>
-                        <DetailRow label="To">{ends(it).to}</DetailRow>
-                        <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : '-'}</DetailRow>
-                        {it.correction && <DetailRow label="Days">{dateLabel(it)}</DetailRow>}
+                        <DetailRow label="From">{ends(it).from}</DetailRow>
+                        <DetailRow label={it.correction ? 'Site' : 'To'}>{ends(it).to}</DetailRow>
+                        <DetailRow label="Distance">{it.distanceM !== undefined ? metresLabel(it.distanceM) : null}</DetailRow>
                       </CardContent>
                     </Card>
 
