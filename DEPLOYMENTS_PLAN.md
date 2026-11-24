@@ -622,6 +622,10 @@ Notes per step:
    23. A correction in the window shows three rows: Date (its whole
        period), Camera, Site. No empty From or Distance, no date twice.
        What the correction replaced is not shown: it is not stored.
+   24. Undo after "It stayed" in the window showed "Undone" instead of the
+       question: the merged move comes back as a new row with a new id.
+       The window now remembers the move by camera and start, finds it
+       again, and asks It moved or It stayed again.
   - The scenarios, what really happened, and the answer on the screens:
     S01 stays at Pond (nothing). S02 Pond to Ridge 1 Sep (Right in the
     check). S03 false move by a GPS burst on 10 Sep (Wrong, It did not

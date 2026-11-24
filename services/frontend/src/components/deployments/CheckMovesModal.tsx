@@ -73,17 +73,30 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // reversible, and a dialog on every answer slows the check down.
   const [corrections, setCorrections] = useState<Record<string, number>>({});
   const [undone, setUndone] = useState<Set<string>>(new Set());
+  // Which move a correction took back, by camera and start. "It stayed"
+  // merges the move into the stay before it, and Undo brings it back as a
+  // new row with a new id: this finds it again, so the question returns.
+  const [movedAs, setMovedAs] = useState<Record<string, { cameraId: number; startAt: string }>>({});
   // An older correction, waiting for "Undo this?".
   const [confirmUndo, setConfirmUndo] = useState<UpdateItem | null>(null);
 
+  // The row of a key: itself, or the move it was before a correction that
+  // has since been undone.
+  const lookup = (key: string): UpdateItem | undefined => {
+    const found = items.find((i) => i.key === key);
+    const was = movedAs[key];
+    return found ?? (was && items.find((i) =>
+      i.kind === 'moved' && i.cameraId === was.cameraId && i.deployment!.start_at === was.startAt));
+  };
+
   const index = current ? queue.indexOf(current) : -1;
-  const it = items.find((i) => i.key === current) ?? null;
+  const it = (current && lookup(current)) || null;
   const d = it?.deployment;
   const p = it?.previous;
 
   // An update can disappear while the check is open: taking back a trip
   // out removes its way back too. The check steps over those.
-  const gone = (key: string) => !answers[key] && !items.some((i) => i.key === key);
+  const gone = (key: string) => !answers[key] && !lookup(key);
   const goTo = (target: number) => {
     const step = target < index ? -1 : 1;
     let i = target;
@@ -99,6 +112,7 @@ export const CheckMovesModal: React.FC<Props> = ({ projectId, items, sites, keys
   // Wrong stays on the update, so its Undo is in view.
   const corrected = (statementId: number) => {
     if (!current) return;
+    if (d) setMovedAs((m) => ({ ...m, [current]: { cameraId: d.camera_id, startAt: d.start_at } }));
     setAnswers((a) => ({ ...a, [current]: 'wrong' }));
     setCorrections((c) => ({ ...c, [current]: statementId }));
     setUndone((u) => { const next = new Set(u); next.delete(current); return next; });
