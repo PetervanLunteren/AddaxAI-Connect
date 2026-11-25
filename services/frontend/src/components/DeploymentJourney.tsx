@@ -9,7 +9,7 @@
  * period and the number of photos, each on its own line with its icon, in
  * that order. Inside a panel one of the names repeats the panel's heading;
  * that is the price of a card that never changes shape. Both names link to
- * their panel (lib/panel-links.ts).
+ * their panel, the photo count to those photos (lib/panel-links.ts).
  *
  * One card per deployment, never merged: a card is what Edit acts on. Days
  * are printed with dayLabel, which never shifts a day across time zones.
@@ -27,6 +27,8 @@ export interface JourneyItem {
   // in the Edit deployment form: leaving it would lose the edit).
   cameraHref?: string;
   siteHref?: string;
+  // The deployment's photos on the Images page.
+  imagesHref?: string;
   startDate: string | null; // YYYY-MM-DD
   endDate: string | null; // YYYY-MM-DD, null = still there
   imageCount: number;
@@ -98,7 +100,15 @@ export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, f
             <Row icon={Calendar}>
               {it.startDate ? dayLabel(it.startDate) : '-'} to {it.endDate ? dayLabel(it.endDate) : 'now'}
             </Row>
-            <Row icon={Images}>{it.imageCount.toLocaleString()} images</Row>
+            <Row icon={Images}>
+              {it.imagesHref ? (
+                <Link to={it.imagesHref} className="hover:text-foreground hover:underline">
+                  {it.imageCount.toLocaleString()} images
+                </Link>
+              ) : (
+                `${it.imageCount.toLocaleString()} images`
+              )}
+            </Row>
             {footer?.(it)}
           </div>
         </li>

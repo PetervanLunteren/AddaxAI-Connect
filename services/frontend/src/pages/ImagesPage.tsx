@@ -36,7 +36,7 @@ const FILTER_SCHEMA: FilterSchema = {
   camera_ids: 'string[]',
   // The site slideout's "View images" deep-links here with a single id;
   // rendered as a Sites multiselect so several places can be filtered at once.
-  // The deployment slideout instead deep-links camera + date range.
+  // A deployment card deep-links camera + date range (deploymentImagesHref).
   site_id: 'string[]',
   tags: 'string[]',
   image_tags: 'string[]',
