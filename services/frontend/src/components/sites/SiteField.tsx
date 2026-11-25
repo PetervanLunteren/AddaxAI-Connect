@@ -10,7 +10,7 @@
  * made there is chosen at once. The form owns the chosen id and passes the
  * caption, which says what the site means in that form.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { sitesApi } from '../../api/sites';
@@ -36,7 +36,13 @@ interface Props {
 export const SiteField: React.FC<Props> = ({
   projectId, value, onChange, caption, fitIds = [], newSiteAt, startCreating = false,
 }) => {
-  const [creating, setCreating] = useState(startCreating);
+  const [creating, setCreating] = useState(false);
+  // Open the Add site window after the form has opened, not with it: two
+  // windows opened at once stack in mount order, which put Add site behind
+  // the form, open but out of sight (and New site then did nothing).
+  useEffect(() => {
+    if (startCreating) setCreating(true);
+  }, [startCreating]);
   const { data: sites } = useQuery({
     queryKey: ['sites', projectId],
     queryFn: () => sitesApi.list(projectId),
