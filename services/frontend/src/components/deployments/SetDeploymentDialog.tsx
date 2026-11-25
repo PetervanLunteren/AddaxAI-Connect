@@ -243,7 +243,6 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     <p className="text-xs text-muted-foreground">
                       The day the camera was put here.
                       {firstPhotoDay && ` Its first photo is from ${dayLabel(firstPhotoDay)}.`}
-                      {editing && ' A later day splits off the days before.'}
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -260,7 +259,6 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     <p className="text-xs text-muted-foreground">
                       Leave empty while it is still there.
                       {lastPhotoDay && ` Its last photo is from ${dayLabel(lastPhotoDay)}.`}
-                      {editing && ' An earlier day splits off the days after.'}
                     </p>
                   </div>
                 </div>
