@@ -5,7 +5,9 @@ phase 3 onwards).
 
 Every photo goes through the real live path: stored in MinIO, written with
 create_image_record (which rebuilds the camera's deployments) and queued for detection and classification. Photos
-arrive in capture order, except where a scenario says they arrive late.
+arrive in capture order, except where a scenario says they arrive late, and
+on the day they were taken (camera status goes by arrival); late ones arrive
+today.
 
 Run inside the ingestion container on a DEV server:
 
@@ -242,6 +244,16 @@ def send(photo: Photo, camera_id: int, queue: RedisQueue) -> None:
         gps_reading=photo.gps,
         exif_metadata={"source": "dev_deployment_scenarios"},
     )
+    if not photo.late:
+        # Arrived the day it was taken, as from a live camera. Camera status
+        # goes by arrival, so a camera that went silent (S08) reads inactive
+        # instead of active because the script sent everything today. Late
+        # photos keep today: they really arrive after the rest.
+        with get_db_session() as session:
+            session.execute(
+                text("UPDATE images SET ingested_at = :t WHERE uuid = :u"), {"t": photo.taken, "u": image_uuid},
+            )
+            session.commit()
     queue.publish({"image_uuid": image_uuid, "storage_path": storage_path, "camera_id": camera_id})
 
 
