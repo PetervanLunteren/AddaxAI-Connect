@@ -12,6 +12,9 @@ import { useParams } from 'react-router-dom';
 import { Download, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Callout } from '../components/ui/Callout';
+import { NoSiteText } from '../components/sites/NoSiteNote';
+import { useUnplacedPhotos } from '../hooks/useUnplacedPhotos';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -138,6 +141,9 @@ const SPATIAL_EXTENSIONS: Record<SpatialFormat, string> = {
 export const ExportsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
+  // Photos without a site have no coordinates, so the three exports that
+  // need a place leave them out (Camtrap DP requires a location).
+  const unplaced = useUnplacedPhotos(projectIdNum || undefined);
   const { selectedProject, canAdminCurrentProject } = useProject();
 
   const [isExportingObs, setIsExportingObs] = useState(false);
@@ -299,6 +305,19 @@ export const ExportsPage: React.FC = () => {
           )}
 
           <div className="border-t my-6" />
+
+          {!!unplaced && (
+            <Callout variant="warning" className="mb-6">
+              <NoSiteText
+                projectId={projectIdNum}
+                count={unplaced}
+                consequence={[
+                  'is left out of the spatial, detection history and Camtrap DP exports',
+                  'are left out of the spatial, detection history and Camtrap DP exports',
+                ]}
+              />
+            </Callout>
+          )}
 
           <ExportRow
             title="Spatial"

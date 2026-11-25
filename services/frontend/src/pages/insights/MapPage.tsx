@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { DetectionRateMap, type ViewMode } from '../../components/map';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
+import { NoSiteNote } from '../../components/sites/NoSiteNote';
 import {
   FilterBar,
   type FilterFieldDef,
@@ -255,6 +256,11 @@ export const InsightsMapPage: React.FC = () => {
           ramp={ramp}
         />
       </div>
+      <NoSiteNote
+        projectId={projectId}
+        consequence={['is not on this map', 'are not on this map']}
+        hidden={siteIdsParam !== undefined}
+      />
       <PlotExplainer
         plotKey="detection-rate-map"
         what={
@@ -271,7 +277,9 @@ export const InsightsMapPage: React.FC = () => {
             are drawn: points show each site individually, hexbins aggregate
             nearby sites onto a hex grid, and clusters group nearby sites into
             a single circle showing the pooled value. Deployments with no site
-            are not shown.
+            are not shown, and neither are photos without a site (a camera
+            without GPS until its site is set); a line under the map says how
+            many.
           </p>
         }
         how={

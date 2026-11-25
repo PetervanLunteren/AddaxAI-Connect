@@ -22,6 +22,7 @@ import {
   HEATMAP_BINS,
 } from '../../components/plots/DeploymentTimelineChart';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
+import { NoSiteNote } from '../../components/sites/NoSiteNote';
 import {
   FilterBar,
   type DisplayControlDef,
@@ -292,6 +293,11 @@ export const DeploymentTimelinePage: React.FC = () => {
           </div>
         </div>
       )}
+      <NoSiteNote
+        projectId={projectId}
+        consequence={['is not on this timeline', 'are not on this timeline']}
+        hidden={siteIdsFromTags !== undefined}
+      />
 
       <PlotExplainer
         plotKey="deployment-timeline"

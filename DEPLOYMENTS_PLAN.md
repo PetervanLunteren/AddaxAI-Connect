@@ -432,6 +432,11 @@ Notes per step:
     first photo on 8 Oct (camera panel, Edit, first day 1 Oct). S12
     moved on 1 Sep, August photos from an old card arrive last (It moved).
   - Test photos show blurred until detection processes them.
+  - Found at S06 (25 Nov): views that need a place left photos without a
+    site out silently. Now each says so with a quiet line (`NoSiteNote`),
+    Exports with a warning, Images has a "No site" filter, and the trend
+    per 100 trap-nights counts only placed photos. See DEVELOPERS.md,
+    "Photos without a site".
 
 ## How to work on this plan
 

@@ -25,6 +25,7 @@ import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { type DateRange } from '../../components/dashboard';
 import { NaiveOccupancyChart } from '../../components/dashboard/NaiveOccupancyChart';
 import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
+import { NoSiteNote } from '../../components/sites/NoSiteNote';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -229,6 +230,11 @@ export const NaiveOccupancyPage: React.FC = () => {
           </div>
         )}
       </div>
+      <NoSiteNote
+        projectId={projectId}
+        consequence={['is not in these occupancy figures', 'are not in these occupancy figures']}
+        hidden={siteIdsFromTags !== undefined}
+      />
       <PlotExplainer
         plotKey="naive-occupancy"
         what={

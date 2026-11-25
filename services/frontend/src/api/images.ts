@@ -31,7 +31,7 @@ export interface ImageFilters {
   min_classification_confidence?: number;
   max_classification_confidence?: number;
   project_id?: number;
-  site_id?: string;        // images at one or more sites (comma-separated), via their deployment
+  site_id?: string;        // images at one or more sites (comma-separated), via their deployment; 'none' = without a site
   /**
    * 'newest' (default) or 'confidence'. Confidence ranks by the strongest
    * classification, narrowed to the species filter when one is set, so the

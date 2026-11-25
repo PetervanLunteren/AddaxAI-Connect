@@ -1043,6 +1043,39 @@ What the two share:
   restart, and a token cannot go stale. Point a dev project at
   `central-test.sensingclues.org` so nothing from dev reaches a real group.
 
+## Photos without a site
+
+A photo reaches its site through `images.deployment_id`. A camera without
+GPS has photos with no deployment until a person sets its site (Add
+deployment in the camera panel). The rule for those photos:
+
+- **Counted where no place is needed**: totals, species, activity, the
+  Observations export (with an empty site).
+- **Left out where a place is needed**: map, occupancy, timeline, the
+  trend per 100 trap-nights, and the spatial, detection history and
+  Camtrap DP exports. Camtrap DP requires a location on every deployment,
+  so leaving them out is forced. Never a made-up place.
+- **Said where left out**: `NoSiteNote` (`components/sites/`) is a quiet
+  line under the view, "56 photos have no site yet and are not on this
+  map", with a link for project admins to the cameras that have them. The
+  Exports page wraps the same sentence in a warning `Callout`. To add it
+  to a new view, render `NoSiteNote` under the card with the view's
+  consequence and `hidden` set when the page has a site filter.
+- **The number** comes from the cameras list (`useUnplacedPhotos`, the
+  sum of `unplaced_photo_count`), so it equals the camera panels and
+  follows a fix at once. It is the project total, not narrowed to the
+  page's dates or species. Null for a viewer with a site list, who never
+  sees these photos (`site_image_clause` fails closed).
+- **Images** takes `site_id=none` for these photos (`image_site_filter`
+  in `utils/site_scope.py`); for a viewer with a site list "none" matches
+  nothing. Other site filters have no "none": on the server they are
+  hand-written SQL in about ten places, and the views need a place anyway.
+- **The trend** asks the daily trend helpers for `placed_only`, because it
+  divides by trap effort, which only knows deployments.
+- Not counted: photos of a deployment whose site was deleted (they have a
+  deployment and no site). The rebuild always gives a site, so this is
+  rare; the Map's About text names it.
+
 ## Needs attention (To do)
 
 The one nudge of the app (decided 24 November 2026): an icon in the top bar,
