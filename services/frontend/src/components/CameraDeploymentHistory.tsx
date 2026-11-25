@@ -17,7 +17,7 @@ import { Loader2, MapPinPlus } from 'lucide-react';
 import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { DeploymentJourney, type JourneyItem } from './DeploymentJourney';
-import { FixedPeriodsList } from './deployments/FixedPeriodsList';
+import { useCorrections } from './deployments/useCorrections';
 import { dayLabel } from './deployments/moves';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
@@ -33,6 +33,8 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
   const canEdit = pid !== undefined && isProjectAdmin;
 
   const [prefill, setPrefill] = useState<SetDeploymentPrefill | null>(null);
+  // Each correction on the card it made, with Undo.
+  const corrections = useCorrections(pid, camera.id, canEdit);
 
   const { data, isLoading } = useQuery({
     queryKey: ['camera-deployments', camera.id],
@@ -106,9 +108,10 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
         }))}
         emptyText={`No deployments for camera ${camera.name} yet.`}
         onChangeSite={canEdit ? changeSite : undefined}
+        footer={canEdit ? (item) => corrections.linesFor(item.startDate, item.endDate) : undefined}
       />
 
-      {canEdit && <FixedPeriodsList projectId={pid} cameraId={camera.id} />}
+      {canEdit && corrections.dialog}
 
       {prefill && pid !== undefined && (
         <SetDeploymentDialog

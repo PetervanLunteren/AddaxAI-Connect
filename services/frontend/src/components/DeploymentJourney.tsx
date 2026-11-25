@@ -32,6 +32,9 @@ interface Props {
   emptyText: string;
   // Escape hatch: when given, each step shows a "change site" action.
   onChangeSite?: (item: JourneyItem) => void;
+  // Extra lines at the foot of a step (camera mode: the corrections that
+  // made it, with Undo).
+  footer?: (item: JourneyItem) => React.ReactNode;
 }
 
 function fmtDate(s: string | null): string {
@@ -77,7 +80,7 @@ function mergeConsecutive(items: JourneyItem[]): JourneyItem[] {
   return merged;
 }
 
-export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onChangeSite }) => {
+export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onChangeSite, footer }) => {
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground py-6 text-center">{emptyText}</p>;
   }
@@ -116,6 +119,7 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onC
               {it.inactive && ', now inactive'}
             </p>
             <p className="text-muted-foreground">{it.imageCount.toLocaleString()} images</p>
+            {footer?.(it)}
           </div>
         </li>
       ))}

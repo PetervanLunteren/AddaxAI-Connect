@@ -789,8 +789,10 @@ are the one record; nothing about a move is stored apart from them.
     moves a pin, since the build snaps other cameras to pins;
   - a GPS part keeps the site its stored row had only when the GPS chose
     it (`deployment_rebuild.py`): after Undo the GPS decides again.
-- **Corrections elsewhere.** The camera panel lists them as "Corrections",
-  each with Undo; each deployment has Edit. A deployment is a camera, a
+- **Corrections elsewhere.** In the camera panel each correction sits on the
+  deployment card it made, "Set by …, date" with Undo (`useCorrections`,
+  matched by the days it covers; a card the app placed shows nothing); each
+  deployment has Edit. A deployment is a camera, a
   site and a period, and Edit deployment (`SetDeploymentDialog`) shows just
   those: the camera fixed (photos belong to the camera that took them), the
   site and the first and last day editable; "Add deployment" for a camera
