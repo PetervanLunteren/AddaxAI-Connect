@@ -789,10 +789,17 @@ are the one record; nothing about a move is stored apart from them.
     moves a pin, since the build snaps other cameras to pins;
   - a GPS part keeps the site its stored row had only when the GPS chose
     it (`deployment_rebuild.py`): after Undo the GPS decides again.
-- **Corrections elsewhere.** In the camera panel each correction sits on the
-  deployment card it made, "Last day set by … on date" with Undo (`useCorrections`,
-  matched by the days it covers; a card the app placed shows nothing); each
-  deployment has Edit. A deployment is a camera, a
+- **One deployment card.** A deployment is drawn by `DeploymentJourney`
+  (one card per deployment, never merged, days with `dayLabel`). The camera
+  panel's and the site panel's Deployments tabs both use
+  `DeploymentCards` (`components/deployments/`), the same cards seen from
+  either side (titled by site, or by camera with a link to its panel), with
+  everything that sits on a card for admins: Edit, the Suspicious marker of
+  the Moves page (`moveRows` on the same cached list) and each correction
+  on the card it made, "Last day set by … on date" with Undo (matched by
+  camera and days; a card the app placed shows nothing). A new line on a
+  card goes in `DeploymentCards`, so both panels get it.
+- **Corrections elsewhere. A deployment is a camera, a
   site and a period, and Edit deployment (`SetDeploymentDialog`) shows just
   those: the camera fixed (photos belong to the camera that took them), the
   site and the first and last day editable; "Add deployment" for a camera
@@ -808,12 +815,19 @@ are the one record; nothing about a move is stored apart from them.
   a shortened deployment splits in two, also when the GPS finds the same
   site for the rest, and each part can be edited. An end left as it was
   still joins, so changing only the site of a false trip folds it back into
-  one, as "It stayed" does. An "After saving" card, the twin of the "Now"
-  card, shows the result; small print names the days split off or taken
-  from another deployment.
-  The site panel has Name this site and, under each camera on its Cameras
-  tab, Edit deployment (the same form; + New site when a camera had its own
-  spot). A correction deletes a site it emptied when that
+  one, as "It stayed" does. The form shows the deployment as a card (Now)
+  and the cards the save leaves that differ from now (After saving), from
+  `POST .../deployments/statements/preview`: the same edit as Save
+  (`_apply` in `routers/deployments.py`) in a transaction that is rolled
+  back, so the preview is the rebuild's own answer, never a guess in the
+  browser. Everything is built before the rollback, which expires every
+  object of the session. Cards are compared by content (site, days,
+  photos), not id: after a split the old id can go to either part. The
+  browser asks 400 ms after the form stops changing, never caches or
+  retries, and cancels an older request. Days are bounded for Save and
+  preview: 1 January 2000 to a year ahead (`_check_days`).
+  The site panel has Name this site; a camera that had its own spot gets
+  one from Edit on its card, with + New site. A correction deletes a site it emptied when that
   site still has the app's name (`drop_unnamed_sites_left_empty`); a site
   a person named is never deleted by the app. The screens never say
   "fixed period" or "statement".

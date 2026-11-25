@@ -428,10 +428,14 @@ Notes per step:
     without a site, Set site). S07 GPS gaps in October (nothing). S08
     silent since 20 Sep (nothing, shows inactive). S09 Old mill, Beech
     wood in September, Old mill (It moved twice). S10 next to S01 at Pond,
-    its own spot (site panel, Cameras tab, Edit deployment, + New site). S11 moved on 1 Oct,
+    its own spot (site panel, Deployments tab, Edit on its card, + New site). S11 moved on 1 Oct,
     first photo on 8 Oct (camera panel, Edit, first day 1 Oct). S12
     moved on 1 Sep, August photos from an old card arrive last (It moved).
   - Test photos show blurred until detection processes them.
+  - Found at S10 (25 Nov): a deployment was drawn four ways. Now one card
+    (DeploymentCards) in the camera and site panels, the site panel has one
+    Deployments tab, and Edit deployment shows Now and After saving as
+    cards from a server preview (the save, rolled back).
   - Found at S06 (25 Nov): views that need a place left photos without a
     site out silently. Now each says so in its card's info line (`useNoSiteText`),
     Exports ask at download, Images has a "No site" filter, and the trend
