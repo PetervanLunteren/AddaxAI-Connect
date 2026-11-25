@@ -11,6 +11,7 @@
  */
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Undo2 } from 'lucide-react';
 import { deploymentsApi, type FixedPeriod } from '../../api/deployments';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toaster';
@@ -69,11 +70,13 @@ export function useCorrections(projectId: number | undefined, cameraId: number, 
         {mine.map((p) => (
           <li key={p.id} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span className="min-w-0 truncate" title={daysLabel(p)}>{setBy(p)}</span>
+            {/* The same look as Edit at the top of the card. */}
             <button
               type="button"
               onClick={() => setRemoving(p)}
-              className="shrink-0 font-medium text-primary hover:underline"
+              className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
+              <Undo2 className="h-3.5 w-3.5" />
               Undo
             </button>
           </li>
