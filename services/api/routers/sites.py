@@ -29,6 +29,7 @@ from shared.models import (
 )
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
 from shared.geo import RECOMPUTE_SITE_LOCATION_SQL
 from utils.csv_upload import read_csv_upload
 from utils.deployment_edits import rebuild, site_is_used
@@ -50,6 +51,9 @@ class SiteListItem(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     habitat_type: Optional[str] = None
+    # Cameras at the site now (their current deployment is here), as the
+    # Cameras page and the site's Cameras tab count. The past is in
+    # deployment_count and the History tab.
     camera_count: int
     deployment_count: int
     image_count: int
@@ -82,6 +86,9 @@ class SiteDetail(BaseModel):
     habitat_type: Optional[str] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
+    # Cameras at the site now (their current deployment is here), as the
+    # Cameras page and the site's Cameras tab count. The past is in
+    # deployment_count and the History tab.
     camera_count: int
     deployment_count: int
     image_count: int
@@ -180,7 +187,9 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
         habitat_type=head["habitat_type"],
         notes=head["notes"],
         tags=head["tags"],
-        camera_count=len({d.camera_id for d in deployments}),
+        camera_count=(await db.execute(text(f"""
+            SELECT count(*) FROM ({CURRENT_DEPLOYMENTS_SQL}) cur WHERE cur.site_id = :site_id
+        """), {"site_id": site_id})).scalar_one(),
         deployment_count=len(deployments),
         image_count=sum(d.image_count for d in deployments),
         deployments=deployments,
@@ -206,12 +215,16 @@ async def list_sites(
                        ST_Y(s.location::geometry) AS lat,
                        ST_X(s.location::geometry) AS lon,
                        count(DISTINCT d.id) AS deployment_count,
-                       count(DISTINCT d.camera_id) AS camera_count,
+                       coalesce(max(here.cameras), 0) AS camera_count,
                        count(i.id) AS image_count,
                        max(i.captured_at) AS last_activity
                 FROM sites s
                 LEFT JOIN deployments d ON d.site_id = s.id
                 LEFT JOIN images i ON i.deployment_id = d.id
+                LEFT JOIN (
+                    SELECT cur.site_id, count(*) AS cameras
+                    FROM ({CURRENT_DEPLOYMENTS_SQL}) cur GROUP BY cur.site_id
+                ) here ON here.site_id = s.id
                 WHERE s.project_id = :project_id{scope_sql}
                 GROUP BY s.id
                 ORDER BY s.name
