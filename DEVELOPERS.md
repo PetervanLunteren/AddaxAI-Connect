@@ -800,7 +800,7 @@ are the one record; nothing about a move is stored apart from them.
   on the card it made, "Last day set by … on date" with Undo (matched by
   camera and days; a card the app placed shows nothing). A new line on a
   card goes in `DeploymentCards`, so both panels get it.
-- **Corrections elsewhere. A deployment is a camera, a
+- **Edit deployment.** A deployment is a camera, a
   site and a period, and Edit deployment (`SetDeploymentDialog`) shows just
   those: the camera fixed (photos belong to the camera that took them), the
   site and the first and last day editable; "Add deployment" for a camera
