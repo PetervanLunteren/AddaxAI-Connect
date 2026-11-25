@@ -63,9 +63,10 @@ sink. So on maps (decided 24 November 2026):
 - Every point has a white ring with a soft shadow, never a dark grey one:
   `components/map/marker-style.ts` (`dotIcon`, `dotCss`/`dotStyle`,
   `ringPath` for SVG shapes). Do not build a marker of your own.
-- A form that chooses a site shows it on a map: `SitePickMap`
-  (`components/sites/`), used by Set site and Merge site. Do not build a
-  third one.
+- A form that chooses a site uses `SiteField` (`components/sites/`): the
+  list, "New site" next to it, the small map and a caption. Used by Edit
+  deployment and the bulk upload. Its map is `SitePickMap`, which Merge
+  site uses on its own. Do not build another site chooser.
 - One colour, one meaning, on every map: `SITE_COLOR` (teal) a site,
   `FOCUS_COLOR` (magenta) what you look at or choose, `ALERT_COLOR`
   (bright red `#d62828`) something wrong. The camera status and battery

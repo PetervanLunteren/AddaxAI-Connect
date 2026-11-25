@@ -27,7 +27,6 @@ import {
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Callout } from '../../components/ui/Callout';
-import { Select } from '../../components/ui/Select';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import {
   Dialog,
@@ -38,9 +37,8 @@ import {
 } from '../../components/ui/Dialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
-import { sitesApi } from '../../api/sites';
 import { apiErrorMessage } from '../../api/client';
-import { SiteFormModal } from '../../components/sites/SiteFormModal';
+import { SiteField } from '../../components/sites/SiteField';
 import { ClockOffsetDialog } from '../../components/ClockOffsetDialog';
 import { formatOffset, shiftEntries } from '../../utils/clock-offset';
 import {
@@ -1030,7 +1028,6 @@ const ReviewStep: React.FC<{
 }> = ({ projectId, folderName, entries: rawEntries, files, onBack, onCancel, onConfirm }) => {
   const toast = useToast();
   const [siteId, setSiteId] = useState<string>('');
-  const [showCreateSite, setShowCreateSite] = useState(false);
   const [timeOffset, setTimeOffset] = useState(0);
   const [showClockOffset, setShowClockOffset] = useState(false);
 
@@ -1048,11 +1045,6 @@ const ReviewStep: React.FC<{
   // deployment dates in the manifest, the duplicate pre-check and the skip
   // list. One shift in one place, so they cannot disagree.
   const entries = useMemo(() => shiftEntries(rawEntries, timeOffset), [rawEntries, timeOffset]);
-
-  const { data: sites } = useQuery({
-    queryKey: ['sites', projectId],
-    queryFn: () => sitesApi.list(projectId),
-  });
 
   // Compute manifest from the local scan. Same shape the server used
   // to write itself, so all the downstream UI keeps working.
@@ -1280,32 +1272,12 @@ const ReviewStep: React.FC<{
           {!profile.camera_registered && ' This camera will be added to this project.'}
         </Callout>
       ) : (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Site</label>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Select
-                value={siteId}
-                onChange={(e) => setSiteId(e.target.value)}
-              >
-                <option value="">Select a site</option>
-                {(sites ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <Button type="button" variant="outline" onClick={() => setShowCreateSite(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              New site
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Pick the place they were taken. Choose an existing site, or add a new one.
-            All images in one upload must be from a single site and a single camera.
-          </p>
-        </div>
+        <SiteField
+          projectId={projectId}
+          value={siteId ? Number(siteId) : null}
+          onChange={(id) => setSiteId(id === null ? '' : String(id))}
+          caption="The place they were taken. All images in one upload must be from a single site and a single camera."
+        />
       )}
 
       {duplicatesFailed && (
@@ -1403,13 +1375,6 @@ const ReviewStep: React.FC<{
         </Button>
       </div>
 
-      <SiteFormModal
-        open={showCreateSite}
-        onClose={() => setShowCreateSite(false)}
-        projectId={projectId}
-        sites={sites ?? []}
-        onCreated={(site) => setSiteId(String(site.id))}
-      />
     </div>
   );
 };

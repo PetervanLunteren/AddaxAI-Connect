@@ -17,11 +17,13 @@
  * Whole days on purpose: a day belongs to one deployment, the day of a move
  * to the new one, the same rule as everywhere in the app.
  *
- * A small map under the site (SitePickMap) shows where the sites are. The
- * lines above Save say what will happen, in days: what the deployment
- * becomes, which days go back to the app, which days move here from another
- * deployment. Under the days, the days the camera has photos, so a wrong
- * year stands out.
+ * One field per row, each with a caption that says what it is and one thing
+ * you cannot see: why the camera is locked, how to pick a site (SiteField,
+ * shared with the bulk upload), the camera's first and last photo under the
+ * days, so a wrong year stands out. On top a "Now" card with the deployment
+ * as it is. The lines above Save say what will happen, in days: what the
+ * deployment becomes, which days go back to the app, which days move here
+ * from another deployment.
  */
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -31,10 +33,8 @@ import { camerasApi, type CameraDeployment } from '../../api/cameras';
 import type { Camera } from '../../api/types';
 import { dayLabel } from './moves';
 import { sitesApi } from '../../api/sites';
-import { SiteFormModal } from '../sites/SiteFormModal';
-import { SitePickMap } from '../sites/SitePickMap';
+import { SiteField } from '../sites/SiteField';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
 import { useToast } from '../ui/Toaster';
 
@@ -60,6 +60,8 @@ interface Props {
   // written, so the caller can offer Undo.
   onSaved?: (statementId: number) => void;
 }
+
+const inputClass = 'w-full px-3 py-2 border rounded-md text-sm';
 
 function errMsg(err: unknown): string {
   const e = err as { response?: { data?: { detail?: string } }; message?: string };
@@ -94,7 +96,6 @@ export const SetDeploymentDialog: React.FC<Props> = ({
   const [siteId, setSiteId] = useState<number | null>(prefill.siteId);
   const [fromDate, setFromDate] = useState(prefill.fromDate);
   const [untilDate, setUntilDate] = useState(prefill.untilDate ?? '');
-  const [creatingSite, setCreatingSite] = useState(newSite);
 
   useEffect(() => {
     setSiteId(prefill.siteId);
@@ -118,6 +119,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
     .sort()[0];
   const lastPhotoDay = camera.last_image_timestamp?.slice(0, 10);
   const siteName = sites?.find((s) => s.id === siteId)?.name;
+  const originalSiteName = sites?.find((s) => s.id === prefill.siteId)?.name;
 
   const save = useMutation({
     mutationFn: (site: number) =>
@@ -179,7 +181,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
   return (
     <>
       <Dialog open onOpenChange={(o) => !o && onClose()}>
-        <DialogContent onClose={onClose}>
+        <DialogContent onClose={onClose} className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit deployment' : 'Add deployment'}</DialogTitle>
             <DialogDescription>One camera at one site, from a first day to a last day.</DialogDescription>
@@ -191,75 +193,62 @@ export const SetDeploymentDialog: React.FC<Props> = ({
               if (canSave) save.mutate(siteId!);
             }}
           >
-            {/* The camera is fixed: photos belong to the camera that took them. */}
-            <div className="flex items-baseline justify-between gap-3 rounded-md bg-muted/50 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Camera</span>
-              <span className="font-medium truncate">{camera.name}</span>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2" htmlFor="set-deployment-site">Site</label>
-              <Select
-                id="set-deployment-site"
-                value={siteId ?? ''}
-                onChange={(e) => setSiteId(e.target.value === '' ? null : Number(e.target.value))}
-              >
-                <option value="">Pick a site</option>
-                {(sites ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-              <button
-                type="button"
-                onClick={() => setCreatingSite(true)}
-                className="mt-2 text-sm text-primary hover:underline"
-              >
-                Or create a new site
-              </button>
-              {sites && (
-                <div className="mt-2">
-                  <SitePickMap
-                    sites={sites}
-                    selectedId={siteId}
-                    onSelect={setSiteId}
-                    fitIds={[prefill.siteId, siteId]}
-                    height={160}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-2" htmlFor="set-deployment-from">First day</label>
-                <input
-                  id="set-deployment-from"
-                  type="date"
-                  required
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
-                />
+            {editing && (
+              <div className="rounded-md bg-muted/50 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Now</p>
+                <p className="text-sm">
+                  {camera.name} at <span className="font-medium">{originalSiteName ?? 'no site'}</span>,{' '}
+                  {span(prefill.fromDate, prefill.untilDate)}
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2" htmlFor="set-deployment-until">Last day</label>
-                <input
-                  id="set-deployment-until"
-                  type="date"
-                  value={untilDate}
-                  onChange={(e) => setUntilDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
-                />
-                <p className="text-xs text-muted-foreground mt-1">Empty: the camera is still there.</p>
-              </div>
-            </div>
-            {firstPhotoDay && lastPhotoDay && (
-              <p className="text-xs text-muted-foreground -mt-2">
-                Photos of this camera: {dayLabel(firstPhotoDay)} to {dayLabel(lastPhotoDay)}.
-              </p>
             )}
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium" htmlFor="set-deployment-camera">Camera</label>
+              <input id="set-deployment-camera" value={camera.name} disabled className={`${inputClass} bg-muted/50 text-muted-foreground`} />
+              <p className="text-xs text-muted-foreground">Cannot change. Photos stay with the camera that took them.</p>
+            </div>
+
+            <SiteField
+              projectId={projectId}
+              value={siteId}
+              onChange={setSiteId}
+              caption="Where the camera stood. Pick it from the list or click its pin on the map."
+              fitIds={[prefill.siteId]}
+              newSiteAt={{ lat: prefill.lat, lon: prefill.lon }}
+              startCreating={newSite}
+            />
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium" htmlFor="set-deployment-from">First day</label>
+              <input
+                id="set-deployment-from"
+                type="date"
+                required
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className={inputClass}
+              />
+              <p className="text-xs text-muted-foreground">
+                The day the camera was put here.
+                {firstPhotoDay && ` Its first photo is from ${dayLabel(firstPhotoDay)}.`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium" htmlFor="set-deployment-until">Last day</label>
+              <input
+                id="set-deployment-until"
+                type="date"
+                value={untilDate}
+                onChange={(e) => setUntilDate(e.target.value)}
+                className={inputClass}
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave empty while it is still there.
+                {lastPhotoDay && ` Its last photo is from ${dayLabel(lastPhotoDay)}.`}
+              </p>
+            </div>
 
             {/* Pinned to the bottom: with the map the form can be taller
                 than the window. What will happen and Save stay in view
@@ -292,20 +281,6 @@ export const SetDeploymentDialog: React.FC<Props> = ({
         </DialogContent>
       </Dialog>
 
-      {creatingSite && (
-        <SiteFormModal
-          open
-          onClose={() => setCreatingSite(false)}
-          projectId={projectId}
-          sites={sites ?? []}
-          defaultLat={prefill.lat}
-          defaultLon={prefill.lon}
-          onCreated={(site) => {
-            setCreatingSite(false);
-            setSiteId(site.id);
-          }}
-        />
-      )}
     </>
   );
 };
