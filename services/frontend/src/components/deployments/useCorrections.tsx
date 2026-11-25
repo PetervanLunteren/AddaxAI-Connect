@@ -1,7 +1,9 @@
 /**
  * The corrections of one camera (what people said about where it stood),
- * shown on the deployment card each one made: "Set by peter@..., 25 Nov
- * 2026" with Undo. Cards the app placed show nothing. A correction belongs
+ * shown on the deployment card each one made: what was set, by whom and
+ * when ("Last day set by peter@..., 25 Nov 2026"), with Undo. Undo takes
+ * back the whole edit: a correction is one fact about one period, so its
+ * parts cannot be undone apart; to change one part back, edit again. Cards the app placed show nothing. A correction belongs
  * to the cards whose days it covers; usually one, two only for an old
  * correction an edit later cut. Admins only (the endpoint is).
  *
@@ -23,11 +25,25 @@ function daysLabel(p: FixedPeriod): string {
     : `${p.site_name} from ${dayLabel(p.from_date)}`;
 }
 
+// "Site", "Last day", "Site and first day", "Site, first and last day":
+// what an edit changed, as the start of the line on the card.
+function whatWasSet(changes: string[] | null): string {
+  if (!changes || changes.length === 0) return '';
+  const site = changes.includes('site');
+  const first = changes.includes('first_day');
+  const last = changes.includes('last_day');
+  const days = first && last ? 'first and last day' : first ? 'first day' : last ? 'last day' : '';
+  const text = site && days ? `site${days === 'first and last day' ? ', ' : ' and '}${days}` : site ? 'site' : days;
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function setBy(p: FixedPeriod): string {
   if (p.source === 'upload') return 'Set by an upload';
   if (p.source === 'carried_over') return 'Kept from before the update';
   const when = dayLabel(p.created_at.slice(0, 10));
-  return p.created_by ? `Set by ${p.created_by}, ${when}` : `Set ${when}`;
+  const what = whatWasSet(p.changes);
+  const verb = what ? `${what} set` : 'Set';
+  return p.created_by ? `${verb} by ${p.created_by}, ${when}` : `${verb} ${when}`;
 }
 
 /** Whether a correction covers part of a deployment's days (null = open). */

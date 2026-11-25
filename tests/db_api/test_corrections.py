@@ -510,3 +510,25 @@ async def test_it_stayed_still_joins_the_parts_around_a_false_move(session, admi
     m = moved_camera
     await not_moved(m["project"], m["second"], session, admin)
     assert len(deployments(m["cam"])) == 1
+
+
+async def test_a_correction_says_what_it_changed(session, admin):
+    """For the line on the deployment card: "Last day set by ...", "Site set
+    by ...". Adding a deployment sets all three."""
+    project = make_project()
+    east = make_site(project, "Stream east", HOME)
+    west = make_site(project, "Stream west", offset(HOME, east_m=-180))
+    cam = make_camera("S04", project)
+    history(cam, [(HOME, at(d)) for d in range(1, 21)])
+    [one] = deployments(cam)
+    await edit(session, admin, project, cam, one["id"], east, 1, until_day=18)
+    _, rest = deployments(cam)
+    await edit(session, admin, project, cam, rest["id"], west, 19)
+    other = make_camera("NOGPS", project)
+    make_image(other, None, at(3))
+    await set_deployment(project, SetDeploymentRequest(camera_id=other, site_id=west, from_date=day(3)), session, admin)
+
+    listed = {(s.camera_id, s.site_id): s.changes for s in await list_statements(project, None, session, admin)}
+    assert listed[(cam, east)] == ["last_day"]
+    assert listed[(cam, west)] == ["site"]
+    assert listed[(other, west)] == ["site", "first_day", "last_day"]

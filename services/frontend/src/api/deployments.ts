@@ -68,6 +68,9 @@ export interface FixedPeriod {
   // The start of the move an "It stayed" took back (as start_at of a
   // deployment), null for every other correction.
   answers_move_at: string | null;
+  // What a person changed with Edit or Add deployment: 'site', 'first_day',
+  // 'last_day'. Null for other corrections and older ones.
+  changes: string[] | null;
 }
 
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;

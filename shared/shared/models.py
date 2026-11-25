@@ -388,6 +388,11 @@ class DeploymentStatement(Base):
     # False for "It stayed", uploads and the carried-over history.
     keeps_start = Column(Boolean, nullable=False, server_default="false")
     keeps_end = Column(Boolean, nullable=False, server_default="false")
+    # What a person changed with it in Edit or Add deployment, for the line
+    # on the deployment card: "site", "first_day" and "last_day", comma
+    # separated ("site,last_day"). NULL for every other statement (uploads,
+    # "It stayed", the carried-over history, corrections before this).
+    changes = Column(String(32), nullable=True)
     # 'person' = a correction in the app, 'upload' = an upload to a chosen
     # site, 'carried_over' = written once by scripts/carry_over_deployments.py
     # to keep history from before phase 2 as it was.

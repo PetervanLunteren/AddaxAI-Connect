@@ -137,6 +137,9 @@ class StatementItem(BaseModel):
     # DeploymentListItem.start_at, so the browser finds that move by camera
     # and start. None for every other statement.
     answers_move_at: Optional[str] = None
+    # What a person changed with Edit or Add deployment: "site", "first_day",
+    # "last_day". None for other corrections and older ones.
+    changes: Optional[List[str]] = None
 
 
 class SetDeploymentRequest(BaseModel):
@@ -236,6 +239,7 @@ async def list_statements(
             created_by=email,
             created_at=st.created_at.isoformat(),
             answers_move_at=st.answers_move_at.isoformat() if st.answers_move_at else None,
+            changes=st.changes.split(",") if st.changes else None,
         )
         for st, camera_label, site_name, email in rows
     ]
@@ -275,8 +279,16 @@ async def set_deployment(
     # still joins (only the site changed: a false trip folds back into one).
     keeps_start = edited is not None and request.from_date != edited.start_date
     keeps_end = edited is not None and request.until_date != edited.end_date
+    # What the person changed, for the line on the card. Adding a deployment
+    # sets all three.
+    changes = ",".join(name for name, changed in [
+        ("site", edited is None or request.site_id != edited.site_id),
+        ("first_day", edited is None or keeps_start),
+        ("last_day", edited is None or keeps_end),
+    ] if changed)
     statement_id = await state(db, request.camera_id, request.site_id, from_at, until_at, user.id,
-                               replaces=replaced, removed_by=user.id, keeps_start=keeps_start, keeps_end=keeps_end)
+                               replaces=replaced, removed_by=user.id, keeps_start=keeps_start, keeps_end=keeps_end,
+                               changes=changes)
     await drop_unnamed_sites_left_empty(db, sites_before)
     merged = max(0, before - await _deployment_count(db, request.camera_id))
     await db.commit()
