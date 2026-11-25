@@ -811,8 +811,9 @@ are the one record; nothing about a move is stored apart from them.
   one, as "It stayed" does. An "After saving" card, the twin of the "Now"
   card, shows the result; small print names the days split off or taken
   from another deployment.
-  The site panel has Name this site and, when two cameras share a site,
-  Give it its own site. A correction deletes a site it emptied when that
+  The site panel has Name this site and, under each camera on its Cameras
+  tab, Edit deployment (the same form; + New site when a camera had its own
+  spot). A correction deletes a site it emptied when that
   site still has the app's name (`drop_unnamed_sites_left_empty`); a site
   a person named is never deleted by the app. The screens never say
   "fixed period" or "statement".

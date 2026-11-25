@@ -23,6 +23,7 @@ import {
   GitMerge,
   Camera as CameraIcon,
   Images,
+  Pencil,
 } from 'lucide-react';
 import {
   Sheet,
@@ -124,8 +125,8 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editNotes, setEditNotes] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
   const nameInput = useRef<HTMLInputElement>(null);
-  // "Give it its own site": the camera and where its form starts.
-  const [ownSite, setOwnSite] = useState<{ camera: Camera; prefill: SetDeploymentPrefill } | null>(null);
+  // Edit deployment from the Cameras tab: the camera and where its form starts.
+  const [ownSite, setEditing] = useState<{ camera: Camera; prefill: SetDeploymentPrefill } | null>(null);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ['site', projectId, siteId],
@@ -133,11 +134,10 @@ export const SiteDetailSheet: React.FC<Props> = ({
     enabled: siteId != null,
   });
 
-  // Where "Give it its own site" starts: the camera's deployment at this
-  // site (the open one, else its latest), from its first day, at its pin.
-  // Its site is this site, so the form's Now card says where it stands; the
-  // New site window opens on top and the site made there becomes the choice.
-  const ownSitePrefill = (c: Camera): SetDeploymentPrefill => {
+  // Where Edit deployment starts: the camera's deployment at this site (the
+  // open one, else its latest), from its first day, at its pin, so + New
+  // site starts at the camera's own spot.
+  const editPrefill = (c: Camera): SetDeploymentPrefill => {
     const here = (detail?.deployments ?? [])
       .filter((d) => d.camera_id === c.id)
       .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''));
@@ -495,15 +495,19 @@ export const SiteDetailSheet: React.FC<Props> = ({
                             />
                           </div>
                         </Link>
-                        {/* Two cameras less than 250 m apart share a site.
-                            Only a person knows when one had its own spot. */}
-                        {canEdit && cameras.length >= 2 && (
+                        {/* The camera's deployment here, in the one Edit
+                            deployment form: another site (an existing one,
+                            or + New site when it had its own spot), other
+                            days. The same action as Edit on the camera
+                            panel's deployment cards. */}
+                        {canEdit && (
                           <button
                             type="button"
-                            className="mt-1 text-xs text-primary hover:underline"
-                            onClick={() => setOwnSite({ camera: c, prefill: ownSitePrefill(c) })}
+                            className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => setEditing({ camera: c, prefill: editPrefill(c) })}
                           >
-                            Give it its own site
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit deployment
                           </button>
                         )}
                       </li>
@@ -558,8 +562,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
           projectId={projectId}
           camera={ownSite.camera}
           prefill={ownSite.prefill}
-          newSite
-          onClose={() => setOwnSite(null)}
+          onClose={() => setEditing(null)}
         />
       )}
     </>

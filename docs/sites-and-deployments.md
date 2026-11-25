@@ -95,7 +95,7 @@ A single bad reading never makes an entry, the app filters it silently. When bad
 
 ### Several cameras at one place
 
-Cameras within 250 metres of each other share one site by default. That is often right, for example when a new camera replaces a broken one at the same spot. When you want them apart, for example two cameras on one wildlife bridge, use "New site" on each camera's entry and give each its own name, like "bridge north" and "bridge south". This is a one-time setup. After that, each camera keeps its own site, and the statistics count them apart.
+Cameras within 250 metres of each other share one site by default. That is often right, for example when a new camera replaces a broken one at the same spot. When you want them apart, for example two cameras on one wildlife bridge, open the site, and on its Cameras tab use Edit deployment under a camera. Click New site next to the site list and give it its own name, like "bridge north" and "bridge south". This is a one-time setup. After that, each camera keeps its own site, and the statistics count them apart.
 
 ### Moving many cameras at once
 

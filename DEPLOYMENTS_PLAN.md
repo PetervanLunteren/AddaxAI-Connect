@@ -428,7 +428,7 @@ Notes per step:
     without a site, Set site). S07 GPS gaps in October (nothing). S08
     silent since 20 Sep (nothing, shows inactive). S09 Old mill, Beech
     wood in September, Old mill (It moved twice). S10 next to S01 at Pond,
-    its own spot (site panel, Give it its own site). S11 moved on 1 Oct,
+    its own spot (site panel, Cameras tab, Edit deployment, + New site). S11 moved on 1 Oct,
     first photo on 8 Oct (camera panel, Edit, first day 1 Oct). S12
     moved on 1 Sep, August photos from an old card arrive last (It moved).
   - Test photos show blurred until detection processes them.

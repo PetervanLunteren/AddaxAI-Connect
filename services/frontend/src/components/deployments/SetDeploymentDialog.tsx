@@ -2,8 +2,8 @@
  * Edit deployment, or Add deployment: a deployment is a camera, a site and
  * a period, and this form shows exactly those. The camera is fixed (photos
  * belong to the camera that took them); the site and the first and last day
- * can change. Opened from a deployment in the camera panel (Edit), from
- * "Give it its own site" in the site panel (an edit too), or for a camera
+ * can change. Opened from a deployment in the camera panel (Edit), from a
+ * camera in the site panel's Cameras tab (Edit deployment), or for a camera
  * without a site (Add).
  *
  * One rule makes it cover every placement fix: the days given are at that
@@ -53,8 +53,6 @@ interface Props {
   camera: Camera;
   prefill: SetDeploymentPrefill;
   onClose: () => void;
-  // Open on "create a new site" at the prefilled spot.
-  newSite?: boolean;
   // Called after a successful save, before onClose, with the statement
   // written, so the caller can offer Undo.
   onSaved?: (statementId: number) => void;
@@ -92,7 +90,7 @@ function sitesIn(deployments: CameraDeployment[], skipId: number | null, from: s
 }
 
 export const SetDeploymentDialog: React.FC<Props> = ({
-  projectId, camera, prefill, onClose, newSite = false, onSaved,
+  projectId, camera, prefill, onClose, onSaved,
 }) => {
   const cameraId = camera.id;
   const editing = prefill.deploymentId !== null;
@@ -218,7 +216,6 @@ export const SetDeploymentDialog: React.FC<Props> = ({
               caption="Where the camera stood. Pick it from the list or click its pin on the map."
               fitIds={[prefill.siteId]}
               newSiteAt={{ lat: prefill.lat, lon: prefill.lon }}
-              startCreating={newSite}
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
