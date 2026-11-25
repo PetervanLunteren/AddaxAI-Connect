@@ -27,7 +27,7 @@ from shared.camera_status import (
 )
 from utils.csv_upload import read_csv_upload
 from utils.camera_recency import fetch_camera_recency
-from utils.deployment_edits import rebuild
+from utils.deployment_edits import camera_deployment_rows, rebuild
 from utils.camera_rejections import RecentRejections, fetch_recent_rejections, REJECTED_RECENT_DAYS
 from utils.camera_unplaced import UnplacedPhotos, fetch_unplaced
 from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
@@ -943,46 +943,9 @@ async def get_camera_deployments(
         )
 
     site_scope = await _check_camera_in_scope(db, current_user, camera)
-
     # Restricted viewers only see the periods this camera spent at their
-    # sites; the rest of the relocation history stays hidden
-    scope_sql = " AND d.site_id = ANY(:scope)" if site_scope is not None else ""
-    params: dict = {"camera_id": camera_id}
-    if site_scope is not None:
-        params["scope"] = site_scope
-    rows = (
-        await db.execute(
-            text(f"""
-                SELECT d.id, d.deployment_number, d.site_id, s.name AS site_name,
-                       ST_Y(d.location::geometry) AS lat,
-                       ST_X(d.location::geometry) AS lon,
-                       d.start_date, d.end_date,
-                       count(i.id) AS image_count
-                FROM deployments d
-                LEFT JOIN sites s ON s.id = d.site_id
-                LEFT JOIN images i ON i.deployment_id = d.id
-                WHERE d.camera_id = :camera_id{scope_sql}
-                GROUP BY d.id, s.name
-                ORDER BY d.start_at, d.id
-            """),
-            params,
-        )
-    ).mappings().all()
-
-    return [
-        CameraDeploymentResponse(
-            id=r["id"],
-            deployment_number=r["deployment_number"],
-            site_id=r["site_id"],
-            site_name=r["site_name"],
-            latitude=float(r["lat"]) if r["lat"] is not None else None,
-            longitude=float(r["lon"]) if r["lon"] is not None else None,
-            start_date=r["start_date"].isoformat() if r["start_date"] else None,
-            end_date=r["end_date"].isoformat() if r["end_date"] else None,
-            image_count=r["image_count"],
-        )
-        for r in rows
-    ]
+    # sites; the rest of the relocation history stays hidden.
+    return [CameraDeploymentResponse(**row) for row in await camera_deployment_rows(db, camera_id, site_scope)]
 
 
 @router.get(

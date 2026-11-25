@@ -20,7 +20,10 @@ from shared.logger import get_logger
 from shared.models import Camera, Deployment, DeploymentStatement, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
-from utils.deployment_edits import drop_unnamed_sites_left_empty, previous_deployment, rebuild, state
+from utils.deployment_edits import (
+    camera_deployment_rows, drop_unnamed_sites_left_empty, previous_deployment, rebuild, state,
+)
+from routers.cameras import CameraDeploymentResponse
 from utils.site_scope import site_in_scope
 
 logger = get_logger("api.deployments")
@@ -154,6 +157,37 @@ class SetDeploymentRequest(BaseModel):
     deployment_id: Optional[int] = None
 
 
+class DeploymentPreview(BaseModel):
+    """The camera's deployments before and after an edit, for the Edit
+    deployment form: what Save would do, worked out by doing it and undoing
+    it (see preview_deployment)."""
+    before: List[CameraDeploymentResponse]
+    after: List[CameraDeploymentResponse]
+
+
+# Days a person can set. Before 2000 no camera trap of a project here took
+# photos, and more than a year ahead is a typo; a year typed digit by digit
+# (0002, 0202) would otherwise claim the camera's whole history, and a last
+# day of 9999-12-31 overflows the day after it.
+FIRST_SETTABLE_DAY = date(2000, 1, 1)
+DAYS_AHEAD = 366
+
+
+def _check_days(from_date: date, until_date: Optional[date]) -> None:
+    last_settable = date.today() + timedelta(days=DAYS_AHEAD)
+    for day in (from_date, until_date):
+        if day is not None and not FIRST_SETTABLE_DAY <= day <= last_settable:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Days must lie between 1 January 2000 and a year from now",
+            )
+    if until_date is not None and until_date < from_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The last day cannot be before the first day",
+        )
+
+
 class SetDeploymentResponse(BaseModel):
     # The statement written, for Undo (DELETE .../statements/{id}).
     statement_id: int
@@ -258,17 +292,56 @@ async def set_deployment(
     Change site on a deployment, placing a camera without GPS and correcting
     the past all go through here.
     """
+    statement_id, merged = await _apply(db, project_id, request, user.id)
+    await db.commit()
+    logger.info(
+        "Set deployment", project_id=project_id, camera_id=request.camera_id,
+        site_id=request.site_id, from_date=str(request.from_date), until_date=str(request.until_date),
+    )
+    return SetDeploymentResponse(statement_id=statement_id, merged=merged)
+
+
+@router.post("/statements/preview", response_model=DeploymentPreview)
+async def preview_deployment(
+    project_id: int,
+    request: SetDeploymentRequest,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """
+    What Save would do to the camera's deployments, without saving: the same
+    edit (_apply) in a transaction that is rolled back. So the preview is the
+    rebuild's own answer, never a guess in the browser. Everything is read
+    and built before the rollback, which expires every object of the
+    session (the user too); after it only plain values are touched.
+    """
+    user_id = user.id
+    try:
+        before = await camera_deployment_rows(db, request.camera_id)
+        await _apply(db, project_id, request, user_id)
+        preview = DeploymentPreview(
+            before=[CameraDeploymentResponse(**row) for row in before],
+            after=[CameraDeploymentResponse(**row) for row in await camera_deployment_rows(db, request.camera_id)],
+        )
+    finally:
+        await db.rollback()
+    return preview
+
+
+async def _apply(
+    db: AsyncSession, project_id: int, request: SetDeploymentRequest, user_id: int,
+) -> tuple[int, int]:
+    """The edit of set_deployment, up to the commit: checks, the statement,
+    the rebuild, sites left empty. Returns the statement id and how many
+    deployments fewer the camera has. The caller commits (Save) or rolls
+    back (preview)."""
     await _camera_in_project(db, project_id, request.camera_id)
     site = (
         await db.execute(select(Site).where(Site.id == request.site_id, Site.project_id == project_id))
     ).scalar_one_or_none()
     if site is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
-    if request.until_date is not None and request.until_date < request.from_date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The last day cannot be before the first day",
-        )
+    _check_days(request.from_date, request.until_date)
 
     from_at, until_at = period_of_days(request.from_date, request.until_date)
     before = await _deployment_count(db, request.camera_id)
@@ -286,17 +359,12 @@ async def set_deployment(
         ("first_day", edited is None or keeps_start),
         ("last_day", edited is None or keeps_end),
     ] if changed)
-    statement_id = await state(db, request.camera_id, request.site_id, from_at, until_at, user.id,
-                               replaces=replaced, removed_by=user.id, keeps_start=keeps_start, keeps_end=keeps_end,
+    statement_id = await state(db, request.camera_id, request.site_id, from_at, until_at, user_id,
+                               replaces=replaced, removed_by=user_id, keeps_start=keeps_start, keeps_end=keeps_end,
                                changes=changes)
     await drop_unnamed_sites_left_empty(db, sites_before)
     merged = max(0, before - await _deployment_count(db, request.camera_id))
-    await db.commit()
-    logger.info(
-        "Set deployment", project_id=project_id, camera_id=request.camera_id,
-        site_id=request.site_id, from_date=str(request.from_date), until_date=str(request.until_date),
-    )
-    return SetDeploymentResponse(statement_id=statement_id, merged=merged)
+    return statement_id, merged
 
 
 async def _statements_of(

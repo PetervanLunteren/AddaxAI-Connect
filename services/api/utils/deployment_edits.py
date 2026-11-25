@@ -9,7 +9,7 @@ session (through run_sync), so a correction and its rebuild are saved
 together or not at all.
 """
 from datetime import datetime, timezone
-from typing import Iterable, Optional
+from typing import Any, Iterable, List, Optional
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,6 +86,51 @@ async def state(
     await db.flush()
     await rebuild(db, [camera_id])
     return statement.id
+
+
+async def camera_deployment_rows(
+    db: AsyncSession, camera_id: int, site_scope: Optional[List[int]] = None,
+) -> List[dict[str, Any]]:
+    """A camera's deployments, oldest first, as plain values: the fields of
+    the camera panel's cards (CameraDeploymentResponse). One reader for the
+    panel and the preview of an edit, so both show a deployment the same
+    way. With a site scope only the periods at those sites."""
+    scope_sql = " AND d.site_id = ANY(:scope)" if site_scope is not None else ""
+    params: dict[str, Any] = {"camera_id": camera_id}
+    if site_scope is not None:
+        params["scope"] = site_scope
+    rows = (
+        await db.execute(
+            text(f"""
+                SELECT d.id, d.deployment_number, d.site_id, s.name AS site_name,
+                       ST_Y(d.location::geometry) AS lat,
+                       ST_X(d.location::geometry) AS lon,
+                       d.start_date, d.end_date,
+                       count(i.id) AS image_count
+                FROM deployments d
+                LEFT JOIN sites s ON s.id = d.site_id
+                LEFT JOIN images i ON i.deployment_id = d.id
+                WHERE d.camera_id = :camera_id{scope_sql}
+                GROUP BY d.id, s.name
+                ORDER BY d.start_at, d.id
+            """),
+            params,
+        )
+    ).mappings().all()
+    return [
+        {
+            "id": r["id"],
+            "deployment_number": r["deployment_number"],
+            "site_id": r["site_id"],
+            "site_name": r["site_name"],
+            "latitude": float(r["lat"]) if r["lat"] is not None else None,
+            "longitude": float(r["lon"]) if r["lon"] is not None else None,
+            "start_date": r["start_date"].isoformat() if r["start_date"] else None,
+            "end_date": r["end_date"].isoformat() if r["end_date"] else None,
+            "image_count": r["image_count"],
+        }
+        for r in rows
+    ]
 
 
 async def previous_deployment(db: AsyncSession, deployment: Deployment) -> Optional[Deployment]:
