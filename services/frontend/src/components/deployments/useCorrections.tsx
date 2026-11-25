@@ -25,15 +25,18 @@ function daysLabel(p: FixedPeriod): string {
     : `${p.site_name} from ${dayLabel(p.from_date)}`;
 }
 
-// "Site", "Last day", "Site and first day", "Site, first and last day":
-// what an edit changed, as the start of the line on the card.
+// "Site", "Last day", "Site and first day", "First and last day": what an
+// edit changed, as the start of the line on the card. All three (every
+// added deployment, or an edit that changed everything) is a deployment
+// set anew, so the line says plainly "Set by", as for older corrections
+// that did not record what they changed.
 function whatWasSet(changes: string[] | null): string {
-  if (!changes || changes.length === 0) return '';
+  if (!changes || changes.length === 0 || changes.length === 3) return '';
   const site = changes.includes('site');
   const first = changes.includes('first_day');
   const last = changes.includes('last_day');
   const days = first && last ? 'first and last day' : first ? 'first day' : last ? 'last day' : '';
-  const text = site && days ? `site${days === 'first and last day' ? ', ' : ' and '}${days}` : site ? 'site' : days;
+  const text = site && days ? `site and ${days}` : site ? 'site' : days;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
@@ -84,8 +87,9 @@ export function useCorrections(projectId: number | undefined, cameraId: number, 
     return (
       <ul className="mt-2 space-y-1 border-t pt-2">
         {mine.map((p) => (
-          <li key={p.id} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate" title={daysLabel(p)}>{setBy(p)}</span>
+          <li key={p.id} className="flex items-start justify-between gap-3 text-xs text-muted-foreground">
+            {/* Wraps instead of cutting off: the date at the end matters. */}
+            <span className="min-w-0 break-words" title={daysLabel(p)}>{setBy(p)}</span>
             {/* The same look as Edit at the top of the card. */}
             <button
               type="button"
