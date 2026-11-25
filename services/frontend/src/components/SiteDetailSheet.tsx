@@ -135,6 +135,8 @@ export const SiteDetailSheet: React.FC<Props> = ({
 
   // Where "Give it its own site" starts: the camera's deployment at this
   // site (the open one, else its latest), from its first day, at its pin.
+  // Its site is this site, so the form's Now card says where it stands; the
+  // New site window opens on top and the site made there becomes the choice.
   const ownSitePrefill = (c: Camera): SetDeploymentPrefill => {
     const here = (detail?.deployments ?? [])
       .filter((d) => d.camera_id === c.id)
@@ -142,7 +144,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
     const dep = here.find((d) => d.end_date == null) ?? here[0];
     return {
       deploymentId: dep?.id ?? null,
-      siteId: null,
+      siteId: siteId,
       fromDate: dep?.start_date ?? new Date().toISOString().slice(0, 10),
       untilDate: dep?.end_date ?? null,
       lat: dep?.latitude ?? c.location?.lat ?? null,
