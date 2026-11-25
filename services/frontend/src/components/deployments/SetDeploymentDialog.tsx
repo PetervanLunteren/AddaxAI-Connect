@@ -2,9 +2,8 @@
  * Edit deployment, or Add deployment: a deployment is a camera, a site and
  * a period, and this form shows exactly those. The camera is fixed (photos
  * belong to the camera that took them); the site and the first and last day
- * can change. Opened from a deployment in the camera panel (Edit), from a
- * camera in the site panel's Cameras tab (Edit deployment), or for a camera
- * without a site (Add).
+ * can change. Opened from Edit on a deployment card (camera or site panel)
+ * or for a camera without a site (Set site, which adds one).
  *
  * One rule makes it cover every placement fix: the days given are at that
  * site, and days an edit leaves out go back to the app, which places them
@@ -17,21 +16,25 @@
  * Whole days on purpose: a day belongs to one deployment, the day of a move
  * to the new one, the same rule as everywhere in the app.
  *
- * A "Now" card on top shows the deployment as it is, with its camera; an
- * "After saving" card above Save shows it as it will be, in the same words.
- * Between them the site (SiteField, shared with the bulk upload) and the two
- * days, each with a caption: how to pick a site, the camera's first and last
- * photo, so a wrong year stands out. Under the After card, in small print,
- * what happens to days the edit leaves out or takes from another deployment.
+ * On top, Now: the deployment as it is, as the same card as in the panels.
+ * Then the site (SiteField, shared with the bulk upload) and the two days,
+ * each with a caption: how to pick a site, the camera's first and last
+ * photo, so a wrong year stands out. Under them, After saving: the cards
+ * the save leaves, only those that differ from now. They come from the
+ * server, which does the edit and rolls it back (preview), so they are the
+ * rebuild's own answer: a shortened deployment shows as two cards, days
+ * taken from a neighbour show as that neighbour, shorter. Two lines say
+ * what a card cannot: photos left without a site, a deployment that goes.
  */
 import React, { useEffect, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { deploymentsApi } from '../../api/deployments';
 import { camerasApi, type CameraDeployment } from '../../api/cameras';
 import type { Camera } from '../../api/types';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { DeploymentJourney, type JourneyItem } from '../DeploymentJourney';
 import { dayLabel } from './moves';
-import { sitesApi } from '../../api/sites';
 import { SiteField } from '../sites/SiteField';
 import { Button } from '../ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
@@ -65,29 +68,36 @@ function errMsg(err: unknown): string {
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
 
-// Days as YYYY-MM-DD strings, compared as text; 'now' stands for an open end.
-const shift = (day: string, by: number) => {
-  const d = new Date(`${day}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + by);
+// Days a person can set, the same bounds as the server (FIRST_SETTABLE_DAY,
+// DAYS_AHEAD in routers/deployments.py). A year typed digit by digit (0002,
+// 0202) is a real date the preview must not send.
+const FIRST_DAY = '2000-01-01';
+const lastSettableDay = () => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 366);
   return d.toISOString().slice(0, 10);
 };
-const span = (from: string, to: string | null) =>
-  to === null ? `${dayLabel(from)} to now` : from === to ? dayLabel(from) : `${dayLabel(from)} to ${dayLabel(to)}`;
+const settable = (day: string) => day >= FIRST_DAY && day <= lastSettableDay();
 
-// Days an edit leaves out. The end the person moved stays an end (the
-// statement keeps it, keeps_start / keeps_end), so they become a deployment
-// of their own, placed from the GPS, even at the same site.
-const released = (from: string, to: string | null) =>
-  `${span(from, to)} become a deployment of their own, which you can edit afterwards.`;
+const card = (d: CameraDeployment): JourneyItem => ({
+  id: d.id,
+  title: d.site_name,
+  startDate: d.start_date,
+  endDate: d.end_date,
+  imageCount: d.image_count,
+});
 
-/** The sites of the camera's other deployments that cover part of these days. */
-function sitesIn(deployments: CameraDeployment[], skipId: number | null, from: string, to: string | null): string {
-  const names = deployments
-    .filter((d) => d.id !== skipId && d.start_date !== null)
-    .filter((d) => (to === null || d.start_date! <= to) && (d.end_date === null || d.end_date >= from))
-    .map((d) => d.site_name ?? 'no site');
-  return [...new Set(names)].join(' and ');
-}
+// A card's content: what it shows. Two cards of one camera never share days,
+// so equal content is the same deployment. Ids are not compared: after a
+// split the old id can go to either part.
+const same = (a: CameraDeployment, b: CameraDeployment) =>
+  a.site_id === b.site_id && a.start_date === b.start_date && a.end_date === b.end_date &&
+  a.image_count === b.image_count;
+const overlaps = (a: CameraDeployment, b: CameraDeployment) =>
+  (a.end_date === null || b.start_date === null || b.start_date <= a.end_date) &&
+  (b.end_date === null || a.start_date === null || a.start_date <= b.end_date);
+const span = (d: CameraDeployment) =>
+  `${d.start_date ? dayLabel(d.start_date) : '-'} to ${d.end_date ? dayLabel(d.end_date) : 'now'}`;
 
 export const SetDeploymentDialog: React.FC<Props> = ({
   projectId, camera, prefill, onClose, onSaved,
@@ -106,10 +116,6 @@ export const SetDeploymentDialog: React.FC<Props> = ({
     setUntilDate(prefill.untilDate ?? '');
   }, [prefill]);
 
-  const { data: sites } = useQuery({
-    queryKey: ['sites', projectId],
-    queryFn: () => sitesApi.list(projectId),
-  });
   const { data: deployments = [] } = useQuery({
     queryKey: ['camera-deployments', cameraId],
     queryFn: () => camerasApi.getDeployments(cameraId),
@@ -121,8 +127,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
     .filter((d): d is string => !!d)
     .sort()[0];
   const lastPhotoDay = camera.last_image_timestamp?.slice(0, 10);
-  const siteName = sites?.find((s) => s.id === siteId)?.name;
-  const originalSiteName = sites?.find((s) => s.id === prefill.siteId)?.name;
+  const editedCard = deployments.find((d) => d.id === prefill.deploymentId);
 
   const save = useMutation({
     mutationFn: (site: number) =>
@@ -148,37 +153,45 @@ export const SetDeploymentDialog: React.FC<Props> = ({
     onError: (error) => toast.error(`Could not save the deployment. ${errMsg(error)}`),
   });
 
-  // What will happen, in days.
   const until = untilDate || null;
-  const orig = { from: prefill.fromDate, until: prefill.untilDate };
-  const unchanged = editing && siteId === prefill.siteId && fromDate === orig.from && until === orig.until;
+  const unchanged = editing && siteId === prefill.siteId && fromDate === prefill.fromDate &&
+    until === prefill.untilDate;
   const untilBeforeFrom = until !== null && fromDate !== '' && until < fromDate;
-  const effects: string[] = [];
-  if (siteName && fromDate && !untilBeforeFrom && !unchanged) {
-    if (editing) {
-      // Left out: the edit no longer covers them.
-      if (fromDate > orig.from) {
-        effects.push(released(orig.from, shift(fromDate, -1)));
-      }
-      if (until !== null && (orig.until === null || until < orig.until)) {
-        effects.push(released(shift(until, 1), orig.until));
-      }
-    }
-    // Taken: days another deployment of this camera had.
-    const takenRanges: [string, string | null][] = editing
-      ? [
-          ...(fromDate < orig.from ? [[fromDate, shift(orig.from, -1)] as [string, string | null]] : []),
-          ...(orig.until !== null && (until === null || until > orig.until)
-            ? [[shift(orig.until, 1), until] as [string, string | null]]
-            : []),
-        ]
-      : [[fromDate, until]];
-    for (const [from, to] of takenRanges) {
-      const from_ = sitesIn(deployments, prefill.deploymentId, from, to);
-      if (from_) effects.push(`${span(from, to)} are taken from the deployment at ${from_}.`);
-    }
-  }
-  const canSave = siteId != null && fromDate !== '' && !untilBeforeFrom && !unchanged && !save.isPending;
+  const daysSettable = fromDate !== '' && settable(fromDate) && (until === null || settable(until));
+  const canSave = siteId != null && daysSettable && !untilBeforeFrom && !unchanged && !save.isPending;
+
+  // After saving: the server's answer for the form as it is, asked once the
+  // form stopped changing for a moment. Never cached or retried: a stale or
+  // repeated preview would not be what Save does. A newer edit cancels the
+  // request before it.
+  // As text, so a re-render with the same values is the same value.
+  const current = JSON.stringify({ site_id: siteId, from_date: fromDate, until_date: until, ok: canSave });
+  const askedKey = useDebouncedValue(current, 400);
+  const asked = JSON.parse(askedKey) as { site_id: number | null; from_date: string; until_date: string | null; ok: boolean };
+  const preview = useQuery({
+    queryKey: ['camera-deployments', cameraId, 'preview', prefill.deploymentId, askedKey],
+    queryFn: ({ signal }) => deploymentsApi.preview(projectId, {
+      camera_id: cameraId,
+      site_id: asked.site_id!,
+      from_date: asked.from_date,
+      until_date: asked.until_date,
+      deployment_id: prefill.deploymentId,
+    }, signal),
+    enabled: asked.ok && asked.site_id != null,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+  const before = preview.data?.before ?? [];
+  const after = preview.data?.after ?? [];
+  const changed = after.filter((a) => !before.some((b) => same(a, b)));
+  // A card cannot show these: photos left without a site (a camera without
+  // GPS), and a neighbour the edit takes whole.
+  const lostPhotos = before.reduce((n, d) => n + d.image_count, 0) - after.reduce((n, d) => n + d.image_count, 0);
+  const gone = before.filter((b) =>
+    b.id !== prefill.deploymentId && !after.some((a) => a.site_id === b.site_id && overlaps(a, b)));
+  const showPreview = canSave && preview.data !== undefined;
 
   return (
     <>
@@ -188,7 +201,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
             <DialogTitle>{editing ? 'Edit deployment' : 'Add deployment'}</DialogTitle>
             <DialogDescription>
               {editing
-                ? 'One camera at one site, from a first day to a last day.'
+                ? `Camera ${camera.name} at one site, from a first day to a last day.`
                 : `Where camera ${camera.name} stood, from a first day to a last day.`}
             </DialogDescription>
           </DialogHeader>
@@ -199,13 +212,10 @@ export const SetDeploymentDialog: React.FC<Props> = ({
               if (canSave) save.mutate(siteId!);
             }}
           >
-            {editing && (
-              <div className="rounded-md bg-muted/50 px-3 py-2">
-                <p className="text-xs text-muted-foreground">Now</p>
-                <p className="text-sm">
-                  {camera.name} at <span className="font-medium">{originalSiteName ?? 'no site'}</span>,{' '}
-                  {span(prefill.fromDate, prefill.untilDate)}
-                </p>
+            {editing && editedCard && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Now</p>
+                <DeploymentJourney mode="camera" items={[card(editedCard)]} emptyText="" />
               </div>
             )}
 
@@ -225,6 +235,8 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                   id="set-deployment-from"
                   type="date"
                   required
+                  min={FIRST_DAY}
+                  max={lastSettableDay()}
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
                   className={inputClass}
@@ -240,6 +252,8 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                 <input
                   id="set-deployment-until"
                   type="date"
+                  min={FIRST_DAY}
+                  max={lastSettableDay()}
                   value={untilDate}
                   onChange={(e) => setUntilDate(e.target.value)}
                   className={inputClass}
@@ -252,28 +266,48 @@ export const SetDeploymentDialog: React.FC<Props> = ({
               </div>
             </div>
 
+            {showPreview && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">After saving</p>
+                {changed.length > 0 && (
+                  <DeploymentJourney
+                    mode="camera"
+                    items={changed.map(card)}
+                    emptyText=""
+                    dimmed={preview.isPlaceholderData || askedKey !== current}
+                  />
+                )}
+                {lostPhotos > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {lostPhotos} {lostPhotos === 1 ? 'photo has' : 'photos have'} no site then.
+                  </p>
+                )}
+                {gone.map((d) => (
+                  <p key={d.id} className="text-xs text-muted-foreground">
+                    The deployment at {d.site_name ?? 'no site'}, {span(d)}, goes.
+                  </p>
+                ))}
+                {changed.length === 0 && lostPhotos <= 0 && gone.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Nothing changes.</p>
+                )}
+              </div>
+            )}
+
             {/* Pinned to the bottom: with the map the form can be taller
-                than the window. What will happen and Save stay in view
-                together, so the result is read before the click. */}
+                than the window. One status line and Save stay in view; the
+                cards above scroll with the form. */}
             <div className="sticky -bottom-6 -mx-6 -mb-6 space-y-3 border-t bg-background px-6 py-4">
               {untilBeforeFrom ? (
                 <p className="text-sm text-destructive">The last day cannot be before the first day.</p>
+              ) : fromDate !== '' && !daysSettable ? (
+                <p className="text-sm text-destructive">Days must lie between 1 January 2000 and a year from now.</p>
               ) : unchanged ? (
                 <p className="text-sm text-muted-foreground">Nothing changed yet.</p>
-              ) : (
-                siteName && fromDate && (
-                  // The twin of the Now card: the deployment as it will be.
-                  <div className="rounded-md bg-primary/5 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">After saving</p>
-                    <p className="text-sm">
-                      {camera.name} at <span className="font-medium">{siteName}</span>, {span(fromDate, until)}
-                    </p>
-                    {effects.map((line) => (
-                      <p key={line} className="mt-1 text-xs text-muted-foreground">{line}</p>
-                    ))}
-                  </div>
-                )
-              )}
+              ) : preview.isError ? (
+                <p className="text-sm text-destructive">Could not work out the result. {errMsg(preview.error)}</p>
+              ) : canSave && (preview.isFetching || !showPreview) ? (
+                <p className="text-sm text-muted-foreground">Working out the result</p>
+              ) : null}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={onClose} disabled={save.isPending}>
                   Cancel

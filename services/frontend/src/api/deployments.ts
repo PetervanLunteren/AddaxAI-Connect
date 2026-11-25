@@ -7,6 +7,7 @@
  * it. Setting a deployment writes a fixed period; removing one takes it back.
  */
 import apiClient from './client';
+import type { CameraDeployment } from './cameras';
 
 export interface DeploymentListItem {
   id: number;
@@ -73,6 +74,13 @@ export interface FixedPeriod {
   changes: string[] | null;
 }
 
+// The camera's deployments before and after an edit, without saving it: the
+// server does the edit and rolls it back (the Edit deployment form).
+export interface DeploymentPreview {
+  before: CameraDeployment[];
+  after: CameraDeployment[];
+}
+
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;
 
 export const deploymentsApi = {
@@ -91,6 +99,10 @@ export const deploymentsApi = {
   },
   set: async (projectId: number, body: SetDeploymentRequest): Promise<SetDeploymentResponse> => {
     const { data } = await apiClient.post(`${base(projectId)}/statements`, body);
+    return data;
+  },
+  preview: async (projectId: number, body: SetDeploymentRequest, signal?: AbortSignal): Promise<DeploymentPreview> => {
+    const { data } = await apiClient.post(`${base(projectId)}/statements/preview`, body, { signal });
     return data;
   },
   // Of one camera, or of the whole project without cameraId.
