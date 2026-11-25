@@ -22,7 +22,7 @@ from auth.project_access import (
     get_allowed_site_ids,
     get_site_scope_or_400,
 )
-from utils.site_scope import intersect_scope, site_image_clause, site_in_scope
+from utils.site_scope import image_site_filter, site_image_clause, site_in_scope
 from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
 from shared.independence_filter import NON_WILDLIFE_LABELS
@@ -544,7 +544,7 @@ async def list_images(
     origin: Optional[str] = Query(None, description="Image source: 'live' or 'bulk'"),
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
     image_tags: Optional[str] = Query(None, description="Comma-separated image tags, matches images carrying any of them"),
-    site_id: Optional[str] = Query(None, description="Filter to images at one or more sites (comma-separated), via their deployment"),
+    site_id: Optional[str] = Query(None, description="Filter to images at one or more sites (comma-separated), via their deployment; \"none\" for images without a site"),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     min_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -602,19 +602,13 @@ async def list_images(
         if camera_ids:
             filters.append(Image.camera_id.in_(camera_ids))
 
-    # Images at one or more sites: every image whose deployment belongs to a
-    # selected site. Comma-separated so the Images page can filter by several
-    # sites; the "View images" link on the site slideout passes a single id.
-    # A restricted viewer's allow-list is intersected with the requested
-    # sites, so out-of-scope requests behave like nonexistent sites (empty
-    # result) and an unfiltered request still only covers allowed sites.
-    user_site_ids = None
-    if site_id:
-        parsed_site_ids = [int(s.strip()) for s in site_id.split(',') if s.strip()]
-        user_site_ids = parsed_site_ids or None
-    effective_site_ids = intersect_scope(site_scope, user_site_ids)
-    if effective_site_ids is not None:
-        filters.append(site_image_clause(effective_site_ids))
+    # Images at one or more sites, or without a site ("none"): see
+    # image_site_filter. A restricted viewer's allow-list is intersected
+    # with the requested sites, so an unfiltered request still only covers
+    # allowed sites.
+    site_clause = image_site_filter(site_scope, site_id)
+    if site_clause is not None:
+        filters.append(site_clause)
 
     # Handle tags filter: an image matches when its deployment's site carries
     # any of the given tags. Tags describe the place, so they live on the Site;

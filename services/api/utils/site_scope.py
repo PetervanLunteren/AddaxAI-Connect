@@ -23,7 +23,7 @@ unit tests without an app context.
 """
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
@@ -70,6 +70,41 @@ def site_image_clause(site_id_list: List[int]):
     return Image.deployment_id.in_(
         select(Deployment.id).where(Deployment.site_id.in_(site_id_list))
     )
+
+
+# The word in a site filter that asks for photos without a site (no
+# deployment yet: a camera without GPS until a person sets its site).
+NO_SITE = "none"
+
+
+def parse_site_filter(value: Optional[str]) -> tuple[Optional[List[int]], bool]:
+    """Split a comma-separated site filter into site ids and "no site".
+
+    "3,none" gives ([3], True); "" or None gives (None, False). Ids are
+    None, not [], when none were given, so "no filter" stays apart from
+    "matches nothing".
+    """
+    parts = [p.strip() for p in (value or "").split(",") if p.strip()]
+    ids = [int(p) for p in parts if p != NO_SITE]
+    return (ids or None), NO_SITE in parts
+
+
+def image_site_filter(scope: Optional[List[int]], value: Optional[str]):
+    """The site filter of an image list, or None for no filter.
+
+    value is the comma-separated site_id parameter, which may hold
+    NO_SITE for photos without a site. A viewer with a site list never
+    sees those (site_image_clause fails closed), so for them NO_SITE asks
+    for nothing: "none" alone matches nothing, never their whole list.
+    """
+    ids, asked_no_site = parse_site_filter(value)
+    # "none" alone is still a filter: [] matches no site.
+    requested = ids if ids is not None else ([] if asked_no_site else None)
+    effective = intersect_scope(scope, requested)
+    if asked_no_site and scope is None:
+        unplaced = Image.deployment_id.is_(None)
+        return or_(site_image_clause(effective), unplaced) if effective else unplaced
+    return site_image_clause(effective) if effective is not None else None
 
 
 def cameras_at_sites_clause(site_id_list: List[int]):
