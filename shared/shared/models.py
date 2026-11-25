@@ -380,6 +380,14 @@ class DeploymentStatement(Base):
     # then too): the statement that replaced it. Undo of that one brings this
     # one back, so an edit is undone to what was there before.
     replaced_by_statement_id = Column(Integer, ForeignKey("deployment_statements.id", ondelete="SET NULL"), nullable=True)
+    # An end a person moved in Edit deployment: the deployment never joins a
+    # neighbour at the same site across that end. Shortening a deployment
+    # then splits it in two, also when the GPS finds the same site for the
+    # rest, and each part can be edited. An end left as it was still joins,
+    # so changing only the site of a false trip folds it back into one.
+    # False for "It stayed", uploads and the carried-over history.
+    keeps_start = Column(Boolean, nullable=False, server_default="false")
+    keeps_end = Column(Boolean, nullable=False, server_default="false")
     # 'person' = a correction in the app, 'upload' = an upload to a chosen
     # site, 'carried_over' = written once by scripts/carry_over_deployments.py
     # to keep history from before phase 2 as it was.

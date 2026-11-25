@@ -76,10 +76,11 @@ const shift = (day: string, by: number) => {
 const span = (from: string, to: string | null) =>
   to === null ? `${dayLabel(from)} to now` : from === to ? dayLabel(from) : `${dayLabel(from)} to ${dayLabel(to)}`;
 
-// Days an edit leaves out. They are not promised a deployment of their own:
-// the app places them from the photos, so they may join a neighbour.
+// Days an edit leaves out. The end the person moved stays an end (the
+// statement keeps it, keeps_start / keeps_end), so they become a deployment
+// of their own, placed from the GPS, even at the same site.
 const released = (from: string, to: string | null) =>
-  `${span(from, to)} are no longer in this deployment. The app works out where the camera stood then, and you can edit that afterwards.`;
+  `${span(from, to)} become a deployment of their own, which you can edit afterwards.`;
 
 /** The sites of the camera's other deployments that cover part of these days. */
 function sitesIn(deployments: CameraDeployment[], skipId: number | null, from: string, to: string | null): string {
@@ -234,6 +235,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                 <p className="text-xs text-muted-foreground">
                   The day the camera was put here.
                   {firstPhotoDay && ` Its first photo is from ${dayLabel(firstPhotoDay)}.`}
+                  {editing && ' A later day splits off the days before.'}
                 </p>
               </div>
               <div className="space-y-2">
@@ -248,6 +250,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                 <p className="text-xs text-muted-foreground">
                   Leave empty while it is still there.
                   {lastPhotoDay && ` Its last photo is from ${dayLabel(lastPhotoDay)}.`}
+                  {editing && ' An earlier day splits off the days after.'}
                 </p>
               </div>
             </div>

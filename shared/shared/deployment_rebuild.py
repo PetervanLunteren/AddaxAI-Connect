@@ -112,15 +112,24 @@ def match_rows(built: Sequence[BuiltDeployment], stored: Sequence[StoredRow],
     return result
 
 
-def join_same_site(planned: Sequence[Planned]) -> list[Planned]:
+def join_same_site(planned: Sequence[Planned], kept_starts: frozenset[int] = frozenset(),
+                   kept_ends: frozenset[int] = frozenset()) -> list[Planned]:
     """Two deployments in a row at the same site become one. The earlier one
     carries on with its row and its start. Its pin becomes the mean of the
-    readings of both."""
+    readings of both.
+
+    Except across an end a person moved in Edit deployment: the statement's
+    id in `kept_ends` (the earlier one) or `kept_starts` (the later one).
+    The person said it ends there, so shortening a deployment splits it in
+    two, even when the GPS finds the same site for the rest. An end left as
+    it was still joins."""
     joined: list[Planned] = []
     for p in planned:
         last = joined[-1] if joined else None
         if (
             last is not None
+            and last.built.statement_id not in kept_ends
+            and p.built.statement_id not in kept_starts
             and last.site_id is not None
             and last.site_id == p.site_id
             and last.built.end_date is not None
@@ -223,7 +232,11 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
         elif camera.project_id is not None and b.lat is not None:
             p.site_id, p.site_created = _nearest_or_new_site(session, camera.project_id, b.lat, b.lon)
         planned.append(p)
-    planned = join_same_site(planned)
+    planned = join_same_site(
+        planned,
+        kept_starts=frozenset(s.id for s in statements if s.keeps_start),
+        kept_ends=frozenset(s.id for s in statements if s.keeps_end),
+    )
 
     next_number = max((s.number for s in stored), default=0) + 1
     touched_sites: set[int] = set()
@@ -320,9 +333,9 @@ def load_history(session: Session, camera_id: int) -> tuple[list[Photo], list[St
         """), {"id": camera_id})
     ]
     statements = [
-        Statement(r.id, r.site_id, r.from_at, r.until_at, r.fixed_until_at)
+        Statement(r.id, r.site_id, r.from_at, r.until_at, r.fixed_until_at, r.keeps_start, r.keeps_end)
         for r in session.execute(text("""
-            SELECT id, site_id, from_at, until_at, fixed_until_at
+            SELECT id, site_id, from_at, until_at, fixed_until_at, keeps_start, keeps_end
             FROM deployment_statements
             WHERE camera_id = :id AND removed_at IS NULL ORDER BY id
         """), {"id": camera_id})

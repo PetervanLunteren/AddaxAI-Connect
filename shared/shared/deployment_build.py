@@ -46,12 +46,16 @@ class Statement:
       is fixed the same way. After that the GPS rule carries on from this
       deployment, so a later move is still seen.
     A newer statement (higher id) wins over an older one where they overlap.
+    keeps_start, keeps_end: an end a person moved, across which the
+    deployment never joins a neighbour at the same site; see join_same_site.
     """
     id: int
     site_id: int
     from_at: datetime
     until_at: Optional[datetime] = None
     fixed_until_at: Optional[datetime] = None  # only read when until_at is None
+    keeps_start: bool = False
+    keeps_end: bool = False
 
 
 @dataclass(frozen=True)

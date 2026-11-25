@@ -269,9 +269,14 @@ async def set_deployment(
     from_at, until_at = period_of_days(request.from_date, request.until_date)
     before = await _deployment_count(db, request.camera_id)
     sites_before = await _camera_site_ids(db, request.camera_id)
-    replaced = await _statements_of(db, request.camera_id, request.deployment_id)
+    replaced, edited = await _statements_of(db, request.camera_id, request.deployment_id)
+    # An end the person moved stays an end: a shortened deployment splits in
+    # two instead of the GPS joining the rest back. An end left as it was
+    # still joins (only the site changed: a false trip folds back into one).
+    keeps_start = edited is not None and request.from_date != edited.start_date
+    keeps_end = edited is not None and request.until_date != edited.end_date
     statement_id = await state(db, request.camera_id, request.site_id, from_at, until_at, user.id,
-                               replaces=replaced, removed_by=user.id)
+                               replaces=replaced, removed_by=user.id, keeps_start=keeps_start, keeps_end=keeps_end)
     await drop_unnamed_sites_left_empty(db, sites_before)
     merged = max(0, before - await _deployment_count(db, request.camera_id))
     await db.commit()
@@ -282,19 +287,21 @@ async def set_deployment(
     return SetDeploymentResponse(statement_id=statement_id, merged=merged)
 
 
-async def _statements_of(db: AsyncSession, camera_id: int, deployment_id: Optional[int]) -> List[DeploymentStatement]:
-    """The live corrections that made this deployment: the camera's
-    statements whose period overlaps it. None for a deployment the GPS made,
-    or when adding one."""
+async def _statements_of(
+    db: AsyncSession, camera_id: int, deployment_id: Optional[int],
+) -> tuple[List[DeploymentStatement], Optional[Deployment]]:
+    """The deployment being edited (None when adding one), and the live
+    corrections that made it: the camera's statements whose period overlaps
+    it, none for a deployment the GPS made."""
     if deployment_id is None:
-        return []
+        return [], None
     deployment = (await db.execute(
         select(Deployment).where(Deployment.id == deployment_id, Deployment.camera_id == camera_id)
     )).scalar_one_or_none()
     if deployment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
     if deployment.site_source != 'manual':
-        return []
+        return [], deployment
     rows = (await db.execute(
         select(DeploymentStatement).where(
             DeploymentStatement.camera_id == camera_id,
@@ -307,7 +314,7 @@ async def _statements_of(db: AsyncSession, camera_id: int, deployment_id: Option
         starts_before_end = deployment.end_at is None or s.from_at < deployment.end_at
         ends_after_start = s_end is None or s_end > deployment.start_at
         return starts_before_end and ends_after_start
-    return [s for s in rows if overlaps(s)]
+    return [s for s in rows if overlaps(s)], deployment
 
 
 async def _remove_statements(db: AsyncSession, project_id: int, statement_ids: List[int], user: User) -> None:

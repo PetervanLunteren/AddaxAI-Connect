@@ -478,3 +478,35 @@ async def test_editing_a_deployment_the_gps_made_replaces_nothing(session, admin
     await edit(session, admin, project, cam, one["id"], east, 15)
     # The other camera's correction is untouched, and this camera had none.
     assert [s["removed_at"] for s in statements(other)] == [None]
+
+
+async def test_a_shortened_deployment_splits_in_two_and_each_part_can_be_edited(session, admin):
+    """Peter's case: the camera stood at Stream east until day 18 and was
+    then moved to Stream west, but the GPS still reads Stream east. Ending
+    the deployment on day 18 makes the days after their own deployment,
+    even at the same site, so it can be edited on its own. Before, the GPS
+    gave the rest Stream east and it joined back into one."""
+    project = make_project()
+    east = make_site(project, "Stream east", HOME)
+    west = make_site(project, "Stream west", offset(HOME, east_m=-180))
+    cam = make_camera("S04", project)
+    history(cam, [(HOME, at(d)) for d in range(1, 21)])
+    [one] = deployments(cam)
+
+    await edit(session, admin, project, cam, one["id"], east, 1, until_day=18)
+    first, rest = deployments(cam)
+    assert (first["site_id"], first["end_date"], first["site_source"]) == (east, day(18), "manual")
+    assert (rest["site_id"], rest["start_date"], rest["site_source"]) == (east, day(19), "auto")
+
+    await edit(session, admin, project, cam, rest["id"], west, 19)
+    first, rest = deployments(cam)
+    assert (first["site_id"], first["end_date"]) == (east, day(18))
+    assert (rest["site_id"], rest["start_date"], rest["site_source"]) == (west, day(19), "manual")
+
+
+async def test_it_stayed_still_joins_the_parts_around_a_false_move(session, admin, moved_camera):
+    """Only a period set in Edit or Add deployment stands alone; "It stayed"
+    must still fold the false move back into one deployment."""
+    m = moved_camera
+    await not_moved(m["project"], m["second"], session, admin)
+    assert len(deployments(m["cam"])) == 1

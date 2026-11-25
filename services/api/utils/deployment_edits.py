@@ -44,6 +44,8 @@ async def state(
     answers_move_at: Optional[datetime] = None,
     replaces: Iterable[DeploymentStatement] = (),
     removed_by: Optional[int] = None,
+    keeps_start: bool = False,
+    keeps_end: bool = False,
 ) -> int:
     """
     Record that the camera stood at the site from from_at until until_at, and
@@ -53,7 +55,9 @@ async def state(
     takes back, for "It stayed" only. `replaces` are the statements this one
     takes the place of (Edit deployment): they are marked removed, with this
     statement as what replaced them, so Undo brings them back. Returns the
-    statement's id, so the screen can offer Undo at once. Does not commit.
+    statement's id, so the screen can offer Undo at once. keeps_start and
+    keeps_end mark an end the person moved: the deployment never joins a
+    neighbour at the same site across it. Does not commit.
     """
     fixed_until_at = await newest_photo_at(db, camera_id) if until_at is None else None
     statement = DeploymentStatement(
@@ -63,6 +67,8 @@ async def state(
         until_at=until_at,
         fixed_until_at=fixed_until_at,
         answers_move_at=answers_move_at,
+        keeps_start=keeps_start,
+        keeps_end=keeps_end,
         source="person",
         created_by_user_id=user_id,
     )

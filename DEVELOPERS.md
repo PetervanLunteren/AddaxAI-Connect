@@ -801,9 +801,14 @@ are the one record; nothing about a move is stored apart from them.
   that made the deployment (`deployment_id` on the request; the replaced
   statements get `replaced_by_statement_id`), so leaving days out really
   gives them back instead of an older correction keeping them; Undo of the
-  edit brings them back. Lines above Save name the days that go back to the
-  app and the days that move here from another deployment, and under the
-  days the camera's photo days, so a wrong year stands out.
+  edit brings them back. An end the person moved stays an end
+  (`keeps_start`, `keeps_end` on the statement, read by `join_same_site`):
+  a shortened deployment splits in two, also when the GPS finds the same
+  site for the rest, and each part can be edited. An end left as it was
+  still joins, so changing only the site of a false trip folds it back into
+  one, as "It stayed" does. An "After saving" card, the twin of the "Now"
+  card, shows the result; small print names the days split off or taken
+  from another deployment.
   The site panel has Name this site and, when two cameras share a site,
   Give it its own site. A correction deletes a site it emptied when that
   site still has the app's name (`drop_unnamed_sites_left_empty`); a site
