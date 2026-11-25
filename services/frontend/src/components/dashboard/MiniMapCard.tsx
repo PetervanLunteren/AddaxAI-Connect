@@ -113,8 +113,10 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
             : 'Darker sites have more detections per 100 trap-days'}
         </p>
       </CardHeader>
-      <CardContent className="flex-1 pb-6">
-        <div className="relative h-full min-h-[200px] overflow-hidden rounded-md border">
+      {/* A column: the map takes what is left after the info line, so the
+          line stays inside the card. */}
+      <CardContent className="flex flex-1 flex-col pb-6">
+        <div className="relative min-h-[200px] flex-1 overflow-hidden rounded-md border">
           {isLoading ? (
             <div className="h-full animate-pulse bg-muted" />
           ) : !bounds ? (
