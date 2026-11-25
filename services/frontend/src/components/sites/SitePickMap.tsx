@@ -5,8 +5,8 @@
  * Site names often say nothing about place ("Camera 1", "Site at 52.09,
  * 5.81"), so the map is what tells two sites 180 m apart from each other.
  *
- * On satellite, as every map where a place is decided. Pins, rings, colours
- * and the spreading of pins on one spot come from SiteMarkersLayer and
+ * On satellite, as every map where a place is decided. Pins, rings and colours
+ * come from SiteMarkersLayer and
  * marker-style.ts. Selection only: the form owns the chosen id.
  */
 import { useEffect, useMemo } from 'react';

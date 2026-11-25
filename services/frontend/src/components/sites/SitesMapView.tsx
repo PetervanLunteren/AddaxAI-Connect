@@ -6,9 +6,8 @@
  * colour of the worst camera at that site, with a legend, so a dead or low
  * camera is visible without opening anything. Mirrors the old cameras map (same
  * base layers, fit-to-bounds, fullscreen control, marker style). Clicking a
- * marker opens the site detail panel. Sites are usually >100 m apart, but
- * sub-100 m sites exist (e.g. cameras on one pole), so overlapping pins
- * spiderfy out.
+ * marker opens the site detail panel. Pins stay at their real spot; zoom in
+ * to tell close sites apart.
  */
 import { useMemo, useEffect } from 'react';
 import { MapContainer, useMap } from 'react-leaflet';

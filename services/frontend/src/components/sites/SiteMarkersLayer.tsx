@@ -1,13 +1,15 @@
 /**
- * Site pins on a map: a round marker per site with its name as tooltip,
- * spread out where pins overlap (sites under 100 m apart exist, e.g. cameras
- * on one pole). Shared by the Sites map and the moves check. Must be
- * used inside a MapContainer.
+ * Site pins on a map: a round marker per site at its real spot, with its
+ * name as tooltip. Shared by the Sites map, the moves check and the site
+ * pickers. Must be used inside a MapContainer.
+ *
+ * Pins that overlap stay where they are; zoom in to tell them apart, as on
+ * any map. They are not spread out: that moved pins to spots where nothing
+ * stands. It was made for cameras on one pole, which are one site now, and
+ * two sites a few metres apart should be merged.
  */
 import { Marker, Tooltip } from 'react-leaflet';
 import { SITE_COLOR, dotIcon } from '../map/marker-style';
-import { SpiderLegLine } from '../map/SpiderLegLine';
-import { useSpiderfied } from '../../hooks/useSpiderfied';
 
 export { SITE_COLOR };
 
@@ -29,21 +31,12 @@ export function SiteMarkersLayer<S extends SitePin>({
   colorFor?: (site: S) => string;
   isFaded?: (site: S) => boolean;
 }) {
-  const { spread, legs } = useSpiderfied(
-    sites,
-    (s) => (s.latitude != null && s.longitude != null ? { lat: s.latitude, lon: s.longitude } : null),
-    (s) => s.id,
-    { proximityThresholdPixels: 10, spreadRadiusPixels: 20 },
-  );
   return (
     <>
-      {legs.map((leg) => (
-        <SpiderLegLine key={`leg-${leg.id}`} leg={leg} />
-      ))}
-      {spread.map(({ item, displayPosition }) => (
+      {sites.filter((s) => s.latitude != null && s.longitude != null).map((item) => (
         <Marker
           key={item.id}
-          position={[displayPosition.lat, displayPosition.lon]}
+          position={[item.latitude!, item.longitude!]}
           icon={dotIcon(colorFor(item), 16, isFaded(item))}
           eventHandlers={{ click: () => onSiteClick(item.id) }}
         >
