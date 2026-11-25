@@ -468,8 +468,21 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       >
                         {camera.current_site.name}
                       </Link>
+                    ) : canAdmin && !!camera.unplaced_photo_count ? (
+                      // Where the gap shows: the fix, with the dates of the
+                      // photos, is the callout on the Deployments tab.
+                      <span>
+                        No site yet ·{' '}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('deployments')}
+                          className="text-primary hover:underline"
+                        >
+                          Set site
+                        </button>
+                      </span>
                     ) : (
-                      <span>Unknown</span>
+                      <span>No site yet</span>
                     )}
                   </div>
                   <div className="flex justify-between">
