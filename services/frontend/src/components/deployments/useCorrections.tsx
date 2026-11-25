@@ -1,7 +1,7 @@
 /**
  * The corrections of one camera (what people said about where it stood),
  * shown on the deployment card each one made: what was set, by whom and
- * when ("Last day set by peter@..., 25 Nov 2026"), with Undo. Undo takes
+ * when ("Last day set by peter@... on 25 Nov 2026"), with Undo. Undo takes
  * back the whole edit: a correction is one fact about one period, so its
  * parts cannot be undone apart; to change one part back, edit again. Cards the app placed show nothing. A correction belongs
  * to the cards whose days it covers; usually one, two only for an old
@@ -43,7 +43,7 @@ function setBy(p: FixedPeriod): string {
   const when = dayLabel(p.created_at.slice(0, 10));
   const what = whatWasSet(p.changes);
   const verb = what ? `${what} set` : 'Set';
-  return p.created_by ? `${verb} by ${p.created_by}, ${when}` : `${verb} ${when}`;
+  return p.created_by ? `${verb} by ${p.created_by} on ${when}` : `${verb} on ${when}`;
 }
 
 /** Whether a correction covers part of a deployment's days (null = open). */
