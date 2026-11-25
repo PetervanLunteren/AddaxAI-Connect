@@ -126,7 +126,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editTags, setEditTags] = useState<string[]>([]);
   const nameInput = useRef<HTMLInputElement>(null);
   // Edit deployment from the Cameras tab: the camera and where its form starts.
-  const [ownSite, setEditing] = useState<{ camera: Camera; prefill: SetDeploymentPrefill } | null>(null);
+  const [editing, setEditing] = useState<{ camera: Camera; prefill: SetDeploymentPrefill } | null>(null);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ['site', projectId, siteId],
@@ -557,11 +557,11 @@ export const SiteDetailSheet: React.FC<Props> = ({
         </SheetContent>
       </Sheet>
 
-      {ownSite && (
+      {editing && (
         <SetDeploymentDialog
           projectId={projectId}
-          camera={ownSite.camera}
-          prefill={ownSite.prefill}
+          camera={editing.camera}
+          prefill={editing.prefill}
           onClose={() => setEditing(null)}
         />
       )}
