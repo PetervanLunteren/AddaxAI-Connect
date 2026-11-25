@@ -193,6 +193,18 @@ def make_image(camera_id: int, deployment_id: Optional[int], captured_at: dateti
     return image_uuid
 
 
+def make_observation(image_uuid: str, user_id: int, species: str = "fox", count: int = 1) -> None:
+    """Person user_id checked the photo and saw `count` animals. Verified
+    photos count from their observations in every statistic, so no
+    detections or classifications are needed."""
+    execute("UPDATE images SET is_verified = true WHERE uuid = :u", u=image_uuid)
+    execute(
+        """INSERT INTO human_observations (image_id, species, count, created_by_user_id)
+           SELECT id, :s, :n, :by FROM images WHERE uuid = :u""",
+        s=species, n=count, by=user_id, u=image_uuid,
+    )
+
+
 def deployments(camera_id: int) -> list:
     """The camera's deployments in time order, with the pin as lat and lon.
     Numbers are given once and never reshuffled, so after an old SD card

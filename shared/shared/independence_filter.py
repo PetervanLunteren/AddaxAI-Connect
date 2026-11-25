@@ -433,20 +433,28 @@ async def get_independent_daily_trend(
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
     source: str = DEFAULT_LABEL_SOURCE,
+    placed_only: bool = False,
 ) -> List[dict]:
     """
     Get daily detection counts using independence interval grouping.
+
+    placed_only leaves out photos without a site (no deployment), so the
+    counts match trap effort, which only knows deployments. Such photos
+    pool per camera ('c<id>'), never with placed ones, so dropping their
+    events drops exactly them.
 
     Returns list of {date: str, count: int} sorted by date.
     """
     cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids, source=source)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
+    placed = "WHERE deployment_id IS NOT NULL" if placed_only else ""
 
     query = f"""
     {cte_sql}
     SELECT DATE(event_start) as date, SUM(event_count)::int as count
     FROM events
+    {placed}
     GROUP BY DATE(event_start)
     ORDER BY date
     """

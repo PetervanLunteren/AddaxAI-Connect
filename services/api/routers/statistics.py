@@ -1187,6 +1187,8 @@ async def get_detection_trend(
 
     Prefers human observations for verified images, falls back to AI for unverified.
     No date filter means all-time, same as the other dashboard endpoints.
+    Only photos with a site count: the chart divides by trap effort, which
+    only knows deployments, so photos without a site would raise the rate.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
@@ -1208,6 +1210,7 @@ async def get_detection_trend(
             end_date=end_dt,
             site_ids=site_id_list,
             source=source,
+            placed_only=True,
         )
     else:
         daily_data = await get_preferred_daily_trend(
@@ -1218,6 +1221,7 @@ async def get_detection_trend(
             end_date=end_dt,
             site_ids=site_id_list,
             source=source,
+            placed_only=True,
         )
 
     return [
