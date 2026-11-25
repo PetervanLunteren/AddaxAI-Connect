@@ -406,7 +406,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
                 </Link>
                 <DeploymentCards
                   projectId={projectId}
-                  perspective="site"
                   deployments={(detail.deployments ?? []).map((d) => ({
                     id: d.id,
                     cameraId: d.camera_id,

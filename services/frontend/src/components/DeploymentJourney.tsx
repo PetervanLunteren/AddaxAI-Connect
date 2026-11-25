@@ -5,30 +5,32 @@
  * the Edit deployment form uses it plain, for its Now and After saving
  * cards.
  *
- * A deployment is a camera at a site for a period, seen from either side:
- * - camera mode: one camera's deployments; a card's title is the site
- * - site mode: one site's deployments; a card's title is the camera
+ * A card always reads the same, wherever it is: the site, the camera, the
+ * period and the number of photos, each on its own line with its icon, in
+ * that order. Inside a panel one of the names repeats the panel's heading;
+ * that is the price of a card that never changes shape. The camera links to
+ * its panel; a site has no page to link to.
  *
  * One card per deployment, never merged: a card is what Edit acts on. Days
  * are printed with dayLabel, which never shifts a day across time zones.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Camera, Pencil } from 'lucide-react';
+import { Calendar, Camera, Images, MapPin, Pencil } from 'lucide-react';
 import { dayLabel } from './deployments/moves';
 
 export interface JourneyItem {
   id: number;
-  title: string | null;
+  siteName: string | null;
+  cameraName: string;
+  // The camera's panel, when the card may link there.
+  cameraHref?: string;
   startDate: string | null; // YYYY-MM-DD
   endDate: string | null; // YYYY-MM-DD, null = still there
   imageCount: number;
-  // Where the title leads (site mode: the camera's panel).
-  href?: string;
 }
 
 interface Props {
-  mode: 'camera' | 'site';
   items: JourneyItem[];
   emptyText: string;
   // When given, each card shows Edit.
@@ -36,17 +38,24 @@ interface Props {
   // Lines at the foot of a card (the Suspicious marker, the corrections
   // that made it, with Undo).
   footer?: (item: JourneyItem) => React.ReactNode;
-  // A card drawn quieter: the form's Now card, or cards still loading.
+  // Cards drawn quieter: the form's cards while a newer preview loads.
   dimmed?: boolean;
 }
 
-export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onEdit, footer, dimmed = false }) => {
+const Row: React.FC<{ icon: React.ElementType; children: React.ReactNode; strong?: boolean }> = ({
+  icon: Icon, children, strong = false,
+}) => (
+  <div className={`flex items-center gap-2 min-w-0 ${strong ? 'font-medium' : 'text-muted-foreground'}`}>
+    <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+    <span className="truncate">{children}</span>
+  </div>
+);
+
+export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, footer, dimmed = false }) => {
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground py-6 text-center">{emptyText}</p>;
   }
 
-  const Icon = mode === 'camera' ? MapPin : Camera;
-  const fallback = mode === 'camera' ? 'No site' : 'Unknown camera';
   // Oldest first so the list reads top-to-bottom as the story unfolds.
   const ordered = [...items].sort((a, b) => (a.startDate ?? '').localeCompare(b.startDate ?? ''));
 
@@ -55,31 +64,33 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onE
       {ordered.map((it) => (
         <li key={it.id} className="relative ml-5 pb-4 last:pb-0">
           <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
-          <div className="rounded-md border p-3 text-sm">
+          <div className="rounded-md border p-3 text-sm space-y-1">
             <div className="flex items-center gap-2 min-w-0">
-              <Icon className="h-4 w-4 text-primary shrink-0" />
-              {it.href ? (
-                <Link to={it.href} className="truncate font-medium flex-1 hover:underline">
-                  {it.title ?? fallback}
-                </Link>
-              ) : (
-                <span className="truncate font-medium flex-1">{it.title ?? fallback}</span>
-              )}
+              <div className="min-w-0 flex-1">
+                <Row icon={MapPin} strong>{it.siteName ?? 'No site'}</Row>
+              </div>
               {onEdit && (
                 <button
                   type="button"
                   onClick={() => onEdit(it)}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   Edit
                 </button>
               )}
             </div>
-            <p className="text-muted-foreground mt-1">
+            <Row icon={Camera}>
+              {it.cameraHref ? (
+                <Link to={it.cameraHref} className="hover:text-foreground hover:underline">{it.cameraName}</Link>
+              ) : (
+                it.cameraName
+              )}
+            </Row>
+            <Row icon={Calendar}>
               {it.startDate ? dayLabel(it.startDate) : '-'} to {it.endDate ? dayLabel(it.endDate) : 'now'}
-            </p>
-            <p className="text-muted-foreground">{it.imageCount.toLocaleString()} images</p>
+            </Row>
+            <Row icon={Images}>{it.imageCount.toLocaleString()} images</Row>
             {footer?.(it)}
           </div>
         </li>

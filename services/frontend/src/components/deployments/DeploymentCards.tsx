@@ -3,7 +3,8 @@
  * marker of a move nobody checked, and the corrections that made a card
  * ("Last day set by peter@... on 25 Nov 2026") with Undo. One component for
  * the camera panel and the site panel, which show the same deployments from
- * two sides, so a deployment looks and works the same wherever it is met.
+ * two sides, as the same card, so a deployment looks and works the same
+ * wherever it is met.
  *
  * - Edit opens the Edit deployment form for the card's camera.
  * - Suspicious uses the Moves page's rule (moveRows) on the same cached
@@ -83,15 +84,12 @@ const covers = (p: FixedPeriod, d: DeploymentCardData) =>
 
 interface Props {
   projectId: number;
-  // camera: one camera's deployments, titled by site; site: one site's,
-  // titled by camera, which links to that camera's panel.
-  perspective: 'camera' | 'site';
   deployments: DeploymentCardData[];
   canEdit: boolean;
   emptyText: string;
 }
 
-export const DeploymentCards: React.FC<Props> = ({ projectId, perspective, deployments, canEdit, emptyText }) => {
+export const DeploymentCards: React.FC<Props> = ({ projectId, deployments, canEdit, emptyText }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [removing, setRemoving] = useState<FixedPeriod | null>(null);
@@ -199,17 +197,17 @@ export const DeploymentCards: React.FC<Props> = ({ projectId, perspective, deplo
 
   const items: JourneyItem[] = deployments.map((d) => ({
     id: d.id,
-    title: perspective === 'camera' ? d.siteName : d.cameraName,
+    siteName: d.siteName,
+    cameraName: d.cameraName,
+    cameraHref: `/projects/${projectId}/cameras?camera=${d.cameraId}`,
     startDate: d.startDate,
     endDate: d.endDate,
     imageCount: d.imageCount,
-    href: perspective === 'site' ? `/projects/${projectId}/cameras?camera=${d.cameraId}` : undefined,
   }));
 
   return (
     <>
       <DeploymentJourney
-        mode={perspective}
         items={items}
         emptyText={emptyText}
         // Edit needs the card's camera from the cameras list; an admin sees

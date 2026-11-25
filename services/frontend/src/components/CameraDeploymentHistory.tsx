@@ -1,6 +1,6 @@
 /**
  * Deployments of one camera, the Deployments tab of the camera panel: the
- * shared deployment cards (DeploymentCards), titled by site, oldest first.
+ * shared deployment cards (DeploymentCards), oldest first.
  * The site panel shows the same cards from the site's side.
  *
  * Photos without a site, and a camera without any deployment yet, get a
@@ -75,7 +75,6 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
 
       <DeploymentCards
         projectId={pid}
-        perspective="camera"
         deployments={deployments.map((d) => ({
           id: d.id,
           cameraId: camera.id,

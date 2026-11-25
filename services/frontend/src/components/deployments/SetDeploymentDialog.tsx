@@ -79,9 +79,10 @@ const lastSettableDay = () => {
 };
 const settable = (day: string) => day >= FIRST_DAY && day <= lastSettableDay();
 
-const card = (d: CameraDeployment): JourneyItem => ({
+const card = (cameraName: string) => (d: CameraDeployment): JourneyItem => ({
   id: d.id,
-  title: d.site_name,
+  siteName: d.site_name,
+  cameraName,
   startDate: d.start_date,
   endDate: d.end_date,
   imageCount: d.image_count,
@@ -215,7 +216,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
             {editing && editedCard && (
               <div className="space-y-2">
                 <p className="text-sm font-medium">Now</p>
-                <DeploymentJourney mode="camera" items={[card(editedCard)]} emptyText="" />
+                <DeploymentJourney items={[card(camera.name)(editedCard)]} emptyText="" />
               </div>
             )}
 
@@ -271,8 +272,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                 <p className="text-sm font-medium">After saving</p>
                 {changed.length > 0 && (
                   <DeploymentJourney
-                    mode="camera"
-                    items={changed.map(card)}
+                    items={changed.map(card(camera.name))}
                     emptyText=""
                     dimmed={preview.isPlaceholderData || askedKey !== current}
                   />
