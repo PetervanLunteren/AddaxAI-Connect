@@ -132,8 +132,8 @@ def run_classification(
             total_detections=len(detections)
         )
 
-        # Open image once for all detections (SpeciesNet expects PIL Image)
-        pil_image = Image.open(image_path)
+        # Open image once for all detections (SpeciesNet expects an RGB PIL Image)
+        pil_image = Image.open(image_path).convert("RGB")
 
         classifications = []
 
