@@ -4,10 +4,10 @@
  * Mirrors CameraDetailSheet so the two entity views feel the same:
  * - Overview: editable key fields (name, habitat, notes) inline for admins,
  *   then a read-only card with coordinates and aggregate counts.
- * - Deployments: every camera that stood here, as the same deployment cards
- *   as the camera panel (DeploymentCards), with Edit, Undo and the
- *   Suspicious marker; the camera name opens that camera, where its health
- *   is.
+ * - Deployments: the cameras standing here now, as the same deployment
+ *   cards as the camera panel (DeploymentCards), with Edit, Undo and the
+ *   Suspicious marker, and the ones that stood here before folded under
+ *   "Earlier here"; the camera name opens that camera, where its health is.
  *
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
@@ -20,6 +20,7 @@ import {
   Save,
   Trash2,
   ExternalLink,
+  ChevronDown,
   ChevronRight,
   MapPin,
   GitMerge,
@@ -70,6 +71,59 @@ function fmtCoords(lat: number | null, lon: number | null): string {
 function errMsg(err: any): string {
   return err?.response?.data?.detail || err?.message || 'unknown error';
 }
+
+/**
+ * The Deployments tab: the cameras standing here now first, as the same
+ * cards as the camera panel (DeploymentCards); the cameras that stood here
+ * before under "Earlier here", folded. Now means the deployment has no last
+ * day, the rule of "to now" on a card and of the site's camera count; a
+ * camera that went silent still stands here.
+ */
+const SiteDeployments: React.FC<{ projectId: number; detail: SiteDetail; canEdit: boolean }> = ({
+  projectId, detail, canEdit,
+}) => {
+  const [showEarlier, setShowEarlier] = useState(false);
+  const cards = (detail.deployments ?? []).map((d) => ({
+    id: d.id,
+    cameraId: d.camera_id,
+    cameraName: d.camera_name,
+    siteId: detail.id,
+    siteName: detail.name,
+    startDate: d.start_date,
+    endDate: d.end_date,
+    imageCount: d.image_count,
+    lat: d.latitude,
+    lon: d.longitude,
+  }));
+  const now = cards.filter((c) => c.endDate === null);
+  const earlier = cards.filter((c) => c.endDate !== null);
+  return (
+    <div className="space-y-3">
+      <DeploymentCards
+        projectId={projectId}
+        deployments={now}
+        canEdit={canEdit}
+        emptyText="No camera stands here now."
+      />
+      {earlier.length > 0 && (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setShowEarlier((v) => !v)}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+            aria-expanded={showEarlier}
+          >
+            {showEarlier ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            Earlier here ({earlier.length})
+          </button>
+          {showEarlier && (
+            <DeploymentCards projectId={projectId} deployments={earlier} canEdit={canEdit} emptyText="" />
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const SiteDetailSheet: React.FC<Props> = ({
   open,
@@ -392,10 +446,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
                 </div>
               </div>
             ) : (
-              // Deployments: every camera that stood here, as the same cards
-              // as the camera panel's Deployments tab, with Edit, Undo and
-              // the Suspicious marker. The camera name opens that camera,
-              // where its health is.
               <div className="space-y-3">
                 <Link
                   to={`/projects/${projectId}/cameras?site=${siteId}`}
@@ -404,23 +454,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                   Open in Cameras
                   <ChevronRight className="h-4 w-4" />
                 </Link>
-                <DeploymentCards
-                  projectId={projectId}
-                  deployments={(detail.deployments ?? []).map((d) => ({
-                    id: d.id,
-                    cameraId: d.camera_id,
-                    cameraName: d.camera_name,
-                    siteId: detail.id,
-                    siteName: detail.name,
-                    startDate: d.start_date,
-                    endDate: d.end_date,
-                    imageCount: d.image_count,
-                    lat: d.latitude,
-                    lon: d.longitude,
-                  }))}
-                  canEdit={canEdit}
-                  emptyText="No camera has stood at this site yet."
-                />
+                <SiteDeployments key={detail.id} projectId={projectId} detail={detail} canEdit={canEdit} />
               </div>
             )}
           </SheetBody>
