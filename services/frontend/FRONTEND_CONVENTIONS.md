@@ -86,10 +86,12 @@ sink. So on maps (decided 24 November 2026):
   state and offer filters; Needs attention links to them with the filter set. A
   callout stays only where the fix is, on the page you are on (photos
   without a site in the camera panel, Telegram on Notifications).
-- A view that leaves photos without a site out says so with `NoSiteNote`,
-  a quiet line under the card, not a callout; the nudge stays in Needs
-  attention. Only the Exports page uses a warning callout for it, because
-  data leaves the app there.
+- A view that leaves photos without a site out says so quietly, as one
+  part of its card's info line (`useNoSiteText` in `CardCaption`), never a
+  callout; the nudge stays in Needs attention. Exports ask once, at the
+  download that leaves them out.
+- The info line under a chart or map card is `CardCaption`: Info icon,
+  short parts with "·" between them. Never copy its markup.
 - Health limits are the server's (`shared/camera_status.py`). The browser
   reads the camera flags (`low_battery`, `sd_nearly_full`, `sim_expiring`)
   and keeps no limit of its own, except the colour scales of
@@ -166,7 +168,8 @@ Location: `src/components/ui/`
 **Available Components:**
 - `Button`: Primary UI actions
 - `Callout`: Info, warning, error, and success message boxes. Every short status or hint message uses this, never a hand-rolled colored div
-- `NoSiteNote` (`components/sites/`): the line under a view that leaves out photos without a site, with the count and, for project admins, a link to fix it
+- `CardCaption`: the info line at the foot of a chart or map card (Info icon, parts joined by "·")
+- `NoSiteNote` (`components/sites/`): the sentence for views that leave out photos without a site, with the count and, for project admins, a link to fix it; `useNoSiteText` gives it as a `CardCaption` part
 - `TabStrip`: Underlined tabs for switching views on a page or in a slide-out, with an optional count badge and a right-hand `extra` slot. `tabClass` gives the same look to tabs that are links
 - `BulkActionBar`: The bar above a table while rows are selected (count, the page's action buttons, Cancel). Pair it with `useBulkSelection`, `SelectAllCheckbox` and `SortableHeader`, as the cameras, sites and service tables do
 - `RowActionsMenu`: The three-dot menu at the end of a table row, each action with its icon and a word. Use it when a row has actions of its own, never a row of bare icon buttons. Tables where a click on the row opens a panel do not need it

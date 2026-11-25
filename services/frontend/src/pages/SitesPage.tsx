@@ -8,7 +8,7 @@
  * and refreshes preserve state, same as CamerasPage.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -65,6 +65,8 @@ import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
+import { useNoSiteText } from '../components/sites/NoSiteNote';
+import { CardCaption } from '../components/ui/CardCaption';
 import { MapSelectButton, MapSelectDialog } from '../components/map/MapSelectDialog';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
@@ -254,10 +256,9 @@ export const SitesPage: React.FC = () => {
     }
     return bySite;
   }, [cameras]);
-  const orphanCount = useMemo(
-    () => (cameras ?? []).filter((c) => c.current_site == null).length,
-    [cameras],
-  );
+  // Photos without a site are not on the map; the line under it says how
+  // many, as on the Insights pages.
+  const noSite = useNoSiteText(pid, ['is not on this map', 'are not on this map']);
 
   // Habitat options: distinct non-null habitat_type values across the project.
   const habitatOptions = useMemo(() => {
@@ -761,25 +762,14 @@ export const SitesPage: React.FC = () => {
           </CardContent>
         </Card>
       ) : viewMode === 'map' ? (
-        <div className="space-y-3">
+        <div className="rounded-lg border bg-card p-4">
           <SitesMapView
             sites={sortedSites}
             onSiteClick={(id) => setDetailSiteId(id)}
             colorMode={colorMode}
             siteHealth={siteHealth}
           />
-          {orphanCount > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {orphanCount} {orphanCount === 1 ? 'camera is' : 'cameras are'} not placed at a
-              site.{' '}
-              <Link
-                to={`/projects/${pid}/cameras`}
-                className="text-primary hover:underline"
-              >
-                View cameras
-              </Link>
-            </p>
-          )}
+          <CardCaption className="mt-3" parts={[noSite]} />
         </div>
       ) : (
         <Card>

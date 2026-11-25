@@ -14,7 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { DetectionRateMap, type ViewMode } from '../../components/map';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
-import { NoSiteNote } from '../../components/sites/NoSiteNote';
+import { useNoSiteText } from '../../components/sites/NoSiteNote';
 import {
   FilterBar,
   type FilterFieldDef,
@@ -148,6 +148,8 @@ export const InsightsMapPage: React.FC = () => {
     return ids.size === 0 ? '0' : Array.from(ids).join(',');
   }, [tagValues, siteIdValues, sites]);
 
+  const noSite = useNoSiteText(projectId, ['is not on this map', 'are not on this map'], siteIdsParam !== undefined);
+
   const mapFilters: DetectionRateMapFilters = useMemo(
     () => ({
       // Comma-separated; several species combine their counts on the map
@@ -254,13 +256,9 @@ export const InsightsMapPage: React.FC = () => {
           viewMode={viewMode}
           metric={metricId}
           ramp={ramp}
+          captionExtra={noSite}
         />
       </div>
-      <NoSiteNote
-        projectId={projectId}
-        consequence={['is not on this map', 'are not on this map']}
-        hidden={siteIdsParam !== undefined}
-      />
       <PlotExplainer
         plotKey="detection-rate-map"
         what={
@@ -278,8 +276,8 @@ export const InsightsMapPage: React.FC = () => {
             nearby sites onto a hex grid, and clusters group nearby sites into
             a single circle showing the pooled value. Deployments with no site
             are not shown, and neither are photos without a site (a camera
-            without GPS until its site is set); a line under the map says how
-            many.
+            without GPS until its site is set); the line under the map says
+            how many.
           </p>
         }
         how={

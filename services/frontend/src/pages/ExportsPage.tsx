@@ -12,7 +12,7 @@ import { useParams } from 'react-router-dom';
 import { Download, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Callout } from '../components/ui/Callout';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { NoSiteText } from '../components/sites/NoSiteNote';
 import { useUnplacedPhotos } from '../hooks/useUnplacedPhotos';
 import {
@@ -142,8 +142,13 @@ export const ExportsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
   // Photos without a site have no coordinates, so the three exports that
-  // need a place leave them out (Camtrap DP requires a location).
+  // need a place leave them out (Camtrap DP requires a location). Silent
+  // until someone downloads one of those: then one question, with the
+  // count and (for admins) the way to fix it.
   const unplaced = useUnplacedPhotos(projectIdNum || undefined);
+  const [askFirst, setAskFirst] = useState<(() => void) | null>(null);
+  const placeNeeded = (download: (value: string) => void) => (value: string) =>
+    unplaced ? setAskFirst(() => () => download(value)) : download(value);
   const { selectedProject, canAdminCurrentProject } = useProject();
 
   const [isExportingObs, setIsExportingObs] = useState(false);
@@ -306,25 +311,12 @@ export const ExportsPage: React.FC = () => {
 
           <div className="border-t my-6" />
 
-          {!!unplaced && (
-            <Callout variant="warning" className="mb-6">
-              <NoSiteText
-                projectId={projectIdNum}
-                count={unplaced}
-                consequence={[
-                  'is left out of the spatial, detection history and Camtrap DP exports',
-                  'are left out of the spatial, detection history and Camtrap DP exports',
-                ]}
-              />
-            </Callout>
-          )}
-
           <ExportRow
             title="Spatial"
             description="Geographic point data for GIS tools (QGIS, ArcGIS)."
             options={SPATIAL_OPTIONS}
             isLoading={isExportingSpatial}
-            onSelect={handleSpatial}
+            onSelect={placeNeeded(handleSpatial)}
             error={spatialError}
           />
 
@@ -341,7 +333,7 @@ export const ExportsPage: React.FC = () => {
             }
             options={DETECTION_HISTORY_OPTIONS}
             isLoading={isExportingDh}
-            onSelect={handleDetectionHistory}
+            onSelect={placeNeeded(handleDetectionHistory)}
             error={dhError}
           />
 
@@ -352,11 +344,31 @@ export const ExportsPage: React.FC = () => {
             description="Camera Trap Data Package for sharing with GBIF and biodiversity platforms."
             options={CAMTRAP_DP_OPTIONS}
             isLoading={isExportingDP}
-            onSelect={handleCamtrapDP}
+            onSelect={placeNeeded(handleCamtrapDP)}
             error={dpError}
           />
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={askFirst !== null}
+        onClose={() => setAskFirst(null)}
+        onConfirm={() => {
+          askFirst?.();
+          setAskFirst(null);
+        }}
+        title="Some photos are left out"
+        body={
+          unplaced ? (
+            <NoSiteText
+              projectId={projectIdNum}
+              count={unplaced}
+              consequence={['is left out of this export', 'are left out of this export']}
+            />
+          ) : ''
+        }
+        confirmLabel="Download anyway"
+      />
     </div>
   );
 };

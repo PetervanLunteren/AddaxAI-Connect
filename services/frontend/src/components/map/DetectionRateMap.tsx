@@ -3,7 +3,7 @@
  * Displays sites with detection rates as colored markers, clusters or hexbins
  */
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Info } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { MapContainer, useMap, useMapEvents } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { useQuery } from '@tanstack/react-query';
@@ -22,6 +22,7 @@ import { HexbinLayer } from './HexbinLayer';
 import { ClusterLayer } from './ClusterLayer';
 import { MapLegend } from './MapLegend';
 import { FullscreenControl } from './FullscreenControl';
+import { CardCaption } from '../ui/CardCaption';
 import 'leaflet/dist/leaflet.css';
 
 export type ViewMode = 'points' | 'hexbins' | 'clusters';
@@ -31,6 +32,8 @@ interface DetectionRateMapProps {
   viewMode: ViewMode;
   metric: MapMetricId;
   ramp: RateRamp;
+  // One more part for the info line under the map (photos without a site).
+  captionExtra?: ReactNode;
 }
 
 /**
@@ -113,7 +116,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-export function DetectionRateMap({ filters, viewMode, metric: metricId, ramp }: DetectionRateMapProps) {
+export function DetectionRateMap({ filters, viewMode, metric: metricId, ramp, captionExtra }: DetectionRateMapProps) {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
   const metric = MAP_METRICS[metricId];
@@ -287,19 +290,14 @@ export function DetectionRateMap({ filters, viewMode, metric: metricId, ramp }: 
         <FullscreenControl />
       </MapContainer>
 
-      {/* Info footer — mirrors the WebUI pattern: thin border-t row with an
-          Info icon prefix and concise contextual metadata about what the
-          viewer is currently seeing. */}
-      {visibleSites && visibleSites.length > 0 && (
-        <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <Info className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            {visibleSites.length} site{visibleSites.length === 1 ? '' : 's'} shown
-          </span>
-          <span aria-hidden="true">·</span>
-          <span>{getViewDescription()}</span>
-        </div>
-      )}
+      <CardCaption
+        className="mt-3"
+        parts={[
+          visibleSites && visibleSites.length > 0 && `${visibleSites.length} site${visibleSites.length === 1 ? '' : 's'} shown`,
+          visibleSites && visibleSites.length > 0 && getViewDescription(),
+          captionExtra,
+        ]}
+      />
     </div>
   );
 }

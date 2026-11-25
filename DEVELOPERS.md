@@ -1055,12 +1055,19 @@ deployment in the camera panel). The rule for those photos:
   trend per 100 trap-nights, and the spatial, detection history and
   Camtrap DP exports. Camtrap DP requires a location on every deployment,
   so leaving them out is forced. Never a made-up place.
-- **Said where left out**: `NoSiteNote` (`components/sites/`) is a quiet
-  line under the view, "56 photos have no site yet and are not on this
-  map", with a link for project admins to the cameras that have them. The
-  Exports page wraps the same sentence in a warning `Callout`. To add it
-  to a new view, render `NoSiteNote` under the card with the view's
-  consequence and `hidden` set when the page has a site filter.
+- **Said where left out**, in `components/sites/NoSiteNote.tsx`: "56
+  photos have no site yet and are not on this map", with a link for
+  project admins to the cameras that have them.
+  - On a card with an info line (`ui/CardCaption`: map, Sites map,
+    occupancy, timeline) it is one more part of that line:
+    `useNoSiteText(projectId, consequence, hidden)`, with `hidden` set when
+    the page has a site filter. Also in an empty state, so a project whose
+    cameras all lack GPS still learns why.
+  - On a card without one (the Dashboard trend): `NoSiteNote`, a quiet
+    line under it.
+  - Exports: silent until someone downloads spatial, detection history or
+    Camtrap DP; then a `ConfirmDialog`, "Some photos are left out", with
+    Download anyway.
 - **The number** comes from the cameras list (`useUnplacedPhotos`, the
   sum of `unplaced_photo_count`), so it equals the camera panels and
   follows a fix at once. It is the project total, not narrowed to the

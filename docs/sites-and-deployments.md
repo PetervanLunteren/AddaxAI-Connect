@@ -107,7 +107,7 @@ The "Unnamed" marker on a feed entry also shows next to the site on the Sites pa
 
 ### A camera without GPS
 
-Photos without GPS cannot be placed by the app. They have no site until you set one: open the camera, and under Deployments add a deployment with its site and first day. Until then these photos count in totals and species charts, but not on the map, in occupancy, on the timeline or in the trend per 100 trap-nights, and the spatial, detection history and Camtrap DP exports leave them out, because those need a place. Each of these says under it how many photos are missing. On the Images page, choose "No site" in the Sites filter to see them.
+Photos without GPS cannot be placed by the app. They have no site until you set one: open the camera, and under Deployments add a deployment with its site and first day. Until then these photos count in totals and species charts, but not on the map, in occupancy, on the timeline or in the trend per 100 trap-nights, and the spatial, detection history and Camtrap DP exports leave them out, because those need a place. Each of these says in the line under it how many photos are missing, and the exports ask before downloading. On the Images page, choose "No site" in the Sites filter to see them.
 
 ### Fixing something later
 

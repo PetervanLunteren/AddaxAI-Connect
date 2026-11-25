@@ -191,13 +191,6 @@ export const DashboardExplore: React.FC = () => {
             endDate={dateRange.endDate || undefined}
             mapHref={mapHref}
           />
-          {/* Under the card, not in it: the whole card is one link. */}
-          <NoSiteNote
-            className="-mt-4"
-            projectId={projectId}
-            consequence={['is not on this map', 'are not on this map']}
-            hidden={siteIdsFromTags !== undefined}
-          />
           <DemographicsCard
             dateRange={dateRange}
             projectId={projectId}

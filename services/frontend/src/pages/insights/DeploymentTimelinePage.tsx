@@ -10,7 +10,6 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
-import { Info } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { sitesApi } from '../../api/sites';
@@ -22,7 +21,8 @@ import {
   HEATMAP_BINS,
 } from '../../components/plots/DeploymentTimelineChart';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
-import { NoSiteNote } from '../../components/sites/NoSiteNote';
+import { useNoSiteText } from '../../components/sites/NoSiteNote';
+import { CardCaption } from '../../components/ui/CardCaption';
 import {
   FilterBar,
   type DisplayControlDef,
@@ -193,6 +193,7 @@ export const DeploymentTimelinePage: React.FC = () => {
     }
     return ids.size === 0 ? '0' : Array.from(ids).join(',');
   }, [tagValues, siteIdValues, sites]);
+  const noSite = useNoSiteText(projectId, ['is not on this timeline', 'are not on this timeline'], siteIdsFromTags !== undefined);
 
   const { data, isLoading } = useQuery<TimelineResponse>({
     queryKey: ['statistics', 'timeline', projectId, startDate, endDate, siteIdsFromTags, viewMode === 'heatmap'],
@@ -255,8 +256,12 @@ export const DeploymentTimelinePage: React.FC = () => {
           Loading...
         </div>
       ) : orderedData.sites.length === 0 ? (
-        <div className="rounded-lg border bg-card p-12 text-center text-sm text-muted-foreground">
-          No site activity matches the current filters.
+        <div className="rounded-lg border bg-card p-4">
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            No site activity matches the current filters.
+          </p>
+          {/* A project whose cameras all lack GPS lands here: say why. */}
+          <CardCaption className="mt-3" parts={[noSite]} />
         </div>
       ) : (
         <div className="rounded-lg border bg-card p-4 relative">
@@ -281,23 +286,18 @@ export const DeploymentTimelinePage: React.FC = () => {
             viewMode={viewMode}
             onZoom={(from, to) => writeAll({ date_from: from, date_to: to })}
           />
-          <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <Info className="h-3.5 w-3.5 shrink-0" />
-            <span>{orderedData.metrics.site_count} sites</span>
-            <span aria-hidden="true">·</span>
-            <span>{orderedData.metrics.total_trap_nights.toLocaleString()} days with images</span>
-            <span aria-hidden="true">·</span>
-            <span>busiest day {orderedData.metrics.max_concurrent_cameras} sites</span>
-            <span aria-hidden="true">·</span>
-            <span>Drag to zoom in</span>
-          </div>
+          <CardCaption
+            className="mt-3"
+            parts={[
+              `${orderedData.metrics.site_count} sites`,
+              `${orderedData.metrics.total_trap_nights.toLocaleString()} days with images`,
+              `busiest day ${orderedData.metrics.max_concurrent_cameras} sites`,
+              'Drag to zoom in',
+              noSite,
+            ]}
+          />
         </div>
       )}
-      <NoSiteNote
-        projectId={projectId}
-        consequence={['is not on this timeline', 'are not on this timeline']}
-        hidden={siteIdsFromTags !== undefined}
-      />
 
       <PlotExplainer
         plotKey="deployment-timeline"

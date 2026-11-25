@@ -12,7 +12,7 @@ import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
-import { Info, Loader2, Target } from 'lucide-react';
+import { Loader2, Target } from 'lucide-react';
 
 import { performanceApi, type PerformanceData } from '../../api/performance';
 import { sitesApi } from '../../api/sites';
@@ -26,6 +26,7 @@ import {
 } from '../../components/ui/FilterBar';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PerformanceSummaryCards } from '../../components/performance/PerformanceSummaryCards';
+import { CardCaption } from '../../components/ui/CardCaption';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import { normalizeLabel } from '../../utils/labels';
 import {
@@ -532,20 +533,15 @@ export const ConfusionMatrixPage: React.FC = () => {
               mode={mode}
               scope={{ siteIds: siteIdsParam, dateFrom: startDate || undefined, dateTo: endDate || undefined }}
             />
-            <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <Info className="h-3.5 w-3.5 shrink-0" />
-              <span>Based on {effectiveData.matrix_subjects.toLocaleString()} subject{effectiveData.matrix_subjects === 1 ? '' : 's'} in {effectiveData.total_verified_images.toLocaleString()} verified image{effectiveData.total_verified_images === 1 ? '' : 's'}</span>
-              <span aria-hidden="true">·</span>
-              <span>{folded.classes.length} class{folded.classes.length === 1 ? '' : 'es'} shown</span>
-              {topN !== null && data.matrix_classes.length > topN && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>{data.matrix_classes.length - topN} folded into "other"</span>
-                </>
-              )}
-              <span aria-hidden="true">·</span>
-              <span>Click any non-zero cell to open the images behind it</span>
-            </div>
+            <CardCaption
+              parts={[
+                `Based on ${effectiveData.matrix_subjects.toLocaleString()} subject${effectiveData.matrix_subjects === 1 ? '' : 's'} in ${effectiveData.total_verified_images.toLocaleString()} verified image${effectiveData.total_verified_images === 1 ? '' : 's'}`,
+                `${folded.classes.length} class${folded.classes.length === 1 ? '' : 'es'} shown`,
+                topN !== null && data.matrix_classes.length > topN
+                  && `${data.matrix_classes.length - topN} folded into "other"`,
+                'Click any non-zero cell to open the images behind it',
+              ]}
+            />
           </div>
         </>
       )}
