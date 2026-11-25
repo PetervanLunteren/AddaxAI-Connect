@@ -4,8 +4,10 @@
  * Mirrors CameraDetailSheet so the two entity views feel the same:
  * - Overview: editable key fields (name, habitat, notes) inline for admins,
  *   then a read-only card with coordinates and aggregate counts.
- * - History: a read-only journey of which cameras stood here over time.
- *   Corrections happen in the moves check or in the camera slideout.
+ * - Deployments: every camera that stood here, as the same deployment cards
+ *   as the camera panel (DeploymentCards), with Edit, Undo and the
+ *   Suspicious marker; the camera name opens that camera, where its health
+ *   is.
  *
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
@@ -21,9 +23,7 @@ import {
   ChevronRight,
   MapPin,
   GitMerge,
-  Camera as CameraIcon,
   Images,
-  Pencil,
 } from 'lucide-react';
 import {
   Sheet,
@@ -34,35 +34,23 @@ import {
 } from './ui/Sheet';
 import { Button } from './ui/Button';
 import { sitesApi, type SiteDetail } from '../api/sites';
-import type { Camera } from '../api/types';
-import {
-  getStatusColor,
-  getBatteryColor,
-  getSignalColor,
-  getSignalLabel,
-  STATUS_LABELS,
-  UNKNOWN_COLOR,
-} from '../utils/camera-colors';
 import { TagInput, type TagManagement } from './TagInput';
-import { DeploymentJourney } from './DeploymentJourney';
+import { DeploymentCards } from './deployments/DeploymentCards';
 import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
 import { useToast } from './ui/Toaster';
 import { ServiceSummaryRows } from './service/ServiceSummaryRows';
 import { TabStrip } from './ui/TabStrip';
-import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { isAutoSiteName } from '../utils/site-names';
 
-type TabType = 'overview' | 'cameras' | 'deployments';
+type TabType = 'overview' | 'deployments';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   projectId: number;
   siteId: number | null;
-  // Cameras currently at this site, for the cameras tab health summary.
-  cameras?: Camera[];
-  // Which tab to open on. Defaults to overview; the map opens straight to
-  // cameras when a health colour is active.
+  // Which tab to open on. Defaults to overview; the map opens on
+  // deployments when a health colour is active.
   initialTab?: TabType;
   canEdit: boolean;
   // The merge and delete dialogs still live on the parent (they need the full
@@ -83,33 +71,11 @@ function errMsg(err: any): string {
   return err?.response?.data?.detail || err?.message || 'unknown error';
 }
 
-function fmtDate(s: string | null): string {
-  if (!s) return '-';
-  const d = new Date(s);
-  return isNaN(d.getTime())
-    ? s
-    : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-// A camera health line on the cameras tab: a coloured dot then the words.
-// Same text size and spacing as the deployment journey rows.
-const MetricRow: React.FC<{ color: string; text: string }> = ({ color, text }) => (
-  <p className="flex items-center gap-2 text-muted-foreground">
-    <span
-      className="w-2 h-2 rounded-full shrink-0"
-      style={{ backgroundColor: color }}
-      aria-hidden="true"
-    />
-    {text}
-  </p>
-);
-
 export const SiteDetailSheet: React.FC<Props> = ({
   open,
   onClose,
   projectId,
   siteId,
-  cameras,
   initialTab = 'overview',
   canEdit,
   onMergeRequested,
@@ -125,32 +91,12 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editNotes, setEditNotes] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
   const nameInput = useRef<HTMLInputElement>(null);
-  // Edit deployment from the Cameras tab: the camera and where its form starts.
-  const [editing, setEditing] = useState<{ camera: Camera; prefill: SetDeploymentPrefill } | null>(null);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ['site', projectId, siteId],
     queryFn: () => sitesApi.get(projectId, siteId as number),
     enabled: siteId != null,
   });
-
-  // Where Edit deployment starts: the camera's deployment at this site (the
-  // open one, else its latest), from its first day, at its pin, so + New
-  // site starts at the camera's own spot.
-  const editPrefill = (c: Camera): SetDeploymentPrefill => {
-    const here = (detail?.deployments ?? [])
-      .filter((d) => d.camera_id === c.id)
-      .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''));
-    const dep = here.find((d) => d.end_date == null) ?? here[0];
-    return {
-      deploymentId: dep?.id ?? null,
-      siteId: siteId,
-      fromDate: dep?.start_date ?? new Date().toISOString().slice(0, 10),
-      untilDate: dep?.end_date ?? null,
-      lat: dep?.latitude ?? c.location?.lat ?? null,
-      lon: dep?.longitude ?? c.location?.lon ?? null,
-    };
-  };
 
   // Tag autocomplete suggestions, project-wide.
   const { data: tagSuggestions } = useQuery({
@@ -199,7 +145,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
   }, [detail]);
 
   // Open on the requested tab when a different site is selected. Read fresh so
-  // a clicked dot lands on cameras while a health colour is active.
+  // a clicked dot lands on deployments while a health colour is active.
   useEffect(() => {
     setActiveTab(initialTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,8 +188,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
               className="-mt-2"
               tabs={[
                 { key: 'overview', label: 'Overview' },
-                { key: 'cameras', label: 'Cameras' },
-                { key: 'deployments', label: 'History' },
+                { key: 'deployments', label: 'Deployments' },
               ]}
               value={activeTab}
               onChange={setActiveTab}
@@ -446,125 +391,43 @@ export const SiteDetailSheet: React.FC<Props> = ({
                   <ServiceSummaryRows projectId={projectId} by="site" id={detail.id} />
                 </div>
               </div>
-            ) : activeTab === 'cameras' ? (
-              // Cameras tab: the cameras at this site with their health, so a
-              // colour-coded site dot explains itself. Mirrors the deployment
-              // journey layout. Each camera and the footer link open the
-              // Cameras page, same as the deployments tab.
-              cameras && cameras.length > 0 ? (
-                <div className="space-y-3">
-                  <ol className="relative ml-2 border-l border-border">
-                    {cameras.map((c) => (
-                      <li key={c.id} className="relative ml-5 pb-4 last:pb-0">
-                        <span
-                          className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full ring-2 ring-card"
-                          style={{ backgroundColor: getStatusColor(c.status) }}
-                        />
-                        <Link
-                          to={`/projects/${projectId}/cameras?search=${encodeURIComponent(c.device_id ?? c.name)}`}
-                          className="block rounded-md border p-3 text-sm hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-2 font-medium min-w-0">
-                            <CameraIcon className="h-4 w-4 text-primary shrink-0" />
-                            <span className="truncate">{c.device_id ?? c.name}</span>
-                          </div>
-                          <div className="mt-1">
-                            <MetricRow
-                              color={getStatusColor(c.status)}
-                              text={`Status ${STATUS_LABELS[c.status] ?? c.status}`}
-                            />
-                            {/* Battery and signal are point-in-time readings. A
-                                camera that has gone silent still shows its last
-                                values before it stopped, so grey the dots when it is
-                                not active, otherwise a stolen camera reads healthy. */}
-                            <MetricRow
-                              color={c.status === 'active' ? getBatteryColor(c.battery_percentage) : UNKNOWN_COLOR}
-                              text={`Battery ${c.battery_percentage != null ? `${c.battery_percentage}%` : 'unknown'}`}
-                            />
-                            <MetricRow
-                              color={c.status === 'active' ? getSignalColor(c.signal_quality) : UNKNOWN_COLOR}
-                              text={`Signal ${getSignalLabel(c.signal_quality)}`}
-                            />
-                            <MetricRow
-                              color={getStatusColor(c.status)}
-                              text={
-                                c.last_image_timestamp
-                                  ? `Last image ${fmtDate(c.last_image_timestamp)}`
-                                  : 'No images yet'
-                              }
-                            />
-                          </div>
-                        </Link>
-                        {/* The camera's deployment here, in the one Edit
-                            deployment form: another site (an existing one,
-                            or + New site when it had its own spot), other
-                            days. The same action as Edit on the camera
-                            panel's deployment cards. */}
-                        {canEdit && (
-                          <button
-                            type="button"
-                            className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                            onClick={() => setEditing({ camera: c, prefill: editPrefill(c) })}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Edit deployment
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ol>
-                  <Link
-                    to={`/projects/${projectId}/cameras?site=${siteId}`}
-                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    Open in Cameras
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground py-6 text-center">
-                  No cameras at this site.
-                </p>
-              )
             ) : (
-              // History tab: a read-only journey of which cameras stood here
-              // over time. Corrections happen in the moves check,
-              // or from the camera slideout's history for old placements.
-              <DeploymentJourney
-                mode="site"
-                items={(detail.deployments ?? []).map((d) => {
-                  // An open placement (no end date) keeps reading "to now" even
-                  // after its camera goes silent. Detect that and end the row at
-                  // the last image instead, so a stolen camera does not look
-                  // like it is still standing here.
-                  const cam = (cameras ?? []).find(
-                    (c) => (c.device_id ?? c.name) === d.camera_name
-                  );
-                  const inactive = d.end_date == null && cam != null && cam.status !== 'active';
-                  return {
+              // Deployments: every camera that stood here, as the same cards
+              // as the camera panel's Deployments tab, with Edit, Undo and
+              // the Suspicious marker. The camera name opens that camera,
+              // where its health is.
+              <div className="space-y-3">
+                <Link
+                  to={`/projects/${projectId}/cameras?site=${siteId}`}
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  Open in Cameras
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+                <DeploymentCards
+                  projectId={projectId}
+                  perspective="site"
+                  deployments={(detail.deployments ?? []).map((d) => ({
                     id: d.id,
-                    title: d.camera_name,
+                    cameraId: d.camera_id,
+                    cameraName: d.camera_name,
+                    siteId: detail.id,
+                    siteName: detail.name,
                     startDate: d.start_date,
-                    endDate: inactive ? cam!.last_image_timestamp : d.end_date,
+                    endDate: d.end_date,
                     imageCount: d.image_count,
-                    inactive,
-                  };
-                })}
-                emptyText="No camera has stood at this site yet."
-              />
+                    lat: d.latitude,
+                    lon: d.longitude,
+                  }))}
+                  canEdit={canEdit}
+                  emptyText="No camera has stood at this site yet."
+                />
+              </div>
             )}
           </SheetBody>
         </SheetContent>
       </Sheet>
 
-      {editing && (
-        <SetDeploymentDialog
-          projectId={projectId}
-          camera={editing.camera}
-          prefill={editing.prefill}
-          onClose={() => setEditing(null)}
-        />
-      )}
     </>
   );
 };

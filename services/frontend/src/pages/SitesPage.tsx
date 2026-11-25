@@ -62,7 +62,6 @@ import { useToast } from '../components/ui/Toaster';
 import { cn } from '../lib/utils';
 import { sitesApi, type SiteListItem } from '../api/sites';
 import { camerasApi } from '../api/cameras';
-import type { Camera } from '../api/types';
 import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
 import { useNoSiteText } from '../components/sites/NoSiteNote';
@@ -233,29 +232,16 @@ export const SitesPage: React.FC = () => {
     enabled: Number.isFinite(pid),
   });
 
-  // Project cameras feed the map's health colouring and the detail sheet's
-  // camera list. Loads in parallel; the map renders without waiting for it and
-  // recolours when it arrives.
+  // Project cameras feed the map's health colouring. Loads in parallel; the
+  // map renders without waiting for it and recolours when it arrives.
   const { data: cameras } = useQuery({
     queryKey: ['cameras', pid],
     queryFn: () => camerasApi.getAll(pid),
     enabled: Number.isFinite(pid),
   });
 
-  // Worst-camera health per site, the cameras grouped by site (for the detail
-  // sheet), and the count of cameras not yet placed at any site.
+  // Worst-camera health per site, for the map's colours.
   const siteHealth = useMemo(() => buildSiteHealth(cameras ?? []), [cameras]);
-  const camerasBySite = useMemo(() => {
-    const bySite = new Map<number, Camera[]>();
-    for (const c of cameras ?? []) {
-      const siteId = c.current_site?.id;
-      if (siteId == null) continue;
-      const arr = bySite.get(siteId) ?? [];
-      arr.push(c);
-      bySite.set(siteId, arr);
-    }
-    return bySite;
-  }, [cameras]);
   // Photos without a site are not on the map; the line under it says how
   // many, as on the Insights pages.
   const noSite = useNoSiteText(pid, ['is not on this map', 'are not on this map']);
@@ -865,10 +851,10 @@ export const SitesPage: React.FC = () => {
         onClose={() => setDetailSiteId(null)}
         projectId={pid}
         siteId={detailSiteId}
-        cameras={detailSiteId != null ? camerasBySite.get(detailSiteId) : undefined}
-        // When a health colour is active on the map, open straight to the
-        // cameras tab so a clicked dot explains its colour. Otherwise overview.
-        initialTab={viewMode === 'map' && colorMode !== 'none' ? 'cameras' : 'overview'}
+        // When a health colour is active on the map, open on the site's
+        // deployments: its cameras, each a click from its health. Otherwise
+        // overview.
+        initialTab={viewMode === 'map' && colorMode !== 'none' ? 'deployments' : 'overview'}
         canEdit={canEdit}
         onMergeRequested={(s) => {
           setMergeSite(s);

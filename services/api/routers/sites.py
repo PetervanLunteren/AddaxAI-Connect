@@ -52,8 +52,8 @@ class SiteListItem(BaseModel):
     longitude: Optional[float] = None
     habitat_type: Optional[str] = None
     # Cameras at the site now (their current deployment is here), as the
-    # Cameras page and the site's Cameras tab count. The past is in
-    # deployment_count and the History tab.
+    # Cameras page counts. The past is in deployment_count and the site
+    # panel's Deployments tab.
     camera_count: int
     deployment_count: int
     image_count: int
@@ -87,8 +87,8 @@ class SiteDetail(BaseModel):
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
     # Cameras at the site now (their current deployment is here), as the
-    # Cameras page and the site's Cameras tab count. The past is in
-    # deployment_count and the History tab.
+    # Cameras page counts. The past is in deployment_count and the site
+    # panel's Deployments tab.
     camera_count: int
     deployment_count: int
     image_count: int
