@@ -16,11 +16,12 @@
  * Whole days on purpose: a day belongs to one deployment, the day of a move
  * to the new one, the same rule as everywhere in the app.
  *
- * On top, Now: the deployment as it is, as the same card as in the panels.
- * Then the site (SiteField, shared with the bulk upload) and the two days,
- * each with a caption: how to pick a site, the camera's first and last
- * photo, so a wrong year stands out. Under them, After saving: the cards
- * the save leaves, only those that differ from now. They come from the
+ * Two columns from laptop width, one below: on the left what you change,
+ * the site (SiteField, shared with the bulk upload) and the two days, each
+ * with a caption (how to pick a site, the camera's first and last photo, so
+ * a wrong year stands out); on the right, on grey, Now (the deployment as
+ * it is, as the same card as in the panels) and After saving: the cards the
+ * save leaves, only those that differ from now. They come from the
  * server, which does the edit and rolls it back (preview), so they are the
  * rebuild's own answer: a shortened deployment shows as two cards, days
  * taken from a neighbour show as that neighbour, shorter. Two lines say
@@ -197,7 +198,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
   return (
     <>
       <Dialog open onOpenChange={(o) => !o && onClose()}>
-        <DialogContent onClose={onClose} className="max-w-2xl">
+        <DialogContent onClose={onClose} className="max-w-2xl lg:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit deployment' : 'Add deployment'}</DialogTitle>
             <DialogDescription>
@@ -213,85 +214,94 @@ export const SetDeploymentDialog: React.FC<Props> = ({
               if (canSave) save.mutate(siteId!);
             }}
           >
-            {editing && editedCard && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Now</p>
-                <DeploymentJourney items={[card(camera.name)(editedCard)]} emptyText="" />
-              </div>
-            )}
-
-            <SiteField
-              projectId={projectId}
-              value={siteId}
-              onChange={setSiteId}
-              caption="Where the camera stood. Pick it from the list or click its pin on the map."
-              fitIds={[prefill.siteId]}
-              newSiteAt={{ lat: prefill.lat, lon: prefill.lon }}
-            />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="block text-sm font-medium" htmlFor="set-deployment-from">First day</label>
-                <input
-                  id="set-deployment-from"
-                  type="date"
-                  required
-                  min={FIRST_DAY}
-                  max={lastSettableDay()}
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className={inputClass}
+            {/* Two columns on a laptop and wider: what you change on the
+                left, Now and After saving on the right, so the result stays
+                in view while you edit. One column, edits first, below that. */}
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="space-y-4 min-w-0">
+                <SiteField
+                  projectId={projectId}
+                  value={siteId}
+                  onChange={setSiteId}
+                  caption="Where the camera stood. Pick it from the list or click its pin on the map."
+                  fitIds={[prefill.siteId]}
+                  newSiteAt={{ lat: prefill.lat, lon: prefill.lon }}
                 />
-                <p className="text-xs text-muted-foreground">
-                  The day the camera was put here.
-                  {firstPhotoDay && ` Its first photo is from ${dayLabel(firstPhotoDay)}.`}
-                  {editing && ' A later day splits off the days before.'}
-                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium" htmlFor="set-deployment-from">First day</label>
+                    <input
+                      id="set-deployment-from"
+                      type="date"
+                      required
+                      min={FIRST_DAY}
+                      max={lastSettableDay()}
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      className={inputClass}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The day the camera was put here.
+                      {firstPhotoDay && ` Its first photo is from ${dayLabel(firstPhotoDay)}.`}
+                      {editing && ' A later day splits off the days before.'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium" htmlFor="set-deployment-until">Last day</label>
+                    <input
+                      id="set-deployment-until"
+                      type="date"
+                      min={FIRST_DAY}
+                      max={lastSettableDay()}
+                      value={untilDate}
+                      onChange={(e) => setUntilDate(e.target.value)}
+                      className={inputClass}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty while it is still there.
+                      {lastPhotoDay && ` Its last photo is from ${dayLabel(lastPhotoDay)}.`}
+                      {editing && ' An earlier day splits off the days after.'}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-medium" htmlFor="set-deployment-until">Last day</label>
-                <input
-                  id="set-deployment-until"
-                  type="date"
-                  min={FIRST_DAY}
-                  max={lastSettableDay()}
-                  value={untilDate}
-                  onChange={(e) => setUntilDate(e.target.value)}
-                  className={inputClass}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Leave empty while it is still there.
-                  {lastPhotoDay && ` Its last photo is from ${dayLabel(lastPhotoDay)}.`}
-                  {editing && ' An earlier day splits off the days after.'}
-                </p>
+              <div className="space-y-4 rounded-md bg-muted/50 p-3 self-start">
+                {editing && editedCard && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Now</p>
+                    <DeploymentJourney items={[card(camera.name)(editedCard)]} emptyText="" />
+                  </div>
+                )}
+                {showPreview && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">After saving</p>
+                    {changed.length > 0 && (
+                      <DeploymentJourney
+                        items={changed.map(card(camera.name))}
+                        emptyText=""
+                        dimmed={preview.isPlaceholderData || askedKey !== current}
+                      />
+                    )}
+                    {lostPhotos > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {lostPhotos} {lostPhotos === 1 ? 'photo has' : 'photos have'} no site then.
+                      </p>
+                    )}
+                    {gone.map((d) => (
+                      <p key={d.id} className="text-xs text-muted-foreground">
+                        The deployment at {d.site_name ?? 'no site'}, {span(d)}, goes.
+                      </p>
+                    ))}
+                    {changed.length === 0 && lostPhotos <= 0 && gone.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Nothing changes.</p>
+                    )}
+                  </div>
+                )}
+                {!(editing && editedCard) && !showPreview && (
+                  <p className="text-sm text-muted-foreground">What Save does shows here.</p>
+                )}
               </div>
             </div>
-
-            {showPreview && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">After saving</p>
-                {changed.length > 0 && (
-                  <DeploymentJourney
-                    items={changed.map(card(camera.name))}
-                    emptyText=""
-                    dimmed={preview.isPlaceholderData || askedKey !== current}
-                  />
-                )}
-                {lostPhotos > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {lostPhotos} {lostPhotos === 1 ? 'photo has' : 'photos have'} no site then.
-                  </p>
-                )}
-                {gone.map((d) => (
-                  <p key={d.id} className="text-xs text-muted-foreground">
-                    The deployment at {d.site_name ?? 'no site'}, {span(d)}, goes.
-                  </p>
-                ))}
-                {changed.length === 0 && lostPhotos <= 0 && gone.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Nothing changes.</p>
-                )}
-              </div>
-            )}
 
             {/* Pinned to the bottom: with the map the form can be taller
                 than the window. One status line and Save stay in view; the

@@ -68,7 +68,7 @@ export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, f
       {ordered.map((it) => (
         <li key={it.id} className="relative ml-5 pb-4 last:pb-0">
           <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
-          <div className="rounded-md border p-3 text-sm space-y-1">
+          <div className="rounded-md border bg-card p-3 text-sm space-y-1">
             <div className="flex items-center gap-2 min-w-0">
               <div className="min-w-0 flex-1">
                 <Row icon={MapPin} strong>
