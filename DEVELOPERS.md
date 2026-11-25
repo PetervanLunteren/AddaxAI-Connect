@@ -1058,13 +1058,13 @@ deployment in the camera panel). The rule for those photos:
 - **Said where left out**, in `components/sites/NoSiteNote.tsx`: "56
   photos have no site yet and are not on this map", with a link for
   project admins to the cameras that have them.
-  - On a card with an info line (`ui/CardCaption`: map, Sites map,
-    occupancy, timeline) it is one more part of that line:
-    `useNoSiteText(projectId, consequence, hidden)`, with `hidden` set when
-    the page has a site filter. Also in an empty state, so a project whose
-    cameras all lack GPS still learns why.
-  - On a card without one (the Dashboard trend): `NoSiteNote`, a quiet
-    line under it.
+  - Always inside the card it explains, as one part of its info line
+    (`ui/CardCaption`): Insights map, Sites map, occupancy, timeline, and
+    on the Dashboard the trend and the mini map.
+    `useNoSiteText(projectId, consequence, hidden, link)`, with `hidden`
+    set when the page has a site filter, and `link` false on the mini map
+    (the whole card is one link). Also in an empty state, so a project
+    whose cameras all lack GPS still learns why.
   - Exports: silent until someone downloads spatial, detection history or
     Camtrap DP; then a `ConfirmDialog`, "Some photos are left out", with
     Download anyway.

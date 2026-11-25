@@ -17,6 +17,8 @@ import {
 } from 'chart.js';
 import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
+import { CardCaption } from '../ui/CardCaption';
+import { useNoSiteText } from '../sites/NoSiteNote';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
 import type { LabelSource } from '../../api/types';
@@ -132,6 +134,12 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   projectFirstDate,
   projectLastDate,
 }) => {
+  // Photos without a site are not in this rate: trap-nights need a site.
+  const noSite = useNoSiteText(
+    projectId,
+    ['is not in this rate per 100 trap-nights', 'are not in this rate per 100 trap-nights'],
+    siteIds !== undefined,
+  );
   // Effective span = user filter when set, else the project's full
   // image-date extent. Drives granularity and the chart's x-axis range
   // so picking a sparse species shows its spike against the full
@@ -405,6 +413,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
             </div>
           )}
         </div>
+        <CardCaption className="mt-3" parts={[noSite]} />
       </CardContent>
     </Card>
   );

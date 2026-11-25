@@ -17,7 +17,6 @@ import { DemographicsCard } from '../../components/dashboard/DemographicsCard';
 import { BestPhotosCard } from '../../components/dashboard/BestPhotosCard';
 import { SpeciesSummaryTiles } from '../../components/dashboard/SpeciesSummaryTiles';
 import { MiniMapCard } from '../../components/dashboard/MiniMapCard';
-import { NoSiteNote } from '../../components/sites/NoSiteNote';
 import { imagesApi } from '../../api/images';
 import { isWildlifeLabel } from '../../utils/labels';
 import { filtersToSearchParams } from '../../lib/filter-url';
@@ -172,12 +171,6 @@ export const DashboardExplore: React.FC = () => {
             source={labelSource}
             projectFirstDate={overview?.first_image_date ?? null}
             projectLastDate={overview?.last_image_date ?? null}
-          />
-          <NoSiteNote
-            className="-mt-4"
-            projectId={projectId}
-            consequence={['is not in this rate per 100 trap-nights', 'are not in this rate per 100 trap-nights']}
-            hidden={siteIdsFromTags !== undefined}
           />
           {/* Sex, age class and behaviour share one card now. Separately they
               were three near-empty charts filling half the page. */}

@@ -433,7 +433,7 @@ Notes per step:
     moved on 1 Sep, August photos from an old card arrive last (It moved).
   - Test photos show blurred until detection processes them.
   - Found at S06 (25 Nov): views that need a place left photos without a
-    site out silently. Now each says so in its info line (`NoSiteNote`),
+    site out silently. Now each says so in its card's info line (`useNoSiteText`),
     Exports ask at download, Images has a "No site" filter, and the trend
     per 100 trap-nights counts only placed photos. See DEVELOPERS.md,
     "Photos without a site".

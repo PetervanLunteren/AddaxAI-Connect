@@ -21,6 +21,8 @@ import { useQuery } from '@tanstack/react-query';
 import { MapContainer, CircleMarker } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
+import { CardCaption } from '../ui/CardCaption';
+import { useNoSiteText } from '../sites/NoSiteNote';
 import { statisticsApi } from '../../api/statistics';
 import type { LabelSource } from '../../api/types';
 import { calculateRateDomain, getRateColor } from '../../lib/heat-color-scale';
@@ -53,6 +55,11 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
   mapHref,
   className = '',
 }) => {
+  // Photos without a site are not on the map. No link: the whole card is
+  // one link to the full map, which has it.
+  const noSite = useNoSiteText(
+    projectId, ['is not on this map', 'are not on this map'], siteIds !== undefined, false,
+  );
   // Same query key shape as the insights map page, so navigating there after
   // an unfiltered look is served from cache.
   const filters = useMemo(
@@ -162,6 +169,7 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
             </MapContainer>
           )}
         </div>
+        <CardCaption className="mt-3" parts={[noSite]} />
       </CardContent>
 
       {/* One link over the whole card. The map ignores pointer events itself

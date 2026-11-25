@@ -169,7 +169,7 @@ Location: `src/components/ui/`
 - `Button`: Primary UI actions
 - `Callout`: Info, warning, error, and success message boxes. Every short status or hint message uses this, never a hand-rolled colored div
 - `CardCaption`: the info line at the foot of a chart or map card (Info icon, parts joined by "·")
-- `NoSiteNote` (`components/sites/`): the sentence for views that leave out photos without a site, with the count and, for project admins, a link to fix it; `useNoSiteText` gives it as a `CardCaption` part
+- `useNoSiteText` (`components/sites/NoSiteNote.tsx`): the sentence for cards that leave out photos without a site, with the count and, for project admins, a link to fix it, as a `CardCaption` part
 - `TabStrip`: Underlined tabs for switching views on a page or in a slide-out, with an optional count badge and a right-hand `extra` slot. `tabClass` gives the same look to tabs that are links
 - `BulkActionBar`: The bar above a table while rows are selected (count, the page's action buttons, Cancel). Pair it with `useBulkSelection`, `SelectAllCheckbox` and `SortableHeader`, as the cameras, sites and service tables do
 - `RowActionsMenu`: The three-dot menu at the end of a table row, each action with its icon and a word. Use it when a row has actions of its own, never a row of bare icon buttons. Tables where a click on the row opens a panel do not need it
