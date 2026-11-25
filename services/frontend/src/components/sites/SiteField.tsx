@@ -66,7 +66,7 @@ export const SiteField: React.FC<Props> = ({
         </Button>
       </div>
       {sites && (
-        <SitePickMap sites={sites} selectedId={value} onSelect={onChange} fitIds={[...fitIds, value]} height={160} />
+        <SitePickMap sites={sites} selectedId={value} onSelect={onChange} fitIds={[...fitIds, value]} height={200} />
       )}
       <p className="text-xs text-muted-foreground">{caption}</p>
 
