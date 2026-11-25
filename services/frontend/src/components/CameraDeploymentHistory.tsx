@@ -11,14 +11,16 @@
  * Undo, show only once someone set one.
  */
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { deploymentsApi } from '../api/deployments';
+import { MoveStatus } from './deployments/MoveStatus';
 import { Loader2, MapPinPlus } from 'lucide-react';
 import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { DeploymentJourney, type JourneyItem } from './DeploymentJourney';
 import { useCorrections } from './deployments/useCorrections';
-import { dayLabel } from './deployments/moves';
+import { dayLabel, moveRows, type MoveRow } from './deployments/moves';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
@@ -40,6 +42,36 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
     queryKey: ['camera-deployments', camera.id],
     queryFn: () => camerasApi.getDeployments(camera.id),
   });
+
+  // Suspicious moves of this camera, by the same rule and from the same
+  // cached list as the Moves page, so the card and the page always agree.
+  // The answer (It moved, It stayed) stays on the Moves page; the card links
+  // there. Admins only, as the Moves page.
+  const { data: projectDeployments } = useQuery({
+    queryKey: ['deployments', pid, 'overview'],
+    queryFn: () => deploymentsApi.list(pid!),
+    enabled: canEdit,
+  });
+  const suspicious = new Map<number, MoveRow>(
+    moveRows((projectDeployments ?? []).filter((d) => d.camera_id === camera.id))
+      .filter((it) => it.suspicious && it.deployment)
+      .map((it) => [it.deployment!.id, it]),
+  );
+  const suspiciousLine = (deploymentId: number) => {
+    const it = suspicious.get(deploymentId);
+    if (!it) return null;
+    return (
+      <div className="mt-2 flex items-center justify-between gap-3 border-t pt-2 text-xs">
+        <MoveStatus it={it} />
+        <Link
+          to={`/projects/${pid}/moves?camera=${camera.id}&status=suspicious`}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          Check this move
+        </Link>
+      </div>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -108,7 +140,12 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
         }))}
         emptyText={`No deployments for camera ${camera.name} yet.`}
         onChangeSite={canEdit ? changeSite : undefined}
-        footer={canEdit ? (item) => corrections.linesFor(item.startDate, item.endDate) : undefined}
+        footer={canEdit ? (item) => (
+          <>
+            {suspiciousLine(item.id)}
+            {corrections.linesFor(item.startDate, item.endDate)}
+          </>
+        ) : undefined}
       />
 
       {canEdit && corrections.dialog}

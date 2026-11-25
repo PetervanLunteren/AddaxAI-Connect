@@ -43,6 +43,7 @@ import { SortableHeader, type SortState } from '../components/ui/SortableHeader'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 import { useToast } from '../components/ui/Toaster';
 import { useProject } from '../contexts/ProjectContext';
+import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { useBulkSelection } from '../hooks/useBulkSelection';
 import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } from '../lib/filter-url';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
@@ -84,6 +85,15 @@ const STATUS_OPTIONS = [
 /** One line of text, cut with "…" at the column's width, the whole text on hover. */
 const Clip: React.FC<{ text: string }> = ({ text }) => (
   <span className="block truncate" title={text}>{text}</span>
+);
+
+// A site in the From or To column: its name, cut to fit, and the Unnamed
+// marker of the Sites page while it still has its automatic name.
+const SiteCell: React.FC<{ name: string }> = ({ name }) => (
+  <span className="flex min-w-0 items-center gap-2">
+    <span className="min-w-0 truncate" title={name}>{name}</span>
+    <span className="shrink-0"><UnnamedSiteChip name={name} /></span>
+  </span>
 );
 
 // A fixed layout: the short columns get a set width, the three text
@@ -348,8 +358,8 @@ export const MovesPage: React.FC = () => {
                           {dayLabel(it.day)}
                         </TableCell>
                         <TableCell className="font-medium"><Clip text={it.cameraLabel} /></TableCell>
-                        <TableCell>{ends(it).from === null ? '-' : <Clip text={ends(it).from!} />}</TableCell>
-                        <TableCell><Clip text={ends(it).to} /></TableCell>
+                        <TableCell>{ends(it).from === null ? '-' : <SiteCell name={ends(it).from!} />}</TableCell>
+                        <TableCell><SiteCell name={ends(it).to} /></TableCell>
                         <TableCell className="whitespace-nowrap tabular-nums">
                           {it.distanceM !== undefined ? metresLabel(it.distanceM) : '-'}
                         </TableCell>

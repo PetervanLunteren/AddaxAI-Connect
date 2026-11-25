@@ -18,7 +18,6 @@
  */
 import type { DeploymentListItem, FixedPeriod } from '../../api/deployments';
 import { formatDate } from '../../utils/datetime';
-import { isAutoSiteName } from '../../utils/site-names';
 
 // A move that comes back to the site it left within this many days is
 // marked "Back within a week": the usual shape of a false move. It changes
@@ -159,8 +158,10 @@ export function siteIds(it: MoveRow): number[] {
 // Plain day labels from YYYY-MM-DD, never shifted by the browser's timezone.
 export const dayLabel = (day: string) => formatDate(`${day}T12:00:00`);
 
-export const placeName = (name: string | null | undefined) =>
-  !name ? 'no site' : isAutoSiteName(name) ? 'a new place' : name;
+// The site's own name, as on the Sites page and in the camera panel, also
+// while it is still the automatic "Site at 52.0935, 5.8149": one place has
+// one name everywhere. The Moves table marks that one Unnamed.
+export const placeName = (name: string | null | undefined) => name || 'no site';
 
 /** The site a move left (null for a correction) and the site it went to. */
 export function ends(it: MoveRow): { from: string | null; to: string } {
