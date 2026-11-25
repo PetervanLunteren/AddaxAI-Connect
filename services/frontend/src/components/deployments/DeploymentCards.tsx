@@ -26,6 +26,7 @@ import { camerasApi } from '../../api/cameras';
 import { deploymentsApi, type FixedPeriod } from '../../api/deployments';
 import type { Camera } from '../../api/types';
 import { DeploymentJourney, type JourneyItem } from '../DeploymentJourney';
+import { cameraPanelHref, sitePanelHref } from '../../lib/panel-links';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toaster';
 import { MoveStatus } from './MoveStatus';
@@ -199,7 +200,8 @@ export const DeploymentCards: React.FC<Props> = ({ projectId, deployments, canEd
     id: d.id,
     siteName: d.siteName,
     cameraName: d.cameraName,
-    cameraHref: `/projects/${projectId}/cameras?camera=${d.cameraId}`,
+    cameraHref: cameraPanelHref(projectId, d.cameraId),
+    siteHref: d.siteId !== null ? sitePanelHref(projectId, d.siteId) : undefined,
     startDate: d.startDate,
     endDate: d.endDate,
     imageCount: d.imageCount,

@@ -113,6 +113,7 @@ import { cameraColumnPrefs, type ColumnId } from '../components/cameras/columnDe
 import { formatRelative } from '../utils/datetime';
 import { formatSimExpiryStatus, simExpiryClass } from '../utils/sim-expiry';
 import { useDropzone } from 'react-dropzone';
+import { CAMERA_PANEL_PARAM, useOpenPanelFromLink } from '../lib/panel-links';
 
 export const CamerasPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -252,22 +253,15 @@ export const CamerasPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameras]);
 
-  // Open one camera straight from a link, e.g. the camera line in the image
-  // detail modal. The param is consumed once and cleared, so closing the
-  // sheet does not immediately reopen it and back stays usable.
-  useEffect(() => {
-    const wanted = searchParams.get('camera');
-    if (!wanted || !cameras) return;
-    const camera = cameras.find((c) => String(c.id) === wanted);
+  // Open one camera straight from a link (cameraPanelHref), e.g. a
+  // deployment card or the image detail.
+  useOpenPanelFromLink(CAMERA_PANEL_PARAM, searchParams, setSearchParams, !!cameras, (id) => {
+    const camera = cameras?.find((c) => c.id === id);
     if (camera) {
       setSelectedCamera(camera);
       setShowDetailSheet(true);
     }
-    const next = new URLSearchParams(searchParams);
-    next.delete('camera');
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameras, searchParams]);
+  });
 
   // Create camera mutation
   const createMutation = useMutation({

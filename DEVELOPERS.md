@@ -794,7 +794,8 @@ are the one record; nothing about a move is stored apart from them.
   panel's and the site panel's Deployments tabs both use
   `DeploymentCards` (`components/deployments/`), the same cards seen from
   either side. A card always shows the same four lines with their icons:
-  site, camera (a link to its panel), period, photos. For admins a card
+  site and camera (each a link to its panel, `lib/panel-links.ts`), period,
+  photos. For admins a card
   also carries Edit, the Suspicious marker of
   the Moves page (`moveRows` on the same cached list) and each correction
   on the card it made, "Last day set by … on date" with Undo (matched by

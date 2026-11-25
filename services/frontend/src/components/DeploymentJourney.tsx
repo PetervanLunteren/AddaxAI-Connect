@@ -8,8 +8,8 @@
  * A card always reads the same, wherever it is: the site, the camera, the
  * period and the number of photos, each on its own line with its icon, in
  * that order. Inside a panel one of the names repeats the panel's heading;
- * that is the price of a card that never changes shape. The camera links to
- * its panel; a site has no page to link to.
+ * that is the price of a card that never changes shape. Both names link to
+ * their panel (lib/panel-links.ts).
  *
  * One card per deployment, never merged: a card is what Edit acts on. Days
  * are printed with dayLabel, which never shifts a day across time zones.
@@ -23,8 +23,10 @@ export interface JourneyItem {
   id: number;
   siteName: string | null;
   cameraName: string;
-  // The camera's panel, when the card may link there.
+  // The camera's and the site's panels, when the card may link there (not
+  // in the Edit deployment form: leaving it would lose the edit).
   cameraHref?: string;
+  siteHref?: string;
   startDate: string | null; // YYYY-MM-DD
   endDate: string | null; // YYYY-MM-DD, null = still there
   imageCount: number;
@@ -67,7 +69,13 @@ export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, f
           <div className="rounded-md border p-3 text-sm space-y-1">
             <div className="flex items-center gap-2 min-w-0">
               <div className="min-w-0 flex-1">
-                <Row icon={MapPin} strong>{it.siteName ?? 'No site'}</Row>
+                <Row icon={MapPin} strong>
+                  {it.siteHref ? (
+                    <Link to={it.siteHref} className="hover:underline">{it.siteName ?? 'No site'}</Link>
+                  ) : (
+                    it.siteName ?? 'No site'
+                  )}
+                </Row>
               </div>
               {onEdit && (
                 <button

@@ -54,6 +54,7 @@ import { normalizeLabel } from '../utils/labels';
 import { formatDate, formatDateTime, formatDateTimeSeconds } from '../utils/datetime';
 import { TagInput } from './TagInput';
 import { Select } from './ui/Select';
+import { cameraPanelHref } from '../lib/panel-links';
 
 // Pipeline stage in words the reader can act on. The raw values come from
 // the workers ("classified", "detected") and mean nothing outside the code.
@@ -723,7 +724,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const openCamera = () => {
     if (!selectedProject || !imageDetail) return;
     onClose();
-    navigate(`/projects/${selectedProject.id}/cameras?camera=${imageDetail.camera_id}`);
+    navigate(cameraPanelHref(selectedProject.id, imageDetail.camera_id));
   };
 
   // "3, 12 Apr 2026 to now". Same phrasing as the deployment history on the

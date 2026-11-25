@@ -86,6 +86,7 @@ import {
   BulkSetHabitatDialog,
 } from '../components/BulkEditDialogs';
 import { siteColumnPrefs, type SiteColumnId } from '../components/sites/columnDefs';
+import { SITE_PANEL_PARAM, useOpenPanelFromLink } from '../lib/panel-links';
 
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
@@ -178,6 +179,8 @@ export const SitesPage: React.FC = () => {
 
   // Local UI state
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
+  // Open one site straight from a link (sitePanelHref), e.g. a deployment card.
+  useOpenPanelFromLink(SITE_PANEL_PARAM, searchParams, setSearchParams, true, setDetailSiteId);
   const [mergeSite, setMergeSite] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
