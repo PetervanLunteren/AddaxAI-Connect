@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { NavLink, useParams } from 'react-router-dom';
 import {
-  ArrowLeftRight,
+  CardSim,
   Camera,
   MapPin,
   LayoutDashboard,
@@ -101,7 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Users', requiresAdmin: true },
     { to: `/projects/${projectId}/manage-images`, icon: ListChecks, label: 'Curation' },
-    { to: `/projects/${projectId}/deployments`, icon: ArrowLeftRight, label: 'Deployments' },
+    { to: `/projects/${projectId}/deployments`, icon: CardSim, label: 'Deployments' },
     { to: `/projects/${projectId}/bulk-upload`, icon: Upload, label: 'Bulk upload' },
   ];
 

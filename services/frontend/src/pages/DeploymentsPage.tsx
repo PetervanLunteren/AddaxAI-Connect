@@ -58,13 +58,13 @@ const MOVED_OPTIONS = [
 
 const statusOrder = (row: DeploymentRow) => (row.suspicious ? 0 : row.corrected ? 1 : 2);
 
-// Null sorts last either way: an open deployment has no last day, one that
-// did not move has no Moved from.
+// Null sorts last either way: one that did not move has no Moved from. An
+// open deployment (no end) sorts as the latest last day: "now".
 const SORT: Record<Column, (row: DeploymentRow) => string | number | null> = {
   camera: (row) => row.deployment.camera_label ?? '',
   site: (row) => row.deployment.site_name ?? '',
   first: (row) => row.deployment.start_at,
-  last: (row) => row.deployment.end_at,
+  last: (row) => row.deployment.end_at ?? '9999',
   photos: (row) => row.deployment.image_count,
   from: (row) => row.previous?.site_name ?? null,
   status: statusOrder,
