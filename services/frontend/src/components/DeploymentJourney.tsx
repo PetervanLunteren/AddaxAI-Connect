@@ -46,6 +46,9 @@ interface Props {
   dimmed?: boolean;
 }
 
+// "Photos", as the Deployments table and every other deployment screen say.
+const photoCount = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'photo' : 'photos'}`;
+
 const Row: React.FC<{ icon: React.ElementType; children: React.ReactNode; strong?: boolean }> = ({
   icon: Icon, children, strong = false,
 }) => (
@@ -102,11 +105,9 @@ export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, f
             </Row>
             <Row icon={Images}>
               {it.imagesHref ? (
-                <Link to={it.imagesHref} className="hover:text-foreground hover:underline">
-                  {it.imageCount.toLocaleString()} images
-                </Link>
+                <Link to={it.imagesHref} className="hover:text-foreground hover:underline">{photoCount(it.imageCount)}</Link>
               ) : (
-                `${it.imageCount.toLocaleString()} images`
+                photoCount(it.imageCount)
               )}
             </Row>
             {footer?.(it)}
