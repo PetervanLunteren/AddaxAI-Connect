@@ -111,27 +111,33 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
     enabled: !!d,
   });
 
+  // Each answer carries its own row: the window may have stepped on by the
+  // time the server answers, so `current` is not the row it was about.
   const right = useMutation({
-    mutationFn: (checked: boolean) => deploymentsApi.setChecked(projectId, [d!.id], checked),
+    mutationFn: ({ id, checked }: { id: number; checked: boolean }) =>
+      deploymentsApi.setChecked(projectId, [id], checked),
     onSuccess: refresh,
     onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
   });
   const notMoved = useMutation({
-    mutationFn: () => deploymentsApi.notMoved(projectId, d!.id),
-    onSuccess: (result) => {
-      setWrongs((w) => ({ ...w, [current]: { statementId: result.statement_id, oldSite: placeName(p?.site_name) } }));
+    mutationFn: ({ id }: { id: number; key: string; oldSite: string }) => deploymentsApi.notMoved(projectId, id),
+    onSuccess: (result, { key, oldSite }) => {
+      setWrongs((w) => ({ ...w, [key]: { statementId: result.statement_id, oldSite } }));
       refresh();
     },
     onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
   });
   const undoWrong = useMutation({
-    mutationFn: (statementId: number) => deploymentsApi.removeFixedPeriod(projectId, statementId),
-    onSuccess: () => {
-      setWrongs(({ [current]: _done, ...rest }) => rest);
+    mutationFn: ({ statementId }: { statementId: number; key: string }) =>
+      deploymentsApi.removeFixedPeriod(projectId, statementId),
+    onSuccess: (_, { key }) => {
+      setWrongs(({ [key]: _done, ...rest }) => rest);
       refresh();
     },
     onError: (error) => toast.error(`Could not undo. ${errMsg(error)}`),
   });
+  const answerRight = () => d && right.mutate({ id: d.id, checked: true });
+  const answerWrong = () => d && notMoved.mutate({ id: d.id, key: current, oldSite: placeName(p?.site_name) });
   const busy = right.isPending || notMoved.isPending || undoWrong.isPending;
   const asks = !!row?.suspicious && !wrong;
 
@@ -139,8 +145,8 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
   // question), W Wrong, arrows step, Esc closes (the dialog does that).
   // Quiet while a field has focus or a window above this one is open. The
   // listener reads the latest state through a ref, so it is added once.
-  const latest = useRef({ goTo, index, asks, busy, right: () => right.mutate(true), wrong: () => notMoved.mutate() });
-  latest.current = { goTo, index, asks, busy, right: () => right.mutate(true), wrong: () => notMoved.mutate() };
+  const latest = useRef({ goTo, index, asks, busy, right: answerRight, wrong: answerWrong });
+  latest.current = { goTo, index, asks, busy, right: answerRight, wrong: answerWrong };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = latest.current;
@@ -220,7 +226,7 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
                     Next
                     <Kbd onPrimary>→</Kbd>
                   </Button>
-                  <Button variant="outline" className="w-full" onClick={() => undoWrong.mutate(wrong.statementId)} disabled={busy}>
+                  <Button variant="outline" className="w-full" onClick={() => undoWrong.mutate({ statementId: wrong.statementId, key: current })} disabled={busy}>
                     <Undo2 className="h-4 w-4 mr-2" />
                     Undo
                   </Button>
@@ -282,12 +288,12 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
                         <p className="font-medium">
                           Did the camera really go to {placeName(d.site_name)}?
                         </p>
-                        <Button className="w-full" onClick={() => right.mutate(true)} disabled={busy}>
+                        <Button className="w-full" onClick={answerRight} disabled={busy}>
                           {right.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
                           Right, it went there
                           <Kbd onPrimary>⏎</Kbd>
                         </Button>
-                        <Button variant="outline" className="w-full" onClick={() => notMoved.mutate()} disabled={busy}>
+                        <Button variant="outline" className="w-full" onClick={answerWrong} disabled={busy}>
                           <X className="h-4 w-4 mr-2" />
                           Wrong, it stayed at {placeName(p?.site_name)}
                           <Kbd>W</Kbd>
@@ -304,7 +310,7 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
                         </span>
                         <button
                           type="button"
-                          onClick={() => right.mutate(false)}
+                          onClick={() => right.mutate({ id: d.id, checked: false })}
                           disabled={busy}
                           className="inline-flex shrink-0 items-center gap-1 hover:text-foreground"
                         >
