@@ -124,11 +124,14 @@ def join_same_site(planned: Sequence[Planned], kept_starts: frozenset[int] = fro
     two, even when the GPS finds the same site for the rest. An end left as
     it was still joins."""
     joined: list[Planned] = []
+    # The statement of the part that ends joined[-1]. Not always that of
+    # joined[-1] itself, which keeps the statement of its first part.
+    tail: Optional[int] = None
     for p in planned:
         last = joined[-1] if joined else None
         if (
             last is not None
-            and last.built.statement_id not in kept_ends
+            and tail not in kept_ends
             and p.built.statement_id not in kept_starts
             and last.site_id is not None
             and last.site_id == p.site_id
@@ -149,6 +152,7 @@ def join_same_site(planned: Sequence[Planned], kept_starts: frozenset[int] = fro
             last.site_created = last.site_created or p.site_created
         else:
             joined.append(p)
+        tail = p.built.statement_id
     return joined
 
 

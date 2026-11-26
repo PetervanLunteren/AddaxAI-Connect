@@ -3,7 +3,7 @@
 # This script applies migrations and populates derived tables (e.g. deployment periods).
 # Safe to run multiple times. For development: generate migrations locally, commit them, then deploy.
 
-set -e
+set -eo pipefail
 
 echo "Building API service with shared library..."
 docker compose build --no-cache api
@@ -35,7 +35,10 @@ fi
 # dev in 2 of 10 restores on 26 Nov 2026, while the workers processed photos.
 # Only the stores the migration needs keep running. Photos that arrive in this
 # minute wait in uploads/ and ingestion takes them in when it starts again.
-# Starting everything after the migration also does what three restarts did
+# The app stays stopped until the two scripts below are done as well: a photo
+# taken in before the carry-over rebuilds its camera from the GPS alone, and
+# the hand corrections of before phase 2 are then lost for good.
+# Starting everything at the end also does what three restarts did
 # before: api builds its connection pool and cached statements on the new
 # schema (drenthe served 185 UndefinedColumn errors on 18 Aug 2026 until api
 # restarted), bulk-upload recovers interrupted jobs on it (v0.14.0), and
@@ -44,7 +47,7 @@ APP_SERVICES=$(docker compose ps --services --status running | grep -vxF -e post
 if [ -n "$APP_SERVICES" ]; then
     echo ""
     echo "Stopping the app while the database migrates: $(echo $APP_SERVICES)"
-    trap 'echo ""; echo "The migration failed. The app is stopped; fix the cause and run this script again."' ERR
+    trap 'echo ""; echo "The update failed. The app is stopped; fix the cause and run this script again."' ERR
     docker compose stop $APP_SERVICES > /dev/null
 fi
 
@@ -52,13 +55,6 @@ echo ""
 echo "Applying migrations..."
 # Mount the alembic/versions directory so migration files are accessible
 docker compose run --rm -v "$(pwd)/services/api/alembic/versions:/app/alembic/versions" api alembic upgrade head
-
-if [ -n "$APP_SERVICES" ]; then
-    echo ""
-    echo "Starting the app again..."
-    docker compose start $APP_SERVICES > /dev/null
-    trap - ERR
-fi
 
 echo ""
 echo "✅ Database initialized! Checking tables..."
@@ -71,8 +67,10 @@ echo "Carrying deployments over to statements (once per server)..."
 # older rules) becomes statements, so no deployment changes. Runs once: it
 # records the run in server_settings and does nothing on later updates. The
 # four scripts that used to reshape deployments here are gone; they would undo
-# what the rebuild makes.
-docker compose exec -T api python /app/scripts/carry_over_deployments.py --apply
+# what the rebuild makes. The report stays in logs/, also when restore.sh
+# runs this script without output.
+mkdir -p logs
+docker compose run --rm -T api python /app/scripts/carry_over_deployments.py --apply | tee logs/carry-over-deployments.txt
 
 echo ""
 echo "Moving legacy camera tags onto their sites..."
@@ -80,7 +78,14 @@ echo "Moving legacy camera tags onto their sites..."
 # Site now. Moves each camera's tags to every site it deploys to, then clears
 # the camera. Runs last, after sites are final. Idempotent: once moved the tags
 # are gone from the camera, so a healthy server moves nothing on the next run.
-docker compose exec -T api python /app/scripts/backfill_camera_tags_to_sites.py
+docker compose run --rm -T api python /app/scripts/backfill_camera_tags_to_sites.py
+
+if [ -n "$APP_SERVICES" ]; then
+    echo ""
+    echo "Starting the app again..."
+    docker compose start $APP_SERVICES > /dev/null
+    trap - ERR
+fi
 
 echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."

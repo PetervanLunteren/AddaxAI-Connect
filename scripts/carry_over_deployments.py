@@ -17,16 +17,17 @@ follow from the readings alone. So, per camera:
 
 Run by scripts/update-database.sh after the migrations:
 
-    docker compose exec -T api python /app/scripts/carry_over_deployments.py           # dry run
-    docker compose exec -T api python /app/scripts/carry_over_deployments.py --apply   # write
+    docker compose run --rm -T api python /app/scripts/carry_over_deployments.py           # dry run
+    docker compose run --rm -T api python /app/scripts/carry_over_deployments.py --apply   # write
 
 The dry run does all of it and rolls back, so its report is exactly what
---apply would give. --apply runs once: it sets
-server_settings.deployments_carried_over_at and does nothing the next time.
+--apply would give. --apply writes all cameras and the mark
+server_settings.deployments_carried_over_at in one transaction: a run that
+breaks off wrote nothing, and a run that finished does nothing the next
+time. The app must be stopped, because every camera's rebuild lock is held
+until the end.
 
-The report also goes to REPORT_PATH in the api container, because
-restore.sh runs update-database.sh without output. Read it with
-`docker compose exec -T api cat /tmp/carry-over-deployments.txt`.
+update-database.sh keeps the report in logs/carry-over-deployments.txt.
 """
 import argparse
 import sys
@@ -50,8 +51,6 @@ logger = get_logger("carry-over-deployments")
 
 # A site pin that moves further than this in the carry-over is listed.
 PIN_REPORT_METRES = 10.0
-
-REPORT_PATH = "/tmp/carry-over-deployments.txt"
 
 
 @dataclass(frozen=True)
@@ -257,10 +256,7 @@ def main() -> None:
         results = []
         for cam in cameras:
             results.append(carry_over_camera(session, cam.id, cam.device_id, cam.retired_at))
-            if args.apply:
-                session.commit()
-            else:
-                session.flush()
+            session.flush()
 
         pins_after = site_pins(session)
         pin_moves = sorted(
@@ -300,8 +296,6 @@ def main() -> None:
     )
     report = "\n".join(lines)
     print(report)
-    with open(REPORT_PATH, "w") as f:
-        f.write(report + "\n")
     logger.info(
         "Deployment carry-over", mode=mode, cameras=len(results), pinned=len(pinned),
         with_changes=len(with_exceptions),

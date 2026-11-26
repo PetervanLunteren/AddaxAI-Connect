@@ -47,7 +47,10 @@ export function metresBetween(a: DeploymentListItem, b: DeploymentListItem): num
   return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
 }
 
-const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000;
+// Camera clock times carry no zone. Read as UTC, so the difference is the
+// plain one the server takes; read as local time, a clock change in between
+// adds or drops an hour.
+const daysBetween = (a: string, b: string) => (Date.parse(`${b}Z`) - Date.parse(`${a}Z`)) / 86_400_000;
 
 export const rowKey = (cameraId: number, startAt: string) => `${cameraId}@${startAt}`;
 

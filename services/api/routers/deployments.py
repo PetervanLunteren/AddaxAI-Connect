@@ -390,10 +390,16 @@ async def _statements_of(
     )).scalars().all()
 
     def overlaps(s: DeploymentStatement) -> bool:
+        # An open statement holds up to fixed_until_at, the camera's newest
+        # photo when it was made; after that the GPS may have moved the
+        # camera on, so it does not reach every later deployment. Set to
+        # start after that photo, it holds nothing yet and is known by its
+        # start alone, which lies in the deployment it made.
         s_end = s.until_at or s.fixed_until_at
         starts_before_end = deployment.end_at is None or s.from_at < deployment.end_at
         ends_after_start = s_end is None or s_end > deployment.start_at
-        return starts_before_end and ends_after_start
+        starts_inside = s.until_at is None and s.from_at >= deployment.start_at
+        return starts_before_end and (ends_after_start or starts_inside)
     return [s for s in rows if overlaps(s)], deployment
 
 

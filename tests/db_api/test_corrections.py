@@ -480,6 +480,51 @@ async def test_editing_a_deployment_the_gps_made_replaces_nothing(session, admin
     assert [s["removed_at"] for s in statements(other)] == [None]
 
 
+async def test_editing_a_deployment_set_after_the_newest_photo_replaces_its_correction(session, admin):
+    """A deployment set to start after the camera's newest photo: its open
+    correction holds nothing yet, so only its start says which deployment it
+    made. An edit must still replace it. Before, the old correction stayed in
+    force and a second open deployment at the same site started after the
+    new last day."""
+    project = make_project()
+    make_site(project, "Home", HOME)
+    pond = make_site(project, "Pond", FAR)
+    cam = make_camera("S13", project)
+    history(cam, [(HOME, at(2))])
+    await set_deployment(project, SetDeploymentRequest(
+        camera_id=cam, site_id=pond, from_date=day(10)), session, admin)
+    _, planned = deployments(cam)
+
+    await edit(session, admin, project, cam, planned["id"], pond, 10, until_day=20)
+    _, planned = deployments(cam)
+    assert (planned["site_id"], planned["start_date"], planned["end_date"]) == (pond, day(10), day(20))
+    assert len([s for s in statements(cam) if s["removed_at"] is None]) == 1
+
+
+async def test_editing_a_later_deployment_leaves_an_older_open_correction(session, admin, moved_camera):
+    """An open correction does not reach every later deployment: the GPS
+    moved the camera on after it. Editing the later one must not take the
+    older correction back."""
+    from shared.database import get_db_session
+    from shared.deployment_rebuild import rebuild_camera
+    m = moved_camera
+    other = make_site(m["project"], "Other", offset(HOME, north_m=5000))
+    older = await change_site(session, admin, m["project"], m["second"], other)
+    elsewhere = offset(HOME, north_m=9000)
+    make_image(m["cam"], None, at(20), elsewhere)
+    make_image(m["cam"], None, at(21), elsewhere)
+    with get_db_session() as s:
+        rebuild_camera(s, m["cam"])
+    third = deployments(m["cam"])[2]
+    await edit(session, admin, m["project"], m["cam"], third["id"], m["home"], 20)  # now a person's
+    third = deployments(m["cam"])[2]
+
+    await edit(session, admin, m["project"], m["cam"], third["id"], m["home"], 20, until_day=25)
+    assert [d["site_id"] for d in deployments(m["cam"])][:2] == [m["home"], other]
+    [kept] = [s for s in statements(m["cam"]) if s["id"] == older.statement_id]
+    assert kept["removed_at"] is None
+
+
 async def test_a_shortened_deployment_splits_in_two_and_each_part_can_be_edited(session, admin):
     """Peter's case: the camera stood at Stream east until day 18 and was
     then moved to Stream west, but the GPS still reads Stream east. Ending

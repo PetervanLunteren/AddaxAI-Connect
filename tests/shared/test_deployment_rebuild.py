@@ -110,6 +110,21 @@ def test_a_stated_deployment_without_readings_takes_the_pin_of_the_one_it_joins(
     assert one.built.lat == 53.0 and one.built.reading_count == 1
 
 
+def test_an_end_a_person_moved_stays_an_end_after_an_earlier_join():
+    """An upload to the site (statement 1), then the next deployment there
+    shortened by a person (statement 2, in kept_ends), then the rest the GPS
+    made. The first two join, and the end of statement 2 must still hold.
+    Before, the joined part carried statement 1 and the rest joined too."""
+    upload = BuiltDeployment(at(1), at(5), 52.0, 5.0, 1, [1], 7, statement_id=1)
+    shortened = BuiltDeployment(at(5), at(11), 52.0, 5.0, 1, [2], 7, statement_id=2)
+    rest = built(11, None, [3])
+    first, second = join_same_site(
+        [plan(upload, 10, 7), plan(shortened, 11, 7), plan(rest, 12, 7)], kept_ends=frozenset({2}),
+    )
+    assert (first.built.start_at, first.built.end_at) == (at(1), at(11))
+    assert (second.built.start_at, second.built.end_at) == (at(11), None)
+
+
 # link_photos
 
 

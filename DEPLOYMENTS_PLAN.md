@@ -417,6 +417,25 @@ Notes per step:
   - For the release notes: an update has about a minute of downtime and a
     failed migration leaves the app down; pwn may show one new unnamed
     site (above); the spw statistics page fails the speed check, known.
+  - Code review of the whole branch, 26 Nov (`/code-review`, one pass, ten
+    findings). Fixed:
+    - The update started the app before the carry-over, so a photo taken
+      in at that moment rebuilt its camera from the GPS alone and its old
+      hand corrections were lost. The app now stays stopped until the
+      carry-over and the tag script are done; both run with
+      `docker compose run`, and the report goes to
+      `logs/carry-over-deployments.txt`.
+    - The carry-over committed per camera and set its mark at the end, so
+      a run that broke off wrote double statements on the rerun. One
+      transaction now.
+    - Editing a deployment set to start after the newest photo did not
+      replace its open correction (`_statements_of`).
+    - A shortened deployment joined back when a stated deployment at the
+      same site sat right before it (`join_same_site`).
+    - A short trip of exactly 7 days across a clock change was suspicious
+      on the server and not in the browser (`daysBetween`).
+    Measured, no change: one rebuild reads the camera's whole history,
+    0.32 s on the largest camera on dev (20,522 photos).
   - Still open before the release: a code review of the whole branch, the
     phone-width check of the new screens (Peter), and this glitch: a page
     opened in a fresh tab right
