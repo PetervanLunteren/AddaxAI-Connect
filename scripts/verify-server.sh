@@ -327,6 +327,9 @@ ENDPOINTS='
 /api/statistics/performance?project_id={p}
 /api/statistics/pipeline-status
 /api/statistics/last-update?project_id={p}
+/api/projects/{p}/deployments
+/api/projects/{p}/deployments/statements
+/api/todo
 '
 
 # ------------------------------------------------------- config regressions
@@ -358,6 +361,7 @@ fi
 API_FAILURES=""
 API_SLOW=""
 API_OK=0
+API_TIMES=
 if [ -n "$TOKEN" ]; then
   PROJECT_IDS="$(curl -s --max-time 30 -H "Authorization: Bearer $TOKEN" "$BASE/api/projects" \
     | python3 -c "
@@ -384,6 +388,7 @@ print('\n'.join(str(p['id']) for p in items))
                 -H "Authorization: Bearer $TOKEN" "$url")"
         if [ "$code" = "200" ]; then
           API_OK=$((API_OK + 1))
+          API_TIMES="$API_TIMES$secs ${ep%%\?*}"$'\n'
           # Speed is a checked property, not a hope. These are the heavy read
           # paths and they are already being called; timing them costs nothing
           # and turns "the dashboard got slow again" into a failed verify.
@@ -402,10 +407,14 @@ print('\n'.join(str(p['id']) for p in items))
       pass "api" "$API_OK requests across $NPROJ project(s), all 200"
     fi
 
+    # Every time, slowest first, for a closer look at one path.
+    printf '%s' "$API_TIMES" | grep . | sort -rn > /tmp/verify-server-times.txt
     if [ -n "$API_SLOW" ]; then
       fail "api-speed" "over ${SLOW_BUDGET}s:$API_SLOW"
     else
-      pass "api-speed" "every read path under ${SLOW_BUDGET}s"
+      # The three slowest, so a path creeping toward the budget shows before it fails.
+      SLOWEST="$(printf '%s' "$API_TIMES" | grep . | sort -rn | head -3 | awk '{printf " %s[%.1fs]", $2, $1}')"
+      pass "api-speed" "every read path under ${SLOW_BUDGET}s, slowest:$SLOWEST"
     fi
   fi
 fi
