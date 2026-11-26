@@ -404,11 +404,12 @@ Notes per step:
   - Step 3c (moving a pin, a merge that can be reversed) stays dropped
     until someone asks for it.
 
-- **Walkthrough with Peter**, started 20 November 2026, S01 to S03 done.
-  Peter walks the scenarios one by one; feedback is collected and fixed
-  after S12, unless it blocks.
-  - Dev: "Deployment scenarios" is project 5, with S01 to S03 (S02's
-    move checked by Peter on 24 Nov, S03 answered It stayed). Next is S04.
+- **Walkthrough with Peter**, started 20 November 2026, all twelve done
+  on 26 November 2026. Feedback was fixed as it came, not saved up.
+  - Dev: "Deployment scenarios" is project 5, with S01 to S12, left in
+    the state Peter's own edits put them in (S04 and S10 carry his
+    corrections, S06 has no site set). The scenario script now gives
+    on-time photos their own day as arrival time, so S08 reads inactive.
   - Not yet seen on screen after the map colour change: the site picker
     (Add site) and the merge picker (Sites, Merge); they use the shared
     marker part, so they should be fine. "Moves layout test" is project 6, 20
