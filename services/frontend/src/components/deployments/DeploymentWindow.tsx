@@ -240,8 +240,11 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
               never lower than now. On a phone, where the columns stack, it
               has that height. */}
           <div className="md:col-span-2 min-w-0 h-[min(65vh,640px)] md:h-auto md:min-h-[min(65vh,640px)]">
+            {/* A new map per row and per set of highlighted sites: it fits
+                once when it opens, so after an edit moves the deployment to
+                another site it fits again on the new one. */}
             <DeploymentsMap
-              key={current}
+              key={`${current}|${[...active].sort().join()}`}
               sites={sites}
               activeSiteIds={active.size === 0 ? null : active}
               arrows={arrows}
