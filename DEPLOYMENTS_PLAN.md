@@ -369,6 +369,11 @@ Notes per step:
     the walkthrough before more polish.
   - Open before the release: re-run the comparison on restored production
     data (step 2c), because the two rebuild rules above changed after it.
+    In that comparison also count the sites whose pin sits right next to
+    another site: a missed move under 250 m pulls the old site's pin toward
+    the new spot, and a correction does not move it back (S04 on dev,
+    26 Nov). A handful is a known edge case a person fixes by hand; only if
+    it is common, look at the cause, preferably by removing a rule.
     And a glitch seen while testing, older than this work: a page opened
     in a fresh tab right after a frontend deploy sometimes says "Please
     select a project" until reloaded.
