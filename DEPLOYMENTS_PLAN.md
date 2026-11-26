@@ -367,26 +367,54 @@ Notes per step:
     button or a word, ask what the user must never have to do and what can
     go; a deterministic rule over a heuristic, also in the screens; finish
     the walkthrough before more polish.
-  - Open before the release: re-run the comparison on restored production
-    data (step 2c), because the two rebuild rules above changed after it.
-    In that comparison also count the sites whose pin sits right next to
-    another site: a missed move under 250 m pulls the old site's pin toward
-    the new spot, and a correction does not move it back (S04 on dev,
-    26 Nov). A handful is a known edge case a person fixes by hand; only if
-    it is common, look at the cause, preferably by removing a rule.
-    And a glitch seen while testing, older than this work: a page opened
-    in a fresh tab right after a frontend deploy sometimes says "Please
-    select a project" until reloaded. Probably the same cause: a page reads
-    the project last selected, not the one in its address, so an old tab
-    of a deleted project showed another project's table (26 Nov).
-  - Open before the release, blocking: the update's migrations can
-    deadlock with the running app. `20261121_deployment_checked` drops
-    `feed_events`, which needs exclusive locks on the tables it refers to;
-    a request reading `projects` at that moment takes them in the other
-    order. Seen in 2 of 10 restores on dev (drenthe, pwn, 26 Nov). It rolls
-    back cleanly and a rerun passes, but on production the new code would
-    then run on the old schema until someone reruns it. Fix: stop the api
-    and the workers while `update-database.sh` migrates.
+  - Done 26 Nov: the comparison of step 2c rerun on restored production
+    data with today's rebuild rules (branch at `409aa86b`), all five
+    restores passed. The carry-over, against the gate of 19 Nov:
+
+    | Server | Cameras | Automatic | Pinned | Changed | Pins moved, furthest |
+    |---|---|---|---|---|---|
+    | lab | 7 | 4 | 3 | 1 | 0.6 m |
+    | npuh | 40 | 35 | 5 | 0 | 0.1 m |
+    | drenthe | 31 | 24 | 7 | 0 | 0 m |
+    | spw | 116 | 88 | 28 | 1 | 14.1 m |
+    | pwn | 53 | 44 | 9 | 4 | 0.8 m |
+
+    - Same as on 19 Nov: lab's photo of 6 June, spw's 6 photos on the
+      morning of a move, pwn's three cameras with test photos in Utrecht.
+      lab and spw have new cameras since, all automatic.
+    - Better: spw's site pin that moved 61 m now moves 14 m, because a
+      correction no longer moves a pin.
+    - New, pwn camera 10: one photo of 14 July, 588 m from where the camera
+      then stood (a test photo before the field), sat in a deployment
+      without a site. The carry-over cannot pin a deployment without a
+      site, so the GPS places it: a new site "Site at ..." with one
+      deployment and one photo. Harmless, a person merges it or leaves
+      it. Say it in the release notes for pwn ("one new unnamed site may
+      appear"); no special case.
+    - Close site pairs: within 50 m lab 0, npuh 4, drenthe 0, spw 0, pwn
+      12; 50 to 250 m lab 1, npuh 0, drenthe 9, spw 0, pwn 0. None
+      involves an unnamed site, all named by people, so no sign of pins
+      drifting toward a missed move (the S04 case) in real data.
+  - Fixed 26 Nov, a page whose address names a project the user cannot
+    open (deleted, no access) showed another project's data: the app fell
+    back to the last selected project. It now asks for the project list
+    once more and then says the project does not exist or there is no
+    access (`409aa86b`).
+  - Still open before the release: a page opened in a fresh tab right
+    after a frontend deploy sometimes says "Please select a project" until
+    reloaded. Older than this work. Not the cause above; a stale copy of
+    the installed app is the likelier one, not proven.
+  - Fixed 26 Nov, was blocking: the update's migrations could deadlock
+    with the running app. `20261121_deployment_checked` drops `feed_events`,
+    which needs exclusive locks on the tables it refers to, and a worker
+    reading those tables at that moment took them in the other order. Seen
+    in 2 of 10 restores on dev (drenthe, pwn). `update-database.sh` now
+    stops every service except postgres, redis and minio while it
+    migrates, and starts them after (`018983c6`); that start replaces the
+    three restarts it did after the migration. Tested in six restores
+    under load, which passed but did not reproduce the old deadlock
+    either, so the proof is that nothing else is connected while the
+    migration runs. An update now has about a minute of downtime.
   - History, one line each (details in git):
     - 20 Nov: a Deployments page with a timeline (3a), then a review page
       with To check and History tabs.
