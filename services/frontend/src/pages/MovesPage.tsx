@@ -211,6 +211,7 @@ export const MovesPage: React.FC = () => {
   // before marking it, so it is not waved through with the rest.
   const suspiciousToConfirm = toConfirm.filter((it) => it.suspicious);
   const plainToConfirm = toConfirm.filter((it) => !it.suspicious);
+  const suspiciousCount = suspiciousToConfirm.length;
   const toUncheck = chosen.filter((it) => it.kind === 'moved' && it.answered);
   const toUndo = chosen.filter((it) => it.kind === 'corrected');
 
@@ -410,36 +411,39 @@ export const MovesPage: React.FC = () => {
         <DialogContent onClose={() => setAskSuspicious(false)}>
           <DialogHeader>
             <DialogTitle>
-              {suspiciousToConfirm.length === 1
-                ? '1 of these moves is suspicious'
-                : `${suspiciousToConfirm.length} of these moves are suspicious`}
+              {plainToConfirm.length === 0
+                ? (suspiciousCount === 1 ? 'This move is suspicious' : `These ${suspiciousCount} moves are suspicious`)
+                : `${suspiciousCount} of the ${toConfirm.length} moves ${suspiciousCount === 1 ? 'is' : 'are'} suspicious`}
             </DialogTitle>
             <DialogDescription>
-              {SUSPICIOUS_EXPLAINED} Look at {suspiciousToConfirm.length === 1 ? 'it' : 'those'} in
-              {suspiciousToConfirm.length === 1 ? ' its' : ' their'} own window first, or confirm
-              {toConfirm.length === 1 ? ' it' : ' them all'}.
+              {SUSPICIOUS_EXPLAINED} Look at {suspiciousCount === 1 ? 'it in its' : 'them in their'} own window first.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setAskSuspicious(false)} disabled={setChecked.isPending}>
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              disabled={setChecked.isPending}
-              onClick={() => setChecked.mutate({ rows: toConfirm, checked: true })}
-            >
-              {toConfirm.length === 1 ? 'Confirm it' : `Confirm all ${toConfirm.length}`}
-            </Button>
+          {/* Each button says what happens to the suspicious moves; the
+              safe choice is the main one. Stacked, so the long labels never
+              wrap mid-button. */}
+          <div className="mt-4 flex flex-col gap-2">
             {plainToConfirm.length > 0 && (
               <Button
                 disabled={setChecked.isPending}
                 onClick={() => setChecked.mutate({ rows: plainToConfirm, checked: true, keepRest: true })}
               >
-                Confirm the other {plainToConfirm.length}
+                Confirm {plainToConfirm.length}, skip the suspicious {suspiciousCount === 1 ? 'one' : 'ones'}
               </Button>
             )}
-          </DialogFooter>
+            <Button
+              variant="outline"
+              disabled={setChecked.isPending}
+              onClick={() => setChecked.mutate({ rows: toConfirm, checked: true })}
+            >
+              {plainToConfirm.length === 0
+                ? 'Confirm anyway'
+                : `Confirm all ${toConfirm.length}, suspicious ${suspiciousCount === 1 ? 'one' : 'ones'} too`}
+            </Button>
+            <Button variant="ghost" onClick={() => setAskSuspicious(false)} disabled={setChecked.isPending}>
+              Cancel
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
