@@ -416,7 +416,8 @@ export const MovesPage: React.FC = () => {
             </DialogTitle>
             <DialogDescription>
               {SUSPICIOUS_EXPLAINED} Look at {suspiciousToConfirm.length === 1 ? 'it' : 'those'} in
-              {suspiciousToConfirm.length === 1 ? ' its' : ' their'} own window first, or confirm them all.
+              {suspiciousToConfirm.length === 1 ? ' its' : ' their'} own window first, or confirm
+              {toConfirm.length === 1 ? ' it' : ' them all'}.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
@@ -428,7 +429,7 @@ export const MovesPage: React.FC = () => {
               disabled={setChecked.isPending}
               onClick={() => setChecked.mutate({ rows: toConfirm, checked: true })}
             >
-              Confirm all {toConfirm.length}
+              {toConfirm.length === 1 ? 'Confirm it' : `Confirm all ${toConfirm.length}`}
             </Button>
             {plainToConfirm.length > 0 && (
               <Button
