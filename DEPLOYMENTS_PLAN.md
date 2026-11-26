@@ -376,7 +376,17 @@ Notes per step:
     it is common, look at the cause, preferably by removing a rule.
     And a glitch seen while testing, older than this work: a page opened
     in a fresh tab right after a frontend deploy sometimes says "Please
-    select a project" until reloaded.
+    select a project" until reloaded. Probably the same cause: a page reads
+    the project last selected, not the one in its address, so an old tab
+    of a deleted project showed another project's table (26 Nov).
+  - Open before the release, blocking: the update's migrations can
+    deadlock with the running app. `20261121_deployment_checked` drops
+    `feed_events`, which needs exclusive locks on the tables it refers to;
+    a request reading `projects` at that moment takes them in the other
+    order. Seen in 2 of 10 restores on dev (drenthe, pwn, 26 Nov). It rolls
+    back cleanly and a rerun passes, but on production the new code would
+    then run on the old schema until someone reruns it. Fix: stop the api
+    and the workers while `update-database.sh` migrates.
   - History, one line each (details in git):
     - 20 Nov: a Deployments page with a timeline (3a), then a review page
       with To check and History tabs.
