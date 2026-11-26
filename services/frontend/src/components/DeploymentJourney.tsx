@@ -17,7 +17,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Camera, Images, MapPin, Pencil } from 'lucide-react';
-import { dayLabel } from './deployments/moves';
+import { dayLabel } from './deployments/rows';
 
 export interface JourneyItem {
   id: number;

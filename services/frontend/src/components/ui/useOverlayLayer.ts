@@ -11,6 +11,10 @@ import { useEffect, useRef } from 'react';
 
 const openLayers: object[] = [];
 
+/** How many overlays are open, for a window whose keys must stay quiet
+ *  while another overlay sits above it. */
+export const openOverlayCount = () => openLayers.length;
+
 export function useOverlayLayer(open: boolean, onClose: () => void) {
   // A ref, so a parent re-render with a new callback does not re-run the
   // effect and move this layer to the top of the stack.

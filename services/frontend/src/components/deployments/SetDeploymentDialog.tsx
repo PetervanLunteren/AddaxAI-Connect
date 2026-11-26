@@ -35,7 +35,7 @@ import { camerasApi, type CameraDeployment } from '../../api/cameras';
 import type { Camera } from '../../api/types';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { DeploymentJourney, type JourneyItem } from '../DeploymentJourney';
-import { dayLabel } from './moves';
+import { dayLabel } from './rows';
 import { SiteField } from '../sites/SiteField';
 import { Button } from '../ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';

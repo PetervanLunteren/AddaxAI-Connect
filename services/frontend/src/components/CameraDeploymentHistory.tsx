@@ -14,7 +14,7 @@ import { Loader2, MapPinPlus } from 'lucide-react';
 import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { DeploymentCards } from './deployments/DeploymentCards';
-import { dayLabel } from './deployments/moves';
+import { dayLabel } from './deployments/rows';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';

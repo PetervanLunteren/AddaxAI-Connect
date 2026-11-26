@@ -7,8 +7,9 @@
  * wherever it is met.
  *
  * - Edit opens the Edit deployment form for the card's camera.
- * - Suspicious uses the Moves page's rule (moveRows) on the same cached
- *   list, so card and page agree; the answer stays on the Moves page.
+ * - Suspicious uses the Deployments page's rows (deploymentRows) on the
+ *   same cached list, so card and page agree; the question is answered in
+ *   the deployment's window on that page, where the map and photos are.
  * - A correction belongs to the cards of its camera whose days it covers.
  *   Undo takes back the whole edit: a correction is one fact about one
  *   period, so its parts cannot be undone apart. Cards the app placed show
@@ -26,11 +27,11 @@ import { camerasApi } from '../../api/cameras';
 import { deploymentsApi, type FixedPeriod } from '../../api/deployments';
 import type { Camera } from '../../api/types';
 import { DeploymentJourney, type JourneyItem } from '../DeploymentJourney';
-import { cameraPanelHref, deploymentImagesHref, sitePanelHref } from '../../lib/panel-links';
+import { cameraPanelHref, deploymentImagesHref, deploymentWindowHref, sitePanelHref } from '../../lib/panel-links';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toaster';
-import { MoveStatus } from './MoveStatus';
-import { dayLabel, moveRows, type MoveRow } from './moves';
+import { DeploymentStatus } from './DeploymentStatus';
+import { covers, dayLabel, deploymentRows, type DeploymentRow } from './rows';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './SetDeploymentDialog';
 
 /** One deployment, as both panels have it. */
@@ -77,20 +78,19 @@ function setBy(p: FixedPeriod): string {
   return p.created_by ? `${verb} by ${p.created_by} on ${when}` : `${verb} on ${when}`;
 }
 
-/** Whether a correction covers part of a card's days (null = open). */
-const covers = (p: FixedPeriod, d: DeploymentCardData) =>
-  p.camera_id === d.cameraId && d.startDate !== null &&
-  (p.until_date === null || p.until_date >= d.startDate) &&
-  (d.endDate === null || p.from_date <= d.endDate);
-
 interface Props {
   projectId: number;
   deployments: DeploymentCardData[];
   canEdit: boolean;
   emptyText: string;
+  // In the deployment's own window the Suspicious line would point at
+  // itself; the window shows the question instead.
+  hideSuspicious?: boolean;
 }
 
-export const DeploymentCards: React.FC<Props> = ({ projectId, deployments, canEdit, emptyText }) => {
+export const DeploymentCards: React.FC<Props> = ({
+  projectId, deployments, canEdit, emptyText, hideSuspicious = false,
+}) => {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [removing, setRemoving] = useState<FixedPeriod | null>(null);
@@ -113,10 +113,10 @@ export const DeploymentCards: React.FC<Props> = ({ projectId, deployments, canEd
     enabled: canEdit,
   });
 
-  const suspicious = useMemo(() => new Map<number, MoveRow>(
-    moveRows(projectDeployments ?? [])
-      .filter((it) => it.suspicious && it.deployment)
-      .map((it) => [it.deployment!.id, it]),
+  const suspicious = useMemo(() => new Map<number, DeploymentRow>(
+    deploymentRows(projectDeployments ?? [])
+      .filter((row) => row.suspicious)
+      .map((row) => [row.deployment.id, row]),
   ), [projectDeployments]);
 
   const remove = useMutation({
@@ -158,15 +158,15 @@ export const DeploymentCards: React.FC<Props> = ({ projectId, deployments, canEd
 
   const footer = (item: JourneyItem) => {
     const d = byId.get(item.id)!;
-    const move = suspicious.get(d.id);
-    const mine = corrections.filter((p) => covers(p, d));
+    const row = hideSuspicious ? undefined : suspicious.get(d.id);
+    const mine = corrections.filter((p) => covers(p, d.cameraId, d.startDate, d.endDate));
     return (
       <>
-        {move && (
+        {row && (
           <div className="mt-2 flex items-center justify-between gap-3 border-t pt-2 text-xs">
-            <MoveStatus it={move} />
+            <DeploymentStatus row={row} />
             <Link
-              to={`/projects/${projectId}/moves?camera=${d.cameraId}&status=suspicious`}
+              to={deploymentWindowHref(projectId, d.id)}
               className="text-muted-foreground hover:text-foreground"
             >
               Check this move

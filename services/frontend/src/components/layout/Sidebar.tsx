@@ -93,15 +93,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/integrations/sensingclues`, icon: Footprints, label: 'Sensing Clues' },
   ];
 
-  // Admin tools - visible to project admins and server admins. Moves sits
-  // next to Curation, the other place to clean up what the app did. No
+  // Admin tools - visible to project admins and server admins. Deployments
+  // sits next to Curation, the other place to clean up what the app did. No
   // badges here or anywhere in the navigation: what needs somebody is in
   // To do in the top bar (components/layout/TodoMenu.tsx).
   const adminTools = [
     { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Users', requiresAdmin: true },
     { to: `/projects/${projectId}/manage-images`, icon: ListChecks, label: 'Curation' },
-    { to: `/projects/${projectId}/moves`, icon: ArrowLeftRight, label: 'Moves' },
+    { to: `/projects/${projectId}/deployments`, icon: ArrowLeftRight, label: 'Deployments' },
     { to: `/projects/${projectId}/bulk-upload`, icon: Upload, label: 'Bulk upload' },
   ];
 

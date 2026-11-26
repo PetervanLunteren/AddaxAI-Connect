@@ -66,9 +66,6 @@ export interface FixedPeriod {
   source: string;
   created_by: string | null; // email, null when the account is gone
   created_at: string;
-  // The start of the move an "It stayed" took back (as start_at of a
-  // deployment), null for every other correction.
-  answers_move_at: string | null;
   // What a person changed with Edit or Add deployment: 'site', 'first_day',
   // 'last_day'. Null for other corrections and older ones.
   changes: string[] | null;
@@ -114,10 +111,6 @@ export const deploymentsApi = {
   },
   removeFixedPeriod: async (projectId: number, statementId: number): Promise<void> => {
     await apiClient.delete(`${base(projectId)}/statements/${statementId}`);
-  },
-  // Many at once, all or none (the Moves page).
-  removeFixedPeriods: async (projectId: number, statementIds: number[]): Promise<void> => {
-    await apiClient.post(`${base(projectId)}/statements/undo`, { ids: statementIds });
   },
   // A few photos of a deployment: a random sample, the first or the last.
   photos: async (

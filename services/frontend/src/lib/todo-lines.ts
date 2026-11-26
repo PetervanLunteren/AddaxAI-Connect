@@ -51,7 +51,7 @@ export function todoLine(item: TodoItem, projectId: number | null, userId: numbe
     case 'overdue_tasks':
       return line('project', Wrench, plural(n, 'overdue service task', 'overdue service tasks'), `${p}/service?due=overdue`);
     case 'suspicious_moves':
-      return line('project', ArrowLeftRight, plural(n, 'suspicious move', 'suspicious moves'), `${p}/moves?status=suspicious`);
+      return line('project', ArrowLeftRight, plural(n, 'suspicious move', 'suspicious moves'), `${p}/deployments?status=suspicious`);
     case 'unplaced_photos':
       return line('project', Camera, `${plural(n, 'camera', 'cameras')} with photos without a site`, `${p}/cameras?unplaced=yes`);
     case 'rejecting':

@@ -1,6 +1,6 @@
 /**
- * Links that open a camera's or a site's panel on its page, the hook that
- * opens it, and the link to a deployment's photos. One pair for every place that links to a panel (deployment
+ * Links that open a camera's or a site's panel, or a deployment's window,
+ * on its page, the hook that opens it, and the link to a deployment's photos. One pair for every place that links to a panel (deployment
  * cards, the image detail), so the address and its handling never drift.
  *
  * The parameter is read once and removed from the address: closing the
@@ -12,11 +12,16 @@ import { useEffect } from 'react';
 
 export const CAMERA_PANEL_PARAM = 'camera';
 export const SITE_PANEL_PARAM = 'site_panel';
+// The window of one deployment on the Deployments page.
+export const DEPLOYMENT_WINDOW_PARAM = 'deployment';
 
 export const cameraPanelHref = (projectId: number, cameraId: number) =>
   `/projects/${projectId}/cameras?${CAMERA_PANEL_PARAM}=${cameraId}`;
 export const sitePanelHref = (projectId: number, siteId: number) =>
   `/projects/${projectId}/sites?${SITE_PANEL_PARAM}=${siteId}`;
+
+export const deploymentWindowHref = (projectId: number, deploymentId: number) =>
+  `/projects/${projectId}/deployments?${DEPLOYMENT_WINDOW_PARAM}=${deploymentId}`;
 
 /**
  * The photos of one deployment on the Images page: its camera, from its
