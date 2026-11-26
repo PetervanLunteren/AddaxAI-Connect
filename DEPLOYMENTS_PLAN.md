@@ -400,7 +400,26 @@ Notes per step:
     back to the last selected project. It now asks for the project list
     once more and then says the project does not exist or there is no
     access (`409aa86b`).
-  - Still open before the release: a page opened in a fresh tab right
+  - Done 26 Nov, speed on dev with production data, three runs each
+    (`verify-server.sh` now also times the deployments list, the
+    corrections list and To do, and writes every time to
+    /tmp/verify-server-times.txt): deployments list at most 0.16 s,
+    corrections 0.13 s, To do 0.52 s (pwn). The Edit preview on the
+    largest camera (20,522 photos) 1.6 s. The statistics performance page
+    on spw stays over the 8 s budget (8.2 to 9.4 s), as before this
+    branch (9.7 s on production with v0.21.1, see TODO.md); budget kept.
+  - Done 26 Nov, the user docs (`939feef6`, `71e6b2ce`, `db5cef29`): the
+    sites page rewritten for the new model with six screenshots of the
+    scenario project, GPS no longer required on the camera pages, the
+    update guide on downtime. In the browser on dev: Merge (a stray site
+    into Meadow) and Set site before a camera's first photo work as the
+    page says.
+  - For the release notes: an update has about a minute of downtime and a
+    failed migration leaves the app down; pwn may show one new unnamed
+    site (above); the spw statistics page fails the speed check, known.
+  - Still open before the release: a code review of the whole branch, the
+    phone-width check of the new screens (Peter), and this glitch: a page
+    opened in a fresh tab right
     after a frontend deploy sometimes says "Please select a project" until
     reloaded. Older than this work. Not the cause above; a stale copy of
     the installed app is the likelier one, not proven.
