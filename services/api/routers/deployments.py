@@ -170,16 +170,20 @@ class DeploymentPreview(BaseModel):
 # (0002, 0202) would otherwise claim the camera's whole history, and a last
 # day of 9999-12-31 overflows the day after it.
 FIRST_SETTABLE_DAY = date(2000, 1, 1)
-DAYS_AHEAD = 366
 
 
-def _check_days(from_date: date, until_date: Optional[date]) -> None:
-    last_settable = date.today() + timedelta(days=DAYS_AHEAD)
+async def _check_days(db: AsyncSession, from_date: date, until_date: Optional[date]) -> None:
+    """No day after today. A deployment that starts later would count as
+    where the camera stands now (the current deployment is the one that
+    started last), and a last day still to come would count trap-nights
+    that have not happened."""
+    from routers.admin import server_today
+    today = await server_today(db)
     for day in (from_date, until_date):
-        if day is not None and not FIRST_SETTABLE_DAY <= day <= last_settable:
+        if day is not None and not FIRST_SETTABLE_DAY <= day <= today:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Days must lie between 1 January 2000 and a year from now",
+                detail="Days must lie between 1 January 2000 and today",
             )
     if until_date is not None and until_date < from_date:
         raise HTTPException(
@@ -341,7 +345,7 @@ async def _apply(
     ).scalar_one_or_none()
     if site is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
-    _check_days(request.from_date, request.until_date)
+    await _check_days(db, request.from_date, request.until_date)
 
     from_at, until_at = period_of_days(request.from_date, request.until_date)
     before = await _deployment_count(db, request.camera_id)
@@ -352,6 +356,14 @@ async def _apply(
     # still joins (only the site changed: a false trip folds back into one).
     keeps_start = edited is not None and request.from_date != edited.start_date
     keeps_end = edited is not None and request.until_date != edited.end_date
+    # A day left as it was keeps the deployment's own time, as "It stayed"
+    # states it. A move happens during a day: cut at midnight, the photos
+    # of that morning at the old spot would be left as a deployment of
+    # their own.
+    if edited is not None and not keeps_start:
+        from_at = edited.start_at
+    if edited is not None and not keeps_end:
+        until_at = edited.end_at
     # What the person changed, for the line on the card. Adding a deployment
     # sets all three.
     changes = ",".join(name for name, changed in [

@@ -11,9 +11,8 @@ site the camera stood at on the visit date, a task the camera's current
 site. Project admins write; every project member can read, and a
 site-restricted viewer only sees rows whose site is in their scope.
 """
-from datetime import date, datetime
+from datetime import date
 from typing import List, Optional
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -163,9 +162,8 @@ def _not_found(detail: str) -> HTTPException:
 
 async def _server_today(db: AsyncSession) -> date:
     """Today under the server timezone, the reference for future and overdue dates."""
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-    return datetime.now(tz).date()
+    from routers.admin import server_today
+    return await server_today(db)
 
 
 async def _check_member(db: AsyncSession, user_id: Optional[int], project_id: int, who: str) -> None:

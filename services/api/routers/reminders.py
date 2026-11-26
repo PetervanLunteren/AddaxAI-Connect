@@ -13,7 +13,6 @@ do not see the project-level operational schedule.
 """
 from datetime import date, datetime, timezone
 from typing import List, Optional
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, and_
@@ -57,9 +56,8 @@ class UpdateReminderRequest(BaseModel):
 async def _server_today(db: AsyncSession) -> date:
     """Resolve "today" in the configured server timezone so the past-date
     rejection behaves the same way the daily cron behaves."""
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-    return datetime.now(tz).date()
+    from routers.admin import server_today
+    return await server_today(db)
 
 
 def _serialize(

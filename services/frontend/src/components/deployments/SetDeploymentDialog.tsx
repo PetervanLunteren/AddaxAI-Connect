@@ -69,14 +69,14 @@ function errMsg(err: unknown): string {
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
 
-// Days a person can set, the same bounds as the server (FIRST_SETTABLE_DAY,
-// DAYS_AHEAD in routers/deployments.py). A year typed digit by digit (0002,
-// 0202) is a real date the preview must not send.
+// Days a person can set, the same bounds as the server (_check_days in
+// routers/deployments.py): no day after today. The server takes today in
+// its own timezone and has the last word. A year typed digit by digit
+// (0002, 0202) is a real date the preview must not send.
 const FIRST_DAY = '2000-01-01';
 const lastSettableDay = () => {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() + 366);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const settable = (day: string) => day >= FIRST_DAY && day <= lastSettableDay();
 
@@ -308,7 +308,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
               {untilBeforeFrom ? (
                 <p className="text-sm text-destructive">The last day cannot be before the first day.</p>
               ) : fromDate !== '' && !daysSettable ? (
-                <p className="text-sm text-destructive">Days must lie between 1 January 2000 and a year from now.</p>
+                <p className="text-sm text-destructive">Days must lie between 1 January 2000 and today.</p>
               ) : unchanged ? (
                 <p className="text-sm text-muted-foreground">Nothing changed yet.</p>
               ) : preview.isError ? (

@@ -434,6 +434,16 @@ Notes per step:
       same site sat right before it (`join_same_site`).
     - A short trip of exactly 7 days across a clock change was suspicious
       on the server and not in the browser (`daysBetween`).
+    - Changing only the site of a deployment that ended in a move cut it
+      at midnight and left the photos of that morning as a deployment of
+      their own. A day left as it was now keeps the deployment's own time.
+    - A deployment set to start in the future counted as the camera's
+      current site today. Decided with Peter: no day after today can be
+      set (today in the server timezone, `server_today` in
+      routers/admin.py), instead of teaching every reader of the current
+      site about planned deployments. Known limit: a deployment whose
+      photos are dated in the future by a wrong camera clock cannot be
+      edited until that day has come.
     Measured, no change: one rebuild reads the camera's whole history,
     0.32 s on the largest camera on dev (20,522 photos).
   - Still open before the release: a code review of the whole branch, the

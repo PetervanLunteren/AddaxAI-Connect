@@ -108,6 +108,22 @@ async def test_a_last_day_before_the_first_is_refused(session, admin, moved_came
     assert err.value.status_code == 422
 
 
+async def test_a_day_after_today_is_refused(session, admin, moved_camera):
+    """A deployment that starts later would count as where the camera stands
+    now, and a last day still to come would count trap-nights that have not
+    happened. Two days ahead, so the test holds in every timezone."""
+    from datetime import date
+    m = moved_camera
+    later = date.today() + timedelta(days=2)
+    for days in (dict(from_date=later), dict(from_date=day(9), until_date=later)):
+        with pytest.raises(HTTPException) as err:
+            await set_deployment(
+                m["project"], SetDeploymentRequest(camera_id=m["cam"], site_id=m["home"], **days),
+                session, admin,
+            )
+        assert err.value.status_code == 422
+
+
 async def test_a_camera_of_another_project_is_not_found(session, admin, moved_camera):
     other_project = make_project("Other")
     with pytest.raises(HTTPException) as err:
@@ -523,6 +539,26 @@ async def test_editing_a_later_deployment_leaves_an_older_open_correction(sessio
     assert [d["site_id"] for d in deployments(m["cam"])][:2] == [m["home"], other]
     [kept] = [s for s in statements(m["cam"]) if s["id"] == older.statement_id]
     assert kept["removed_at"] is None
+
+
+async def test_changing_only_the_site_keeps_the_time_of_the_move(session, admin):
+    """The camera left Home on day 10 in the afternoon, after a last photo
+    there that morning. Changing only the site of the first deployment must
+    take that photo along. Cut at midnight, it stayed behind as a deployment
+    of a few hours at the old site."""
+    project = make_project()
+    make_site(project, "Home", HOME)
+    pond = make_site(project, "Pond", offset(HOME, north_m=5000))
+    cam = make_camera("S14", project)
+    morning, afternoon = at(10) - timedelta(hours=3), at(10) + timedelta(hours=2)
+    history(cam, [(HOME, at(2)), (HOME, at(3)), (HOME, morning), (FAR, afternoon), (FAR, at(11))])
+    first, second = deployments(cam)
+    assert second["start_at"] == afternoon
+
+    await edit(session, admin, project, cam, first["id"], pond, 2, until_day=9)
+    first, second = deployments(cam)
+    assert (first["site_id"], first["end_at"], first["site_source"]) == (pond, afternoon, "manual")
+    assert second["start_at"] == afternoon
 
 
 async def test_a_shortened_deployment_splits_in_two_and_each_part_can_be_edited(session, admin):

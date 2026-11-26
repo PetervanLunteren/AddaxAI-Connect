@@ -48,7 +48,7 @@ Bad GPS can still make a move that didn't happen, when the drift lasts long enou
 
 ### Preparing a project before the field work
 
-When you know the camera IDs and the planned sites before the cameras go out, you can set the project up in advance. Add the cameras with Import from CSV under Add camera on the Cameras page, and the sites with Import from CSV under Add site on the Sites page. A camera with GPS is then placed on the nearest planned site within 250 metres by itself, from its first photo. A camera without GPS needs its site set once: open it, go to its Deployments tab, click Set site, and choose the site and the day it goes into the field.
+When you know the camera IDs and the planned sites before the cameras go out, you can set the project up in advance. Add the cameras with Import from CSV under Add camera on the Cameras page, and the sites with Import from CSV under Add site on the Sites page. A camera with GPS is then placed on the nearest planned site within 250 metres by itself, from its first photo. A camera without GPS needs its site set once it's in the field, see [a camera without GPS](#a-camera-without-gps).
 
 ### A camera moves to a new spot
 

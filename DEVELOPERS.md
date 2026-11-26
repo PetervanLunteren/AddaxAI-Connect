@@ -838,7 +838,7 @@ deployment started.
   photos), not id: after a split the old id can go to either part. The
   browser asks 400 ms after the form stops changing, never caches or
   retries, and cancels an older request. Days are bounded for Save and
-  preview: 1 January 2000 to a year ahead (`_check_days`).
+  preview: 1 January 2000 to today in the server timezone (`_check_days`).
   The site panel has Name this site; a camera that had its own spot gets
   one from Edit on its card, with + New site. A correction deletes a site it emptied when that
   site still has the app's name (`drop_unnamed_sites_left_empty`); a site
