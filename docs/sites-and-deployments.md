@@ -2,7 +2,9 @@
 
 AddaxAI Connect sorts your photos by place. A camera is the device, known by its device id. A site is a place where a camera stands, with a name you choose. A deployment is one camera at one site for one period. The app makes sites and deployments by itself from the GPS in the photos, and it notices when a camera moves. You only step in when it got something wrong, or when a camera has no GPS. This page is for project admins, who can correct deployments. Viewers see the same deployments but can't change them.
 
-<!-- Screenshot 1 to come: The Deployments page: the table with a few moves and a Corrected and a Suspicious pill. Scenario project, no filter. -->
+![The Deployments page](https://github.com/user-attachments/assets/0a4910cf-2f0c-44e1-938a-81ecd6c8bb37)
+
+*The Deployments page. One deployment was corrected by a person, one is suspicious.*
 
 ## How the app places a camera
 
@@ -16,23 +18,31 @@ GPS is noisy, more so under trees. On five servers with about 219,000 photos, mo
 
 Open a camera on the Cameras page and go to its Deployments tab to see every place it stood, oldest first. Open a site on the Sites page and go to its Deployments tab to see the cameras there now, and under "Earlier here" the ones that stood there before. The Deployments page under Admin tools lists every deployment of the project in one table, with filters for camera, site, status and date, and under More whether it moved. A deployment always shows as the same card: its site, camera, period and number of photos, each a link to what it names. A card a person set also says who set it and when.
 
-<!-- Screenshot 2 to come: The Deployments tab of a camera panel: two cards, one with Edit only and one with a "set by" line and Undo. Scenario S04 after the split. -->
+![Deployment cards in the camera panel](https://github.com/user-attachments/assets/ede95215-eeed-45cb-b795-87559f3e0f2f)
+
+*The Deployments tab of a camera, after a split. Each card says who set it, with Undo.*
 
 On the Deployments page, click a row to open the deployment with a map. After a move it shows the last photo at the old site next to the first photo at the new one, which usually tells you straight away whether the camera really moved.
 
-<!-- Screenshot 3 to come: The window of a move: the map with the arrow between two sites, the card, and the last photo at the old site next to the first at the new one. Scenario S02 or S12. -->
+![The window of a move](https://github.com/user-attachments/assets/fb6510c8-83c3-4e1a-b474-d09dea1207f4)
+
+*A camera that moved 6.2 km, with the last photo at the old site next to the first at the new one.*
 
 ## Correcting a deployment
 
 Click Edit on a card. The form holds the site, the first day and the last day. Next to it, Now shows the deployment as it is, and After saving shows what saving will make of it. Days you leave out go back to the app, which places them from the GPS again. Undo on a card takes a correction back, and the app then places those days from the GPS again too.
 
-<!-- Screenshot 4 to come: The Edit deployment form with a split: Now shows one card, After saving shows two. Scenario S04, last day set to 14 September. -->
+![Edit deployment with a split](https://github.com/user-attachments/assets/a4fea7b2-658c-4515-b744-a31a6a12d001)
+
+*Setting a last day splits the deployment. After saving shows the two parts before you save.*
 
 ## Suspicious moves
 
 Bad GPS can still make a move that didn't happen, when the drift lasts long enough. The app marks such a deployment Suspicious, and Needs attention in the top bar counts it. Nobody has to answer, and a move nobody answers stays as the app made it. To check one, click the line in Needs attention, open the deployment and look at the map and the two photos. Click "Right, it went there" to clear the warning, or "Wrong, it stayed at X" to put the photos back at X. Both can be undone.
 
-<!-- Screenshot 5 to come: The window of a suspicious deployment: the map, the two photos, the Suspicious pill and the question with Right and Wrong. Scenario S03. -->
+![A suspicious deployment](https://github.com/user-attachments/assets/1ef60692-32e4-4bcf-806a-d7b84b7ca66e)
+
+*A trip of two photos that came back within a week. Right or Wrong answers it.*
 
 ## Common situations
 
@@ -68,7 +78,9 @@ Move twenty cameras and each one gets a new deployment. A camera that arrives at
 
 The app can't place photos without GPS, so they have no site, and Needs attention shows the camera. Open the camera, go to its Deployments tab, click Set site, and choose the site and the first day. On the Images page, choose "No site" in the Sites filter to see them. Without GPS the app also can't see when such a camera moves, so every move needs you. Click Edit on its card and set the last day at the old spot. The photos after that day then have no site, and Set site gives them the new one.
 
-<!-- Screenshot 6 to come: The Deployments tab of a camera without GPS: the yellow line "57 photos have no site yet" with Set site. Scenario S06. -->
+![A camera without GPS](https://github.com/user-attachments/assets/bdab844b-8b13-4d49-a37e-25258f665b33)
+
+*A camera without GPS. Set site gives its photos a site.*
 
 ### A camera stops adding GPS
 
