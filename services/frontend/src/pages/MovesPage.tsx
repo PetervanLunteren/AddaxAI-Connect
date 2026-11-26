@@ -416,7 +416,10 @@ export const MovesPage: React.FC = () => {
                 : `${suspiciousCount} of the ${toConfirm.length} moves ${suspiciousCount === 1 ? 'is' : 'are'} suspicious`}
             </DialogTitle>
             <DialogDescription>
-              {SUSPICIOUS_EXPLAINED} Look at {suspiciousCount === 1 ? 'it in its' : 'them in their'} own window first.
+              {SUSPICIOUS_EXPLAINED}{' '}
+              {suspiciousCount === 1
+                ? 'It is worth a quick look before you confirm it.'
+                : 'They are worth a quick look before you confirm them.'}
             </DialogDescription>
           </DialogHeader>
           {/* Each button says what happens to the suspicious moves; the
