@@ -45,7 +45,7 @@ Before adding cameras, check the [camera requirements](camera-requirements.md) t
    - SIM expiry date (optional): used by the monthly SIM expiry alert.
    - Custom fields (optional): click Add field to add any extra metadata you want to track, like "Heading: South" or "Tree: Oak".
 
-A camera is just hardware, so it has no name. The place a camera stands is a site, and sites carry the names you work with day to day. A site is created automatically from the camera GPS, and you can rename it on the Sites tab. See [sites and cameras](sites-and-deployments.md).
+A camera is just hardware, so it has no name. The place a camera stands is a site, and sites carry the names you work with day to day. A site is created automatically from the camera GPS, and you can rename it on the Sites page. For a camera without GPS you set the site by hand. See [sites and cameras](sites-and-deployments.md).
 
 To add several cameras at once, pick Import from CSV instead.
 
@@ -59,7 +59,7 @@ Once connected, images will be picked up and processed automatically. Results sh
 
 Select the camera on the Cameras tab and choose Delete. The dialog gives two options.
 
-- "Retire, keep the data." The camera stays in the project as a retired camera. Its photos, labels, placements, health and service history stay, its current placement is closed at its last photo, and its open service tasks are removed. The Camera ID is free again, so you can register the same device in another project, or in this one, and it starts there with a clean history. This is the option for a camera that moves to another project, is stolen, or breaks.
+- "Retire, keep the data." The camera stays in the project as a retired camera. Its photos, labels, deployments, health and service history stay, its current deployment is closed at its last photo, and its open service tasks are removed. The Camera ID is free again, so you can register the same device in another project, or in this one, and it starts there with a clean history. This is the option for a camera that moves to another project, is stolen, or breaks.
 - "Delete the camera and all its data." Everything the camera recorded disappears, including the stored photo files. This cannot be undone.
 
 A retired camera that still uploads is treated as an unknown camera until it is registered again.

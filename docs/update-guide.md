@@ -61,6 +61,7 @@ bash scripts/update-database.sh
 
 The app stops while the database migrates, about a minute, and starts again
 after. Photos that arrive in that minute wait and are taken in when it starts.
+If this step fails, the app stays down until you fix the cause and run it again.
 
 Watch the output. Most update problems show up here.
 

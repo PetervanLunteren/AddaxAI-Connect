@@ -69,7 +69,7 @@ All services run as Docker containers on a single host, connected through a shar
 
 - **Frontend** (React via Nginx, port 3000) is the web interface
 
-Ingestion also groups images into cameras, sites, and deployments from their GPS. New cameras and moves wait on the Deployments page until someone checks them. See [sites and cameras](sites-and-deployments.md) for how that works.
+Ingestion also groups photos into cameras, sites and deployments from their GPS. The app places them by itself, and project admins correct a deployment where it got one wrong. See [sites and cameras](sites-and-deployments.md) for how that works.
 
 ### Workers
 - **Ingestion** watches the FTPS upload directory for new files

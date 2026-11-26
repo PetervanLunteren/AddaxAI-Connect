@@ -1,114 +1,79 @@
 # Sites and cameras
 
-AddaxAI Connect organises your images by place. A camera is the physical device, identified by its device id. A site is a place where a camera stands, with a name you choose. Every photo carries the GPS the camera recorded. The app uses it to build sites, to place cameras on them, and to notice when a camera moves. You do not manage any of this by hand. The app decides, reports what it did in the camera updates panel, and gives you a few buttons to correct a wrong guess.
+AddaxAI Connect sorts your photos by place. A camera is the device, known by its device id. A site is a place where a camera stands, with a name you choose. A deployment is one camera at one site for one period. The app makes sites and deployments by itself from the GPS in the photos, and it notices when a camera moves. You only step in when it got something wrong, or when a camera has no GPS. This page is for project admins, who can correct deployments. Viewers see the same deployments but can't change them.
 
-Behind the scenes the app also keeps a record of every continuous placement of a camera at a site. These records are fully automatic and there is nothing to do with them.
+<!-- Screenshot 1 to come: The Deployments page: the table with a few moves and a Corrected and a Suspicious pill. Scenario project, no filter. -->
 
-## How sites are made
+## How the app places a camera
 
-One distance is the cutoff, set to 250 metres. GPS readings within it are the same place. Readings beyond it mean the camera moved. Each photo is compared with the position of its own camera, so two cameras close together never get mixed up.
+When a camera sends its first photo, it's placed on the nearest site within 250 metres. If there is none, the app makes a new site and names it after its coordinates, for example "Site at 53.2460, 5.2620". That name is a placeholder, and the site shows Unnamed until you rename it on the Sites page. Photos within 250 metres of where the camera stands belong to the same deployment. When photos come from further away, the camera moved, and a new deployment starts on the nearest site at the new spot or on a new site. Each photo is always linked to the ID of the camera that took it, so cameras never get mixed up, also when they stand close together. You can always act on a camera as a whole.
 
-The cutoff is 250 metres because GPS is noisy. The noise was measured on 7257 photos from 25 cameras that never moved. Almost every reading lands within a few metres of the true spot. But GPS sometimes drifts much further on its own. The worst single photo was 215 metres off, with the camera standing still. A cutoff of 250 metres stays clear of that, so normal noise is not read as a move.
+## How the app handles GPS noise
 
-![GPS noise of stationary cameras](https://github.com/user-attachments/assets/e43bbafe-2191-46a1-b624-269a50439ee6)
+GPS is noisy, more so under trees. On five servers with about 219,000 photos, most readings were within 10 to 40 metres of where the camera stood, but sometimes the GPS drifts 100 to 230 metres off for a day or two and then comes back. The cutoff of 250 metres is the smallest distance that stays above that drift, and smaller distances found almost no real moves, only more false ones. One photo from further away doesn't move a camera, because a move needs a second photo near the same new spot. The position of a deployment is the average GPS of its photos, so one bad reading hardly shifts it, and it gets more precise the longer the camera stands there. And when a camera seems to go somewhere and comes back within a week, which is the usual shape of a GPS error, the app marks that deployment Suspicious for you to check, see [suspicious moves](#suspicious-moves).
 
-*Distance of each photo's GPS from the camera's true spot, for 25 cameras that never moved. Almost all readings fall within a few metres. The worst was 215 metres, and the 250 metre cutoff stays past all of it.*
+## Where you see deployments
 
-When a camera sends its first photo, the app looks for a site within 250 metres. If one exists, the camera is placed on it. If not, a new site is made and named after its coordinates, for example "Site at 53.2460, 5.2620". That name is a placeholder. You give it a real name manually in the app.
+Open a camera on the Cameras page and go to its Deployments tab to see every place it stood, oldest first. Open a site on the Sites page and go to its Deployments tab to see the cameras there now, and under "Earlier here" the ones that stood there before. The Deployments page under Admin tools lists every deployment of the project in one table, with filters for camera, site, status and date, and under More whether it moved. A deployment always shows as the same card: its site, camera, period and number of photos, each a link to what it names. A card a person set also says who set it and when.
 
-When a later photo arrives from more than 250 metres away, the camera has probably moved. One odd reading is not enough. A move must be confirmed by a second reading near the new spot, otherwise the reading is treated as noise and nothing happens. After a confirmed move the camera is placed on the nearest site at the new spot, or a new site is made there.
+<!-- Screenshot 2 to come: The Deployments tab of a camera panel: two cards, one with Edit only and one with a "set by" line and Undo. Scenario S04 after the split. -->
 
-A camera's position is not taken from a single photo. The app keeps averaging the GPS of all photos from the same placement, so the position gets more precise the longer the camera stands there.
+On the Deployments page, click a row to open the deployment with a map. After a move it shows the last photo at the old site next to the first photo at the new one, which usually tells you straight away whether the camera really moved.
 
-## The camera updates panel
+<!-- Screenshot 3 to come: The window of a move: the map with the arrow between two sites, the card, and the last photo at the old site next to the first at the new one. Scenario S02 or S12. -->
 
-Open the Cameras page and click Updates. The button shows how many entries still need review, and the Cameras item in the menu shows the same count from any page. Only project admins can review, so viewers do not see the count.
+## Correcting a deployment
 
-![The Updates button on the Cameras page](https://github.com/user-attachments/assets/3b0e1674-4ff6-45af-b78d-fbc827524696)
+Click Edit on a card. The form holds the site, the first day and the last day. Next to it, Now shows the deployment as it is, and After saving shows what saving will make of it. Days you leave out go back to the app, which places them from the GPS again. Undo on a card takes a correction back, and the app then places those days from the GPS again too.
 
-*The Updates button on the Cameras page. The count shows how many entries still need review.*
+<!-- Screenshot 4 to come: The Edit deployment form with a split: Now shows one card, After saving shows two. Scenario S04, last day set to 14 September. -->
 
-Every automatic decision becomes one entry. Entries show as one-line sentences, so the list reads like a short report. The sentence tells you if something is wanted from you. A placeholder name in the title means the site waits for a real name. A real name means there is nothing to do.
+## Suspicious moves
 
-![The camera updates panel with one-line entries](https://github.com/user-attachments/assets/1931eb59-b7ab-4b6e-8a40-cd5a9cf3327f)
+Bad GPS can still make a move that didn't happen, when the drift lasts long enough. The app marks such a deployment Suspicious, and Needs attention in the top bar counts it. Nobody has to answer, and a move nobody answers stays as the app made it. To check one, click the line in Needs attention, open the deployment and look at the map and the two photos. Click "Right, it went there" to clear the warning, or "Wrong, it stayed at X" to put the photos back at X. Both can be undone.
 
-*Each entry is one sentence. Two sites here still carry placeholder names, so they wait for a real one.*
-
-Click an entry to see more: the camera id, a few photos from that spot, where the camera was placed and why, and the action buttons. Each button explains itself with one line.
-
-![An expanded entry with photos and actions](https://github.com/user-attachments/assets/4afb46b4-5890-4f0e-9c42-5cf7eb482cf8)
-
-*An expanded entry. This camera was placed on an existing site 30 metres away, so it can also be split off to its own site.*
-
-The app already acted, so nothing here blocks anything. A human only reviews. Every entry has one state, shared by the whole project:
-
-- Needs review. Nobody has looked at it yet. These entries sit in the first tab and count on the badge.
-- Reviewed. A project admin has ticked it or corrected it. It moves to the Reviewed tab for everyone, with who reviewed it and when.
-
-There is no personal read state. Opening and closing the panel changes nothing, for you or for anyone else. When twenty cameras move on a field day, everyone sees twenty entries until someone reviews them. One admin working through the list clears the count for the whole team.
-
-![A closed entry with the resolution line](https://github.com/user-attachments/assets/0b50bf64-973a-4151-b7e2-137cecb3acd3)
-
-*A reviewed entry. It keeps what happened and records who reviewed it and when.*
-
-The Reviewed tab groups entries by time range. The panel loads the newest hundred entries; a button at the bottom of Reviewed loads older ones.
-
-![The already seen section with time ranges](https://github.com/user-attachments/assets/5e4e4b2b-c02b-432b-b579-010348367849)
-
-*The already seen section, grouped by time range. These six sites were named earlier, so their entries read calm.*
-
-## The actions
-
-Which buttons an entry shows depends on the situation. Only project admins can use them; viewers see the entries without buttons.
-
-- Show location opens the camera's spot in Google Maps. It changes nothing. Use it when you want to check the spot on a map before you decide anything.
-- "Name this site" gives a site with a placeholder name a real one. It only shows while the name is still a placeholder. Use it when a camera arrived at a spot the app did not know yet. Later renames happen on the Sites page.
-- "Different site" moves the camera to another existing site nearby. It only shows when there is one within 250 metres. Use it when several sites sit close together and the app picked the wrong one.
-- "New site" splits the camera off to its own new site at its exact spot. It only shows when the camera was placed on a site that already existed. Use it when two cameras stand close together but should count as separate places, like both ends of a wildlife bridge.
-- "It did not move" undoes a move that was GPS noise. The camera and its images go back to the previous site, as if the move never happened. Use it when the entry shows a move but you know the camera hangs where it always was. This is the one action here that cannot be undone: the placement at the new spot is merged away, so be sure before you confirm.
-- The tick on the right of every entry that needs review means nothing to change. Use it when the placement is right. The entry is reviewed for everyone, without opening it.
-- "Mark all as reviewed" at the top of the Needs review tab ticks every entry at once, after one confirmation. Use it after a field day when the placements are right. Sites keep their names, so an unnamed site stays marked on the Sites page.
-
-Every correction also counts as a review, for that entry only. When several cameras share one site, naming it from one entry does not review the others. Their sentences pick up the new name, and each still gets its own look, because one of them may belong on its own site.
+<!-- Screenshot 5 to come: The window of a suspicious deployment: the map, the two photos, the Suspicious pill and the question with Right and Wrong. Scenario S03. -->
 
 ## Common situations
 
-### A new camera starts sending
+### Preparing a project before the field work
 
-An entry appears: "A camera started sending images from Site at 53.2460, 5.2620." Give the site a real name with the name button, done. If the camera was placed on an existing named site, the entry needs nothing.
+When you know the camera IDs and the planned sites before the cameras go out, you can set the project up in advance. Add the cameras with Import from CSV on the Cameras page, and the sites with Import from CSV on the Sites page. A camera with GPS is then placed on the nearest planned site within 250 metres by itself, from its first photo. A camera without GPS needs its site set once: open it, go to its Deployments tab, click Set site, and choose the site and the day it goes into the field.
 
 ### A camera moves to a new spot
 
-An entry appears with the old site, the new site, and the distance. Check that it makes sense, name the new site if it is new, done. Use Show location if you want to see the spot on a map first.
+There is nothing to do. The camera gets a new deployment on the nearest site within 250 metres of the new spot. If there is none, the app makes a new site with a placeholder name, like "Site at 53.2460, 5.2620", which you can rename on the Sites page.
 
-![An expanded entry for a camera move](https://github.com/user-attachments/assets/72a6526d-d8f7-4a79-84d3-aa8be3c1e6df)
+### A camera moved less than 250 metres
 
-*A camera moved 399 metres. The new site waits for a name, and the move can be undone if it was not real.*
+The app doesn't see this as a move. Click Edit on the card and set the last day the camera stood at the old spot. That splits the deployment in two. Then click Edit on the new deployment and choose the right site.
 
-### A move that was GPS noise
+### The app chose the wrong site
 
-A single bad reading never makes an entry, the app filters it silently. When bad GPS produces two readings and a false move gets through, the entry shows a move you know did not happen. Click "It did not move". The camera and its images go back, and the wrongly made site is removed by itself.
+When two sites lie close together, the app can put a camera on the wrong one. Click Edit on the card and choose the right site.
 
-![The confirmation before undoing a move](https://github.com/user-attachments/assets/eee9302c-15f0-474b-85a7-6efd8731b151)
+### Recording the real field dates
 
-*The confirmation before a move is undone.*
+The app only knows the photos, so a deployment runs from its first photo to its last, and the trap-nights are counted over those days. When you put a camera up days before its first photo, or took it down days after its last, click Edit and set the real first and last day. The trap-nights then follow your days.
 
 ### Several cameras at one place
 
-Cameras within 250 metres of each other share one site by default. That is often right, for example when a new camera replaces a broken one at the same spot. When you want them apart, for example two cameras on one wildlife bridge, open the site, and on its Deployments tab click Edit on a camera's card. Click New site next to the site list and give it its own name, like "bridge north" and "bridge south". This is a one-time setup. After that, each camera keeps its own site, and the statistics count them apart.
+Cameras within 250 metres of each other share one site. That's often right, for example when a new camera replaces a broken one, or when two cameras on one tree point in different directions. When you want them counted apart, for example two cameras on both sides of a wildlife bridge, click Edit on a camera's card, click New site next to the site list and give it its own name. You do this once. After that the camera keeps its own site, and a camera that later replaces it is placed on the nearest of the two sites, as long as its GPS is accurate enough to tell them apart.
 
-### Moving many cameras at once
+### Field days and rotations
 
-Field days work without extra steps. Move twenty cameras, and twenty entries appear, one per camera. Cameras that arrive at a new spot get new sites to name. Cameras that return to a known site snap onto it by name, even when the devices got shuffled and a different camera ends up at each spot. A rotation project, where cameras move between fixed stations every few weeks, only costs you one naming pass on the first day. Every rotation after that needs no work at all.
-
-### A site that still has no name
-
-The "Unnamed" marker on a feed entry also shows next to the site on the Sites page, so a site that needs a name stays visible after its entry has moved down the list. Rename it there.
+Move twenty cameras and each one gets a new deployment. A camera that arrives at a known site is placed on it, even when the cameras got shuffled. A rotation project, where cameras move between fixed stations, only needs one naming pass on the first day.
 
 ### A camera without GPS
 
-Photos without GPS cannot be placed by the app. They have no site until you set one: open the camera, and under Deployments add a deployment with its site and first day. Until then these photos count in totals and species charts, but not on the map, in occupancy, on the timeline or in the trend per 100 trap-nights, and the spatial, detection history and Camtrap DP exports leave them out, because those need a place. Each of these says in the line under it how many photos are missing, and the exports ask before downloading. On the Images page, choose "No site" in the Sites filter to see them.
+The app can't place photos without GPS, so they have no site, and Needs attention shows the camera. Open the camera, go to its Deployments tab, click Set site, and choose the site and the first day. On the Images page, choose "No site" in the Sites filter to see them. Without GPS the app also can't see when such a camera moves, so every move needs you. Click Edit on its card and set the last day at the old spot. The photos after that day then have no site, and Set site gives them the new one.
 
-### Fixing something later
+<!-- Screenshot 6 to come: The Deployments tab of a camera without GPS: the yellow line "57 photos have no site yet" with Set site. Scenario S06. -->
 
-The feed is for corrections at the moment they happen. For everything later, use the normal pages. Rename, merge, or delete a site on the Sites page. Move a placement to another site from the camera's detail panel, under Placements. Merging is for when GPS noise split one real place into two sites: merge the stray site into the real one, and its placements and images move along.
+### A camera stops adding GPS
+
+A camera can stop adding GPS to its photos, for example after a firmware error. Its photos then stay at the site where it last had GPS, which is right as long as it doesn't move. When it does move, treat it as [a camera without GPS](#a-camera-without-gps).
+
+### Two sites that are really one place
+
+When one place exists as two sites, for example because GPS noise made a second one or a site was added twice, use Merge site on the Sites page to merge the stray site into the real one. Every camera that stood there moves along with its photos, and the stray site is removed. To move only one camera, use Edit on its card instead.
