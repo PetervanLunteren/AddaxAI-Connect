@@ -59,6 +59,9 @@ which would otherwise keep running next to the new ones.
 bash scripts/update-database.sh
 ```
 
+The app stops while the database migrates, about a minute, and starts again
+after. Photos that arrive in that minute wait and are taken in when it starts.
+
 Watch the output. Most update problems show up here.
 
 ## 5. Verify
