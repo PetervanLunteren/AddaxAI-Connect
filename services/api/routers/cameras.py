@@ -915,6 +915,8 @@ class CameraDeploymentResponse(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     image_count: int
+    first_photo_day: Optional[str] = None
+    last_photo_day: Optional[str] = None
 
 
 @router.get(

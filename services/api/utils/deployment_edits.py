@@ -106,7 +106,9 @@ async def camera_deployment_rows(
                        ST_Y(d.location::geometry) AS lat,
                        ST_X(d.location::geometry) AS lon,
                        d.start_date, d.end_date,
-                       count(i.id) AS image_count
+                       count(i.id) AS image_count,
+                       min(i.captured_at)::date AS first_photo_day,
+                       max(i.captured_at)::date AS last_photo_day
                 FROM deployments d
                 LEFT JOIN sites s ON s.id = d.site_id
                 LEFT JOIN images i ON i.deployment_id = d.id
@@ -128,6 +130,11 @@ async def camera_deployment_rows(
             "start_date": r["start_date"].isoformat() if r["start_date"] else None,
             "end_date": r["end_date"].isoformat() if r["end_date"] else None,
             "image_count": r["image_count"],
+            # The days of its first and last photo, camera clock; None
+            # without photos. The days above are where it starts and ends,
+            # which a person may have set before or after them.
+            "first_photo_day": r["first_photo_day"].isoformat() if r["first_photo_day"] else None,
+            "last_photo_day": r["last_photo_day"].isoformat() if r["last_photo_day"] else None,
         }
         for r in rows
     ]

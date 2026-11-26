@@ -163,3 +163,18 @@ async def test_an_unknown_site_is_refused_by_the_preview(session, admin, stream)
     with pytest.raises(HTTPException) as refused:
         await preview_deployment(stream["project"], edit(stream, 999999, 1), session, admin)
     assert refused.value.status_code == 404
+
+
+async def test_a_card_knows_the_days_of_its_first_and_last_photo(session, admin, stream):
+    """The form's hints name the photos of the deployment being edited. A
+    person can start a deployment before its first photo, so its first day
+    and its first photo day differ."""
+    request = SetDeploymentRequest(
+        camera_id=stream["cam"], site_id=stream["east"], from_date=day(-2), until_date=day(18),
+        deployment_id=stream["dep"],
+    )
+    preview = await preview_deployment(stream["project"], request, session, admin)
+    assert [(c.start_date, c.first_photo_day, c.last_photo_day) for c in preview.after] == [
+        (day(-2).isoformat(), day(1).isoformat(), day(18).isoformat()),
+        (day(19).isoformat(), day(19).isoformat(), day(20).isoformat()),
+    ]

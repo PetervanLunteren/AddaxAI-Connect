@@ -123,13 +123,13 @@ export const SetDeploymentDialog: React.FC<Props> = ({
     queryFn: () => camerasApi.getDeployments(cameraId),
   });
 
-  // The days the camera has photos: its first deployment or its first photo
-  // without a site, to its last photo (camera clock).
-  const firstPhotoDay = [...deployments.map((d) => d.start_date), camera.unplaced_first_day]
-    .filter((d): d is string => !!d)
-    .sort()[0];
-  const lastPhotoDay = camera.last_image_timestamp?.slice(0, 10);
   const editedCard = deployments.find((d) => d.id === prefill.deploymentId);
+  // The photos the hints under the days talk about: those of the deployment
+  // being edited ("here"), or, when adding one, the camera's photos without
+  // a site, which is what Add deployment is for.
+  const photosWhere = editing ? 'here' : 'without a site';
+  const firstPhotoDay = editing ? editedCard?.first_photo_day : camera.unplaced_first_day;
+  const lastPhotoDay = editing ? editedCard?.last_photo_day : camera.unplaced_last_day;
 
   const save = useMutation({
     mutationFn: (site: number) =>
@@ -242,7 +242,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     />
                     <p className="text-xs text-muted-foreground">
                       The day the camera was put here.
-                      {firstPhotoDay && ` Its first photo is from ${dayLabel(firstPhotoDay)}.`}
+                      {firstPhotoDay && ` The first photo ${photosWhere} is from ${dayLabel(firstPhotoDay)}.`}
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -258,7 +258,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     />
                     <p className="text-xs text-muted-foreground">
                       Leave empty while it is still there.
-                      {lastPhotoDay && ` Its last photo is from ${dayLabel(lastPhotoDay)}.`}
+                      {lastPhotoDay && ` The last photo ${photosWhere} is from ${dayLabel(lastPhotoDay)}.`}
                     </p>
                   </div>
                 </div>
