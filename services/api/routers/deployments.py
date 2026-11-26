@@ -247,7 +247,7 @@ async def list_statements(
 ):
     """The fixed periods in force, newest first: of one camera (the camera
     panel's Corrections), or of the whole project without camera_id (the
-    Moves page)."""
+    Deployments page and the deployment cards)."""
     query = (
         select(DeploymentStatement, Camera.device_id, Site.name, User.email)
         .join(Camera, Camera.id == DeploymentStatement.camera_id)
@@ -401,7 +401,7 @@ async def _remove_statements(db: AsyncSession, project_id: int, statement_ids: L
     """Take fixed periods back, all or none. The rows stay, marked removed
     with who and when, and each camera is rebuilt once: what the GPS or an
     older period says for that time shows again. The one way a correction is
-    removed, for one (camera panel, check window) or many (the table)."""
+    removed (Undo on a deployment card, Wrong taken back in the window)."""
     wanted = set(statement_ids)
     rows = (
         await db.execute(
@@ -445,27 +445,10 @@ async def remove_statement(
     await _remove_statements(db, project_id, [statement_id], user)
 
 
-class RemoveStatementsRequest(BaseModel):
-    ids: List[int]
-
-
-@router.post("/statements/undo", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_statements(
-    project_id: int,
-    request: RemoveStatementsRequest,
-    db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(require_project_admin_access),
-):
-    """Take many fixed periods back at once, from the Moves page.
-    All or none: one unknown id, or one of another project, fails the call."""
-    await _remove_statements(db, project_id, request.ids, user)
-
-
-# Moves: where the app saw a camera move, shown on the Moves page and in
-# its check. A person may say a move is
-# right, which only records that they looked; it fixes nothing. Saying it is
-# wrong writes a fixed period instead. Nobody has to answer: an entry that is
-# never answered just gets older.
+# The question of a suspicious deployment, in its window on the Deployments
+# page: did the camera really go there. Right only records who said so; it
+# fixes nothing. Wrong writes a fixed period instead. Nobody has to answer:
+# a question that is never answered just gets older.
 
 
 class CheckedRequest(BaseModel):

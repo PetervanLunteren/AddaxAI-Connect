@@ -49,8 +49,8 @@ from shared.models import (
 )
 
 # A move nobody answered that came back to the site it left within
-# SHORT_TRIP_DAYS: the mark of a false move. The Moves page marks the same
-# rows Suspicious (`suspicious` in components/deployments/moves.ts);
+# SHORT_TRIP_DAYS: the mark of a false move. The Deployments page marks the
+# same rows Suspicious (`suspicious` in components/deployments/rows.ts);
 # tests/db_api/test_review.py holds the two together. One row per move.
 SHORT_TRIP_DAYS = 7
 SUSPICIOUS_MOVES_SQL = f"""

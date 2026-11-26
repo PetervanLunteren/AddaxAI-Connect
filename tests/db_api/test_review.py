@@ -1,7 +1,7 @@
 """
-Step 3b: the Moves page and its check.
+Suspicious deployments: the Deployments page and To do must agree.
 
-A move is a deployment the GPS made. A person may say "It moved", which
+A move is a deployment the GPS made. A person may say it is right, which
 records who looked and when and fixes nothing. A move nobody checked that
 came back within a week is suspicious; the To do list counts those in
 SQL (utils/todo.py), the page marks them in the browser from the
@@ -41,7 +41,7 @@ async def suspicious(project, session) -> int:
 
 
 def list_rule(listed) -> int:
-    """suspicious in components/deployments/moves.ts, in Python."""
+    """suspicious in components/deployments/rows.ts, in Python."""
     by_camera = {}
     for d in listed:
         by_camera.setdefault(d.camera_id, []).append(d)
