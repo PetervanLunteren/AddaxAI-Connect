@@ -19,6 +19,9 @@ D. What do the moves of today's rule look like? One line per move: how far,
    confirmed it were one burst, whether it came back. For judging which
    signs would mark a false move besides the short trip.
 
+E. Which moves would a 100 m rule add? One line per move under 250 m, to
+   see whether they are real moves or noise.
+
 It builds from the GPS alone, without the corrections people made, because
 it judges what the GPS rule does by itself. Choosing a site is not
 simulated: a move here is a new deployment, whichever site it would get.
@@ -42,7 +45,7 @@ from shared.deployment_build import BuiltDeployment, Reading, build_deployments
 from shared.geo import RELOCATION_CONFIRMATIONS, SITE_THRESHOLD_METERS, calculate_gps_distance
 
 # (distance in metres, far readings in a row). The first is today's rule.
-RULES = [(250, 2), (150, 2), (100, 2), (100, 3), (50, 3)]
+RULES = [(250, 2), (200, 2), (175, 2), (150, 2), (100, 2), (100, 3), (50, 3)]
 SHORT_TRIP = timedelta(days=7)
 MIN_READINGS = 5  # a deployment needs this many to have a middle worth measuring from
 MIN_DAYS_PER_SIDE = 3  # of a shift: days with photos before it and after it
@@ -227,6 +230,19 @@ def main() -> None:
         mark = "  (today)" if (distance_m, confirmations) == (SITE_THRESHOLD_METERS, RELOCATION_CONFIRMATIONS) else ""
         print(f"   {distance_m:>3} m, {confirmations}  {deployments:>11}  {moves:>5}  {trips:>11}  "
               f"{moves - 2 * trips:>17}  {stayed_small:>20}{mark}")
+
+    print("\nE. Moves under 250 m that a 100 m rule (2 readings) would add")
+    print("   camera  day         metres  stayed     photos  came back")
+    for camera_id, readings in cameras.items():
+        built = build(readings, 100, 2)
+        for a, b, c in zip(built, built[1:], built[2:] + [None]):
+            if not b.move or b.move.distance_m >= SITE_THRESHOLD_METERS:
+                continue
+            stayed = b.end_at - b.start_at if b.end_at else None
+            back = c is not None and bool(c.move) and metres((a.lat, a.lon), (c.lat, c.lon)) <= 100
+            print(f"   {camera_id:>6}  {b.start_at.date()}  {b.move.distance_m:>6.0f}  "
+                  f"{(f'{stayed.total_seconds() / 86400:.1f} d' if stayed else 'still there'):>9}  "
+                  f"{len(b.image_ids):>6}  {'yes' if back else ''}")
 
 
 if __name__ == "__main__":
