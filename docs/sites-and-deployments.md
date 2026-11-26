@@ -48,7 +48,7 @@ Bad GPS can still make a move that didn't happen, when the drift lasts long enou
 
 ### Preparing a project before the field work
 
-When you know the camera IDs and the planned sites before the cameras go out, you can set the project up in advance. Add the cameras with Import from CSV on the Cameras page, and the sites with Import from CSV on the Sites page. A camera with GPS is then placed on the nearest planned site within 250 metres by itself, from its first photo. A camera without GPS needs its site set once: open it, go to its Deployments tab, click Set site, and choose the site and the day it goes into the field.
+When you know the camera IDs and the planned sites before the cameras go out, you can set the project up in advance. Add the cameras with Import from CSV under Add camera on the Cameras page, and the sites with Import from CSV under Add site on the Sites page. A camera with GPS is then placed on the nearest planned site within 250 metres by itself, from its first photo. A camera without GPS needs its site set once: open it, go to its Deployments tab, click Set site, and choose the site and the day it goes into the field.
 
 ### A camera moves to a new spot
 
@@ -88,4 +88,4 @@ A camera can stop adding GPS to its photos, for example after a firmware error. 
 
 ### Two sites that are really one place
 
-When one place exists as two sites, for example because GPS noise made a second one or a site was added twice, use Merge site on the Sites page to merge the stray site into the real one. Every camera that stood there moves along with its photos, and the stray site is removed. To move only one camera, use Edit on its card instead.
+When one place exists as two sites, for example because GPS noise made a second one or a site was added twice, open the stray site on the Sites page, click Merge and pick the real one. Every camera that stood there moves along with its photos, and the stray site is removed. To move only one camera, use Edit on its card instead.
