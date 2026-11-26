@@ -39,7 +39,7 @@ When Peter says he wants to continue with the deployments plan, do this:
 | 3c | dropped, see the notes of 3b | |
 | 4 | not started | `deployments-phase-2` |
 | docs | not started | `deployments-phase-2` |
-| 5 | not started | after the release |
+| 5 | measured 26 Nov 2026, no change: the rule stays | |
 
 A status is one of: not started, planned (Peter agreed with the step's plan),
 in progress, done (with the release it shipped in).
@@ -1039,6 +1039,43 @@ green.
 
 The replays run on dev against the production datasets. A rule that is
 accepted ends with a deploy to dev and an end to end test, see "Deploy to dev".
+
+**Measured on 26 November 2026, no change.** `scripts/analyse_move_rule.py`
+(read only) ran on dev against every production dataset (lab, npuh, drenthe,
+spw, pwn): 197 cameras with GPS, about 219,000 readings. It builds from the
+GPS alone, without the corrections people made.
+
+- GPS noise: 95% of readings lie within 8 to 41 m of the middle of their
+  deployment, depending on the server; single readings reach 470 m (spw).
+- The noise also comes as drift: for 1 to 3 days the fixes sit 100 to 230 m
+  off together, then return. Seen 16 times on lab, drenthe and spw. Requiring
+  more far readings in a row does not stop it, because it lasts many
+  readings.
+- 250 m is the lowest reliable distance. All servers together (moves, of
+  which short trips out and back): 250 m 22 (2), 200 m 33 (7), 150 m 39 (9),
+  100 m 64 (19), 50 m with 3 readings 248 (97). Lower distances add drift,
+  not real moves: no lasting shift of 100 to 250 m exists inside any
+  deployment, and the eleven of 30 to 60 m have too few days after them to
+  tell from noise.
+- Lowering only the move distance would change little anyway: a new
+  deployment takes the nearest site within 250 m, so a 120 m move joins the
+  old site again.
+- Suspicious stays one rule. Of the 22 moves, the only two that look false
+  (out and back after 1 and 4.9 days, 4 and 2 photos) are short trips, which
+  it already marks. Other signs added nothing: confirmed by one burst (4, all
+  real, so candidate 1 above is not needed), 5 photos or fewer (1, real),
+  over 20 km (4, cameras tested at an office), 250 to 400 m (5, the two
+  short trips and three that stayed). Seven days fits: false moves and drift
+  return after 1 to 3.4 days, one after 7.4.
+- Not scored against human answers: the update drops the old feed that held
+  "did not move", so the verdicts rest on the shape of each move.
+- Side findings: 6 pwn cameras have their first one to three photos at a
+  test place 2 to 49 km away (the open point on a lone first reading); 12
+  pairs of pwn sites lie within 50 m of each other, all named and placed by
+  people, so deliberate, not drift. The other servers are not checked for
+  close pairs.
+- Revisit only when a new camera type or project shows other GPS: rerun the
+  script after a restore, it prints counts and camera ids only.
 
 ## Decided and rejected
 
