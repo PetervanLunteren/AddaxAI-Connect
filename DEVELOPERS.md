@@ -781,7 +781,9 @@ are the one record; nothing about a move is stored apart from them.
   (camera panel, or made before `answers_move_at` existed) says "Undone".
   Undoing an older correction asks first.
 - **Bulk** (shared bulk bar): Confirm moves and Undo checks run at once,
-  they change no data; Undo corrections asks with the cameras named and a
+  they change no data, except that Confirm asks first when the selection
+  holds suspicious moves (`SUSPICIOUS_EXPLAINED`): confirm only the others,
+  which leaves the suspicious rows ticked, or all. Undo corrections asks with the cameras named and a
   typed word (`POST .../statements/undo`, all or none).
 - **Two rules of the rebuild that corrections rely on:**
   - a site's pin follows only the deployments the app placed from the GPS

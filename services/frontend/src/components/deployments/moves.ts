@@ -139,6 +139,11 @@ export function rowStatus(it: MoveRow): RowStatus {
 /** Why a move is suspicious, for the pill's tooltip. */
 export const SUSPICIOUS_REASON = 'Back at the same site within a week, often a GPS error';
 
+/** The same, in full, for the window that asks before confirming such moves. */
+export const SUSPICIOUS_EXPLAINED =
+  'The app marks a move as suspicious when the camera is back at the same site within a week. ' +
+  'That is often GPS noise, not a real move.';
+
 /** Who decided and on which day (YYYY-MM-DD), for checked and corrected rows. */
 export function decided(it: MoveRow): { by: string | null; day: string } | null {
   if (it.correction) return { by: it.correction.created_by, day: it.correction.created_at.slice(0, 10) };

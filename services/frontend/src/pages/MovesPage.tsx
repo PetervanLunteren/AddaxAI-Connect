@@ -17,8 +17,10 @@
  *
  * Checkboxes on every row. The bulk bar offers each action for the rows it
  * fits, with a count: Confirm moves and Undo checks change no data, so they
- * run at once; Undo corrections moves photos between sites, so it asks
- * first with the cameras named and a typed word.
+ * run at once, except that Confirm asks first when the selection holds
+ * suspicious moves (confirm only the others, or all); Undo corrections moves
+ * photos between sites, so it asks first with the cameras named and a typed
+ * word.
  */
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -28,7 +30,7 @@ import { sitesApi } from '../api/sites';
 import { CheckMovesModal } from '../components/deployments/CheckMovesModal';
 import { MoveStatus } from '../components/deployments/MoveStatus';
 import {
-  STATUS_LABELS, dateLabel, ends, metresLabel, dayLabel, decided, route, siteIds, moveRows,
+  STATUS_LABELS, SUSPICIOUS_EXPLAINED, dateLabel, ends, metresLabel, dayLabel, decided, route, siteIds, moveRows,
   rowStatus, type MoveRow, type RowStatus,
 } from '../components/deployments/moves';
 import { BulkActionBar } from '../components/ui/BulkActionBar';
@@ -143,6 +145,7 @@ export const MovesPage: React.FC = () => {
   const { selected, toggle, clear, setMany } = useBulkSelection<string>();
   const [opened, setOpened] = useState<{ keys: string[]; start: string } | null>(null);
   const [undoOpen, setUndoOpen] = useState(false);
+  const [askSuspicious, setAskSuspicious] = useState(false);
   const [undoWord, setUndoWord] = useState('');
 
   // Filter options come from the rows, so each one can match.
@@ -204,6 +207,10 @@ export const MovesPage: React.FC = () => {
   // filtering, so these count every selected row, shown or not.
   const chosen = items.filter((it) => selected.has(it.key));
   const toConfirm = chosen.filter((it) => it.kind === 'moved' && !it.answered);
+  // A suspicious move is the one the app itself doubts: bulk Confirm asks
+  // before marking it, so it is not waved through with the rest.
+  const suspiciousToConfirm = toConfirm.filter((it) => it.suspicious);
+  const plainToConfirm = toConfirm.filter((it) => !it.suspicious);
   const toUncheck = chosen.filter((it) => it.kind === 'moved' && it.answered);
   const toUndo = chosen.filter((it) => it.kind === 'corrected');
 
@@ -215,11 +222,15 @@ export const MovesPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['cameras'] });
   };
   const setChecked = useMutation({
-    mutationFn: ({ rows, checked }: { rows: MoveRow[]; checked: boolean }) =>
+    // keepRest: after "Confirm the other N" the suspicious rows stay ticked,
+    // so they can be opened next; otherwise the selection clears.
+    mutationFn: ({ rows, checked }: { rows: MoveRow[]; checked: boolean; keepRest?: boolean }) =>
       deploymentsApi.setChecked(projectId, rows.map((it) => it.deployment!.id), checked),
-    onSuccess: (_, { rows, checked }) => {
+    onSuccess: (_, { rows, checked, keepRest }) => {
       refresh();
-      clear();
+      if (keepRest) setMany(rows.map((it) => it.key), false);
+      else clear();
+      setAskSuspicious(false);
       toast.success(checked ? `${plural(rows.length, 'move', 'moves')} confirmed` : `${plural(rows.length, 'check', 'checks')} undone`);
     },
     onError: (error) => toast.error(`Could not save. ${errorText(error)}`),
@@ -283,7 +294,14 @@ export const MovesPage: React.FC = () => {
       {selected.size > 0 && (
         <BulkActionBar selected={selected.size} total={items.length} noun="rows" onClear={clear}>
           {toConfirm.length > 0 && (
-            <Button variant="outline" size="sm" disabled={busy} onClick={() => setChecked.mutate({ rows: toConfirm, checked: true })}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => suspiciousToConfirm.length > 0
+                ? setAskSuspicious(true)
+                : setChecked.mutate({ rows: toConfirm, checked: true })}
+            >
               Confirm {plural(toConfirm.length, 'move', 'moves')}
             </Button>
           )}
@@ -387,6 +405,42 @@ export const MovesPage: React.FC = () => {
           onClose={() => setOpened(null)}
         />
       )}
+
+      <Dialog open={askSuspicious} onOpenChange={(o) => !o && !setChecked.isPending && setAskSuspicious(false)}>
+        <DialogContent onClose={() => setAskSuspicious(false)}>
+          <DialogHeader>
+            <DialogTitle>
+              {suspiciousToConfirm.length === 1
+                ? '1 of these moves is suspicious'
+                : `${suspiciousToConfirm.length} of these moves are suspicious`}
+            </DialogTitle>
+            <DialogDescription>
+              {SUSPICIOUS_EXPLAINED} Look at {suspiciousToConfirm.length === 1 ? 'it' : 'those'} in
+              {suspiciousToConfirm.length === 1 ? ' its' : ' their'} own window first, or confirm them all.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setAskSuspicious(false)} disabled={setChecked.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              disabled={setChecked.isPending}
+              onClick={() => setChecked.mutate({ rows: toConfirm, checked: true })}
+            >
+              Confirm all {toConfirm.length}
+            </Button>
+            {plainToConfirm.length > 0 && (
+              <Button
+                disabled={setChecked.isPending}
+                onClick={() => setChecked.mutate({ rows: plainToConfirm, checked: true, keepRest: true })}
+              >
+                Confirm the other {plainToConfirm.length}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={undoOpen} onOpenChange={(o) => !o && !undoCorrections.isPending && setUndoOpen(false)}>
         <DialogContent onClose={() => setUndoOpen(false)}>
