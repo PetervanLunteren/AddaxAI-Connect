@@ -14,6 +14,11 @@ C. What would other fixed rules do? The same build with other numbers: how
    many moves they make, and how many of those are short trips (out and
    back within a week), the usual shape of a false move.
 
+D. What do the moves of today's rule look like? One line per move: how far,
+   how long the camera stayed, how many photos, whether the photos that
+   confirmed it were one burst, whether it came back. For judging which
+   signs would mark a false move besides the short trip.
+
 It builds from the GPS alone, without the corrections people made, because
 it judges what the GPS rule does by itself. Choosing a site is not
 simulated: a move here is a new deployment, whichever site it would get.
@@ -166,6 +171,42 @@ def main() -> None:
         print(f"   {low:>3} to {high:>3} m: {sum(1 for s in shifts if low <= s[1] < high)}")
     for camera_id, shift, day, before, after in sorted(shifts, key=lambda s: -s[1]):
         print(f"   camera {camera_id}: {shift:.0f} m on {day}, {before} days before, {after} days after")
+
+    print("\nD. Every move of today's rule")
+    print("   camera  day         metres  stayed     photos  confirmed in  came back")
+    counts: dict[str, int] = defaultdict(int)
+    for camera_id, readings in cameras.items():
+        by_id = {r.image_id: r for r in readings}
+        built = build(readings, SITE_THRESHOLD_METERS, RELOCATION_CONFIRMATIONS)
+        for a, b, c in zip(built, built[1:], built[2:] + [None]):
+            if not b.move:
+                continue
+            inside = [by_id[i] for i in b.image_ids]
+            # The photos that confirmed it: the first RELOCATION_CONFIRMATIONS.
+            confirmed_in = inside[RELOCATION_CONFIRMATIONS - 1].taken_at - inside[0].taken_at
+            stayed = b.end_at - b.start_at if b.end_at else None
+            back = c is not None and bool(c.move) and metres((a.lat, a.lon), (c.lat, c.lon)) <= SITE_THRESHOLD_METERS
+            burst = confirmed_in <= timedelta(minutes=1)
+            counts["moves"] += 1
+            counts["one burst"] += burst
+            counts["came back"] += back
+            counts["came back within a week"] += back and stayed <= SHORT_TRIP
+            counts["came back within a day"] += back and stayed <= timedelta(days=1)
+            counts["one burst, did not come back within a week"] += burst and not (back and stayed <= SHORT_TRIP)
+            counts["5 photos or fewer"] += len(inside) <= 5
+            counts["5 photos or fewer, did not come back within a week"] += (
+                len(inside) <= 5 and not (back and stayed <= SHORT_TRIP))
+            counts["over 20 km"] += b.move.distance_m > 20_000
+            counts["250 to 400 m"] += b.move.distance_m < 400
+            print(f"   {camera_id:>6}  {b.start_at.date()}  {b.move.distance_m:>6.0f}  "
+                  f"{(f'{stayed.total_seconds() / 86400:.1f} d' if stayed else 'still there'):>9}  {len(inside):>6}  "
+                  f"{(f'{confirmed_in.total_seconds():.0f} s' if burst else f'{confirmed_in.total_seconds() / 3600:.1f} h'):>12}  "
+                  f"{'yes' if back else ''}")
+        # A camera whose first photos are far from everything after them.
+        if len(built) > 1 and built[1].move and len(built[0].image_ids) <= 3 and built[1].move.distance_m > 1000:
+            counts["first photos far from the rest"] += 1
+    for name, n in counts.items():
+        print(f"   {name}: {n}")
 
     print("\nC. Other fixed rules (distance, far readings in a row)")
     print("   rule        deployments  moves  short trips  moves that stayed  of those under 250 m")
