@@ -6,8 +6,12 @@
  * - Server admins see all projects with 'server-admin' role
  * - Regular users see only their assigned projects with their specific roles
  * - Auto-selects project from URL when on project-specific pages
+ * - A project in the URL that is not in the user's list (deleted, no access)
+ *   selects nothing and sets missingProject, so the layout says so. It never
+ *   falls back to another project: that showed one project's data under
+ *   another's address.
  */
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { getUserProjects } from '../api/auth';
@@ -29,6 +33,8 @@ interface ProjectContextType {
   isProjectViewer: boolean;
   canAdminCurrentProject: boolean;
   loading: boolean;
+  // The URL names a project the user cannot open (deleted, or no access).
+  missingProject: boolean;
   selectProject: (project: ProjectWithRole) => void;
   refreshProjects: () => void;
 }
@@ -42,6 +48,7 @@ export const ProjectContext = createContext<ProjectContextType>({
   isProjectViewer: false,
   canAdminCurrentProject: false,
   loading: true,
+  missingProject: false,
   selectProject: () => {},
   refreshProjects: () => {},
 });
@@ -52,6 +59,9 @@ interface ProjectProviderProps {
 
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
   const [selectedProject, setSelectedProject] = useState<ProjectWithRole | null>(null);
+  const [missingProject, setMissingProject] = useState(false);
+  // The project id the list was fetched again for, once, before giving up.
+  const refetchedFor = useRef<string | null>(null);
   const { user } = useAuth();
   const location = useLocation();
   const projectId = getProjectIdFromPath(location.pathname);
@@ -82,11 +92,28 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     if (projectId) {
       const project = projects.find(p => p.id === parseInt(projectId));
       if (project) {
+        setMissingProject(false);
         setSelectedProject(project);
         localStorage.setItem('selected_project_id', project.id.toString());
         return;
       }
+      // Not in the list. The list is kept five minutes, so a project made or
+      // shared since then is asked for once more before giving up.
+      const giveUp = () => {
+        setSelectedProject(null);
+        setMissingProject(true);
+      };
+      if (refetchedFor.current !== projectId) {
+        refetchedFor.current = projectId;
+        refetch().then(({ data }) => {
+          if (!data?.some(p => p.id === parseInt(projectId))) giveUp();
+        });
+      } else {
+        giveUp();
+      }
+      return;
     }
+    setMissingProject(false);
 
     // Otherwise, try to load from localStorage
     const storedProjectId = localStorage.getItem('selected_project_id');
@@ -128,6 +155,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
         isProjectViewer,
         canAdminCurrentProject,
         loading: isLoading,
+        missingProject,
         selectProject,
         refreshProjects,
       }}

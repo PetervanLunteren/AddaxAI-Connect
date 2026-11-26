@@ -2,7 +2,9 @@
  * Main application layout with sidebar
  */
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Menu } from 'lucide-react';
+import { useProject } from '../../contexts/ProjectContext';
 import { Sidebar } from './Sidebar';
 import { TopBar, TopBarLogo } from './TopBar';
 import { InstallHint } from '../InstallApp';
@@ -13,6 +15,7 @@ interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { missingProject } = useProject();
 
   return (
     <div className="min-h-screen bg-background">
@@ -39,7 +42,16 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         />
 
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          {children}
+          {/* The address names a project this user cannot open: say so,
+              instead of a page that waits for a project forever. */}
+          {missingProject ? (
+            <div className="py-16 text-center space-y-3">
+              <p className="text-muted-foreground">This project does not exist, or you have no access to it.</p>
+              <Link to="/projects" className="text-sm text-primary hover:underline">Back to projects</Link>
+            </div>
+          ) : (
+            children
+          )}
         </div>
       </main>
 
