@@ -789,6 +789,17 @@ are the one record; nothing about a move is stored apart from them.
     moves a pin, since the build snaps other cameras to pins;
   - a GPS part keeps the site its stored row had only when the GPS chose
     it (`deployment_rebuild.py`): after Undo the GPS decides again.
+- **A deployment's site is picked once, and that can depend on history.**
+  The nearest site within 250 m of the deployment's pin at that moment,
+  then kept, so GPS noise never hops a camera to a neighbouring site. Live,
+  the pin at that moment is the first reading; built from scratch (after
+  Undo, or the rebuild at a release) it is the mean of all readings. The
+  two differ only for a camera between two close sites or one that moved
+  less than 250 m (scenario S04: Stream west live, Stream east from
+  scratch). Not a bug: such a camera needs a person either way, and the
+  mean is the better guess. Making live and scratch equal means picking
+  from the first reading always, which makes the scratch result worse
+  (decided against, 26 November 2026).
 - **One deployment card.** A deployment is drawn by `DeploymentJourney`
   (one card per deployment, never merged, days with `dayLabel`). The camera
   panel's and the site panel's Deployments tabs both use
