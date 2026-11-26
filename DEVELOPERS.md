@@ -725,66 +725,60 @@ Three readers' rules, each in one place (step 2c):
   report, the timeline and the Camtrap DP `deploymentEnd`.
   `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
 
-**Moves** (step 3b) is where people see where the app saw a camera move
-and fix it when it got one wrong. The app is automatic first, so it is an
-overview to look things up in, not a to-do list: `pages/MovesPage.tsx`,
-under Admin tools next to Curation, project admins only. The deployments
-are the one record; nothing about a move is stored apart from them.
+**Deployments page** (`pages/DeploymentsPage.tsx`, under Admin tools next
+to Curation, project admins only) lists every deployment of the project,
+one row each, with the same facts as the deployment card. The app is
+automatic first, so it is an overview for administration and history, not
+a to-do list. The deployments are the one record; nothing about a move is
+stored apart from them. A move is not a row of its own but how a
+deployment started.
 
-- **Rows** (`components/deployments/moves.ts`, built in the browser from
-  `GET .../deployments` and the project's corrections, `GET .../statements`
-  without `camera_id`):
-  - a move: a deployment the GPS made (`site_source = 'auto'`) that starts
-    where the camera's previous one ends;
-  - a correction a person made (`source = 'person'`; periods an upload set
-    or the update carried over are left out, nobody decided those).
-  A camera that started somewhere is not a row (naming a place is in the
-  site panel); photos without a site are the Cameras page's (attention
-  chip, Set site in the camera panel).
-- **Keys.** A move is keyed by its camera and its start (`moveKey`), which
-  come from the photos, not by its row id, which a rebuild may change. A
-  correction by its statement id. Both stay the same after any rebuild.
-- **Table:** Date, Camera, From, To, Distance, Status; one line per row,
-  long names cut with the full text on hover; shared `FilterBar` (camera,
-  site, status, date, decided by), newest first until a header sorts, so
-  rows stay put while you answer. Status is quiet: nothing for a move nobody checked, a
-  pill for Suspicious, Checked and Corrected (`MoveStatus`, shared with the
-  check window).
-- **Suspicious:** a move nobody checked that came back to the same site
-  within a week, the usual shape of a GPS error. The only thing To do
-  counts for Moves (`SUSPICIOUS_MOVES_SQL` in `utils/todo.py`, the same
-  rule as `suspicious` in `moves.ts`; `tests/db_api/test_review.py` holds
-  them together).
-- **Check window** (`CheckMovesModal.tsx`, the frame of image verification,
-  `REVIEW_WINDOW_CLASS`): a row click opens it there and the arrows step
-  through the rows as shown. Map on satellite with the two sites of the
-  move and the arrow, as tall as the cards (it redraws when its box
-  changes size); a card with what the app saw (Date, Camera, From, To,
-  Distance); the last photo before the move next to the first after it,
-  captioned (`GET .../deployments/{id}/thumbnails?order=last|first`); one
-  question, did it really move:
-  - **It moved** (Enter, `PUT .../deployments/checked`) only records who
-    looked and when (`checked_at`, `checked_by_user_id`); it fixes nothing.
-  - **It stayed at Pond** (W, `POST .../deployments/{id}/not-moved`): the
-    GPS was off. One correction over the stay before the move and the move,
-    at the old site, with `answers_move_at` = the move's start. At once,
-    with Undo on the spot instead of a confirmation before it.
-  - Under the buttons, small: who decided and when, or "Not checked", or
-    the Suspicious pill. Keys are on the buttons, no shortcuts pop-up.
-  - A move to the wrong site is not answered here: the app making a new
-    place where a site exists is fixed by merging sites (Sites page), a
-    snap to the wrong one of two close sites by Edit in the camera
-    panel.
-- **Undo** finds the move exactly, no search: after "It stayed" the move
-  comes back under its own key; a correction opened from the table leads
-  to `moveKey(camera, answers_move_at)`. A correction that answered no move
-  (camera panel, or made before `answers_move_at` existed) says "Undone".
-  Undoing an older correction asks first.
-- **Bulk** (shared bulk bar): Confirm moves and Undo checks run at once,
-  they change no data, except that Confirm asks first when the selection
-  holds suspicious moves (`SUSPICIOUS_EXPLAINED`): confirm only the others,
-  which leaves the suspicious rows ticked, or all. Undo corrections asks with the cameras named and a
-  typed word (`POST .../statements/undo`, all or none).
+- **Rows** (`components/deployments/rows.ts`, `deploymentRows`, built in
+  the browser from `GET .../deployments` and the project's corrections,
+  `GET .../statements` without `camera_id`). Per deployment:
+  - **Moved from**: the deployment right before it (its end is this
+    one's start) at another site, whoever made either;
+  - **suspicious**: the GPS made it (`site_source = 'auto'`), nobody
+    answered (`checked_at` empty), and the camera is back at the site it
+    left within a week, the usual shape of a GPS error. The same rule as
+    `SUSPICIOUS_MOVES_SQL` in `utils/todo.py`, the only thing To do
+    counts here; `tests/db_api/test_review.py` holds the two together;
+  - **corrected**: a correction a person made (`source = 'person'`)
+    covers part of its days (`covers`, also used by the cards).
+  - The key is the camera and the start (`rowKey`), which come from the
+    photos, not the row id, which a rebuild may change.
+- **Table:** Camera, Site, First day, Last day, Photos, Moved from, Status.
+  One line per row, long names cut with the full text on hover. Status is
+  quiet: a pill for Suspicious and Corrected only (`DeploymentStatus`,
+  shared with the card). Shared `FilterBar`: camera, site (where it stood
+  or where it came from), status, date (the period overlaps the range),
+  and Moved under More. Newest first until a header sorts, so rows stay
+  put. No checkboxes and no bulk actions: nothing has to be answered, so
+  there is nothing to answer in bulk.
+- **Window** (`DeploymentWindow.tsx`, the frame of image verification,
+  `REVIEW_WINDOW_CLASS`): a row click opens it, the arrows step through
+  the rows as shown, past the last row it closes. A link opens one
+  deployment's window (`deploymentWindowHref`, `?deployment=<id>`; the
+  card's Suspicious line uses it). Map on satellite with the two sites and
+  the arrow, or the one site. Right of it: the deployment's card
+  (`DeploymentCards`, so Edit, Undo and the links are the panels' own);
+  "Moved from" with the last photo there next to the first one here, or
+  the first two photos (`GET .../deployments/{id}/thumbnails`).
+- **The question**, only for a suspicious deployment, and then without
+  Edit on the card, so it stands alone: did the camera really go there.
+  - **Right** (Enter, `PUT .../deployments/checked`) only records who
+    said so and when (`checked_at`, `checked_by_user_id`); the warning
+    goes. The window then shows "Marked right by … on date" with Undo.
+  - **Wrong** (W, `POST .../deployments/{id}/not-moved`): the GPS was
+    off. One correction over the stay before and the trip, at the old
+    site, with `answers_move_at` = the trip's start (phase 5 reads it).
+    At once, with Undo on the spot instead of a confirmation before it;
+    after Undo the deployment comes back under the same key and asks
+    again.
+  - Every other deployment asks nothing. "It moved" on ordinary moves and
+    the Checked status are gone (26 November 2026): a check that changes
+    nothing is only worth asking where the app has a doubt. Older checks
+    stay in `checked_at`, unused.
 - **Two rules of the rebuild that corrections rely on:**
   - a site's pin follows only the deployments the app placed from the GPS
     (`RECOMPUTE_SITE_LOCATION_SQL` in `shared/geo.py`): a correction never
@@ -810,7 +804,8 @@ are the one record; nothing about a move is stored apart from them.
   site and camera (each a link to its panel, `lib/panel-links.ts`), period,
   photos (a link to them on the Images page, empty ones included). For admins a card
   also carries Edit, the Suspicious marker of
-  the Moves page (`moveRows` on the same cached list) and each correction
+  the Deployments page (`deploymentRows` on the same cached list, linking
+  to that deployment's window) and each correction
   on the card it made, "Last day set by … on date" with Undo (matched by
   camera and days; a card the app placed shows nothing). A new line on a
   card goes in `DeploymentCards`, so both panels get it.
@@ -1152,7 +1147,7 @@ used different limits for the same thing and which people learned to ignore.
   80, SIM expiring before the 1st of the month after next. The email report
   and the SIM email read them too. Retired cameras and cameras that never
   reported never warn.
-- **Each line has the icon of the page it opens** (Moves, Cameras, Service,
+- **Each line has the icon of the page it opens** (Deployments, Cameras, Service,
   Settings, the integration, System health, File management), so it shows
   what it belongs to. Broken things (inactive, rejecting, a failing
   integration or service) come first in their group.

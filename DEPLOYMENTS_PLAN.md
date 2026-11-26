@@ -412,6 +412,11 @@ Notes per step:
     Sep with Stream east after, S06 at Meadow from 1 Oct, S11 Fen from 1
     Oct. The scenario script gives on-time photos their own day as arrival
     time, so S08 reads inactive.
+  - 26 Nov, after the walkthrough: the Moves page became the Deployments
+    page, one row per deployment; a move is the Moved from column. Only a
+    suspicious deployment asks a question (Right, Wrong); every other one
+    is fixed with Edit. No bulk actions, no Checked status, the bulk undo
+    route went (DEVELOPERS.md, "Deployments page").
   - Not yet seen on screen after the map colour change: the site picker
     (Add site) and the merge picker (Sites, Merge); they use the shared
     marker part, so they should be fine. "Moves layout test" is project 6, 20
