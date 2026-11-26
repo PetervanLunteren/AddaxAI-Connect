@@ -444,6 +444,12 @@ Notes per step:
       site about planned deployments. Known limit: a deployment whose
       photos are dated in the future by a wrong camera clock cannot be
       edited until that day has come.
+    - An SD card of a recognised camera lost every photo without GPS: the
+      upload hides the site field then, and the worker skipped them
+      ("until phase 4", step 2b). So a camera without GPS could not import
+      a card at all. The skip is gone: such a photo is stored as a live
+      one is and follows the camera's deployments, or waits for Set site.
+      Asking for a site on that screen stays for phase 4.
     Measured, no change: one rebuild reads the camera's whole history,
     0.32 s on the largest camera on dev (20,522 photos).
   - Still open before the release: a code review of the whole branch, the

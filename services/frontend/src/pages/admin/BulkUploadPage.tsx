@@ -1123,9 +1123,8 @@ const ReviewStep: React.FC<{
   const unreadableCount = manifest.by_status.corrupt ?? 0;
   const undatedCount = manifest.by_status.missing_exif_datetime ?? 0;
   const validCount = Math.max(0, rawValidCount - duplicateCount);
-  // Photos the analysis will skip: without a chosen site a photo needs its
-  // own location. They still upload; the worker decides, this only says so
-  // in advance.
+  // Photos of a recognised camera without a location of their own. They are
+  // kept and follow the camera's deployments; this only says so in advance.
   const noLocationCount = useMemo(() => {
     if (profile?.mode !== 'profile') return 0;
     const excluded = new Set(excludedPaths);
@@ -1338,7 +1337,7 @@ const ReviewStep: React.FC<{
           )}
           {noLocationCount > 0 && (
             <span className="font-medium">
-              {noLocationCount.toLocaleString()} image{noLocationCount === 1 ? ' has' : 's have'} no location, the analysis will skip {noLocationCount === 1 ? 'it' : 'them'}.
+              {noLocationCount.toLocaleString()} image{noLocationCount === 1 ? ' has' : 's have'} no location. {noLocationCount === 1 ? 'It gets' : 'They get'} the site the camera has on {noLocationCount === 1 ? 'that day' : 'those days'}. If it has none, set the site on the camera afterwards.
             </span>
           )}
         </Callout>
@@ -1387,7 +1386,7 @@ const ReviewStep: React.FC<{
 // "for another reason", so a new reason never breaks the line.
 const SKIP_REASON_LABELS: Record<string, string> = {
   invalid_gps: 'without location',
-  missing_gps: 'without location',
+  missing_gps: 'without location', // jobs from before photos without GPS were kept
   missing_datetime: 'without date',
   too_large: 'as too large',
   not_a_photo: 'as not a JPEG photo',

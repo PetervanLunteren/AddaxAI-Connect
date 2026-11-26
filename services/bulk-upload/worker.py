@@ -144,8 +144,9 @@ def _process_file(
 
     - **Mode A (use_profile=True):** the same camera-profile hunt as live
       FTPS. The file's EXIF must match an EXIF profile (path profiles never
-      match here, the relative path is empty for a browser upload). GPS is
-      required per image, as for FTPS, and the deployments follow from it.
+      match here, the relative path is empty for a browser upload). The
+      deployments follow from the GPS of the photos, as for FTPS. A photo
+      without GPS is kept and follows them.
     - **Mode B (use_profile=False):** no profile and GPS is optional: the job
       states that the camera stood at the chosen site (see _process_job).
       DateTimeOriginal is required.
@@ -239,15 +240,9 @@ def _process_file(
                     gps=image_gps,
                 )
                 return {"outcome": "skipped", "reason": "invalid_gps"}
-            if not image_gps:
-                # Without a chosen site, a photo without GPS would have no
-                # site. Phase 4 of DEPLOYMENTS_PLAN.md asks for the site then.
-                logger.warning(
-                    "Skipping bulk upload entry, no GPS",
-                    entry=name,
-                    profile=profile.name,
-                )
-                return {"outcome": "skipped", "reason": "missing_gps"}
+            # A photo without GPS is stored, as live ingestion stores it: the
+            # rebuild puts it on the deployment that covers its time, and
+            # without one it waits for Set site on the camera.
 
         else:
             # Mode B: chosen-site deployment, DateTimeOriginal required.
@@ -484,8 +479,8 @@ def _process_job(job_uuid: str) -> None:
         manifest = job.manifest or {}
         time_offset_seconds = job.time_offset_seconds
 
-        # Mode A (no chosen site): the camera-profile hunt per image, GPS
-        # required, deployments follow from the readings like FTPS.
+        # Mode A (no chosen site): the camera-profile hunt per image,
+        # deployments follow from the readings like FTPS.
         # Mode B (chosen site): the job states where the camera stood.
         use_profile = not manifest.get("site_id")
 
