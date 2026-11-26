@@ -27,7 +27,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronLeft, ChevronRight, Loader2, Undo2, X } from 'lucide-react';
-import { deploymentsApi, type DeploymentPhoto } from '../../api/deployments';
+import { deploymentsApi, type DeploymentListItem, type DeploymentPhoto } from '../../api/deployments';
 import { formatDateTime } from '../../utils/datetime';
 import { AuthenticatedImage } from '../AuthenticatedImage';
 import { Button } from '../ui/Button';
@@ -38,7 +38,7 @@ import { REVIEW_WINDOW_CLASS } from '../ui/review-window';
 import { useToast } from '../ui/Toaster';
 import { openOverlayCount } from '../ui/useOverlayLayer';
 import type { SitePin } from '../sites/SiteMarkersLayer';
-import { DeploymentCards } from './DeploymentCards';
+import { DeploymentCards, type DeploymentCardData } from './DeploymentCards';
 import { DeploymentStatus } from './DeploymentStatus';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
 import { dayLabel, metresLabel, placeName, SUSPICIOUS_REASON, type DeploymentRow } from './rows';
@@ -56,6 +56,25 @@ function errMsg(err: unknown): string {
   const e = err as { response?: { data?: { detail?: string } }; message?: string };
   return e?.response?.data?.detail || e?.message || 'Unknown error';
 }
+
+const toCard = (d: DeploymentListItem): DeploymentCardData => ({
+  id: d.id,
+  cameraId: d.camera_id,
+  cameraName: d.camera_label ?? `Camera ${d.camera_id}`,
+  siteId: d.site_id,
+  siteName: d.site_name,
+  startDate: d.start_date,
+  endDate: d.end_date,
+  imageCount: d.image_count,
+  lat: d.latitude,
+  lon: d.longitude,
+});
+
+/** Whether two deployments share a day (YYYY-MM-DD, null end = open). */
+const sharesDays = (a: DeploymentListItem, b: DeploymentListItem) =>
+  a.start_date !== null && b.start_date !== null &&
+  (a.end_date === null || a.end_date >= b.start_date) &&
+  (b.end_date === null || b.end_date >= a.start_date);
 
 /** A Wrong answered in this window: the correction it made, for Undo. */
 interface Wrong {
@@ -77,9 +96,21 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
   const d = row?.deployment;
   const p = row?.previous;
 
+  // An Edit or an Undo can change where a deployment starts, and with that
+  // its key. The window then shows what those days are now, as cards with
+  // Edit, so a split is seen and its new part can be edited next. It
+  // remembers each deployment it showed for that.
+  const seen = useRef(new Map<string, DeploymentListItem>());
+  if (d) seen.current.set(current, d);
+  const was = seen.current.get(current);
+  const changed = !row && was
+    ? rows.map((r) => r.deployment).filter((x) => x.camera_id === was.camera_id && sharesDays(x, was))
+      .sort((a, b) => a.start_at.localeCompare(b.start_at))
+    : [];
+
   // A deployment can disappear while the window is open (an Edit or an
   // Undo on its card, a Wrong on its neighbour): stepping skips those.
-  const gone = (key: string) => !wrongs[key] && !rows.some((r) => r.key === key);
+  const gone = (key: string) => !wrongs[key] && !seen.current.has(key) && !rows.some((r) => r.key === key);
   const goTo = (target: number) => {
     const step = target < index ? -1 : 1;
     let i = target;
@@ -175,10 +206,12 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
     if (!from || !to) return [];
     return [{ key: current, from, to, label: `${placeName(p!.site_name)} to ${placeName(d!.site_name)}` }];
   }, [current, d, p, sites]);
-  // Magenta on the map: both ends of a move, or the one site.
+  // Magenta on the map: both ends of a move, or the one site, or the sites
+  // of what a changed deployment is now.
   const active = useMemo(
-    () => new Set([d?.site_id, p?.site_id].filter((id): id is number => id != null)),
-    [d, p],
+    () => new Set([d?.site_id, p?.site_id, ...changed.map((x) => x.site_id)].filter((id): id is number => id != null)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [d, p, changed.map((x) => x.id).join()],
   );
 
   // Previous, next, position and close, as in the image verification panel.
@@ -232,6 +265,16 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
                   </Button>
                 </CardContent>
               </Card>
+            ) : !row && changed.length > 0 ? (
+              <>
+                <p className="text-sm text-muted-foreground">This deployment is now</p>
+                <DeploymentCards
+                  projectId={projectId}
+                  deployments={changed.map(toCard)}
+                  canEdit
+                  emptyText=""
+                />
+              </>
             ) : !row || !d ? (
               <Card>
                 <CardContent className="pt-4 pb-3 text-sm text-center text-muted-foreground">
@@ -242,18 +285,7 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
               <>
                 <DeploymentCards
                   projectId={projectId}
-                  deployments={[{
-                    id: d.id,
-                    cameraId: d.camera_id,
-                    cameraName: d.camera_label ?? `Camera ${d.camera_id}`,
-                    siteId: d.site_id,
-                    siteName: d.site_name,
-                    startDate: d.start_date,
-                    endDate: d.end_date,
-                    imageCount: d.image_count,
-                    lat: d.latitude,
-                    lon: d.longitude,
-                  }]}
+                  deployments={[toCard(d)]}
                   canEdit={!asks}
                   emptyText=""
                   hideSuspicious

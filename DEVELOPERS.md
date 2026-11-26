@@ -764,6 +764,9 @@ deployment started.
   (`DeploymentCards`, so Edit, Undo and the links are the panels' own);
   "Moved from" with the last photo there next to the first one here, or
   the first two photos (`GET .../deployments/{id}/thumbnails`).
+  An Edit or an Undo can move a deployment's start and with it its key;
+  the window then shows "This deployment is now" with the cards of those
+  days, so the parts of a split can be edited next.
 - **The question**, only for a suspicious deployment, and then without
   Edit on the card, so it stands alone: did the camera really go there.
   - **Right** (Enter, `PUT .../deployments/checked`) only records who
