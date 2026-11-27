@@ -38,13 +38,13 @@ def moved_camera():
 
 
 async def change_site(session, admin, project, deployment_id, site_id):
-    """Wrong site? as the camera panel does it since 2b: the Set deployment
-    form, filled with the deployment's own days."""
+    """Wrong site: Edit on the deployment's card, only the site changed."""
     [dep] = rows("SELECT camera_id, start_date, end_date FROM deployments WHERE id = :d", d=deployment_id)
     return await set_deployment(
         project,
         SetDeploymentRequest(camera_id=dep["camera_id"], site_id=site_id,
-                             from_date=dep["start_date"], until_date=dep["end_date"]),
+                             from_date=dep["start_date"], until_date=dep["end_date"],
+                             deployment_id=deployment_id),
         session, admin,
     )
 

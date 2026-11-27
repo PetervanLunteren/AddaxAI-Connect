@@ -177,11 +177,13 @@ async def set_deployment(
     from_at, until_at = period_of_days(from_date, until_date)
     sites_before = await _camera_site_ids(db, camera_id)
     replaced, edited = await _statements_of(db, camera_id, deployment_id)
-    # An end the person moved stays an end: a shortened deployment splits in
-    # two instead of the GPS joining the rest back. An end left as it was
-    # still joins (only the site changed: a false trip folds back into one).
+    # A day the person typed stays an end: a shortened deployment splits in
+    # two instead of the GPS joining the rest back, and effort counts to a
+    # typed last day. An end left as it was still joins (only the site
+    # changed: a false trip folds back into one). An added deployment has
+    # its last day typed when it has one.
     keeps_start = edited is not None and from_date != edited.start_date
-    keeps_end = edited is not None and until_date != edited.end_date
+    keeps_end = until_date != edited.end_date if edited is not None else until_date is not None
     # A day left as it was keeps the deployment's own time, as "It stayed"
     # states it. A move happens during a day: cut at midnight, the photos
     # of that morning at the old spot would be left as a deployment of

@@ -2,8 +2,10 @@
 runs against PostGIS in tests/db_ingestion and tests/db_api."""
 from datetime import datetime
 
-from shared.deployment_build import BuiltDeployment
-from shared.deployment_rebuild import Photo, Planned, StoredRow, join_same_site, link_photos, match_rows
+from shared.deployment_build import BuiltDeployment, Statement
+from shared.deployment_rebuild import (
+    Photo, Planned, StoredRow, join_same_site, link_photos, match_rows, typed_last_days,
+)
 
 
 def at(day, hour=12):
@@ -123,6 +125,28 @@ def test_an_end_a_person_moved_stays_an_end_after_an_earlier_join():
     )
     assert (first.built.start_at, first.built.end_at) == (at(1), at(11))
     assert (second.built.start_at, second.built.end_at) == (at(11), None)
+
+
+def test_a_joined_deployment_has_the_typed_last_day_of_its_later_part():
+    """An upload to the site, then a deployment whose last day a person
+    typed: they join, and the joined one ends where the person said."""
+    upload = Planned(BuiltDeployment(at(1), at(5), 52.0, 5.0, 1, [1], 7, statement_id=1), 10, 7)
+    typed = Planned(BuiltDeployment(at(5), at(11), 52.0, 5.0, 1, [2], 7, statement_id=2), 11, 7, last_day_set=True)
+    [joined] = join_same_site([upload, typed])
+    assert joined.last_day_set and joined.built.end_at == at(11)
+
+
+# typed_last_days
+
+
+def test_a_last_day_counts_as_typed_only_where_the_deployment_ends_there():
+    typed = Statement(1, 7, at(1), at(11), keeps_end=True)
+    not_typed = Statement(2, 8, at(11), at(20))
+    ends_there = BuiltDeployment(at(1), at(11), 52.0, 5.0, 1, [1], 7, statement_id=1)
+    cut_short = BuiltDeployment(at(1), at(8), 52.0, 5.0, 1, [1], 7, statement_id=1)
+    stated = BuiltDeployment(at(11), at(20), 52.0, 5.0, 1, [2], 8, statement_id=2)
+    gps = built(20, None, [3])
+    assert typed_last_days([ends_there, cut_short, stated, gps], [typed, not_typed]) == [True, False, False, False]
 
 
 # link_photos

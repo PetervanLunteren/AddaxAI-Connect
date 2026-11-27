@@ -726,8 +726,11 @@ Three readers' rules, each in one place (step 2c):
   event belongs to the deployment of its first photo. Daily reports and
   maintenance visits are no photos and keep matching by time.
 - **Effort** (trap-days): `shared/shared/effort.py`. A camera counts at a site
-  from its first photo there to its last photo there, a closed fixed period
-  as the person said. Daily reports do not count. Every reader uses it: the
+  from its first photo there to its last photo there, or to a last day a
+  person typed (`deployments.last_day_set`, which the rebuild sets from the
+  statement's `keeps_end` when the deployment ends where that statement
+  ends). Changing only the site, "It stayed", uploads and carried-over
+  history count to the last photo. Daily reports do not count. Every reader uses it: the
   map, the spatial export, the effort chart, occupancy, the scheduled species
   report, the timeline and the Camtrap DP `deploymentEnd`.
   `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
@@ -833,8 +836,9 @@ deployment started.
   that made the deployment (`deployment_id` on the request; the replaced
   statements get `replaced_by_statement_id`), so leaving days out really
   gives them back instead of an older correction keeping them; Undo of the
-  edit brings them back. An end the person moved stays an end
-  (`keeps_start`, `keeps_end` on the statement, read by `join_same_site`):
+  edit brings them back. A day the person typed stays an end
+  (`keeps_start`, `keeps_end` on the statement, read by `join_same_site`;
+  Add deployment with a last day sets `keeps_end` too):
   a shortened deployment splits in two, also when the GPS finds the same
   site for the rest, and each part can be edited. An end left as it was
   still joins, so changing only the site of a false trip folds it back into

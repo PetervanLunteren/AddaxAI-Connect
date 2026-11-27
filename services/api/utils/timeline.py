@@ -138,7 +138,7 @@ async def get_deployment_timeline(
 
         signal_days_in_cdp = sorted(days_by_cdp.get(row.cdp_id, []))
         effective_end = effort_last_day(
-            row.start_date, row.end_date, row.last_photo_at, row.site_source,
+            row.start_date, row.end_date, row.last_photo_at, row.last_day_set,
         )
 
         # Inner segments: split by gap rule, clip to the CDP window plus
@@ -318,7 +318,7 @@ async def _fetch_cdp_rows(
             cdp.start_date AS start_date,
             cdp.end_date AS end_date,
             cdp.last_photo_at AS last_photo_at,
-            cdp.site_source AS site_source
+            cdp.last_day_set AS last_day_set
         FROM cameras c
         INNER JOIN deployments cdp ON cdp.camera_id = c.id
         LEFT JOIN sites s ON s.id = cdp.site_id

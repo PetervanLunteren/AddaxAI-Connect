@@ -57,6 +57,7 @@ class StoredRow:
     lon: float
     reading_count: int
     site_source: str = "auto"
+    last_day_set: bool = False
 
     @property
     def start_date(self):
@@ -69,6 +70,7 @@ class Planned:
     built: BuiltDeployment
     row_id: Optional[int]  # the stored row it keeps, None = a new row
     site_id: Optional[int] = None
+    last_day_set: bool = False  # a person typed its last day, see typed_last_days
 
 
 @dataclass(frozen=True)
@@ -148,10 +150,21 @@ def join_same_site(planned: Sequence[Planned], kept_starts: frozenset[int] = fro
             )
             if last.row_id is None:
                 last.row_id = p.row_id
+            last.last_day_set = p.last_day_set  # the later part ends it
         else:
             joined.append(p)
         tail = p.built.statement_id
     return joined
+
+
+def typed_last_days(built: Sequence[BuiltDeployment], statements: Sequence[Statement]) -> list[bool]:
+    """For each built deployment, whether a person typed its last day: its
+    statement keeps its end, and the deployment ends where that statement
+    ends. A typed last day that a newer statement cut short is not this
+    deployment's end any more. Effort counts to a typed last day and
+    otherwise to the last photo (shared/effort.py)."""
+    typed_until = {s.id: s.until_at for s in statements if s.keeps_end and s.until_at is not None}
+    return [b.statement_id in typed_until and b.end_at == typed_until[b.statement_id] for b in built]
 
 
 def link_photos(deployments: Sequence[BuiltDeployment], photos: Sequence[Photo]) -> dict[int, Optional[int]]:
@@ -205,9 +218,10 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
     photos, statements = load_history(session, camera_id)
     stored = [
         StoredRow(r.id, r.deployment_number, r.site_id, r.start_at, r.end_at, r.lat, r.lon,
-                  r.gps_reading_count, r.site_source)
+                  r.gps_reading_count, r.site_source, r.last_day_set)
         for r in session.execute(text("""
             SELECT id, deployment_number, site_id, start_at, end_at, gps_reading_count, site_source,
+                   last_day_set,
                    ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lon
             FROM deployments WHERE camera_id = :id ORDER BY deployment_number
         """), {"id": camera_id})
@@ -217,8 +231,8 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
 
     stored_by_id = {s.id: s for s in stored}
     planned: list[Planned] = []
-    for b, row_id in zip(built, match_rows(built, stored, photos)):
-        p = Planned(b, row_id)
+    for b, row_id, last_day_set in zip(built, match_rows(built, stored, photos), typed_last_days(built, statements)):
+        p = Planned(b, row_id, last_day_set=last_day_set)
         # A GPS part keeps the site its row had, so jitter never hops it to
         # another site. Only a site the GPS chose, though: a site a person
         # set came from a statement, and once that statement is removed the
@@ -251,6 +265,7 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
             "site_id": p.site_id,
             "start_at": b.start_at, "end_at": b.end_at,
             "start_date": b.start_date, "end_date": b.end_date,
+            "last_day_set": p.last_day_set,
             "wkt": f"POINT({lon} {lat})", "n": b.reading_count,
         }
         old = stored_by_id.get(p.row_id) if p.row_id is not None else None
@@ -258,10 +273,10 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
             p.row_id = session.execute(text("""
                 INSERT INTO deployments (
                     camera_id, deployment_number, site_id, site_source,
-                    start_at, end_at, start_date, end_date, location, gps_reading_count
+                    start_at, end_at, start_date, end_date, last_day_set, location, gps_reading_count
                 ) VALUES (
                     :camera_id, :number, :site_id, :source,
-                    :start_at, :end_at, :start_date, :end_date, ST_GeogFromText(:wkt), :n
+                    :start_at, :end_at, :start_date, :end_date, :last_day_set, ST_GeogFromText(:wkt), :n
                 ) RETURNING id
             """), {**values, "camera_id": camera_id, "number": next_number}).scalar_one()
             next_number += 1
@@ -271,7 +286,7 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
             session.execute(text("""
                 UPDATE deployments
                 SET site_id = :site_id, site_source = :source, start_at = :start_at, end_at = :end_at,
-                    start_date = :start_date, end_date = :end_date,
+                    start_date = :start_date, end_date = :end_date, last_day_set = :last_day_set,
                     location = ST_GeogFromText(:wkt), gps_reading_count = :n
                 WHERE id = :id
             """), {**values, "id": p.row_id})
@@ -371,6 +386,7 @@ def _differs(old: StoredRow, p: Planned, lat: float, lon: float, source: str) ->
         or old.site_source != source
         or old.start_at != b.start_at
         or old.end_at != b.end_at
+        or old.last_day_set != p.last_day_set
         or old.reading_count != b.reading_count
         or (old.lat, old.lon) != (lat, lon)
     )

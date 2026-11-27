@@ -474,8 +474,10 @@ Notes per step:
     - Comments that named dropped screens or told history are reworded.
     Left as is: To do's read that writes, this plan file (goes after the
     release), the carry-over's copy of two rebuild functions.
-    Open, a rule decision: effort counts every stated deployment with an
-    end to that end, also when the GPS set the end.
+    Fixed the same day, decided with Peter: effort counts to a last day
+    only when a person typed it (`deployments.last_day_set`, migration
+    `20261127_deployment_last_day_set`). Changing only the site, "It
+    stayed", uploads and carried-over history count to the last photo.
   - Still open before the release: a code review of the whole branch, the
     phone-width check of the new screens (Peter), and this glitch: a page
     opened in a fresh tab right

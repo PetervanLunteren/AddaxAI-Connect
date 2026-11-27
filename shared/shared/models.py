@@ -319,8 +319,7 @@ class Deployment(Base):
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
     # 'manual' = a statement made this deployment (a person's correction, an
     # upload to a site, the carried-over history), 'auto' = the GPS did. Set
-    # by the rebuild. Rules that read it: effort counts a 'manual' deployment
-    # to its end date (shared/effort.py), a site's pin only follows 'auto'
+    # by the rebuild. Rules that read it: a site's pin only follows 'auto'
     # deployments (shared/geo.py), the rebuild keeps the site of an 'auto'
     # row, only an 'auto' deployment can be a short trip
     # (shared/deployment_queries.py), and an edit replaces statements only
@@ -337,6 +336,12 @@ class Deployment(Base):
     last_photo_at = Column(DateTime(timezone=False), nullable=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment
+    # A person typed this deployment's last day (Edit or Add deployment), so
+    # effort counts to end_date and not to the last photo, see
+    # shared/effort.py. Set by the rebuild from the statement that ends the
+    # deployment (keeps_end). False when the GPS, an upload or the
+    # carried-over history made the end.
+    last_day_set = Column(Boolean, nullable=False, server_default='false')
     location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)
     # How many GPS readings `location` averages. The pin is the running mean of
     # the deployment's within-threshold photo readings (see shared.geo.
@@ -387,12 +392,15 @@ class DeploymentStatement(Base):
     # then too): the statement that replaced it. Undo of that one brings this
     # one back, so an edit is undone to what was there before.
     replaced_by_statement_id = Column(Integer, ForeignKey("deployment_statements.id", ondelete="SET NULL"), nullable=True)
-    # An end a person moved in Edit deployment: the deployment never joins a
-    # neighbour at the same site across that end. Shortening a deployment
-    # then splits it in two, also when the GPS finds the same site for the
-    # rest, and each part can be edited. An end left as it was still joins,
-    # so changing only the site of a false trip folds it back into one.
-    # False for "It stayed", uploads and the carried-over history.
+    # A day a person typed: the first day (keeps_start) or the last day
+    # (keeps_end) changed in Edit deployment, or the last day given in Add
+    # deployment. The deployment never joins a neighbour at the same site
+    # across such an end. Shortening a deployment then splits it in two, also
+    # when the GPS finds the same site for the rest, and each part can be
+    # edited. An end left as it was still joins, so changing only the site of
+    # a false trip folds it back into one. keeps_end is also what makes
+    # effort count to the last day (deployments.last_day_set). False for
+    # "It stayed", uploads and the carried-over history.
     keeps_start = Column(Boolean, nullable=False, server_default="false")
     keeps_end = Column(Boolean, nullable=False, server_default="false")
     # What a person changed with it in Edit or Add deployment, for the line
