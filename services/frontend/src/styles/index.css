@@ -139,6 +139,27 @@
   }
 }
 
+@layer components {
+  /* A small text link (Edit and Undo on a deployment card) gets an area of
+     at least 44 by 44 px to tap on a touch screen, Apple's minimum, without
+     moving anything: an invisible box centred on the link. A mouse needs no
+     help, so with a mouse or trackpad the link stays as it is. */
+  @media (pointer: coarse) {
+    .tap-target {
+      position: relative;
+    }
+    .tap-target::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;

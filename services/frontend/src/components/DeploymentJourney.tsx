@@ -86,7 +86,7 @@ export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, f
                 <button
                   type="button"
                   onClick={() => onEdit(it)}
-                  className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  className="tap-target inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
                   <Pencil className="h-3.5 w-3.5" />
                   Edit
