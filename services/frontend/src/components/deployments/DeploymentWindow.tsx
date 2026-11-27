@@ -286,12 +286,12 @@ const Evidence: React.FC<EvidenceProps> = ({
   const p = row.previous;
   const firstCount = p ? 1 : 2;
   const { data: before } = useQuery({
-    queryKey: deploymentKeys.photos(projectId, p?.id, 'last', 1),
+    queryKey: deploymentKeys.photos(projectId, p, 'last', 1),
     queryFn: () => deploymentsApi.photos(projectId, p!.id, 'last', 1),
     enabled: !!p,
   });
   const { data: after } = useQuery({
-    queryKey: deploymentKeys.photos(projectId, d.id, 'first', firstCount),
+    queryKey: deploymentKeys.photos(projectId, d, 'first', firstCount),
     queryFn: () => deploymentsApi.photos(projectId, d.id, 'first', firstCount),
   });
 

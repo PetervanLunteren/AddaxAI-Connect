@@ -81,13 +81,19 @@ export interface DeploymentPreview {
 
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;
 
-// Query keys. Everything of a project sits under ['deployments', projectId],
-// so one invalidation refreshes the list, the corrections and the photos.
+// Query keys. The list and the corrections of a project sit under
+// ['deployments', projectId], so one invalidation refreshes both.
 export const deploymentKeys = {
   list: (projectId: number) => ['deployments', projectId, 'list'] as const,
   corrections: (projectId: number) => ['deployments', projectId, 'corrections'] as const,
-  photos: (projectId: number, deploymentId: number | undefined, order: 'first' | 'last', limit: number) =>
-    ['deployments', projectId, 'photos', deploymentId, order, limit] as const,
+  // Photos are not refreshed by invalidation: a change can remove the
+  // deployment, and asking for its photos again would fail. The key holds
+  // what the photos depend on (the deployment as the list has it), so a
+  // changed deployment is a new key and a removed one is never asked again.
+  photos: (
+    projectId: number, deployment: DeploymentListItem | undefined, order: 'first' | 'last', limit: number,
+  ) => ['deployment-photos', projectId, deployment?.id, deployment?.start_at, deployment?.end_at,
+    deployment?.image_count, order, limit] as const,
   ofCamera: (cameraId: number) => ['camera-deployments', cameraId] as const,
 };
 
