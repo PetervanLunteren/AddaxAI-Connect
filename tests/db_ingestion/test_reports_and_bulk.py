@@ -209,17 +209,17 @@ def test_an_old_sd_card_from_elsewhere_is_read_as_history():
 
 def test_an_sd_card_photo_without_gps_follows_the_cameras_deployments():
     """An upload of a recognised camera, no site chosen. The worker used to
-    skip a photo without GPS. Now it is stored as a live one is: between
-    photos with GPS it lands on their deployment."""
+    skip a photo without GPS, or with 0, 0 for one. Now it is stored as a
+    live one is: between photos with GPS it lands on their deployment."""
     project = make_project()
     cam = make_camera("BULK05", project)
     job = make_job(cam, project)
     with_gps = [photo(cam, HOME, at(2), job), photo(cam, HOME, at(6), job)]
-    without = photo(cam, None, at(4), job)
+    without = [photo(cam, None, at(4), job), photo(cam, (0.0, 0.0), at(5), job)]
     finish_job(cam, job)
 
     [one] = deployments(cam)
-    assert {image_deployment(u) for u in with_gps + [without]} == {one["id"]}
+    assert {image_deployment(u) for u in with_gps + without} == {one["id"]}
 
 
 def test_an_sd_card_without_any_gps_waits_for_set_site():

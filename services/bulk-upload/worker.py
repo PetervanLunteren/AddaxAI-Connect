@@ -48,7 +48,6 @@ from storage_operations import (  # noqa: E402
     upload_image_to_minio,
 )
 from validators import validate_file_size, validate_mime_type  # noqa: E402
-from utils import is_valid_gps  # noqa: E402
 
 PROGRESS_PERSIST_EVERY = 25
 # Wall-clock cap per file inside the worker. Normal ingestion (EXIF
@@ -232,17 +231,11 @@ def _process_file(
                 )
                 return {"outcome": "skipped", "reason": "missing_datetime"}
 
-            image_gps = exif.get("gps_decimal")
-            if image_gps and not is_valid_gps(image_gps):
-                logger.warning(
-                    "Skipping bulk upload entry, invalid GPS",
-                    entry=name,
-                    gps=image_gps,
-                )
-                return {"outcome": "skipped", "reason": "invalid_gps"}
             # A photo without GPS is stored, as live ingestion stores it: the
             # rebuild puts it on the deployment that covers its time, and
-            # without one it waits for Set site on the camera.
+            # without one it waits for Set site on the camera. One with a
+            # location that cannot be right (0, 0) is the same photo:
+            # create_image_record keeps no reading for it.
 
         else:
             # Mode B: chosen-site deployment, DateTimeOriginal required.

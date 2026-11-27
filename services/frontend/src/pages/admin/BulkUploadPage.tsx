@@ -1385,8 +1385,9 @@ const ReviewStep: React.FC<{
 // the reasons in services/bulk-upload/worker.py. Unknown keys fall back to
 // "for another reason", so a new reason never breaks the line.
 const SKIP_REASON_LABELS: Record<string, string> = {
+  // Jobs from before photos without a usable location were kept.
   invalid_gps: 'without location',
-  missing_gps: 'without location', // jobs from before photos without GPS were kept
+  missing_gps: 'without location',
   missing_datetime: 'without date',
   too_large: 'as too large',
   not_a_photo: 'as not a JPEG photo',

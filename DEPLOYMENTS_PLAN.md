@@ -450,6 +450,9 @@ Notes per step:
       a card at all. The skip is gone: such a photo is stored as a live
       one is and follows the camera's deployments, or waits for Set site.
       Asking for a site on that screen stays for phase 4.
+      The same for a location that cannot be right (0, 0, which some
+      cameras write without a fix): no longer skipped, stored without a
+      reading, as live ingestion always did.
     Measured, no change: one rebuild reads the camera's whole history,
     0.32 s on the largest camera on dev (20,522 photos).
   - Still open before the release: a code review of the whole branch, the
