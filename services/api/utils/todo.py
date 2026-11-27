@@ -36,34 +36,27 @@ filter always show the same cameras.
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
-from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.classification_models import SPECIESNET, get_model
+from shared.deployment_queries import SHORT_TRIP_SQL
 from shared.models import (
     Camera, CameraServiceTask, Project, ProjectIntegration, ProjectMembership, Rejection,
     TelegramConfig, TodoDismissal, User,
 )
+from routers.cameras import camera_responses
+from routers.health import collect_services_health
+from utils.server_time import server_today
 
-# A move nobody answered that came back to the site it left within
-# SHORT_TRIP_DAYS: the mark of a false move. The Deployments page marks the
-# same rows Suspicious (`suspicious` in components/deployments/rows.ts);
-# tests/db_api/test_review.py holds the two together. One row per move.
-SHORT_TRIP_DAYS = 7
+# Suspicious deployments: short trips nobody answered (SHORT_TRIP_SQL). One
+# row per deployment.
 SUSPICIOUS_MOVES_SQL = f"""
     SELECT c.project_id, d.camera_id, d.start_at FROM deployments d
     JOIN cameras c ON c.id = d.camera_id
-    WHERE c.project_id = ANY(:project_ids) AND d.site_source = 'auto' AND d.checked_at IS NULL
-      AND EXISTS (
-        SELECT 1 FROM deployments before_it, deployments after_it
-        WHERE before_it.camera_id = d.camera_id AND before_it.end_at = d.start_at
-          AND after_it.camera_id = d.camera_id AND after_it.start_at = d.end_at
-          AND after_it.site_id = before_it.site_id
-          AND d.end_at - d.start_at <= interval '{SHORT_TRIP_DAYS} days'
-      )
+    WHERE c.project_id = ANY(:project_ids) AND d.checked_at IS NULL AND {SHORT_TRIP_SQL}
 """
 
 # Rejected files of no known camera: a camera that is not registered yet, or
@@ -133,10 +126,6 @@ Lines = Dict[Optional[int], Tuple[str, List[TodoItem]]]  # project id (None: ser
 
 async def _lines(user: User, db: AsyncSession) -> Lines:
     """Every open line of the user, per project, and the server's under None."""
-    # Imported here: the routers import this module's models.
-    from routers.admin import get_server_timezone
-    from routers.cameras import camera_responses
-
     memberships = await _memberships(user, db)
     by_project = {m.project.id: m for m in memberships}
     project_ids = list(by_project)
@@ -165,7 +154,7 @@ async def _lines(user: User, db: AsyncSession) -> Lines:
         return [r.id for r in seen[pid] if rule(r)]
 
     # Service tasks: mine for everyone, the others' overdue ones for admins.
-    today = datetime.now(ZoneInfo(await get_server_timezone(db))).date()
+    today = await server_today(db)
     tasks = (await db.execute(
         select(CameraServiceTask.id, CameraServiceTask.camera_id, CameraServiceTask.assigned_to_user_id,
                CameraServiceTask.due_date, Camera.project_id)
@@ -200,7 +189,7 @@ async def _lines(user: User, db: AsyncSession) -> Lines:
         )).all()
     for pid in admin_ids:
         project = by_project[pid].project
-        # A move is known by its camera and start (moveKey in moves.ts).
+        # A deployment is known by its camera and start (rowKey in rows.ts).
         add(pid, _item('suspicious_moves', [
             f"{r.camera_id}@{r.start_at.isoformat()}" for r in suspicious if r.project_id == pid]))
         add(pid, _item('unplaced_photos', cameras_where(pid, lambda r: r.unplaced_photo_count)))
@@ -231,8 +220,6 @@ async def _lines(user: User, db: AsyncSession) -> Lines:
 async def _server_items(user: User, db: AsyncSession) -> List[TodoItem]:
     if not user.is_superuser:
         return []
-    from routers.health import collect_services_health
-
     services = await collect_services_health(db)
     since = datetime.now(timezone.utc) - timedelta(days=UNKNOWN_FILES_DAYS)
     unknown_files = (await db.execute(

@@ -11,19 +11,12 @@ import pytest
 from sqlalchemy import select, text
 
 from deployment_db import (
-    HOME, at, deployments, make_camera, make_image, make_project, make_site, offset, rows,
+    at, deployments, HOME, make_camera, make_image, make_project, make_site, offset, rebuild, rows,
 )
 from shared.database import engine
 from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL, current_deployments
 
 FAR = offset(HOME, east_m=5000)
-
-
-def rebuild(camera_id):
-    from shared.database import get_db_session
-    from shared.deployment_rebuild import rebuild_camera
-    with get_db_session() as s:
-        rebuild_camera(s, camera_id)
 
 
 def both_rules():

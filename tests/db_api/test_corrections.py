@@ -1,15 +1,8 @@
 """
 How people correct deployments and sites: change the site of a deployment,
-"It did not move", and site merge and delete. The routes are called directly
-with a real session.
-
-Written in step 1a against code that deleted deployment rows to correct
-them. Since step 2a every correction writes a statement and rebuilds the
-camera, and each scenario starts from real photos and a real rebuild. Three
-outcomes changed on purpose and say so: a correction removes the unnamed
-site it emptied, a site merge joins back to back deployments, and a site in
-use cannot be deleted. Since step 3b the camera updates panel is gone: its
-answers live in the moves check (routers/deployments.py).
+"It did not move", Edit deployment, and site merge and delete. The routes
+are called directly with a real session, and each scenario starts from real
+photos and a real rebuild.
 """
 from datetime import timedelta
 
@@ -17,31 +10,17 @@ import pytest
 from fastapi import HTTPException
 
 from deployment_db import (
-    DAY, HOME, at, close, deployments, execute, image_deployment, make_camera,
-    make_image, make_project, make_site, make_user, offset, rows, scalar, site,
+    at, close, day, deployments, execute, history, HOME, image_deployment, make_camera, make_image,
+    make_project, make_site, make_user, offset, rows, scalar, site,
 )
 from routers.deployments import (
-    SetDeploymentRequest, list_deployments, list_statements, not_moved, remove_statement, set_deployment,
+    SetDeploymentRequest, list_statements, not_moved, remove_statement, set_deployment,
 )
 from routers.sites import MergeSiteRequest, delete_site, merge_site
 
 pytestmark = pytest.mark.asyncio
 
 FAR = offset(HOME, east_m=1500)
-
-
-def day(n: int):
-    return DAY + timedelta(days=n - 1)
-
-
-def history(camera_id: int, photos: list) -> list[str]:
-    """Photos with GPS, then the rebuild, as live ingestion leaves them."""
-    from shared.database import get_db_session
-    from shared.deployment_rebuild import rebuild_camera
-    uuids = [make_image(camera_id, None, taken, gps) for gps, taken in photos]
-    with get_db_session() as s:
-        rebuild_camera(s, camera_id)
-    return uuids
 
 
 @pytest.fixture
@@ -83,7 +62,6 @@ async def test_change_site_is_a_statement_and_leaves_the_pin(session, admin, mov
 
     result = await change_site(session, admin, m["project"], m["second"], other)
 
-    assert result.merged == 0
     second = deployments(m["cam"])[1]
     assert second["id"] == m["second"]
     assert second["site_id"] == other and second["site_source"] == "manual"
@@ -137,18 +115,12 @@ async def test_a_camera_of_another_project_is_not_found(session, admin, moved_ca
 
 async def test_a_corrected_camera_still_moves_later(session, admin, moved_camera):
     """A statement fixes the past, it does not lock the camera."""
-    from deployment_db import make_image as photo_row
-    from shared.database import get_db_session
-    from shared.deployment_rebuild import rebuild_camera
     m = moved_camera
     other = make_site(m["project"], "Other", offset(HOME, north_m=5000))
     await change_site(session, admin, m["project"], m["second"], other)
 
     elsewhere = offset(HOME, north_m=9000)
-    photo_row(m["cam"], None, at(20), elsewhere)
-    photo_row(m["cam"], None, at(21), elsewhere)
-    with get_db_session() as s:
-        rebuild_camera(s, m["cam"])
+    history(m["cam"], [(elsewhere, at(20)), (elsewhere, at(21))])
 
     assert [d["site_id"] for d in deployments(m["cam"])][:2] == [m["home"], other]
     assert len(deployments(m["cam"])) == 3
@@ -159,9 +131,8 @@ async def test_a_corrected_camera_still_moves_later(session, admin, moved_camera
 
 async def test_back_to_the_previous_site_joins_them(session, admin, moved_camera):
     m = moved_camera
-    result = await change_site(session, admin, m["project"], m["second"], m["home"])
+    await change_site(session, admin, m["project"], m["second"], m["home"])
 
-    assert result.merged == 1
     [dep] = deployments(m["cam"])
     assert dep["id"] == m["first"]
     assert dep["start_date"] == day(2) and dep["end_date"] is None  # stays open
@@ -181,9 +152,8 @@ async def test_empty_days_between_them_is_a_real_redeploy_and_stays_apart(sessio
     history(cam, [(HOME, at(2)), (FAR, at(8)), (FAR, at(9))])
     first, second = deployments(cam)
 
-    result = await change_site(session, admin, project, second["id"], home)
+    await change_site(session, admin, project, second["id"], home)
 
-    assert result.merged == 0
     assert [d["site_id"] for d in deployments(cam)] == [home, home]
 
 
@@ -195,9 +165,8 @@ async def test_a_chain_of_three_folds_into_one(session, admin):
     first, middle, last = deployments(cam)
     assert last["site_id"] == home
 
-    result = await change_site(session, admin, project, middle["id"], home)
+    await change_site(session, admin, project, middle["id"], home)
 
-    assert result.merged == 2
     [dep] = deployments(cam)
     assert dep["id"] == first["id"] and dep["end_date"] is None
 
@@ -207,10 +176,8 @@ async def test_a_chain_of_three_folds_into_one(session, admin):
 
 async def test_it_did_not_move_folds_back_and_removes_the_unnamed_site(session, admin, moved_camera):
     m = moved_camera
-    move_start = deployments(m["cam"])[1]["start_at"]
     result = await not_moved(m["project"], m["second"], session, admin)
 
-    assert result.merged == 1
     [dep] = deployments(m["cam"])
     assert dep["id"] == m["first"] and dep["end_date"] is None
     for image in m["images"]:
@@ -220,8 +187,6 @@ async def test_it_did_not_move_folds_back_and_removes_the_unnamed_site(session, 
     assert result.statement_id == statement["id"]
     assert statement["from_at"] == at(2) and statement["site_id"] == m["home"]
     assert statement["created_by_user_id"] == admin.id
-    # It records which move it took back, for an exact Undo.
-    assert statement["answers_move_at"] == move_start
 
 
 async def test_it_did_not_move_leaves_the_pin_where_the_gps_put_it(session, admin, moved_camera):
@@ -257,8 +222,6 @@ async def test_undo_of_it_did_not_move_gives_the_move_back(session, admin):
     # The same move is back, by camera and start: what the deployment window
     # finds it by after an Undo, whatever its row id is now.
     assert second["start_at"] == moved["start_at"]
-    [answered] = rows("SELECT answers_move_at FROM deployment_statements WHERE id = :i", i=result.statement_id)
-    assert answered["answers_move_at"] == moved["start_at"]
 
 
 async def test_undo_of_it_stayed_on_a_short_trip_gives_both_moves_back(session, admin):
@@ -281,17 +244,6 @@ async def test_undo_of_it_stayed_on_a_short_trip_gives_both_moves_back(session, 
     assert [d["site_id"] == home for d in again] == [True, False, True]
     assert [d["start_at"] for d in again] == [before["start_at"], trip["start_at"], back["start_at"]]
     assert all(d["site_source"] == "auto" for d in again)
-
-
-async def test_the_answered_move_reads_the_same_as_the_move(session, admin, moved_camera):
-    """The browser finds the move a correction answered by comparing two
-    strings: the statement's answers_move_at and the move's start_at. They
-    must be written alike."""
-    m = moved_camera
-    [_, move] = [d for d in await list_deployments(m["project"], session, admin, None) if d.camera_id == m["cam"]]
-    await not_moved(m["project"], m["second"], session, admin)
-    [statement] = await list_statements(m["project"], m["cam"], session, admin)
-    assert statement.answers_move_at == move.start_at
 
 
 async def test_it_did_not_move_twice_finds_no_deployment(session, admin, moved_camera):
@@ -521,16 +473,11 @@ async def test_editing_a_later_deployment_leaves_an_older_open_correction(sessio
     """An open correction does not reach every later deployment: the GPS
     moved the camera on after it. Editing the later one must not take the
     older correction back."""
-    from shared.database import get_db_session
-    from shared.deployment_rebuild import rebuild_camera
     m = moved_camera
     other = make_site(m["project"], "Other", offset(HOME, north_m=5000))
     older = await change_site(session, admin, m["project"], m["second"], other)
     elsewhere = offset(HOME, north_m=9000)
-    make_image(m["cam"], None, at(20), elsewhere)
-    make_image(m["cam"], None, at(21), elsewhere)
-    with get_db_session() as s:
-        rebuild_camera(s, m["cam"])
+    history(m["cam"], [(elsewhere, at(20)), (elsewhere, at(21))])
     third = deployments(m["cam"])[2]
     await edit(session, admin, m["project"], m["cam"], third["id"], m["home"], 20)  # now a person's
     third = deployments(m["cam"])[2]
@@ -609,7 +556,7 @@ async def test_a_correction_says_what_it_changed(session, admin):
     make_image(other, None, at(3))
     await set_deployment(project, SetDeploymentRequest(camera_id=other, site_id=west, from_date=day(3)), session, admin)
 
-    listed = {(s.camera_id, s.site_id): s.changes for s in await list_statements(project, None, session, admin)}
+    listed = {(s.camera_id, s.site_id): s.changes for s in await list_statements(project, session, admin)}
     assert listed[(cam, east)] == ["last_day"]
     assert listed[(cam, west)] == ["site"]
     assert listed[(other, west)] == ["site", "first_day", "last_day"]

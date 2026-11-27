@@ -2,12 +2,12 @@
 Deployment endpoints.
 
 A deployment is one camera at one site for a time range. Deployments are
-rebuilt from photo GPS plus fixed periods (statements, see
-shared/deployment_rebuild.py). This router serves the project-wide list and a
-the answers of the moves check (right, it did not move), the fixed periods
-(list, set, remove, many at once) and the thumbnail sample.
+rebuilt from photo GPS plus statements (shared/deployment_rebuild.py). This
+router serves the project-wide list, the corrections (list, set, preview,
+undo), the answers to a suspicious deployment (right, wrong) and a few
+photos of a deployment. The rules of an edit are in utils/deployment_edits.py.
 """
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, timedelta
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,13 +16,13 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
+from shared.deployment_queries import SHORT_TRIP_SQL
 from shared.logger import get_logger
 from shared.models import Camera, Deployment, DeploymentStatement, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
-from utils.deployment_edits import (
-    camera_deployment_rows, drop_unnamed_sites_left_empty, previous_deployment, rebuild, state,
-)
+from utils import deployment_edits
+from utils.deployment_edits import camera_deployment_rows
 from routers.cameras import CameraDeploymentResponse
 from utils.site_scope import site_in_scope
 
@@ -39,7 +39,6 @@ class DeploymentListItem(BaseModel):
     for how long, with how many photos, and whether a statement made it
     (site_source 'manual') or the GPS (auto)."""
     id: int
-    deployment_number: int
     camera_id: int
     camera_label: Optional[str] = None
     site_id: Optional[int] = None
@@ -50,11 +49,13 @@ class DeploymentListItem(BaseModel):
     end_date: Optional[str] = None
     start_at: str
     end_at: Optional[str] = None
-    last_photo_at: Optional[str] = None
     image_count: int
     site_source: str = 'auto'
-    # When a person said this entry is right in the moves check,
-    # NULL = nobody answered. checked_by is their email.
+    # Looks like a GPS error (SHORT_TRIP_SQL). Suspicious while nobody
+    # answered it.
+    short_trip: bool
+    # When a person said this deployment is right, NULL = nobody answered.
+    # checked_by is their email.
     checked_at: Optional[str] = None
     checked_by: Optional[str] = None
 
@@ -67,10 +68,10 @@ async def list_deployments(
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
     """
-    Every deployment in the project, oldest first: the moves of the Camera
-    updates page are worked out from it in the browser. Site-restricted
-    viewers only see deployments at their sites; deployments without a site
-    fail the scope test, fail closed.
+    Every deployment in the project, oldest first, for the Deployments page
+    and the deployment cards. Site-restricted viewers only see deployments
+    at their sites; deployments without a site fail the scope test, fail
+    closed.
     """
     scope_sql = " AND d.site_id = ANY(:scope)" if site_scope is not None else ""
     params: Dict[str, Any] = {"project_id": project_id}
@@ -79,13 +80,14 @@ async def list_deployments(
     rows = (
         await db.execute(
             text(f"""
-                SELECT d.id, d.deployment_number, d.camera_id,
+                SELECT d.id, d.camera_id,
                        c.device_id AS camera_label,
                        d.site_id, s.name AS site_name,
                        ST_Y(d.location::geometry) AS lat,
                        ST_X(d.location::geometry) AS lon,
-                       d.start_date, d.end_date, d.start_at, d.end_at, d.last_photo_at,
+                       d.start_date, d.end_date, d.start_at, d.end_at,
                        d.site_source, d.checked_at, u.email AS checked_by,
+                       {SHORT_TRIP_SQL} AS short_trip,
                        (SELECT count(*) FROM images i WHERE i.deployment_id = d.id) AS image_count
                 FROM deployments d
                 JOIN cameras c ON c.id = d.camera_id
@@ -101,7 +103,6 @@ async def list_deployments(
     return [
         DeploymentListItem(
             id=r["id"],
-            deployment_number=r["deployment_number"],
             camera_id=r["camera_id"],
             camera_label=r["camera_label"],
             site_id=r["site_id"],
@@ -112,9 +113,9 @@ async def list_deployments(
             end_date=r["end_date"].isoformat() if r["end_date"] else None,
             start_at=r["start_at"].isoformat(),
             end_at=r["end_at"].isoformat() if r["end_at"] else None,
-            last_photo_at=r["last_photo_at"].isoformat() if r["last_photo_at"] else None,
             image_count=r["image_count"],
             site_source=r["site_source"],
+            short_trip=r["short_trip"],
             checked_at=r["checked_at"].isoformat() if r["checked_at"] else None,
             checked_by=r["checked_by"],
         )
@@ -123,7 +124,7 @@ async def list_deployments(
 
 
 class StatementItem(BaseModel):
-    """One fixed period: a decision about where the camera stood."""
+    """One correction in force: a decision about where the camera stood."""
     id: int
     camera_id: int
     camera_label: str
@@ -136,10 +137,6 @@ class StatementItem(BaseModel):
     source: str
     created_by: Optional[str] = None
     created_at: str
-    # The start of the move an "It stayed" took back, in the same format as
-    # DeploymentListItem.start_at, so the browser finds that move by camera
-    # and start. None for every other statement.
-    answers_move_at: Optional[str] = None
     # What a person changed with Edit or Add deployment: "site", "first_day",
     # "last_day". None for other corrections and older ones.
     changes: Optional[List[str]] = None
@@ -158,112 +155,34 @@ class SetDeploymentRequest(BaseModel):
 
 
 class DeploymentPreview(BaseModel):
-    """The camera's deployments before and after an edit, for the Edit
-    deployment form: what Save would do, worked out by doing it and undoing
+    """What Save would do: the camera's deployments now and after it, in the
+    shape of the camera panel's cards. Nothing is written to make
     it (see preview_deployment)."""
     before: List[CameraDeploymentResponse]
     after: List[CameraDeploymentResponse]
 
 
-# Days a person can set. Before 2000 no camera trap of a project here took
-# photos, and more than a year ahead is a typo; a year typed digit by digit
-# (0002, 0202) would otherwise claim the camera's whole history, and a last
-# day of 9999-12-31 overflows the day after it.
-FIRST_SETTABLE_DAY = date(2000, 1, 1)
-
-
-async def _check_days(db: AsyncSession, from_date: date, until_date: Optional[date]) -> None:
-    """No day after today. A deployment that starts later would count as
-    where the camera stands now (the current deployment is the one that
-    started last), and a last day still to come would count trap-nights
-    that have not happened."""
-    from routers.admin import server_today
-    today = await server_today(db)
-    for day in (from_date, until_date):
-        if day is not None and not FIRST_SETTABLE_DAY <= day <= today:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Days must lie between 1 January 2000 and today",
-            )
-    if until_date is not None and until_date < from_date:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The last day cannot be before the first day",
-        )
-
-
 class SetDeploymentResponse(BaseModel):
     # The statement written, for Undo (DELETE .../statements/{id}).
     statement_id: int
-    # How many deployments fewer the camera has afterwards: periods at the
-    # same site back to back become one.
-    merged: int = 0
-
-
-def period_of_days(from_date: date, until_date: Optional[date]) -> tuple[datetime, Optional[datetime]]:
-    """Days as a period of camera clock time: from the start of the first day
-    to the start of the day after the last. The same rule as uploads and the
-    carry-over, so a day belongs to one deployment."""
-    from_at = datetime.combine(from_date, time.min)
-    until_at = datetime.combine(until_date + timedelta(days=1), time.min) if until_date else None
-    return from_at, until_at
-
-
-async def _camera_in_project(db: AsyncSession, project_id: int, camera_id: int) -> Camera:
-    camera = (
-        await db.execute(select(Camera).where(Camera.id == camera_id, Camera.project_id == project_id))
-    ).scalar_one_or_none()
-    if camera is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera not found")
-    return camera
-
-
-async def _camera_site_ids(db: AsyncSession, camera_id: int) -> set[Optional[int]]:
-    return set((
-        await db.execute(select(Deployment.site_id).where(Deployment.camera_id == camera_id))
-    ).scalars())
-
-
-async def _deployment_in_project(db: AsyncSession, project_id: int, deployment_id: int) -> Deployment:
-    deployment = (
-        await db.execute(
-            select(Deployment).join(Camera, Camera.id == Deployment.camera_id)
-            .where(Deployment.id == deployment_id, Camera.project_id == project_id)
-        )
-    ).scalar_one_or_none()
-    if deployment is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
-    return deployment
-
-
-async def _deployment_count(db: AsyncSession, camera_id: int) -> int:
-    return (
-        await db.execute(select(func.count(Deployment.id)).where(Deployment.camera_id == camera_id))
-    ).scalar_one()
 
 
 @router.get("/statements", response_model=List[StatementItem])
 async def list_statements(
     project_id: int,
-    camera_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """The fixed periods in force, newest first: of one camera (the camera
-    panel's Corrections), or of the whole project without camera_id (the
-    Deployments page and the deployment cards)."""
-    query = (
+    """The project's corrections in force, newest first, for the Deployments
+    page and the deployment cards."""
+    rows = (await db.execute(
         select(DeploymentStatement, Camera.device_id, Site.name, User.email)
         .join(Camera, Camera.id == DeploymentStatement.camera_id)
         .join(Site, Site.id == DeploymentStatement.site_id)
         .outerjoin(User, User.id == DeploymentStatement.created_by_user_id)
         .where(Camera.project_id == project_id, DeploymentStatement.removed_at.is_(None))
         .order_by(DeploymentStatement.id.desc())
-    )
-    if camera_id is not None:
-        await _camera_in_project(db, project_id, camera_id)
-        query = query.where(DeploymentStatement.camera_id == camera_id)
-    rows = (await db.execute(query)).all()
+    )).all()
     return [
         StatementItem(
             id=st.id,
@@ -276,11 +195,17 @@ async def list_statements(
             source=st.source,
             created_by=email,
             created_at=st.created_at.isoformat(),
-            answers_move_at=st.answers_move_at.isoformat() if st.answers_move_at else None,
-            changes=st.changes.split(",") if st.changes else None,
+            changes=deployment_edits.changes_of(st),
         )
         for st, camera_label, site_name, email in rows
     ]
+
+
+async def _apply(db: AsyncSession, project_id: int, request: SetDeploymentRequest, user_id: int) -> int:
+    return await deployment_edits.set_deployment(
+        db, project_id, request.camera_id, request.site_id, request.from_date, request.until_date,
+        request.deployment_id, user_id,
+    )
 
 
 @router.post("/statements", response_model=SetDeploymentResponse)
@@ -296,13 +221,13 @@ async def set_deployment(
     Change site on a deployment, placing a camera without GPS and correcting
     the past all go through here.
     """
-    statement_id, merged = await _apply(db, project_id, request, user.id)
+    statement_id = await _apply(db, project_id, request, user.id)
     await db.commit()
     logger.info(
         "Set deployment", project_id=project_id, camera_id=request.camera_id,
         site_id=request.site_id, from_date=str(request.from_date), until_date=str(request.until_date),
     )
-    return SetDeploymentResponse(statement_id=statement_id, merged=merged)
+    return SetDeploymentResponse(statement_id=statement_id)
 
 
 @router.post("/statements/preview", response_model=DeploymentPreview)
@@ -314,7 +239,7 @@ async def preview_deployment(
 ):
     """
     What Save would do to the camera's deployments, without saving: the same
-    edit (_apply) in a transaction that is rolled back. So the preview is the
+    edit in a transaction that is rolled back. So the preview is the
     rebuild's own answer, never a guess in the browser. Everything is read
     and built before the rollback, which expires every object of the
     session (the user too); after it only plain values are touched.
@@ -332,126 +257,6 @@ async def preview_deployment(
     return preview
 
 
-async def _apply(
-    db: AsyncSession, project_id: int, request: SetDeploymentRequest, user_id: int,
-) -> tuple[int, int]:
-    """The edit of set_deployment, up to the commit: checks, the statement,
-    the rebuild, sites left empty. Returns the statement id and how many
-    deployments fewer the camera has. The caller commits (Save) or rolls
-    back (preview)."""
-    await _camera_in_project(db, project_id, request.camera_id)
-    site = (
-        await db.execute(select(Site).where(Site.id == request.site_id, Site.project_id == project_id))
-    ).scalar_one_or_none()
-    if site is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
-    await _check_days(db, request.from_date, request.until_date)
-
-    from_at, until_at = period_of_days(request.from_date, request.until_date)
-    before = await _deployment_count(db, request.camera_id)
-    sites_before = await _camera_site_ids(db, request.camera_id)
-    replaced, edited = await _statements_of(db, request.camera_id, request.deployment_id)
-    # An end the person moved stays an end: a shortened deployment splits in
-    # two instead of the GPS joining the rest back. An end left as it was
-    # still joins (only the site changed: a false trip folds back into one).
-    keeps_start = edited is not None and request.from_date != edited.start_date
-    keeps_end = edited is not None and request.until_date != edited.end_date
-    # A day left as it was keeps the deployment's own time, as "It stayed"
-    # states it. A move happens during a day: cut at midnight, the photos
-    # of that morning at the old spot would be left as a deployment of
-    # their own.
-    if edited is not None and not keeps_start:
-        from_at = edited.start_at
-    if edited is not None and not keeps_end:
-        until_at = edited.end_at
-    # What the person changed, for the line on the card. Adding a deployment
-    # sets all three.
-    changes = ",".join(name for name, changed in [
-        ("site", edited is None or request.site_id != edited.site_id),
-        ("first_day", edited is None or keeps_start),
-        ("last_day", edited is None or keeps_end),
-    ] if changed)
-    statement_id = await state(db, request.camera_id, request.site_id, from_at, until_at, user_id,
-                               replaces=replaced, removed_by=user_id, keeps_start=keeps_start, keeps_end=keeps_end,
-                               changes=changes)
-    await drop_unnamed_sites_left_empty(db, sites_before)
-    merged = max(0, before - await _deployment_count(db, request.camera_id))
-    return statement_id, merged
-
-
-async def _statements_of(
-    db: AsyncSession, camera_id: int, deployment_id: Optional[int],
-) -> tuple[List[DeploymentStatement], Optional[Deployment]]:
-    """The deployment being edited (None when adding one), and the live
-    corrections that made it: the camera's statements whose period overlaps
-    it, none for a deployment the GPS made."""
-    if deployment_id is None:
-        return [], None
-    deployment = (await db.execute(
-        select(Deployment).where(Deployment.id == deployment_id, Deployment.camera_id == camera_id)
-    )).scalar_one_or_none()
-    if deployment is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
-    if deployment.site_source != 'manual':
-        return [], deployment
-    rows = (await db.execute(
-        select(DeploymentStatement).where(
-            DeploymentStatement.camera_id == camera_id,
-            DeploymentStatement.removed_at.is_(None),
-        )
-    )).scalars().all()
-
-    def overlaps(s: DeploymentStatement) -> bool:
-        # An open statement holds up to fixed_until_at, the camera's newest
-        # photo when it was made; after that the GPS may have moved the
-        # camera on, so it does not reach every later deployment. Set to
-        # start after that photo, it holds nothing yet and is known by its
-        # start alone, which lies in the deployment it made.
-        s_end = s.until_at or s.fixed_until_at
-        starts_before_end = deployment.end_at is None or s.from_at < deployment.end_at
-        ends_after_start = s_end is None or s_end > deployment.start_at
-        starts_inside = s.until_at is None and s.from_at >= deployment.start_at
-        return starts_before_end and (ends_after_start or starts_inside)
-    return [s for s in rows if overlaps(s)], deployment
-
-
-async def _remove_statements(db: AsyncSession, project_id: int, statement_ids: List[int], user: User) -> None:
-    """Take fixed periods back, all or none. The rows stay, marked removed
-    with who and when, and each camera is rebuilt once: what the GPS or an
-    older period says for that time shows again. The one way a correction is
-    removed (Undo on a deployment card, Wrong taken back in the window)."""
-    wanted = set(statement_ids)
-    rows = (
-        await db.execute(
-            select(DeploymentStatement)
-            .join(Camera, Camera.id == DeploymentStatement.camera_id)
-            .where(
-                DeploymentStatement.id.in_(wanted),
-                Camera.project_id == project_id,
-                DeploymentStatement.removed_at.is_(None),
-            )
-        )
-    ).scalars().all()
-    if not wanted or len(rows) != len(wanted):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fixed period not found")
-    now = datetime.now(timezone.utc)
-    for row in rows:
-        row.removed_at = now
-        row.removed_by_user_id = user.id
-    # An edit undone: what it replaced is back.
-    replaced = (await db.execute(
-        select(DeploymentStatement).where(DeploymentStatement.replaced_by_statement_id.in_(wanted))
-    )).scalars().all()
-    for row in replaced:
-        row.removed_at = None
-        row.removed_by_user_id = None
-        row.replaced_by_statement_id = None
-    await db.flush()
-    await rebuild(db, [row.camera_id for row in rows])
-    await db.commit()
-    logger.info("Removed fixed periods", project_id=project_id, statement_ids=sorted(wanted))
-
-
 @router.delete("/statements/{statement_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_statement(
     project_id: int,
@@ -459,48 +264,37 @@ async def remove_statement(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """Take one fixed period back."""
-    await _remove_statements(db, project_id, [statement_id], user)
+    """Undo of one correction."""
+    await deployment_edits.remove_statement(db, project_id, statement_id, user.id)
+    await db.commit()
+    logger.info("Removed a correction", project_id=project_id, statement_id=statement_id)
 
 
 # The question of a suspicious deployment, in its window on the Deployments
 # page: did the camera really go there. Right only records who said so; it
-# fixes nothing. Wrong writes a fixed period instead. Nobody has to answer:
+# changes nothing. Wrong writes a correction instead. Nobody has to answer:
 # a question that is never answered just gets older.
 
 
 class CheckedRequest(BaseModel):
-    deployment_ids: List[int]
     checked: bool
 
 
-class CheckedResponse(BaseModel):
-    updated: int
-
-
-@router.put("/checked", response_model=CheckedResponse)
+@router.put("/{deployment_id}/checked", status_code=status.HTTP_204_NO_CONTENT)
 async def set_checked(
     project_id: int,
+    deployment_id: int,
     request: CheckedRequest,
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """Record that a person said these entries are right, or take that back."""
-    result = await db.execute(
-        text("""
-            UPDATE deployments d
-            SET checked_at = CASE WHEN :checked THEN now() END,
-                checked_by_user_id = CASE WHEN :checked THEN CAST(:user_id AS integer) END
-            FROM cameras c
-            WHERE c.id = d.camera_id AND c.project_id = :project_id AND d.id = ANY(:ids)
-        """),
-        {"checked": request.checked, "user_id": user.id, "project_id": project_id,
-         "ids": request.deployment_ids},
-    )
+    """Record that a person said this deployment is right, or take that back."""
+    deployment = await deployment_edits.deployment_in_project(db, project_id, deployment_id)
+    deployment.checked_at = func.now() if request.checked else None
+    deployment.checked_by_user_id = user.id if request.checked else None
     await db.commit()
-    logger.info("Set deployments checked", project_id=project_id, checked=request.checked,
-                count=result.rowcount)
-    return CheckedResponse(updated=result.rowcount)
+    logger.info("Set deployment checked", project_id=project_id, deployment_id=deployment_id,
+                checked=request.checked)
 
 
 @router.post("/{deployment_id}/not-moved", response_model=SetDeploymentResponse)
@@ -510,30 +304,12 @@ async def not_moved(
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_admin_access),
 ):
-    """
-    The GPS saw a move that did not happen. One fixed period over both
-    deployments, at the site before the move: the camera stood there all
-    along. The rebuild folds the two into one, and a site the app made for
-    the false place goes when nothing else uses it.
-    """
-    deployment = await _deployment_in_project(db, project_id, deployment_id)
-    before_move = await previous_deployment(db, deployment)
-    if before_move is None or before_move.site_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="There is no deployment right before this one, so there is no move to take back",
-        )
-    before = await _deployment_count(db, deployment.camera_id)
-    false_site = deployment.site_id
-    statement_id = await state(
-        db, deployment.camera_id, before_move.site_id, before_move.start_at, deployment.end_at, user.id,
-        answers_move_at=deployment.start_at,
-    )
-    await drop_unnamed_sites_left_empty(db, [false_site])
-    merged = max(0, before - await _deployment_count(db, deployment.camera_id))
+    """"Wrong, it stayed": take back a move the GPS saw (take_back_move)."""
+    deployment = await deployment_edits.deployment_in_project(db, project_id, deployment_id)
+    statement_id = await deployment_edits.take_back_move(db, deployment, user.id)
     await db.commit()
     logger.info("It did not move", project_id=project_id, deployment_id=deployment_id)
-    return SetDeploymentResponse(statement_id=statement_id, merged=merged)
+    return SetDeploymentResponse(statement_id=statement_id)
 
 
 class DeploymentPhoto(BaseModel):
@@ -549,19 +325,18 @@ class DeploymentThumbnails(BaseModel):
 async def deployment_thumbnails(
     project_id: int,
     deployment_id: int,
-    limit: int = Query(6, ge=1, le=12),
-    order: Literal["random", "first", "last"] = Query("random"),
+    order: Literal["first", "last"],
+    limit: int = Query(1, ge=1, le=12),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_access),
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
     """
-    A few photos of this deployment with their capture time: a random
-    sample, the first ones or the last ones. The moves check
-    shows the last photo before a move next to the first one after it.
-    Skips hidden images and images without stored files. 404 if the
-    deployment is not in the project or outside a restricted viewer's
-    sites.
+    The first or the last photos of this deployment, with their capture
+    time: the window of a deployment shows the last photo before a move next
+    to the first one after it. Skips hidden images and images without
+    stored files. 404 if the deployment is not in the project or outside a
+    restricted viewer's sites.
     """
     row = (
         await db.execute(
@@ -575,11 +350,7 @@ async def deployment_thumbnails(
             status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found",
         )
 
-    sort = {
-        "random": func.random(),
-        "first": Image.captured_at.asc(),
-        "last": Image.captured_at.desc(),
-    }[order]
+    sort = Image.captured_at.asc() if order == "first" else Image.captured_at.desc()
     rows = (
         await db.execute(
             select(Image.uuid, Image.captured_at)

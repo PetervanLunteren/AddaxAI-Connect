@@ -130,10 +130,10 @@ def combine_pins(
 # placed there from the GPS (site_source 'auto'). A deployment a person placed
 # (a correction) never moves the pin: its GPS is where the camera really was,
 # which is the reason for the correction, and the build snaps other cameras
-# to pins, so a pin pulled by a correction misplaced them (Peter's walkthrough,
-# 21 November 2026: "It did not move" dragged Pond halfway to Ridge, and Undo
-# could not bring it back). A site with no such deployment keeps its location,
-# also a pin a person typed or clicked.
+# to pins, so a pin pulled by a correction would misplace them ("It stayed"
+# would drag Pond halfway to Ridge, and Undo could not bring it back). A site
+# with no such deployment keeps its location, also a pin a person typed or
+# clicked.
 #
 # Run this after a site's deployment membership changes (a deployment is
 # created at, reassigned to, merged into, or removed from it), and after a

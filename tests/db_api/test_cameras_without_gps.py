@@ -1,18 +1,17 @@
 """
-Step 2b: a camera without GPS, placed by hand, and the list of fixed periods.
+A camera without GPS, placed by hand, and the list of corrections.
 
 Photos arrive without GPS and have no site until a person sets a deployment.
-Later photos follow. A second period moves the camera. Removing a period gives
-back what was underneath.
+Later photos follow. A second correction moves the camera. Undo of a
+correction gives back what was underneath.
 """
-from datetime import date, timedelta
 
 import pytest
 from fastapi import HTTPException
 
 from deployment_db import (
-    DAY, HOME, at, deployments, image_deployment, make_camera, make_image,
-    make_project, make_site, offset, rows,
+    at, day, deployments, history, HOME, image_deployment, make_camera, make_project,
+    make_site, offset, rows,
 )
 from routers.deployments import (
     SetDeploymentRequest, list_statements, remove_statement, set_deployment,
@@ -21,17 +20,9 @@ from routers.deployments import (
 pytestmark = pytest.mark.asyncio
 
 
-def day(n: int) -> date:
-    return DAY + timedelta(days=n - 1)
-
-
 def photo(camera_id, taken):
     """A photo without GPS, stored and rebuilt as live ingestion does it."""
-    from shared.database import get_db_session
-    from shared.deployment_rebuild import rebuild_camera
-    image = make_image(camera_id, None, taken)
-    with get_db_session() as s:
-        rebuild_camera(s, camera_id)
+    [image] = history(camera_id, [(None, taken)])
     return image
 
 
@@ -98,7 +89,7 @@ async def test_removing_a_period_gives_back_what_was_underneath(session, admin, 
     await place(session, admin, project, cam, pond, 1)
     await place(session, admin, project, cam, meadow, 10)
 
-    newest = (await list_statements(project, cam, session, admin))[0]
+    newest = (await list_statements(project, session, admin))[0]
     assert newest.site_name == "Meadow"
     await remove_statement(project, newest.id, session, admin)
 
@@ -113,24 +104,22 @@ async def test_removing_the_only_period_leaves_the_photos_without_site(session, 
     project, cam, pond, meadow = setup
     early = photo(cam, at(2))
     await place(session, admin, project, cam, pond, 1)
-    [statement] = await list_statements(project, cam, session, admin)
+    [statement] = await list_statements(project, session, admin)
 
     await remove_statement(project, statement.id, session, admin)
 
     assert deployments(cam) == []
     assert image_deployment(early) is None
-    assert await list_statements(project, cam, session, admin) == []
+    assert await list_statements(project, session, admin) == []
 
 
 async def test_the_list_says_who_and_which_days(session, admin, setup):
     project, cam, pond, meadow = setup
     await place(session, admin, project, cam, pond, 1, 5)
 
-    [item] = await list_statements(project, cam, session, admin)
+    [item] = await list_statements(project, session, admin)
     assert (item.site_name, item.from_date, item.until_date) == ("Pond", "2026-03-01", "2026-03-05")
     assert item.source == "person" and item.created_by == "admin@example.org"
-    # A site set by hand answered no move.
-    assert item.answers_move_at is None
 
 
 async def test_a_closed_period_is_exactly_its_days(session, admin, setup):
@@ -148,7 +137,7 @@ async def test_a_closed_period_is_exactly_its_days(session, admin, setup):
 async def test_removing_twice_is_not_found(session, admin, setup):
     project, cam, pond, meadow = setup
     await place(session, admin, project, cam, pond, 1)
-    [statement] = await list_statements(project, cam, session, admin)
+    [statement] = await list_statements(project, session, admin)
     await remove_statement(project, statement.id, session, admin)
     with pytest.raises(HTTPException) as err:
         await remove_statement(project, statement.id, session, admin)
@@ -175,7 +164,7 @@ async def test_without_a_camera_the_list_is_the_whole_project(session, admin, se
     await place(session, admin, other_project, elsewhere, make_site(other_project, "Far", HOME), 1)
     await place(session, admin, project, cam, meadow, 10)
 
-    items = await list_statements(project, None, session, admin)
+    items = await list_statements(project, session, admin)
     assert [(i.camera_label, i.site_name) for i in items] == [
         ("REOLINK01", "Meadow"), ("REOLINK02", "Meadow"), ("REOLINK01", "Pond"),
     ]
@@ -191,4 +180,4 @@ async def test_a_period_of_another_project_is_not_removed(session, admin, setup)
     with pytest.raises(HTTPException) as err:
         await remove_statement(project, theirs.statement_id, session, admin)
     assert err.value.status_code == 404
-    assert len(await list_statements(project, None, session, admin)) == 1
+    assert len(await list_statements(project, session, admin)) == 1

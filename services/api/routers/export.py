@@ -40,6 +40,7 @@ from utils.site_scope import site_image_clause, cameras_current_site_clause
 from shared.classification_threshold import effective_classification_threshold
 from shared.camera_status import camera_status
 from utils.camera_recency import fetch_camera_recency
+from utils.server_time import get_server_timezone
 
 router = APIRouter(prefix="/api/projects/{project_id}/export", tags=["export"])
 logger = get_logger("api.export")
@@ -535,7 +536,6 @@ async def export_camtrap_dp(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    from routers.admin import get_server_timezone
     server_tz = await get_server_timezone(db)
     tz = ZoneInfo(server_tz)
 
@@ -906,7 +906,6 @@ async def export_observations(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    from routers.admin import get_server_timezone
     server_tz = await get_server_timezone(db)
     tz = ZoneInfo(server_tz)
 
@@ -1112,7 +1111,6 @@ async def export_cameras(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
 
     headers, rows = await _build_camera_rows(db, project_id, tz, site_scope)
@@ -1219,7 +1217,6 @@ async def export_maintenance(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
 
     headers, rows = await _build_maintenance_rows(db, project_id, tz)

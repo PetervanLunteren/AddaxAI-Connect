@@ -295,8 +295,11 @@ class Deployment(Base):
 
     The result of the GPS readings of the camera's photos plus the statements
     people made (DeploymentStatement). Only rebuild_camera in
-    shared/deployment_rebuild.py writes these rows; everything else writes a
-    photo or a statement and rebuilds.
+    shared/deployment_rebuild.py makes and removes these rows and sets their
+    period, pin and photos; everything else writes a photo or a statement
+    and rebuilds. Two columns are written elsewhere: site_id by a site merge
+    (every row of the merged site goes to the target), and checked_at by
+    the answer to a suspicious deployment.
 
     Used for:
     - Effort-corrected detection rate calculations (trap-days)
@@ -314,8 +317,14 @@ class Deployment(Base):
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
-    # 'manual' = a statement made this deployment, 'auto' = the GPS did. A
-    # label only, kept by the rebuild; nothing decides on it.
+    # 'manual' = a statement made this deployment (a person's correction, an
+    # upload to a site, the carried-over history), 'auto' = the GPS did. Set
+    # by the rebuild. Rules that read it: effort counts a 'manual' deployment
+    # to its end date (shared/effort.py), a site's pin only follows 'auto'
+    # deployments (shared/geo.py), the rebuild keeps the site of an 'auto'
+    # row, only an 'auto' deployment can be a short trip
+    # (shared/deployment_queries.py), and an edit replaces statements only
+    # on a 'manual' one (utils/deployment_edits.py).
     site_source = Column(String(16), nullable=False, server_default='auto')
     # The period is [start_at, end_at), camera clock, naive, like
     # images.captured_at. end_at NULL = the camera still stands there. The two
@@ -332,11 +341,11 @@ class Deployment(Base):
     # How many GPS readings `location` averages. The pin is the running mean of
     # the deployment's within-threshold photo readings (see shared.geo.
     # next_mean_pin), so it converges on the true spot instead of staying
-    # anchored on the first fix. Starts at 1 (the creation reading).
+    # anchored on the first fix. 0 for a stated deployment without readings.
     gps_reading_count = Column(Integer, nullable=False, server_default='1')
-    # When and by whom a person checked a deployment the GPS made, on the
-    # moves check. NULL = nobody answered. Saying it is right fixes nothing: the GPS
-    # can still change the deployment later. Only a fixed period does that.
+    # When and by whom a person said a suspicious deployment is right. NULL =
+    # nobody answered. Saying it is right fixes nothing: the GPS can still
+    # change the deployment later. Only a statement does that.
     checked_at = Column(DateTime(timezone=True), nullable=True)
     checked_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -352,9 +361,11 @@ class DeploymentStatement(Base):
 
     Deployments are rebuilt per camera from the GPS readings of its photos
     plus these rows (shared/deployment_rebuild.py). A statement overrules the
-    GPS for its period. Rows are never edited: a newer statement wins over an
-    older one where they overlap, and taking a decision back sets removed_at,
-    so the table is also the history of every correction.
+    GPS for its period. What a statement says is never edited: a newer statement
+    wins over an older one where they overlap, and taking a decision back
+    sets removed_at (Undo of an edit clears it again on what the edit
+    replaced), so the table is also the history of every correction. A site
+    merge moves the site_id of the merged site's statements to the target.
 
     A statement fixes the past, not the future. With until_at it is exactly
     that period. Without, the camera is still there: everything up to
@@ -372,10 +383,6 @@ class DeploymentStatement(Base):
     from_at = Column(DateTime(timezone=False), nullable=False)
     until_at = Column(DateTime(timezone=False), nullable=True)
     fixed_until_at = Column(DateTime(timezone=False), nullable=True)
-    # The start of the move a Wrong in the deployment window took back
-    # (camera clock, naive, as deployments.start_at). NULL for every other
-    # statement. Undo leads to exactly that move again.
-    answers_move_at = Column(DateTime(timezone=False), nullable=True)
     # Set on a statement an edit of its deployment replaced (removed_at is set
     # then too): the statement that replaced it. Undo of that one brings this
     # one back, so an edit is undone to what was there before.

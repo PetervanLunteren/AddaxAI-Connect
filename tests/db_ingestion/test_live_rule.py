@@ -14,7 +14,7 @@ import pytest
 import db_operations as ingest
 from deployment_db import (
     DAY, HOME, at, close, deployments, image_deployment, to_check,
-    make_camera, make_deployment, make_project, offset, rows, sites,
+    make_camera, make_project, offset, rows, sites,
 )
 
 

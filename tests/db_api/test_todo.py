@@ -27,11 +27,11 @@ FIXED_MODEL = "EUR-DF-v1-4"  # DeepFaune: a fixed-class model asks for a species
 def healthy_server(monkeypatch):
     """The health checks probe Redis and other containers; here all is well
     unless a test says otherwise."""
-    import routers.health
+    import utils.todo
 
     async def all_healthy(db):
         return [SimpleNamespace(name="api", status="healthy")]
-    monkeypatch.setattr(routers.health, "collect_services_health", all_healthy)
+    monkeypatch.setattr(utils.todo, "collect_services_health", all_healthy)
     execute("DELETE FROM telegram_config")
     execute("INSERT INTO telegram_config (is_configured) VALUES (true)")
 
@@ -231,11 +231,11 @@ async def test_each_project_has_its_own_lines(session):
 
 
 async def test_server_lines_for_server_admins_only(session, monkeypatch):
-    import routers.health
+    import utils.todo
 
     async def one_down(db):
         return [SimpleNamespace(name="api", status="healthy"), SimpleNamespace(name="redis", status="unhealthy")]
-    monkeypatch.setattr(routers.health, "collect_services_health", one_down)
+    monkeypatch.setattr(utils.todo, "collect_services_health", one_down)
     execute("UPDATE telegram_config SET is_configured = false")
     make_rejection(None, None)  # a file of no known camera
     make_rejection(None, None, days_ago=8)  # too old to nag about

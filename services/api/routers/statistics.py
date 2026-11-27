@@ -75,6 +75,7 @@ from shared.independence_filter import (
     get_group_size_distribution,
     summarize_group_sizes,
 )
+from utils.server_time import get_server_timezone
 
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
@@ -149,12 +150,6 @@ async def _server_now(db: AsyncSession) -> datetime:
     return datetime.now(tz).replace(tzinfo=None)
 
 
-async def get_server_timezone(db: AsyncSession) -> str:
-    """Re-export of the canonical helper from routers.admin so other
-    activity-overlap-style endpoints can resolve the tz without a circular
-    import dance at call sites."""
-    from routers.admin import get_server_timezone as _impl
-    return await _impl(db)
 
 
 class StatisticsOverview(BaseModel):
@@ -473,7 +468,6 @@ async def get_last_update(
         return LastUpdateResponse(last_update=None)
 
     # Camera-clock naive datetime, interpret under the server's declared tz, serialize as UTC.
-    from routers.admin import get_server_timezone
     server_tz = await get_server_timezone(db)
     utc_dt = captured_at.replace(tzinfo=ZoneInfo(server_tz)).astimezone(timezone.utc)
     return LastUpdateResponse(last_update=utc_dt.isoformat())
@@ -1062,7 +1056,6 @@ async def get_activity_pattern(
     # timezone from GPS would silently override the user's choice). The
     # bands need a single project to be meaningful; cross-project view
     # falls back to the frontend's hardcoded ranges.
-    from routers.admin import get_server_timezone
     server_tz = await get_server_timezone(db)
 
     sun_bands: Optional[SunBands] = None

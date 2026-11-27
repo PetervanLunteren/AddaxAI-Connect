@@ -23,6 +23,7 @@ from shared.models import Project, ProjectReminder, User
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
+from utils.server_time import server_today
 
 
 router = APIRouter(prefix="/api/projects", tags=["reminders"])
@@ -53,11 +54,6 @@ class UpdateReminderRequest(BaseModel):
     message: Optional[str] = None
 
 
-async def _server_today(db: AsyncSession) -> date:
-    """Resolve "today" in the configured server timezone so the past-date
-    rejection behaves the same way the daily cron behaves."""
-    from routers.admin import server_today
-    return await server_today(db)
 
 
 def _serialize(
@@ -174,7 +170,7 @@ async def create_reminder(
             detail=f"Reminder message must be {MAX_MESSAGE_LENGTH} characters or fewer",
         )
 
-    today = await _server_today(db)
+    today = await server_today(db)
     if request.send_on < today:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -268,7 +264,7 @@ async def update_reminder(
         reminder.message = message
 
     if request.send_on is not None:
-        today = await _server_today(db)
+        today = await server_today(db)
         if request.send_on < today:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

@@ -7,7 +7,7 @@ move, task or file ids, as strings). One row per person and line;
 project_id is NULL for a server line.
 
 Revision ID: 20261125_todo_dismissals
-Revises: 20261124_statement_answers_move
+Revises: 20261121_deployment_checked
 Create Date: 2026-11-25
 
 """
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 
 revision = '20261125_todo_dismissals'
-down_revision = '20261124_statement_answers_move'
+down_revision = '20261121_deployment_checked'
 branch_labels = None
 depends_on = None
 

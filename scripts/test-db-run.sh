@@ -16,8 +16,11 @@ export LOG_LEVEL=WARNING LOG_FORMAT=text ENVIRONMENT=test
 export JWT_SECRET=test-only-secret DOMAIN_NAME=connect.example.org
 
 echo "Migrating the test database to head"
-(cd services/api && PYTHONPATH=../../shared "$PY" -m alembic upgrade head >/dev/null 2>&1) \
-    || { echo "Migration failed, run alembic by hand to see why"; exit 1; }
+if ! out=$(cd services/api && PYTHONPATH=../../shared "$PY" -m alembic upgrade head 2>&1); then
+    echo "$out"
+    echo "Migration failed"
+    exit 1
+fi
 
 # One pytest run per folder: the ingestion and api services both have a
 # top-level `utils`, the same reason CI runs one job per test folder.

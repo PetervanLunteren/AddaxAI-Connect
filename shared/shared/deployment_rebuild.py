@@ -1,9 +1,9 @@
 """
 Rebuild one camera's deployments and write them.
 
-rebuild_camera is the only code that writes the deployments table and
-images.deployment_id. Call it after anything that can change a camera's
-history: a new photo, a deleted photo, a new or removed statement. It reads
+rebuild_camera is the only code that makes and removes deployment rows, sets
+their period and pin, and writes images.deployment_id. Call it after
+anything that can change a camera's history: a new photo, a deleted photo, a new or removed statement. It reads
 all readings and statements of the camera, builds the deployments
 (shared/deployment_build.py) and brings the rows in line. Running it twice
 changes nothing.
@@ -69,7 +69,6 @@ class Planned:
     built: BuiltDeployment
     row_id: Optional[int]  # the stored row it keeps, None = a new row
     site_id: Optional[int] = None
-    site_created: bool = False
 
 
 @dataclass(frozen=True)
@@ -149,7 +148,6 @@ def join_same_site(planned: Sequence[Planned], kept_starts: frozenset[int] = fro
             )
             if last.row_id is None:
                 last.row_id = p.row_id
-            last.site_created = last.site_created or p.site_created
         else:
             joined.append(p)
         tail = p.built.statement_id
@@ -185,9 +183,8 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
     statements. Does not commit: the caller's transaction decides, so a photo
     and the rebuild it causes are saved together or not at all.
 
-    A new deployment row starts unchecked (checked_at NULL). If the GPS made
-    it, it shows in the moves check as an update nobody answered until a person
-    says it is right. A kept row keeps its mark.
+    A new deployment row starts unchecked (checked_at NULL), and a kept row
+    keeps its mark.
 
     Raises:
         ValueError: unknown camera.
@@ -225,8 +222,8 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
         # A GPS part keeps the site its row had, so jitter never hops it to
         # another site. Only a site the GPS chose, though: a site a person
         # set came from a statement, and once that statement is removed the
-        # GPS decides again. Keeping it made Undo of "It stayed at Pond"
-        # leave the camera at Pond (Peter's walkthrough, 21 November 2026).
+        # GPS decides again. Otherwise Undo of "It stayed at Pond" would
+        # leave the camera at Pond.
         old = stored_by_id[row_id] if row_id is not None else None
         kept_site = old.site_id if old is not None and old.site_source == "auto" else None
         if b.site_id is not None:
@@ -234,7 +231,7 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
         elif kept_site is not None:
             p.site_id = kept_site
         elif camera.project_id is not None and b.lat is not None:
-            p.site_id, p.site_created = _nearest_or_new_site(session, camera.project_id, b.lat, b.lon)
+            p.site_id = _nearest_or_new_site(session, camera.project_id, b.lat, b.lon)
         planned.append(p)
     planned = join_same_site(
         planned,
@@ -245,7 +242,7 @@ def rebuild_camera(session: Session, camera_id: int) -> RebuildResult:
     next_number = max((s.number for s in stored), default=0) + 1
     touched_sites: set[int] = set()
     created: list[int] = []
-    for index, p in enumerate(planned):
+    for p in planned:
         b = p.built
         lat, lon = (b.lat, b.lon) if b.lat is not None else _site_pin(session, p.site_id)
         values = {
@@ -390,8 +387,8 @@ def _site_pin(session: Session, site_id: Optional[int]) -> tuple[float, float]:
     return row.lat, row.lon
 
 
-def _nearest_or_new_site(session: Session, project_id: int, lat: float, lon: float) -> tuple[int, bool]:
-    """(site id, created) for a deployment that GPS made: the nearest site of
+def _nearest_or_new_site(session: Session, project_id: int, lat: float, lon: float) -> int:
+    """The site for a deployment that GPS made: the nearest site of
     the project within SITE_THRESHOLD_METERS, else a new site named from the
     coordinates. Plain nearest site, no memory per camera: fieldworkers take
     cameras from the truck at random, so a camera's previous site says nothing
@@ -407,7 +404,7 @@ def _nearest_or_new_site(session: Session, project_id: int, lat: float, lon: flo
         FROM sites WHERE project_id = :project_id ORDER BY dist, id LIMIT 1
     """), {"wkt": wkt, "project_id": project_id}).first()
     if nearest is not None and nearest.dist <= SITE_THRESHOLD_METERS:
-        return nearest.id, False
+        return nearest.id
 
     site_id = session.execute(text("""
         INSERT INTO sites (uuid, project_id, name, location, created_at)
@@ -418,4 +415,4 @@ def _nearest_or_new_site(session: Session, project_id: int, lat: float, lon: flo
         "name": auto_site_name(lat, lon), "wkt": wkt,
     }).scalar_one()
     logger.info("Auto-created site", site_id=site_id, project_id=project_id)
-    return site_id, True
+    return site_id

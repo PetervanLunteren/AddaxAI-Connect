@@ -3,13 +3,14 @@ The preview of an edit in the Edit deployment form: the same edit as Save
 (_apply), in a transaction that is rolled back. So what the form shows
 after saving is the rebuild's own answer, and nothing of the preview stays.
 """
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 from fastapi import HTTPException
 
 from deployment_db import (
-    DAY, HOME, at, deployments, make_camera, make_image, make_project, make_site, offset, rows, scalar,
+    at, day, deployments, history, HOME, make_camera, make_image, make_project, make_site, offset, rows,
+    scalar,
 )
 from routers.deployments import SetDeploymentRequest, preview_deployment, set_deployment
 from shared.models import User
@@ -17,20 +18,6 @@ from shared.models import User
 pytestmark = pytest.mark.asyncio
 
 FAR = offset(HOME, east_m=1500)
-
-
-def day(n: int) -> date:
-    return DAY + timedelta(days=n - 1)
-
-
-def history(camera_id: int, photos: list) -> None:
-    """Photos with GPS, then the rebuild, as live ingestion leaves them."""
-    from shared.database import get_db_session
-    from shared.deployment_rebuild import rebuild_camera
-    for gps, taken in photos:
-        make_image(camera_id, None, taken, gps)
-    with get_db_session() as s:
-        rebuild_camera(s, camera_id)
 
 
 def cards(listed) -> list:

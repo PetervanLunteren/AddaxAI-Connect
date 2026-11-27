@@ -3,17 +3,15 @@ Build a camera's deployments from its GPS readings and the statements people
 made about it.
 
 One function without database access: the same input always gives the same
-deployments. Without statements it applies the rule live ingestion used
-before phase 2 (the 250 m threshold, two far readings to confirm a move),
-quirks included. See DEPLOYMENTS_PLAN.md, "How one camera's deployments are
-built".
+deployments. The GPS rule is the 250 m threshold with two far readings to
+confirm a move; see build_deployments.
 
 Not in here, on purpose: choosing a site for a deployment that GPS made,
 photos without GPS, and any write. Daily reports are not readings: only
 photos make deployments.
 """
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Optional, Sequence
 
 from .geo import (
@@ -22,6 +20,16 @@ from .geo import (
     calculate_gps_distance,
     next_mean_pin,
 )
+
+
+def period_of_days(from_date: date, until_date: Optional[date]) -> tuple[datetime, Optional[datetime]]:
+    """Days as a period of camera clock time: from the start of the first day
+    to the start of the day after the last, None when there is no last day.
+    The one rule for a period given in days (the Edit form, an upload to a
+    site), so a day belongs to one deployment."""
+    from_at = datetime.combine(from_date, time.min)
+    until_at = datetime.combine(until_date + timedelta(days=1), time.min) if until_date else None
+    return from_at, until_at
 
 
 @dataclass(frozen=True)
@@ -78,7 +86,7 @@ class BuiltDeployment:
     image_ids: list[int] = field(default_factory=list)
     site_id: Optional[int] = None  # set when a statement made this deployment
     statement_id: Optional[int] = None
-    move: Optional[Move] = None  # set when the GPS rule cut here, for the "why" in the moves check
+    move: Optional[Move] = None  # set when the GPS rule cut here; scripts/analyse_move_rule.py reads it
 
     @property
     def start_date(self) -> date:
@@ -89,7 +97,7 @@ class BuiltDeployment:
         """The last whole day of the deployment. The day of a move belongs to
         the new deployment, so every day counts once for effort. Never before
         the start: a camera that moves on the day it started shares that day
-        with the next deployment, as it did before phase 2."""
+        with the next deployment."""
         if self.end_at is None:
             return None
         return max(self.end_at.date() - timedelta(days=1), self.start_date)

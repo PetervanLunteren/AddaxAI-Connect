@@ -52,7 +52,7 @@ from resend_hold import (
     hold_is_over,
     parse_held_name,
 )
-from utils import ValidationError, reject_file, delete_file, is_valid_gps, prune_empty_parents
+from utils import ValidationError, reject_file, delete_file, prune_empty_parents
 
 # Enable PIL to load truncated images from camera traps
 # Camera traps often send incomplete JPEGs over cellular connections

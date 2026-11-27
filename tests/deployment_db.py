@@ -14,7 +14,7 @@ import math
 import os
 import json
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 import pytest
@@ -49,7 +49,7 @@ def empty_tables():
     yield
 
 
-# A quiet spot on Griend in the Wadden Sea, the same area dev_simulate_feed.py uses.
+# A quiet spot on Griend in the Wadden Sea.
 HOME = (53.2600, 5.1800)
 DAY = date(2026, 3, 1)
 
@@ -67,6 +67,11 @@ def offset(point: tuple[float, float], east_m: float = 0.0, north_m: float = 0.0
 def at(day: int, hour: int = 12, second: int = 0) -> datetime:
     """Camera clock time on day `day` of March 2026."""
     return datetime(2026, 3, day, hour, 0, second)
+
+
+def day(n: int) -> date:
+    """Day n of March 2026, the day `at(n)` falls on."""
+    return DAY + timedelta(days=n - 1)
 
 
 def rows(sql: str, **params) -> list:
@@ -244,6 +249,22 @@ def to_check(camera_id: int) -> list:
            ORDER BY start_at""",
         c=camera_id,
     )
+
+
+def rebuild(camera_id: int) -> None:
+    """Rebuild the camera's deployments, as ingestion does after a photo."""
+    from shared.database import get_db_session
+    from shared.deployment_rebuild import rebuild_camera
+    with get_db_session() as session:
+        rebuild_camera(session, camera_id)
+
+
+def history(camera_id: int, photos: list) -> list[str]:
+    """Photos as (gps, taken) pairs, then the rebuild, as live ingestion
+    leaves them. Returns the photos' uuids."""
+    uuids = [make_image(camera_id, None, taken, gps) for gps, taken in photos]
+    rebuild(camera_id)
+    return uuids
 
 
 def image_deployment(image_uuid: str) -> Optional[int]:

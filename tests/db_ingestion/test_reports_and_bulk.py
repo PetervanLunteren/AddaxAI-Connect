@@ -11,7 +11,7 @@ Written in step 1a against the old code. Changed on purpose in step 2a:
   where the camera stands now.
 """
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import db_operations as ingest
 from deployment_db import (

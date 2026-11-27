@@ -4,7 +4,7 @@ Admin endpoints for managing email allowlist and Telegram configuration.
 Only accessible by superusers.
 """
 from typing import Any, Dict, List, Optional
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import secrets
 import httpx
@@ -1444,19 +1444,6 @@ async def update_project_classification_thresholds(
 
 
 # ==================== Server Settings ====================
-
-async def get_server_timezone(db: AsyncSession) -> str:
-    """Get server timezone, defaulting to UTC if not configured."""
-    result = await db.execute(select(ServerSettings).limit(1))
-    settings = result.scalar_one_or_none()
-    return settings.timezone if settings and settings.timezone else "UTC"
-
-
-async def server_today(db: AsyncSession) -> date:
-    """Today under the server timezone: the reference for what is past,
-    today or future, whatever clock the machine or the browser runs on."""
-    return datetime.now(ZoneInfo(await get_server_timezone(db))).date()
-
 
 class ServerSettingsResponse(BaseModel):
     """Response for server settings"""

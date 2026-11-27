@@ -36,6 +36,7 @@ from auth.project_access import get_site_scope
 from mailer.sender import get_email_sender
 from routers.cameras import _camera_label
 from utils.site_scope import site_of_camera
+from utils.server_time import server_today
 
 logger = get_logger("api.service")
 
@@ -160,10 +161,6 @@ def _not_found(detail: str) -> HTTPException:
 # Database helpers
 # ---------------------------------------------------------------------------
 
-async def _server_today(db: AsyncSession) -> date:
-    """Today under the server timezone, the reference for future and overdue dates."""
-    from routers.admin import server_today
-    return await server_today(db)
 
 
 async def _check_member(db: AsyncSession, user_id: Optional[int], project_id: int, who: str) -> None:
@@ -427,7 +424,7 @@ async def log_visits(
     """Log the same visit on every selected camera."""
     cameras = await _load_project_cameras(db, project_id, request.camera_ids)
     error = validate_maintenance_event(
-        request.action_types, request.event_date, await _server_today(db), request.note
+        request.action_types, request.event_date, await server_today(db), request.note
     )
     if error:
         raise _bad_request(error)
@@ -482,7 +479,7 @@ async def list_tasks(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Every open service task in the project, overdue first."""
-    today = await _server_today(db)
+    today = await server_today(db)
     rows = (await db.execute(_tasks_query(project_id, site_scope))).all()
     return [
         ServiceTaskResponse(
@@ -615,7 +612,7 @@ async def complete_tasks(
         if request.performed_by_user_id not in (None, user.id):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only log your own work")
         request.performed_by_user_id = user.id
-    today = await _server_today(db)
+    today = await server_today(db)
     await _check_member(db, request.performed_by_user_id, project_id, "Performed-by user")
 
     for task in tasks:

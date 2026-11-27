@@ -1,5 +1,4 @@
 """Tests for shared.config.Settings validation."""
-import os
 import pytest
 from shared.config import Settings
 

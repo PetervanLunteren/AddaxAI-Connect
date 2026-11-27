@@ -33,6 +33,7 @@ from utils.detection_filtering import (
 )
 from utils.sun_time import day_or_night
 from utils.tags import normalize_tags, tag_length_error
+from utils.server_time import get_server_timezone
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -1386,7 +1387,6 @@ async def get_image(
     # borrowing the camera's last reported GPS, which may be a different spot.
     day_night = None
     if site:
-        from routers.admin import get_server_timezone
         day_night = day_or_night(
             image.captured_at,
             lat=site["lat"],

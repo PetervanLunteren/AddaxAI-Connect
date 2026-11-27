@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
+from shared.deployment_build import period_of_days
 from shared.deployment_rebuild import rebuild_camera
 from shared.models import Camera, CameraHealthReport, DeploymentStatement, Image, Rejection, ServerSettings
 from shared.logger import get_logger
@@ -221,12 +222,9 @@ def state_upload_to_site(
             end_date = end_date or span.last
         if start_date is None or end_date is None:
             return
+        from_at, until_at = period_of_days(start_date, end_date)
         session.add(DeploymentStatement(
-            camera_id=camera_id,
-            site_id=site_id,
-            from_at=datetime.combine(start_date, datetime.min.time()),
-            until_at=datetime.combine(end_date + timedelta(days=1), datetime.min.time()),
-            source="upload",
+            camera_id=camera_id, site_id=site_id, from_at=from_at, until_at=until_at, source="upload",
         ))
 
 

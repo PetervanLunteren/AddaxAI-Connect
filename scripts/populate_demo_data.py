@@ -2144,21 +2144,6 @@ def insert_deployments(session: Session, deployments: list, cam_index_to_id: dic
     return key_to_id
 
 
-def mark_first_placements_checked(session: Session, deployments: list, dep_key_to_id: dict) -> None:
-    """Every camera's first placement counts as checked a day after it
-    started, as if someone looked. Relocations stay to check, so the
-    camera updates check shows open entries."""
-    for dep in deployments:
-        if dep["deployment_number"] != 1:
-            continue
-        checked = datetime.combine(dep["start_date"], time(9, 12), tzinfo=timezone.utc) + timedelta(days=1)
-        session.execute(
-            text("UPDATE deployments SET checked_at = :at WHERE id = :id"),
-            {"at": checked, "id": dep_key_to_id[dep["key"]]},
-        )
-    session.flush()
-
-
 def insert_bulk_jobs(session: Session, jobs: list, project_id: int,
                      cam_index_to_id: dict) -> dict:
     """Insert bulk-upload job rows. Returns {uuid: db_id}. Must run before the
@@ -2615,7 +2600,6 @@ def main():
         site_key_to_id = insert_sites(session, sites, project_id)
         cam_index_to_id = insert_cameras(session, cameras, project_id, species_image_info)
         dep_key_to_id = insert_deployments(session, deployments, cam_index_to_id, site_key_to_id)
-        mark_first_placements_checked(session, deployments, dep_key_to_id)
         job_uuid_to_id = insert_bulk_jobs(session, [bulk_job], project_id, cam_index_to_id)
         device_to_cam_id = {cam["device_id"]: cam_index_to_id[cam["index"]] for cam in cameras}
         session.commit()

@@ -1,13 +1,7 @@
-"""The days of the Set deployment form as a period of camera clock time."""
-import os
-import sys
+"""A period given in days as camera clock time."""
 from datetime import date, datetime
 
-_api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "services", "api"))
-if _api not in sys.path:
-    sys.path.insert(0, _api)
-
-from routers.deployments import period_of_days  # noqa: E402
+from shared.deployment_build import period_of_days
 
 
 def test_from_the_start_of_the_first_day_to_the_start_of_the_day_after_the_last():

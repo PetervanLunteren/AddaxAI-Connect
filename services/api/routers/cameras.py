@@ -33,6 +33,7 @@ from utils.camera_unplaced import UnplacedPhotos, fetch_unplaced
 from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags, tag_length_error
+from utils.server_time import get_server_timezone
 
 logger = get_logger(__name__)
 
@@ -278,47 +279,8 @@ async def camera_detail_response(
     `site_scope` is the caller's allow-list (None = unrestricted). Admin-only
     endpoints can leave it out, admins are never restricted.
     """
-    recency = await fetch_camera_recency(db, [camera.id])
-    recent_rejections = None
-    unplaced = None
-    if site_scope is None:
-        recent_rejections = (await fetch_recent_rejections(db, [camera.id])).get(camera.id)
-        unplaced = (await fetch_unplaced(db, [camera.id])).get(camera.id)
-
-    last_maintenance_date = (await db.execute(
-        select(func.max(CameraMaintenanceEvent.event_date))
-        .where(CameraMaintenanceEvent.camera_id == camera.id)
-    )).scalar_one_or_none()
-
-    site_row = (await db.execute(
-        text(f"""
-            SELECT s.id AS site_id, s.name AS site_name
-            FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
-            LEFT JOIN sites s ON s.id = cur.site_id
-            WHERE cur.camera_id = :cam
-        """),
-        {"cam": camera.id},
-    )).mappings().first()
-    current_site = None
-    if site_row and site_row["site_id"] is not None:
-        current_site = {"id": site_row["site_id"], "name": site_row["site_name"]}
-
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-
-    return camera_to_response(
-        camera,
-        tz=tz,
-        last_captured_at=recency.last_captured.get(camera.id),
-        last_reported_at=recency.last_reported.get(camera.id),
-        last_report_arrival=recency.last_report_arrival.get(camera.id),
-        last_image_arrival=recency.last_image_arrival.get(camera.id),
-        current_site=current_site,
-        last_maintenance_date=last_maintenance_date,
-        rejections_visible=site_scope is None,
-        recent_rejections=recent_rejections,
-        unplaced=unplaced,
-    )
+    open_project_ids = {camera.project_id} if site_scope is None else set()
+    return (await camera_responses(db, [camera], open_project_ids))[0]
 
 
 async def camera_responses(
@@ -366,7 +328,6 @@ async def camera_responses(
                     "id": r["site_id"], "name": r["site_name"],
                 }
 
-    from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
 
     return [
@@ -885,7 +846,6 @@ async def get_camera_rejections(
         )
     ).scalars().all()
 
-    from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
     since = datetime.now(timezone.utc) - timedelta(days=REJECTED_RECENT_DAYS)
 

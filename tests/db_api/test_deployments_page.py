@@ -1,21 +1,15 @@
 """
-What the Moves page reads: every deployment of the project.
+What the Deployments page reads: every deployment of the project, and the
+first and last photos of one.
 """
 import pytest
 
-from deployment_db import HOME, at, deployments, make_camera, make_image, make_project, offset
-from routers.deployments import list_deployments
+from deployment_db import at, deployments, execute, HOME, make_camera, make_image, make_project, offset, rebuild
+from routers.deployments import deployment_thumbnails, list_deployments
 
 pytestmark = pytest.mark.asyncio
 
 FAR = offset(HOME, east_m=2000)
-
-
-def rebuild(camera_id):
-    from shared.database import get_db_session
-    from shared.deployment_rebuild import rebuild_camera
-    with get_db_session() as s:
-        rebuild_camera(s, camera_id)
 
 
 @pytest.fixture
@@ -44,3 +38,20 @@ async def test_a_viewer_limited_to_sites_sees_only_those(session, admin, moved_c
     home_site = deployments(cam)[0]["site_id"]
     listed = await list_deployments(project, session, admin, [home_site])
     assert [d.site_id for d in listed] == [home_site]
+
+
+async def test_the_first_and_last_photos_of_a_deployment(session, admin):
+    project = make_project()
+    cam = make_camera("PHOTOS", project)
+    for day in (1, 2, 3, 4):
+        make_image(cam, None, at(day), HOME)
+    hidden = make_image(cam, None, at(5), HOME)
+    execute("UPDATE images SET is_hidden = true WHERE uuid = :u", u=hidden)
+    rebuild(cam)
+    [dep] = deployments(cam)
+
+    first = await deployment_thumbnails(project, dep["id"], "first", 2, session, admin, None)
+    last = await deployment_thumbnails(project, dep["id"], "last", 1, session, admin, None)
+
+    assert [p.captured_at for p in first.photos] == [at(1).isoformat(), at(2).isoformat()]
+    assert [p.captured_at for p in last.photos] == [at(4).isoformat()]  # the hidden one is left out
