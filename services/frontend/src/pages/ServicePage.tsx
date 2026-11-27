@@ -325,13 +325,8 @@ export const ServicePage: React.FC = () => {
   const tabFilterKeys = ['site', 'person', 'action', 'camera', ...(tab === 'open' ? ['due'] : ['from', 'to'])];
   const isFiltered = tabFilterKeys.some((key) => f[key]);
 
-  if (!selectedProject) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Please select a project to view service.</p>
-      </div>
-    );
-  }
+  // AppLayout shows a page only once its project is selected.
+  if (!selectedProject) return null;
 
   return (
     <div className="space-y-6">

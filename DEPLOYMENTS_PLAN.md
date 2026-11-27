@@ -478,12 +478,16 @@ Notes per step:
     only when a person typed it (`deployments.last_day_set`, migration
     `20261127_deployment_last_day_set`). Changing only the site, "It
     stayed", uploads and carried-over history count to the last photo.
-  - Still open before the release: a code review of the whole branch, the
-    phone-width check of the new screens (Peter), and this glitch: a page
-    opened in a fresh tab right
-    after a frontend deploy sometimes says "Please select a project" until
-    reloaded. Older than this work. Not the cause above; a stale copy of
-    the installed app is the likelier one, not proven.
+  - Fixed 27 Nov, the "Please select a project" glitch. Not a stale copy
+    of the app: five pages showed that line whenever no project was
+    selected, also while the project list was still loading. Normally a
+    tenth of a second, about a second right after a deploy (server log of
+    dev: the list arrived 1.1 s after the app started), and for ever when
+    the request failed, since nothing selected a project after that.
+    `AppLayout` now shows a project page only once its project is
+    selected, and says loading, or that the list failed with Try again.
+  - Still open before the release: the phone check on a real phone
+    (layout checked in Chrome's phone emulation, 27 Nov).
   - Fixed 26 Nov, was blocking: the update's migrations could deadlock
     with the running app. `20261121_deployment_checked` drops `feed_events`,
     which needs exclusive locks on the tables it refers to, and a worker

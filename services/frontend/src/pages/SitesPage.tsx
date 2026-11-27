@@ -574,13 +574,8 @@ export const SitesPage: React.FC = () => {
     }
   };
 
-  if (!selectedProject) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Please select a project to view sites.</p>
-      </div>
-    );
-  }
+  // AppLayout shows a page only once its project is selected.
+  if (!selectedProject) return null;
 
   const hasSites = !isLoading && sites && sites.length > 0;
   const isFiltered = !!(searchQuery || habitatFilter || tagFilter || siteFocus);

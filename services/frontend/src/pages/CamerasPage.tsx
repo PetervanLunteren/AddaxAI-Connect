@@ -885,13 +885,8 @@ export const CamerasPage: React.FC = () => {
     }
   };
 
-  if (!currentProject) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Please select a project to view cameras.</p>
-      </div>
-    );
-  }
+  // AppLayout shows a page only once its project is selected.
+  if (!currentProject) return null;
 
   return (
     <div className="space-y-6">

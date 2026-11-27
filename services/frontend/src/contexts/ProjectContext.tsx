@@ -10,6 +10,9 @@
  *   selects nothing and sets missingProject, so the layout says so. It never
  *   falls back to another project: that showed one project's data under
  *   another's address.
+ * - The list can still be loading, or fail to load (projectsFailed). The
+ *   layout (AppLayout) shows a project page only once its project is
+ *   selected, and says which of these it is waiting for.
  */
 import React, { createContext, useState, useEffect, useContext, useRef, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -33,6 +36,8 @@ interface ProjectContextType {
   isProjectViewer: boolean;
   canAdminCurrentProject: boolean;
   loading: boolean;
+  // The project list could not be loaded. refreshProjects tries again.
+  projectsFailed: boolean;
   // The URL names a project the user cannot open (deleted, or no access).
   missingProject: boolean;
   selectProject: (project: ProjectWithRole) => void;
@@ -48,6 +53,7 @@ export const ProjectContext = createContext<ProjectContextType>({
   isProjectViewer: false,
   canAdminCurrentProject: false,
   loading: true,
+  projectsFailed: false,
   missingProject: false,
   selectProject: () => {},
   refreshProjects: () => {},
@@ -67,7 +73,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const projectId = getProjectIdFromPath(location.pathname);
 
   // Fetch user's projects with roles (only if authenticated)
-  const { data: projects, isLoading, refetch } = useQuery({
+  const { data: projects, isLoading, isError, refetch } = useQuery({
     queryKey: ['user-projects'],
     queryFn: () => getUserProjects(),
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
@@ -86,7 +92,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
 
   // Auto-select project from URL or localStorage
   useEffect(() => {
-    if (!projects || projects.length === 0) return;
+    if (!projects) return;
 
     // If we're on a project-specific route, select that project
     if (projectId) {
@@ -155,6 +161,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
         isProjectViewer,
         canAdminCurrentProject,
         loading: isLoading,
+        projectsFailed: isError,
         missingProject,
         selectProject,
         refreshProjects,

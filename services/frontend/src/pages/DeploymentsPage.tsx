@@ -188,13 +188,8 @@ export const DeploymentsPage: React.FC = () => {
     setOpened({ keys: keys.includes(row.key) ? keys : [row.key], start: row.key });
   });
 
-  if (!selectedProject) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Please select a project to view deployments.</p>
-      </div>
-    );
-  }
+  // AppLayout shows a page only once its project is selected.
+  if (!selectedProject) return null;
   if (!canAdmin) {
     return <p className="py-8 text-center text-muted-foreground">Deployments are for project admins.</p>;
   }
