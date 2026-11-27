@@ -486,6 +486,13 @@ Notes per step:
     the request failed, since nothing selected a project after that.
     `AppLayout` now shows a project page only once its project is
     selected, and says loading, or that the list failed with Try again.
+  - Added 27 Nov, after Peter looked at spw on dev: links from a deployment
+    to its photos. The Edit and Add deployment form and the "photos have
+    no site yet" line get "Show in Images" and "Open in Curation", in a new
+    tab. Curation takes "No site" in its Sites filter, through the shared
+    `image_site_filter`. Considered and dropped: thumbnails in the form
+    (they only narrow a move down to a week) and a Delete deployment
+    button (a deployment comes back from its photos).
   - Still open before the release: the phone check on a real phone
     (layout checked in Chrome's phone emulation, 27 Nov).
   - Fixed 26 Nov, was blocking: the update's migrations could deadlock

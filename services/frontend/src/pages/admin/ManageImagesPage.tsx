@@ -51,6 +51,8 @@ import { sitesApi } from '../../api/sites';
 import { imagesApi } from '../../api/images';
 import { bulkUploadApi } from '../../api/bulkUpload';
 import { formatDateTime } from '../../utils/datetime';
+import { useUnplacedPhotos } from '../../hooks/useUnplacedPhotos';
+import { NO_SITE } from '../../lib/panel-links';
 
 type SortColumn = 'filename' | 'camera_name' | 'captured_at';
 
@@ -285,6 +287,12 @@ export const ManageImagesPage: React.FC = () => {
     queryFn: () => sitesApi.list(projectId!),
     enabled: projectId !== undefined,
   });
+
+  // Photos without a site: "No site" in the Sites filter, offered while
+  // there are any and kept while chosen, as on the Images page. A link from
+  // a camera's "photos have no site yet" line lands here with it set.
+  const unplaced = useUnplacedPhotos(projectId);
+  const offerNoSite = !!unplaced || siteFilter.includes(NO_SITE);
 
   // Fetch species for filter
   const { data: speciesOptions } = useQuery({
@@ -584,7 +592,10 @@ export const ManageImagesPage: React.FC = () => {
       kind: 'multi-select',
       key: 'site_id',
       label: 'Sites',
-      options: (sites ?? []).map((s) => ({ value: String(s.id), label: s.name })),
+      options: [
+        ...(sites ?? []).map((s) => ({ value: String(s.id), label: s.name })),
+        ...(offerNoSite ? [{ value: NO_SITE, label: 'No site' }] : []),
+      ],
       placeholder: 'All sites',
       summary: (n) => `${n} sites`,
     },

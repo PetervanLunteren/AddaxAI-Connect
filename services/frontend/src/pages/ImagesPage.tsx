@@ -30,13 +30,14 @@ import { getSpeciesColor, getSpeciesTextColor, setSpeciesContext } from '../util
 import { useProject } from '../contexts/ProjectContext';
 import { useModalImageNavigation } from '../hooks/useModalImageNavigation';
 import { useUnplacedPhotos } from '../hooks/useUnplacedPhotos';
+import { NO_SITE } from '../lib/panel-links';
 import type { ImageListItem } from '../api/types';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera_ids: 'string[]',
   // The site slideout's "View images" deep-links here with a single id;
   // rendered as a Sites multiselect so several places can be filtered at once.
-  // A deployment card deep-links camera + date range (deploymentImagesHref).
+  // A deployment card deep-links camera + date range (imagesHref).
   site_id: 'string[]',
   tags: 'string[]',
   image_tags: 'string[]',
@@ -316,7 +317,7 @@ export const ImagesPage: React.FC = () => {
   // "No site" in the Sites filter, offered while there are any, and kept
   // while chosen so a saved link never holds a choice the list cannot show.
   const unplaced = useUnplacedPhotos(projectId);
-  const offerNoSite = !!unplaced || siteIdValues.includes('none');
+  const offerNoSite = !!unplaced || siteIdValues.includes(NO_SITE);
 
   const filterFields = useMemo<FilterFieldDef[]>(
     () => [
@@ -346,7 +347,7 @@ export const ImagesPage: React.FC = () => {
         label: 'Sites',
         options: [
           ...(sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
-          ...(offerNoSite ? [{ label: 'No site', value: 'none' }] : []),
+          ...(offerNoSite ? [{ label: 'No site', value: NO_SITE }] : []),
         ],
         placeholder: 'All sites',
         summary: (n) => `${n} sites`,

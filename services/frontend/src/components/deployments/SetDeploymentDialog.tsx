@@ -32,10 +32,12 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { Loader2 } from 'lucide-react';
 import { deploymentKeys, deploymentsApi, invalidateDeployments } from '../../api/deployments';
 import { camerasApi, type CameraDeployment } from '../../api/cameras';
+import type { PhotoSet } from '../../lib/panel-links';
 import { errorDetail } from '../../lib/utils';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { DeploymentJourney, type JourneyItem } from '../DeploymentJourney';
 import { dayLabel, daySpan, daysOverlap, placeName, today } from './format';
+import { PhotoLinks } from './PhotoLinks';
 import { SiteField } from '../sites/SiteField';
 import { Button } from '../ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
@@ -112,6 +114,11 @@ export const SetDeploymentDialog: React.FC<Props> = ({
   const photosWhere = editing ? 'here' : 'without a site';
   const firstPhotoDay = editing ? editedCard?.first_photo_day : unplacedDays?.first;
   const lastPhotoDay = editing ? editedCard?.last_photo_day : unplacedDays?.last;
+  // The photos this form is about, for the links to Images and Curation:
+  // the deployment as it is now, or the camera's photos without a site.
+  const shownPhotos: PhotoSet | null = editing
+    ? editedCard ? { cameraId, firstDay: editedCard.start_date, lastDay: editedCard.end_date } : null
+    : unplacedDays?.first ? { cameraId, firstDay: unplacedDays.first, lastDay: unplacedDays.last, noSite: true } : null;
 
   const save = useMutation({
     mutationFn: (site: number) =>
@@ -244,6 +251,12 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     <DeploymentJourney items={[card(cameraName)(editedCard)]} emptyText="" />
                   </div>
                 )}
+                {shownPhotos && (
+                  <p className="text-xs text-muted-foreground">
+                    {editing ? 'Its photos' : 'The photos without a site'}{' '}
+                    <PhotoLinks projectId={projectId} photos={shownPhotos} />
+                  </p>
+                )}
                 {showPreview && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium">After saving</p>
@@ -269,7 +282,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     )}
                   </div>
                 )}
-                {!(editing && editedCard) && !showPreview && (
+                {!(editing && editedCard) && !showPreview && !shownPhotos && (
                   <p className="text-sm text-muted-foreground">What Save does shows here.</p>
                 )}
               </div>

@@ -15,6 +15,7 @@ import type { Camera } from '../api/types';
 import { deploymentKeys } from '../api/deployments';
 import { DeploymentCards } from './deployments/DeploymentCards';
 import { dayLabel, today } from './deployments/format';
+import { PhotoLinks } from './deployments/PhotoLinks';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
@@ -60,7 +61,16 @@ export const CameraDeploymentHistory: React.FC<Props> = ({ camera, projectId, ca
           }
         >
           {unplaced} {unplaced === 1 ? 'photo has' : 'photos have'} no site yet, taken
-          from {dayLabel(camera.unplaced_first_day)} to {dayLabel(camera.unplaced_last_day!)}.
+          from {dayLabel(camera.unplaced_first_day)} to {dayLabel(camera.unplaced_last_day!)}.{' '}
+          <PhotoLinks
+            projectId={projectId}
+            photos={{
+              cameraId: camera.id,
+              firstDay: camera.unplaced_first_day,
+              lastDay: camera.unplaced_last_day ?? null,
+              noSite: true,
+            }}
+          />
         </Callout>
       )}
 

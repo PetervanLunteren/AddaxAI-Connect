@@ -30,7 +30,7 @@ On the Deployments page, click a row to open the deployment with a map. After a 
 
 ## Correcting a deployment
 
-Click Edit on a card. The form holds the site, the first day and the last day. Next to it, Now shows the deployment as it is, and After saving shows what saving will make of it. Days you leave out go back to the app, which places them from the GPS again. Undo on a card takes a correction back, and the app then places those days from the GPS again too.
+Click Edit on a card. The form holds the site, the first day and the last day. Next to it, Now shows the deployment as it is, and After saving shows what saving will make of it. Under Now, "Show in Images" opens the deployment's photos in a new tab, for example to find the day a camera was moved, and "Open in Curation" opens them where you can delete photos. Days you leave out go back to the app, which places them from the GPS again. Undo on a card takes a correction back, and the app then places those days from the GPS again too.
 
 ![Edit deployment with a split](https://github.com/user-attachments/assets/a4fea7b2-658c-4515-b744-a31a6a12d001)
 
@@ -76,7 +76,7 @@ Move twenty cameras and each one gets a new deployment. A camera that arrives at
 
 ### A camera without GPS
 
-The app can't place photos without GPS, so they have no site, and Needs attention shows the camera. Open the camera, go to its Deployments tab, click Set site, and choose the site and the first day. On the Images page, choose "No site" in the Sites filter to see them. Without GPS the app also can't see when such a camera moves, so every move needs you. Click Edit on its card and set the last day at the old spot. The photos after that day then have no site, and Set site gives them the new one.
+The app can't place photos without GPS, so they have no site, and Needs attention shows the camera. Open the camera, go to its Deployments tab, click Set site, and choose the site and the first day. The yellow line there has two links to those photos: "Show in Images" to look at them, and "Open in Curation" to delete them when they're test photos. Without GPS the app also can't see when such a camera moves, so every move needs you. Click Edit on its card and set the last day at the old spot. The photos after that day then have no site, and Set site gives them the new one.
 
 ![A camera without GPS](https://github.com/user-attachments/assets/bdab844b-8b13-4d49-a37e-25258f665b33)
 

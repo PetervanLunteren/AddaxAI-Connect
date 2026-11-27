@@ -1118,9 +1118,12 @@ deployment in the camera panel). The rule for those photos:
   follows a fix at once. It is the project total, not narrowed to the
   page's dates or species. Null for a viewer with a site list, who never
   sees these photos (`site_image_clause` fails closed).
-- **Images** takes `site_id=none` for these photos (`image_site_filter`
-  in `utils/site_scope.py`); for a viewer with a site list "none" matches
-  nothing. Other site filters have no "none": on the server they are
+- **Images** and **Curation** take `site_id=none` for these photos
+  (`image_site_filter` in `utils/site_scope.py`); for a viewer with a site
+  list "none" matches nothing. The Edit and Add deployment form and a
+  camera's "photos have no site yet" line link to both pages with the
+  right filters (`PhotoLinks`, `imagesHref` and `curationHref` in
+  `lib/panel-links.ts`). Other site filters have no "none": on the server they are
   hand-written SQL in about ten places, and the views need a place anyway.
 - **The trend** asks the daily trend helpers for `placed_only`, because it
   divides by trap effort, which only knows deployments.

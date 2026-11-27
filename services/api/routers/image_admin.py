@@ -25,6 +25,7 @@ from auth.users import current_verified_user
 from auth.permissions import can_admin_project
 from routers.images import blur_regions_for_images, needs_full_blur, removed_suffix
 from utils.deployment_edits import rebuild, site_is_used
+from utils.site_scope import image_site_filter
 from utils.image_processing import apply_privacy_blur, blur_whole_image
 
 # Caps for the bulk-download endpoint. Count is the hard ceiling so the
@@ -210,14 +211,11 @@ async def _build_filter_clauses(
     if camera_id is not None:
         filters.append(Image.camera_id == camera_id)
 
-    if site_id:
-        site_ids = [int(s.strip()) for s in site_id.split(',') if s.strip()]
-        if site_ids:
-            filters.append(
-                Image.deployment_id.in_(
-                    select(Deployment.id).where(Deployment.site_id.in_(site_ids))
-                )
-            )
+    # Photos at these sites, or without a site ("none"), as on the Images
+    # page. A project admin has no site restriction, hence None.
+    site_clause = image_site_filter(None, site_id)
+    if site_clause is not None:
+        filters.append(site_clause)
 
     if hidden is not None:
         if hidden.lower() == "true":
@@ -466,7 +464,7 @@ async def list_all_images(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     camera_id: Optional[int] = None,
-    site_id: Optional[str] = Query(None, description="Comma-separated site IDs"),
+    site_id: Optional[str] = Query(None, description="Comma-separated site IDs; 'none' for photos without a site"),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     species: Optional[str] = None,
