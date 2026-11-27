@@ -1,7 +1,8 @@
 """
-Carry the deployments from before phase 2 over to statements, once per server.
+Carry the deployments from before statements existed over to statements,
+once per server.
 
-Step 2a of DEPLOYMENTS_PLAN.md. From phase 2 on, deployments are rebuilt from
+Deployments are rebuilt from
 the GPS readings of photos plus statements. History made by older rules, by
 hand corrections, by uploads to a chosen site or by daily reports does not
 follow from the readings alone. So, per camera:

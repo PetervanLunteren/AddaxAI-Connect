@@ -4,14 +4,14 @@ The one rule for effort (trap-days), for every reader.
 A camera counts at a site from its first photo there to its last photo there,
 and a period a person fixed counts as the person said. Daily reports do not
 count: not every camera type sends them, and photos are the one kind of
-evidence every camera has. Decided with Peter, 20 November 2026 (step 2c of
-DEPLOYMENTS_PLAN.md).
+evidence every camera has.
 
 Per deployment, in whole days, both ends included:
 
 - first day: start_date. A deployment the GPS made starts at its first photo,
-  a fixed period where the person said.
-- last day: a closed fixed period (site_source 'manual') ends on its end_date.
+  a stated one where the person said.
+- last day: a stated deployment with an end (site_source 'manual') ends on
+  its end_date.
   Every other deployment ends on the day of its last photo. Never before the
   first day, so a deployment without photos counts one day.
 

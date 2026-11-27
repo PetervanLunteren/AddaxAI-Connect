@@ -455,6 +455,27 @@ Notes per step:
       reading, as live ingestion always did.
     Measured, no change: one rebuild reads the camera's whole history,
     0.32 s on the largest camera on dev (20,522 photos).
+  - Audit against programming principles, 27 Nov (three independent
+    reviews: server, front end, scripts and tests). Verdict: the core is
+    sound, the debris sat around it. Done:
+    - The suspicious rule had three copies (SQL, browser, a test copy
+      that rounded differently). Now one SQL condition, `SHORT_TRIP_SQL`;
+      the list returns `short_trip` and the browser reads it.
+    - The rules of an edit moved from the router to
+      `utils/deployment_edits.py`; the time helpers to
+      `utils/server_time.py`; `period_of_days` to shared.
+    - Removed, nothing read them: `answers_move_at` and its unreleased
+      migration, `merged`, `site_created`, the bulk form of checked.
+    - The browser refreshes through one `invalidateDeployments`, words
+      deployments through `components/deployments/format.ts`, and calls a
+      correction `Correction`. The deployment window is split into the
+      answers hook, an evidence card and the layout.
+    - The carry-over tests are in the repo (`tests/db_ingestion`).
+    - Comments that named dropped screens or told history are reworded.
+    Left as is: To do's read that writes, this plan file (goes after the
+    release), the carry-over's copy of two rebuild functions.
+    Open, a rule decision: effort counts every stated deployment with an
+    end to that end, also when the GPS set the end.
   - Still open before the release: a code review of the whole branch, the
     phone-width check of the new screens (Peter), and this glitch: a page
     opened in a fresh tab right

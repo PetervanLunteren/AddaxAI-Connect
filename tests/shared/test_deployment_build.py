@@ -1,7 +1,6 @@
 """The rule that turns a camera's GPS readings into deployments.
 
-Plain Python, no database. Without statements it is the rule live ingestion
-ran before phase 2, which step 1b proved on every production dataset.
+Plain Python, no database.
 """
 import math
 from datetime import date, datetime
@@ -142,7 +141,7 @@ def test_the_pin_averages_across_the_antimeridian():
     assert abs(abs(dep.lon) - 180.0) < 1e-6
 
 
-# Statements (step 2a)
+# Statements
 
 from shared.deployment_build import Statement  # noqa: E402
 
@@ -271,7 +270,7 @@ def test_closed_at_never_ends_before_the_start():
     assert dep.end_at == dep.start_at
 
 
-# Why the GPS rule cut, for the moves check.
+# Why the GPS rule cut.
 
 
 def test_a_move_keeps_how_far_how_many_and_when():

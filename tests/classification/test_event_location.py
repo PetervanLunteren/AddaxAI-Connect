@@ -1,8 +1,7 @@
 """Alerts and integrations get the photo's GPS from the columns, never from the
 raw EXIF.
 
-Since step 2b of DEPLOYMENTS_PLAN.md a photo with an invalid reading such as
-(0, 0) is accepted. Its gps_lat and gps_lon are empty, but its EXIF still
+A photo with an invalid reading such as (0, 0) is accepted. Its gps_lat and gps_lon are empty, but its EXIF still
 holds the (0, 0), which EarthRanger and Sensing Clues would take as a real
 place. Read from the source, because the worker needs the ML packages to
 import.

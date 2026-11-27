@@ -5,7 +5,7 @@
  * - Overview: Status, site, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
  * - Deployments: Where this camera has been over time (all users). Project
- *   admins set deployments there and see the fixed periods
+ *   admins set deployments there and see the corrections
  * - Rejected: Files the server refused but could attribute to this camera
  *   (all users, hidden for site-restricted viewers who get no count)
  * - Details: Camera id, custom fields, remarks, tags, SIM, reference (admins)
@@ -575,8 +575,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             )}
 
             {/* Deployments tab */}
-            {activeTab === 'deployments' && (
-              <CameraDeploymentHistory camera={camera} />
+            {activeTab === 'deployments' && projectId !== undefined && (
+              <CameraDeploymentHistory camera={camera} projectId={projectId} canEdit={canAdmin} />
             )}
 
             {/* Rejected tab: files refused by the server, attributed to this camera */}

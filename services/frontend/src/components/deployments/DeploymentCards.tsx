@@ -1,6 +1,6 @@
 /**
  * Deployment cards with everything that sits on them: Edit, the Suspicious
- * marker of a move nobody checked, and the corrections that made a card
+ * marker of a short trip nobody answered, and the corrections that made a card
  * ("Last day set by peter@... on 25 Nov 2026") with Undo. One component for
  * the camera panel and the site panel, which show the same deployments from
  * two sides, as the same card, so a deployment looks and works the same
@@ -13,8 +13,7 @@
  * - A correction belongs to the cards of its camera whose days it covers.
  *   Undo takes back the whole edit: a correction is one fact about one
  *   period, so its parts cannot be undone apart. Cards the app placed show
- *   no line. In the code a correction is a fixed period (a statement); the
- *   screens never say so.
+ *   no line.
  *
  * Edit, Undo and Suspicious are for project admins (the endpoints are);
  * others see plain cards, and none of the admin lists is loaded for them.
@@ -23,16 +22,16 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Undo2 } from 'lucide-react';
-import { camerasApi } from '../../api/cameras';
-import { deploymentsApi, type FixedPeriod } from '../../api/deployments';
-import type { Camera } from '../../api/types';
+import { deploymentKeys, deploymentsApi, invalidateDeployments, type Correction } from '../../api/deployments';
 import { DeploymentJourney, type JourneyItem } from '../DeploymentJourney';
 import { cameraPanelHref, deploymentImagesHref, deploymentWindowHref, sitePanelHref } from '../../lib/panel-links';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toaster';
+import { errorDetail } from '../../lib/utils';
 import { DeploymentStatus } from './DeploymentStatus';
-import { covers, dayLabel, deploymentRows, type DeploymentRow } from './rows';
-import { SetDeploymentDialog, type SetDeploymentPrefill } from './SetDeploymentDialog';
+import { dayLabel, today } from './format';
+import { covers, deploymentRows, type DeploymentRow } from './rows';
+import { SetDeploymentDialog } from './SetDeploymentDialog';
 
 /** One deployment, as both panels have it. */
 export interface DeploymentCardData {
@@ -48,10 +47,10 @@ export interface DeploymentCardData {
   lon: number | null;
 }
 
-function daysLabel(p: FixedPeriod): string {
-  return p.until_date
-    ? `${p.site_name}, ${dayLabel(p.from_date)} to ${dayLabel(p.until_date)}`
-    : `${p.site_name} from ${dayLabel(p.from_date)}`;
+function daysLabel(c: Correction): string {
+  return c.until_date
+    ? `${c.site_name}, ${dayLabel(c.from_date)} to ${dayLabel(c.until_date)}`
+    : `${c.site_name} from ${dayLabel(c.from_date)}`;
 }
 
 // "Site", "Last day", "Site and first day", "First and last day": what an
@@ -69,13 +68,13 @@ function whatWasSet(changes: string[] | null): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function setBy(p: FixedPeriod): string {
-  if (p.source === 'upload') return 'Set by an upload';
-  if (p.source === 'carried_over') return 'Kept from before the update';
-  const when = dayLabel(p.created_at.slice(0, 10));
-  const what = whatWasSet(p.changes);
+function setBy(c: Correction): string {
+  if (c.source === 'upload') return 'Set by an upload';
+  if (c.source === 'carried_over') return 'Kept from before the update';
+  const when = dayLabel(c.created_at.slice(0, 10));
+  const what = whatWasSet(c.changes);
   const verb = what ? `${what} set` : 'Set';
-  return p.created_by ? `${verb} by ${p.created_by} on ${when}` : `${verb} on ${when}`;
+  return c.created_by ? `${verb} by ${c.created_by} on ${when}` : `${verb} on ${when}`;
 }
 
 interface Props {
@@ -93,23 +92,18 @@ export const DeploymentCards: React.FC<Props> = ({
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [removing, setRemoving] = useState<FixedPeriod | null>(null);
-  const [editing, setEditing] = useState<{ camera: Camera; prefill: SetDeploymentPrefill } | null>(null);
+  const [removing, setRemoving] = useState<Correction | null>(null);
+  const [editing, setEditing] = useState<DeploymentCardData | null>(null);
 
-  // The admin lists, all under the keys the Moves and Cameras pages use.
+  // The admin lists, shared with the Deployments page through their keys.
   const { data: projectDeployments } = useQuery({
-    queryKey: ['deployments', projectId, 'overview'],
+    queryKey: deploymentKeys.list(projectId),
     queryFn: () => deploymentsApi.list(projectId),
     enabled: canEdit,
   });
   const { data: corrections = [] } = useQuery({
-    queryKey: ['fixed-periods', 'project', projectId],
-    queryFn: () => deploymentsApi.fixedPeriods(projectId),
-    enabled: canEdit,
-  });
-  const { data: cameras = [] } = useQuery({
-    queryKey: ['cameras', projectId],
-    queryFn: () => camerasApi.getAll(projectId),
+    queryKey: deploymentKeys.corrections(projectId),
+    queryFn: () => deploymentsApi.corrections(projectId),
     enabled: canEdit,
   });
 
@@ -119,47 +113,22 @@ export const DeploymentCards: React.FC<Props> = ({
       .map((row) => [row.deployment.id, row]),
   ), [projectDeployments]);
 
-  const remove = useMutation({
-    mutationFn: (p: FixedPeriod) => deploymentsApi.removeFixedPeriod(projectId, p.id),
+  const undo = useMutation({
+    mutationFn: (c: Correction) => deploymentsApi.undoCorrection(projectId, c.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
-      queryClient.invalidateQueries({ queryKey: ['fixed-periods'] });
-      queryClient.invalidateQueries({ queryKey: ['cameras'] });
-      queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['site', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
+      invalidateDeployments(queryClient, projectId);
       setRemoving(null);
       toast.success('Undone');
     },
-    onError: (error: any) => {
-      toast.error(`Could not undo this. ${error.response?.data?.detail || error.message || ''}`);
-    },
+    onError: (error) => toast.error(`Could not undo this. ${errorDetail(error)}`),
   });
 
   const byId = new Map(deployments.map((d) => [d.id, d]));
-  const cameraOf = (d: DeploymentCardData) => cameras.find((c) => c.id === d.cameraId);
-
-  const edit = (item: JourneyItem) => {
-    const d = byId.get(item.id);
-    const camera = d && cameraOf(d);
-    if (!d || !camera) return;
-    setEditing({
-      camera,
-      prefill: {
-        deploymentId: d.id,
-        siteId: d.siteId,
-        fromDate: d.startDate ?? new Date().toISOString().slice(0, 10),
-        untilDate: d.endDate,
-        lat: d.lat,
-        lon: d.lon,
-      },
-    });
-  };
 
   const footer = (item: JourneyItem) => {
     const d = byId.get(item.id)!;
     const row = hideSuspicious ? undefined : suspicious.get(d.id);
-    const mine = corrections.filter((p) => covers(p, d.cameraId, d.startDate, d.endDate));
+    const mine = corrections.filter((c) => covers(c, d.cameraId, d.startDate, d.endDate));
     return (
       <>
         {row && (
@@ -175,14 +144,14 @@ export const DeploymentCards: React.FC<Props> = ({
         )}
         {mine.length > 0 && (
           <ul className="mt-2 space-y-1 border-t pt-2">
-            {mine.map((p) => (
-              <li key={p.id} className="flex items-start justify-between gap-3 text-xs text-muted-foreground">
+            {mine.map((c) => (
+              <li key={c.id} className="flex items-start justify-between gap-3 text-xs text-muted-foreground">
                 {/* Wraps instead of cutting off: the date at the end matters. */}
-                <span className="min-w-0 break-words" title={daysLabel(p)}>{setBy(p)}</span>
+                <span className="min-w-0 break-words" title={daysLabel(c)}>{setBy(c)}</span>
                 {/* The same look as Edit at the top of the card. */}
                 <button
                   type="button"
-                  onClick={() => setRemoving(p)}
+                  onClick={() => setRemoving(c)}
                   className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
                   <Undo2 className="h-3.5 w-3.5" />
@@ -213,16 +182,14 @@ export const DeploymentCards: React.FC<Props> = ({
       <DeploymentJourney
         items={items}
         emptyText={emptyText}
-        // Edit needs the card's camera from the cameras list; an admin sees
-        // every camera of the project, so it is always there once loaded.
-        onEdit={canEdit ? edit : undefined}
+        onEdit={canEdit ? (item) => setEditing(byId.get(item.id) ?? null) : undefined}
         footer={canEdit ? footer : undefined}
       />
 
       <ConfirmDialog
         open={removing !== null}
         onClose={() => setRemoving(null)}
-        onConfirm={() => removing && remove.mutate(removing)}
+        onConfirm={() => removing && undo.mutate(removing)}
         title="Undo this?"
         body={
           removing ? (
@@ -235,14 +202,22 @@ export const DeploymentCards: React.FC<Props> = ({
         }
         confirmLabel="Undo"
         variant="destructive"
-        isPending={remove.isPending}
+        isPending={undo.isPending}
       />
 
       {editing && (
         <SetDeploymentDialog
           projectId={projectId}
-          camera={editing.camera}
-          prefill={editing.prefill}
+          cameraId={editing.cameraId}
+          cameraName={editing.cameraName}
+          prefill={{
+            deploymentId: editing.id,
+            siteId: editing.siteId,
+            fromDate: editing.startDate ?? today(),
+            untilDate: editing.endDate,
+            lat: editing.lat,
+            lon: editing.lon,
+          }}
           onClose={() => setEditing(null)}
         />
       )}

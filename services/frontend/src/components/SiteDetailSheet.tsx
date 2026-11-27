@@ -42,6 +42,7 @@ import { useToast } from './ui/Toaster';
 import { ServiceSummaryRows } from './service/ServiceSummaryRows';
 import { TabStrip } from './ui/TabStrip';
 import { isAutoSiteName } from '../utils/site-names';
+import { errorDetail } from '../lib/utils';
 
 type TabType = 'overview' | 'deployments';
 
@@ -66,10 +67,6 @@ interface Props {
 function fmtCoords(lat: number | null, lon: number | null): string {
   if (lat == null || lon == null) return '-';
   return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-}
-
-function errMsg(err: any): string {
-  return err?.response?.data?.detail || err?.message || 'unknown error';
 }
 
 /**
@@ -221,7 +218,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
       queryClient.invalidateQueries({ queryKey: ['site-tags', projectId] });
       toast.success('Site updated');
     },
-    onError: (err) => toast.error(`Could not update site, ${errMsg(err)}`),
+    onError: (err) => toast.error(`Could not update site, ${errorDetail(err)}`),
   });
 
   if (!siteId) return null;

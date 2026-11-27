@@ -87,6 +87,7 @@ import {
 } from '../components/BulkEditDialogs';
 import { siteColumnPrefs, type SiteColumnId } from '../components/sites/columnDefs';
 import { SITE_PANEL_PARAM, useOpenPanelFromLink } from '../lib/panel-links';
+import { errorDetail } from '../lib/utils';
 
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
@@ -105,11 +106,6 @@ const COLOR_MODES: { value: SiteColorMode; label: string }[] = [
   { value: 'battery', label: 'Battery' },
   { value: 'signal', label: 'Signal' },
 ];
-
-function errMsg(err: unknown): string {
-  const e = err as { response?: { data?: { detail?: string } }; message?: string };
-  return e?.response?.data?.detail || e?.message || 'Unknown error';
-}
 
 function fmtDate(s: string | null): string {
   if (!s) return '-';
@@ -407,7 +403,7 @@ export const SitesPage: React.FC = () => {
     toast.success(`Updated ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`);
   };
   const onBulkError = (err: unknown) => {
-    toast.error(`Bulk update failed, ${errMsg(err)}`);
+    toast.error(`Bulk update failed, ${errorDetail(err)}`);
   };
 
   const bulkAddTagsMutation = useMutation({
@@ -449,7 +445,7 @@ export const SitesPage: React.FC = () => {
         `Renamed the tag on ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`,
       );
     },
-    onError: (err: unknown) => toast.error(`Rename failed, ${errMsg(err)}`),
+    onError: (err: unknown) => toast.error(`Rename failed, ${errorDetail(err)}`),
   });
   const deleteTagMutation = useMutation({
     mutationFn: (tag: string) => sitesApi.deleteTag(pid, tag),
@@ -461,7 +457,7 @@ export const SitesPage: React.FC = () => {
         `Removed the tag from ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`,
       );
     },
-    onError: (err: unknown) => toast.error(`Delete failed, ${errMsg(err)}`),
+    onError: (err: unknown) => toast.error(`Delete failed, ${errorDetail(err)}`),
   });
 
   const tagCounts = useMemo(() => {
@@ -497,7 +493,7 @@ export const SitesPage: React.FC = () => {
       setDetailSiteId(null);
       toast.success('Sites merged');
     },
-    onError: (err) => toast.error(`Could not merge sites, ${errMsg(err)}`),
+    onError: (err) => toast.error(`Could not merge sites, ${errorDetail(err)}`),
   });
 
   const deleteMutation = useMutation({
@@ -508,7 +504,7 @@ export const SitesPage: React.FC = () => {
       setDetailSiteId(null);
       toast.success('Site deleted');
     },
-    onError: (err) => toast.error(`Could not delete site, ${errMsg(err)}`),
+    onError: (err) => toast.error(`Could not delete site, ${errorDetail(err)}`),
   });
 
   // Per-column cell renderer. Each SiteColumnId returns the cell body, not

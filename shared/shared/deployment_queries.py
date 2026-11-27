@@ -3,7 +3,7 @@ The one rule for "where a camera stands now", for every reader.
 
 The current deployment of a camera is the one that started last. Periods of
 one camera never overlap, so that is the open one when there is one. When it
-has ended (a retired camera, a closed fixed period) it is still the last
+has ended (a retired camera, a correction with a last day) it is still the last
 known place. Its site is the camera's current site; a deployment without a
 site means no current site, never an older one. deployment_number is no
 order: it is given once and never reshuffled, so it does not follow time.

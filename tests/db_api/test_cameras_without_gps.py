@@ -153,8 +153,8 @@ async def test_a_site_of_another_project_is_not_found(session, admin, setup):
 
 
 async def test_without_a_camera_the_list_is_the_whole_project(session, admin, setup):
-    """The Moves page lists every correction of the
-    project, with the camera it belongs to."""
+    """The list holds every correction of the project, with the camera it
+    belongs to."""
     project, cam, pond, meadow = setup
     other = make_camera("REOLINK02", project)
     other_project = make_project("Other")

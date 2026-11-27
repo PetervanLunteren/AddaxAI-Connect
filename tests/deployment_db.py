@@ -240,17 +240,6 @@ def site(site_id: int):
     return found[0] if found else None
 
 
-def to_check(camera_id: int) -> list:
-    """The camera's deployments that are updates nobody answered: made by the
-    GPS and not checked yet, in time order."""
-    return rows(
-        """SELECT id, site_id FROM deployments
-           WHERE camera_id = :c AND site_source = 'auto' AND checked_at IS NULL
-           ORDER BY start_at""",
-        c=camera_id,
-    )
-
-
 def rebuild(camera_id: int) -> None:
     """Rebuild the camera's deployments, as ingestion does after a photo."""
     from shared.database import get_db_session

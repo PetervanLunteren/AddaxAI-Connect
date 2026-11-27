@@ -12,12 +12,12 @@
  * their panel, the photo count to those photos (lib/panel-links.ts).
  *
  * One card per deployment, never merged: a card is what Edit acts on. Days
- * are printed with dayLabel, which never shifts a day across time zones.
+ * are printed with daySpan, which never shifts a day across time zones.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, Camera, Images, MapPin, Pencil } from 'lucide-react';
-import { dayLabel } from './deployments/rows';
+import { daySpan, siteLabel } from './deployments/format';
 
 export interface JourneyItem {
   id: number;
@@ -76,9 +76,9 @@ export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, f
               <div className="min-w-0 flex-1">
                 <Row icon={MapPin} strong>
                   {it.siteHref ? (
-                    <Link to={it.siteHref} className="hover:underline">{it.siteName ?? 'No site'}</Link>
+                    <Link to={it.siteHref} className="hover:underline">{siteLabel(it.siteName)}</Link>
                   ) : (
-                    it.siteName ?? 'No site'
+                    siteLabel(it.siteName)
                   )}
                 </Row>
               </div>
@@ -101,7 +101,7 @@ export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, f
               )}
             </Row>
             <Row icon={Calendar}>
-              {it.startDate ? dayLabel(it.startDate) : '-'} to {it.endDate ? dayLabel(it.endDate) : 'now'}
+              {daySpan(it.startDate, it.endDate)}
             </Row>
             <Row icon={Images}>
               {it.imagesHref ? (

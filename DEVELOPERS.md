@@ -362,7 +362,10 @@ addaxai-connect/
 │   ├── populate_demo_data.py          # Generate demo dataset
 │   ├── shift_demo_dates.py            # Shift demo dates for freshness
 │   ├── backfill_camera_tags_to_sites.py # Migrate legacy camera tags to sites
-│   ├── carry_over_deployments.py      # Carry pre-phase-2 deployments over to statements, once
+│   ├── carry_over_deployments.py      # Turn deployments from before statements into statements, once per server
+│   ├── analyse_move_rule.py           # Read-only: GPS noise and what other move thresholds would give
+│   ├── dev_deployment_scenarios.py    # Dev only: a project of cameras that each tell one deployment story
+│   ├── dev_busy_project.py            # Dev only: a large project, for speed checks
 │   ├── remove_live_twins.py           # Remove bulk copies of photos already sent over 4G (dry run first)
 │   ├── regenerate_thumbnails.py       # Rebuild image thumbnails
 │   ├── rehydrate_cold_to_hot.py       # Pull cold-tier objects back to local storage
@@ -694,10 +697,14 @@ The rules:
   camera is `utils/camera_unplaced.py`, the same pattern as rejected files.
 - A person sets a deployment with `POST /api/projects/{id}/deployments/statements`
   (camera, site, first day, last day or none). The days become a period by
-  `period_of_days`: from the start of the first day to the start of the day
-  after the last. The camera panel's Edit on a deployment uses the same endpoint,
-  prefilled with the deployment's own days. `GET .../statements?camera_id=` lists the fixed
-  periods in force, `DELETE .../statements/{id}` takes one back.
+  `period_of_days` (`shared/deployment_build.py`): from the start of the first
+  day to the start of the day after the last. The camera panel's Edit on a
+  deployment uses the same endpoint, prefilled with the deployment's own days.
+  `GET .../statements` lists the project's corrections in force,
+  `DELETE .../statements/{id}` takes one back. The rules of an edit (what it
+  replaces, which ends it keeps, Undo, "It stayed") are in
+  `utils/deployment_edits.py`; `routers/deployments.py` only translates
+  requests.
 - GPS for alerts, integrations and exports comes from `images.gps_lat` and
   `gps_lon`, never from `image_metadata['gps_decimal']`: an accepted photo
   can carry (0, 0) in its EXIF.
@@ -735,14 +742,17 @@ deployment started.
 
 - **Rows** (`components/deployments/rows.ts`, `deploymentRows`, built in
   the browser from `GET .../deployments` and the project's corrections,
-  `GET .../statements` without `camera_id`). Per deployment:
+  `GET .../statements`). Per deployment:
   - **Moved from**: the deployment right before it (its end is this
     one's start) at another site, whoever made either;
-  - **suspicious**: the GPS made it (`site_source = 'auto'`), nobody
-    answered (`checked_at` empty), and the camera is back at the site it
-    left within a week, the usual shape of a GPS error. The same rule as
-    `SUSPICIOUS_MOVES_SQL` in `utils/todo.py`, the only thing To do
-    counts here; `tests/db_api/test_review.py` holds the two together;
+  - **suspicious**: a short trip nobody answered (`checked_at` empty).
+    A short trip is a deployment the GPS made (`site_source = 'auto'`)
+    that is back at the site it left within a week, the usual shape of a
+    GPS error. One SQL condition decides it, `SHORT_TRIP_SQL` in
+    `shared/deployment_queries.py`: the list returns it per row
+    (`short_trip`) and To do counts with it (`SUSPICIOUS_MOVES_SQL` in
+    `utils/todo.py`), so page and count cannot differ. The browser has no
+    copy of the rule. Cases in `tests/db_api/test_suspicious.py`;
   - **corrected**: a correction a person made (`source = 'person'`)
     covers part of its days (`covers`, also used by the cards).
   - The key is the camera and the start (`rowKey`), which come from the
@@ -769,12 +779,12 @@ deployment started.
   days, so the parts of a split can be edited next.
 - **The question**, only for a suspicious deployment, and then without
   Edit on the card, so it stands alone: did the camera really go there.
-  - **Right** (Enter, `PUT .../deployments/checked`) only records who
+  - **Right** (Enter, `PUT .../deployments/{id}/checked`) only records who
     said so and when (`checked_at`, `checked_by_user_id`); the warning
     goes. The window then shows "Marked right by … on date" with Undo.
   - **Wrong** (W, `POST .../deployments/{id}/not-moved`): the GPS was
     off. One correction over the stay before and the trip, at the old
-    site, with `answers_move_at` = the trip's start (phase 5 reads it).
+    site (`take_back_move`).
     At once, with Undo on the spot instead of a confirmation before it;
     after Undo the deployment comes back under the same key and asks
     again.
@@ -831,19 +841,22 @@ deployment started.
   one, as "It stayed" does. The form shows the deployment as a card (Now)
   and the cards the save leaves that differ from now (After saving), from
   `POST .../deployments/statements/preview`: the same edit as Save
-  (`_apply` in `routers/deployments.py`) in a transaction that is rolled
+  (`set_deployment` in `utils/deployment_edits.py`) in a transaction that is rolled
   back, so the preview is the rebuild's own answer, never a guess in the
   browser. Everything is built before the rollback, which expires every
   object of the session. Cards are compared by content (site, days,
   photos), not id: after a split the old id can go to either part. The
   browser asks 400 ms after the form stops changing, never caches or
   retries, and cancels an older request. Days are bounded for Save and
-  preview: 1 January 2000 to today in the server timezone (`_check_days`).
+  preview: 1 January 2000 to today in the server timezone (`check_days`;
+  today comes from `utils/server_time.py`).
   The site panel has Name this site; a camera that had its own spot gets
   one from Edit on its card, with + New site. A correction deletes a site it emptied when that
   site still has the app's name (`drop_unnamed_sites_left_empty`); a site
-  a person named is never deleted by the app. The screens never say
-  "fixed period" or "statement".
+  a person named is never deleted by the app. The screens say
+  "correction"; the server stores one as a statement, and the browser code
+  calls it `Correction` (`api/deployments.ts`). After any change the browser
+  refreshes through one function, `invalidateDeployments`.
 - Sites are added on the Sites page, one at a time or from a CSV
   (`POST .../sites/import-csv`). `utils/csv_upload.py` reads the file for
   this import and the camera import.
@@ -1612,8 +1625,9 @@ those and not resource timing.
 ## Running tests
 
 ```bash
-# Run all tests
-pytest tests/ -v
+# Run the tests of one folder. The whole tree in one run fails at
+# collection, and the database tests need scripts/test-db.sh.
+pytest tests/api -m "not ml" -v
 
 # Run tests for one service
 pytest tests/ingestion/ -v

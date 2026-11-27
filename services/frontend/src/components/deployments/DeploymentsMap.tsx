@@ -1,15 +1,15 @@
 /**
- * The map of the moves check, on satellite: the landscape shows
+ * The map of the deployment window, on satellite: the landscape shows
  * whether a move is real.
  *
  * It shows the move and nothing more: the site it left and the site it went
  * to, both magenta like the arrow between them, and the project's other
- * sites faded teal. A correction has no move: its one site is magenta. A person decides a move by whether they moved the
- * camera, and the two photos in the card show that, so the GPS of the
+ * sites faded teal. A deployment that did not move has its one site
+ * magenta. A person decides a move by whether they moved the camera, and the two photos in the card show that, so the GPS of the
  * photos is not drawn. The GPS stays the input of the build.
  *
  * Nothing on it is clickable: the answer is in the card next to it.
- * The map fits to the move once; the check mounts a new map per update.
+ * The map fits to the move once; the window mounts a new map per deployment.
  */
 import { Fragment, useEffect, useMemo } from 'react';
 import { MapContainer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';

@@ -2,16 +2,17 @@
  * Deployment API endpoints.
  *
  * A deployment is one camera at one site for a time range. The server
- * rebuilds deployments from photo GPS plus fixed periods: a fixed period says
+ * rebuilds deployments from photo GPS plus corrections: a correction says
  * where a camera stood from one day to another, and the GPS does not change
- * it. Setting a deployment writes a fixed period; removing one takes it back.
+ * it. Edit and Add deployment write a correction; Undo takes one back. (The
+ * server stores a correction as a statement, hence the route names.)
  */
+import type { QueryClient } from '@tanstack/react-query';
 import apiClient from './client';
 import type { CameraDeployment } from './cameras';
 
 export interface DeploymentListItem {
   id: number;
-  deployment_number: number;
   camera_id: number;
   camera_label: string | null;
   site_id: number | null;
@@ -22,11 +23,14 @@ export interface DeploymentListItem {
   end_date: string | null; // the last day, null = still there
   start_at: string; // camera clock, exact
   end_at: string | null;
-  last_photo_at: string | null;
   image_count: number;
-  // 'manual' when a fixed period made it, 'auto' when the GPS did.
+  // 'manual' when a correction made it, 'auto' when the GPS did.
   site_source: string;
-  // When a person said this update is right, null = nobody answered.
+  // Looks like a GPS error: the GPS made it and the camera was back at the
+  // site it left within a week. The server decides, the same rule as the
+  // Needs attention count.
+  short_trip: boolean;
+  // When a person said this deployment is right, null = nobody answered.
   checked_at: string | null;
   checked_by: string | null; // email
 }
@@ -47,14 +51,11 @@ export interface SetDeploymentRequest {
   deployment_id?: number | null;
 }
 
-// `merged` is how many deployments fewer the camera has afterwards: periods
-// at one site back to back become one. 0 in the common case.
 export interface SetDeploymentResponse {
-  statement_id: number; // for Undo (removeFixedPeriod)
-  merged: number;
+  statement_id: number; // the correction written, for Undo (undoCorrection)
 }
 
-export interface FixedPeriod {
+export interface Correction {
   id: number;
   camera_id: number;
   camera_label: string;
@@ -80,14 +81,34 @@ export interface DeploymentPreview {
 
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;
 
+// Query keys. Everything of a project sits under ['deployments', projectId],
+// so one invalidation refreshes the list, the corrections and the photos.
+export const deploymentKeys = {
+  list: (projectId: number) => ['deployments', projectId, 'list'] as const,
+  corrections: (projectId: number) => ['deployments', projectId, 'corrections'] as const,
+  photos: (projectId: number, deploymentId: number | undefined, order: 'first' | 'last', limit: number) =>
+    ['deployments', projectId, 'photos', deploymentId, order, limit] as const,
+  ofCamera: (cameraId: number) => ['camera-deployments', cameraId] as const,
+};
+
+/** After any change to a deployment: refresh everything that shows where a camera stood. */
+export function invalidateDeployments(queryClient: QueryClient, projectId: number): void {
+  queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
+  queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
+  queryClient.invalidateQueries({ queryKey: ['cameras'] });
+  queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
+  queryClient.invalidateQueries({ queryKey: ['site', projectId] });
+}
+
 export const deploymentsApi = {
   // Every deployment of the project, oldest first.
   list: async (projectId: number): Promise<DeploymentListItem[]> => {
     const { data } = await apiClient.get(base(projectId));
     return data;
   },
-  setChecked: async (projectId: number, deploymentIds: number[], checked: boolean): Promise<void> => {
-    await apiClient.put(`${base(projectId)}/checked`, { deployment_ids: deploymentIds, checked });
+  // "Right, it went there" on a suspicious deployment, or that taken back.
+  setChecked: async (projectId: number, deploymentId: number, checked: boolean): Promise<void> => {
+    await apiClient.put(`${base(projectId)}/${deploymentId}/checked`, { checked });
   },
   // The GPS saw a move that did not happen: back to the site before it.
   notMoved: async (projectId: number, deploymentId: number): Promise<SetDeploymentResponse> => {
@@ -102,22 +123,17 @@ export const deploymentsApi = {
     const { data } = await apiClient.post(`${base(projectId)}/statements/preview`, body, { signal });
     return data;
   },
-  // Of one camera, or of the whole project without cameraId.
-  fixedPeriods: async (projectId: number, cameraId?: number): Promise<FixedPeriod[]> => {
-    const { data } = await apiClient.get(`${base(projectId)}/statements`, {
-      params: cameraId !== undefined ? { camera_id: cameraId } : {},
-    });
+  // The project's corrections in force, newest first.
+  corrections: async (projectId: number): Promise<Correction[]> => {
+    const { data } = await apiClient.get(`${base(projectId)}/statements`);
     return data;
   },
-  removeFixedPeriod: async (projectId: number, statementId: number): Promise<void> => {
-    await apiClient.delete(`${base(projectId)}/statements/${statementId}`);
+  undoCorrection: async (projectId: number, correctionId: number): Promise<void> => {
+    await apiClient.delete(`${base(projectId)}/statements/${correctionId}`);
   },
-  // A few photos of a deployment: a random sample, the first or the last.
+  // The first or the last photos of a deployment.
   photos: async (
-    projectId: number,
-    deploymentId: number,
-    order: 'random' | 'first' | 'last',
-    limit = 1,
+    projectId: number, deploymentId: number, order: 'first' | 'last', limit: number,
   ): Promise<DeploymentPhoto[]> => {
     const { data } = await apiClient.get(`${base(projectId)}/${deploymentId}/thumbnails`, {
       params: { limit, order },

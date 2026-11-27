@@ -1,12 +1,14 @@
 /**
- * Links that open a camera's or a site's panel, or a deployment's window,
- * on its page, the hook that opens it, and the link to a deployment's photos. One pair for every place that links to a panel (deployment
- * cards, the image detail), so the address and its handling never drift.
+ * Links that open a camera's or a site's panel, a deployment's window or one
+ * photo on its page, and the hook that opens a panel from such a link. One
+ * place for every screen that links there (deployment cards, the image
+ * detail, the deployment window), so an address and its handling never
+ * drift.
  *
- * The parameter is read once and removed from the address: closing the
- * panel does not reopen it, back stays usable, and it is never remembered
- * as a filter (the Sites page's own `site` parameter is a filter, so the
- * site panel has its own name).
+ * A panel's parameter is read once and removed from the address: closing
+ * the panel does not reopen it, back stays usable, and it is never
+ * remembered as a filter (the Sites page's own `site` parameter is a
+ * filter, so the site panel has its own name).
  */
 import { useEffect } from 'react';
 
@@ -22,6 +24,10 @@ export const sitePanelHref = (projectId: number, siteId: number) =>
 
 export const deploymentWindowHref = (projectId: number, deploymentId: number) =>
   `/projects/${projectId}/deployments?${DEPLOYMENT_WINDOW_PARAM}=${deploymentId}`;
+
+/** One photo, opened in image verification on the Images page. */
+export const imageHref = (projectId: number, imageUuid: string) =>
+  `/projects/${projectId}/images?image=${imageUuid}`;
 
 /**
  * The photos of one deployment on the Images page: its camera, from its

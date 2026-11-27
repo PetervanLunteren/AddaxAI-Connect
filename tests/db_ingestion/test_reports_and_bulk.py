@@ -1,13 +1,11 @@
 """
 Daily reports and bulk uploads.
 
-Written in step 1a against the old code. Changed on purpose in step 2a:
-- Daily reports no longer make or touch deployments. Only photos do.
-- An upload to a chosen site is a statement for its days, so it no longer
-  widens an older deployment at that site across a time the camera stood
-  elsewhere.
+- Daily reports never make or touch deployments. Only photos do.
+- An upload to a chosen site is a statement for its days, so it never widens
+  an older deployment at that site across a time the camera stood elsewhere.
 - An upload without a chosen site rebuilds once at the end, in the order the
-  photos were taken, so an old SD card is read as history and no longer moves
+  photos were taken, so an old SD card is read as history and never moves
   where the camera stands now.
 """
 import uuid
@@ -15,7 +13,7 @@ from datetime import timedelta
 
 import db_operations as ingest
 from deployment_db import (
-    DAY, HOME, at, camera_config, close, deployments, image_deployment, to_check,
+    DAY, HOME, at, camera_config, close, deployments, image_deployment,
     make_camera, make_project, make_site, offset, rows, sites,
 )
 
@@ -118,7 +116,6 @@ def test_an_upload_without_gps_to_a_site_is_a_deployment_at_that_site():
     assert current["end_date"] is None and current["start_date"] == DAY + timedelta(days=19)
     assert [image_deployment(u) for u in live] == [current["id"], current["id"]]
     # An upload is a person's word, so only the live deployment is to check.
-    assert [d["id"] for d in to_check(cam)] == [current["id"]]
     [statement] = rows("SELECT * FROM deployment_statements WHERE camera_id = :c", c=cam)
     assert statement["source"] == "upload"
     assert (statement["from_at"], statement["until_at"]) == (at(1, hour=0), at(6, hour=0))

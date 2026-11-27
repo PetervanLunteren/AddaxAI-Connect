@@ -402,7 +402,7 @@ class DeploymentStatement(Base):
     changes = Column(String(32), nullable=True)
     # 'person' = a correction in the app, 'upload' = an upload to a chosen
     # site, 'carried_over' = written once by scripts/carry_over_deployments.py
-    # to keep history from before phase 2 as it was.
+    # to keep the history from before statements existed as it was.
     source = Column(String(16), nullable=False)
     created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -1071,8 +1071,9 @@ class ServerSettings(Base):
     # purpose: the security state belongs to the machine, not to a project, and
     # only a server admin can act on it. Default TRUE.
     notify_security_failures = Column(Boolean, nullable=False, server_default="true")
-    # When scripts/carry_over_deployments.py carried the deployments from
-    # before phase 2 over. It runs once per server; NULL = not yet.
+    # When scripts/carry_over_deployments.py turned the deployments from
+    # before statements existed into statements. It runs once per server;
+    # NULL = not yet.
     deployments_carried_over_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

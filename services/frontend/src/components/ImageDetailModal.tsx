@@ -54,7 +54,7 @@ import { normalizeLabel } from '../utils/labels';
 import { formatDate, formatDateTime, formatDateTimeSeconds } from '../utils/datetime';
 import { TagInput } from './TagInput';
 import { Select } from './ui/Select';
-import { cameraPanelHref } from '../lib/panel-links';
+import { cameraPanelHref, imageHref } from '../lib/panel-links';
 
 // Pipeline stage in words the reader can act on. The raw values come from
 // the workers ("classified", "detected") and mean nothing outside the code.
@@ -690,7 +690,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   // one shareable address per image. The receiver needs an account and access
   // to the project, the API checks both.
   const shareUrl = selectedProject
-    ? `${window.location.origin}/projects/${selectedProject.id}/images?image=${imageUuid}`
+    ? `${window.location.origin}${imageHref(selectedProject.id, imageUuid)}`
     : null;
 
   const handleShare = async () => {

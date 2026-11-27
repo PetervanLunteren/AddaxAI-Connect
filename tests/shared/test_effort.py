@@ -1,5 +1,5 @@
 """The one effort rule (shared/effort.py): a camera counts at a site from its
-first photo there to its last photo there, a fixed period as the person said."""
+first photo there to its last photo there, a stated deployment as the person said."""
 from datetime import date, datetime
 
 from shared.effort import days_sql, effort_last_day, last_day_sql

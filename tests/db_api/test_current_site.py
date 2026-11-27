@@ -1,5 +1,5 @@
 """
-Step 2c: one rule for the current site, and the last photo that ends effort.
+One rule for the current site, and the last photo that ends effort.
 
 The current deployment is the one that started last (shared/deployment_queries.py),
 given as SQL text and as a SQLAlchemy expression. Both must say the same, also

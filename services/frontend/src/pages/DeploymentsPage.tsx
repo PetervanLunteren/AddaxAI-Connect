@@ -19,11 +19,12 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { deploymentsApi } from '../api/deployments';
+import { deploymentKeys, deploymentsApi } from '../api/deployments';
 import { sitesApi } from '../api/sites';
 import { DeploymentStatus } from '../components/deployments/DeploymentStatus';
 import { DeploymentWindow } from '../components/deployments/DeploymentWindow';
-import { dayLabel, deploymentRows, metresLabel, type DeploymentRow } from '../components/deployments/rows';
+import { cameraLabel, dayLabel, daysOverlap, metresLabel, siteLabel } from '../components/deployments/format';
+import { deploymentRows, type DeploymentRow } from '../components/deployments/rows';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { Card, CardContent } from '../components/ui/Card';
 import { FilterBar, type FilterFieldDef, type FilterValue } from '../components/ui/FilterBar';
@@ -70,7 +71,7 @@ const SORT: Record<Column, (row: DeploymentRow) => string | number | null> = {
   status: statusOrder,
 };
 
-const cameraLabel = (row: DeploymentRow) => row.deployment.camera_label ?? `Camera ${row.deployment.camera_id}`;
+const cameraOf = (row: DeploymentRow) => cameraLabel(row.deployment.camera_label, row.deployment.camera_id);
 
 /** One line of text, cut with "…" at the column's width, the whole text on hover. */
 const Clip: React.FC<{ text: string }> = ({ text }) => (
@@ -80,7 +81,7 @@ const Clip: React.FC<{ text: string }> = ({ text }) => (
 // A site in a cell: its name, cut to fit, and the Unnamed marker of the
 // Sites page while it still has its automatic name.
 const SiteCell: React.FC<{ name: string | null }> = ({ name }) =>
-  name === null ? <span className="text-muted-foreground">No site</span> : (
+  name === null ? <span className="text-muted-foreground">{siteLabel(name)}</span> : (
     <span className="flex min-w-0 items-center gap-2">
       <span className="min-w-0 truncate" title={name}>{name}</span>
       <span className="shrink-0"><UnnamedSiteChip name={name} /></span>
@@ -108,7 +109,7 @@ export const DeploymentsPage: React.FC = () => {
 
   const enabled = projectId > 0 && canAdmin;
   const { data: deployments, isLoading } = useQuery({
-    queryKey: ['deployments', projectId, 'overview'],
+    queryKey: deploymentKeys.list(projectId),
     queryFn: () => deploymentsApi.list(projectId),
     enabled,
   });
@@ -117,10 +118,9 @@ export const DeploymentsPage: React.FC = () => {
     queryFn: () => sitesApi.list(projectId),
     enabled,
   });
-  // Keyed under 'fixed-periods', so every save and Undo refreshes it.
   const { data: corrections } = useQuery({
-    queryKey: ['fixed-periods', 'project', projectId],
-    queryFn: () => deploymentsApi.fixedPeriods(projectId),
+    queryKey: deploymentKeys.corrections(projectId),
+    queryFn: () => deploymentsApi.corrections(projectId),
     enabled,
   });
   const rows = useMemo(
@@ -136,7 +136,7 @@ export const DeploymentsPage: React.FC = () => {
     const cameras = new Map<string, string>();
     const siteNames = new Map<string, string>();
     for (const row of rows) {
-      cameras.set(String(row.deployment.camera_id), cameraLabel(row));
+      cameras.set(String(row.deployment.camera_id), cameraOf(row));
       for (const d of [row.deployment, row.previous]) {
         if (d?.site_id != null) siteNames.set(String(d.site_id), d.site_name ?? '');
       }
@@ -162,8 +162,8 @@ export const DeploymentsPage: React.FC = () => {
       (!f.status || (f.status === 'suspicious' ? suspicious : corrected)) &&
       (!f.moved || (f.moved === 'yes') === !!previous) &&
       // Days in the range: the deployment's period overlaps it.
-      (!f.to || (d.start_date !== null && d.start_date <= f.to)) &&
-      (!f.from || d.end_date === null || d.end_date >= f.from));
+      ((!f.from && !f.to) ||
+        daysOverlap(d.start_date, d.end_date, f.from || '0000-01-01', f.to || null)));
     const value = SORT[sort.column ?? 'first'];
     const sign = sort.direction === 'asc' ? 1 : -1;
     const compare = (va: string | number | null, vb: string | number | null) => {
@@ -174,7 +174,7 @@ export const DeploymentsPage: React.FC = () => {
     // Ties go by camera, then by key, so equal rows never swap places when
     // the list reloads after an answer.
     return [...matches].sort((a, b) =>
-      compare(value(a), value(b)) || cameraLabel(a).localeCompare(cameraLabel(b)) || a.key.localeCompare(b.key));
+      compare(value(a), value(b)) || cameraOf(a).localeCompare(cameraOf(b)) || a.key.localeCompare(b.key));
   }, [rows, f.camera, f.site, f.status, f.moved, f.from, f.to, sort]);
   const isFiltered = Object.values(f).some(Boolean);
 
@@ -268,7 +268,7 @@ export const DeploymentsPage: React.FC = () => {
                         className="cursor-pointer"
                         onClick={() => setOpened({ keys: shown.map((r) => r.key), start: row.key })}
                       >
-                        <TableCell className="font-medium"><Clip text={cameraLabel(row)} /></TableCell>
+                        <TableCell className="font-medium"><Clip text={cameraOf(row)} /></TableCell>
                         <TableCell><SiteCell name={d.site_name} /></TableCell>
                         <TableCell className="whitespace-nowrap">{d.start_date ? dayLabel(d.start_date) : '-'}</TableCell>
                         <TableCell className="whitespace-nowrap">{d.end_date ? dayLabel(d.end_date) : 'now'}</TableCell>

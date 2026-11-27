@@ -27,15 +27,15 @@
  * taken from a neighbour show as that neighbour, shorter. Two lines say
  * what a card cannot: photos left without a site, a deployment that goes.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { deploymentsApi } from '../../api/deployments';
+import { deploymentKeys, deploymentsApi, invalidateDeployments } from '../../api/deployments';
 import { camerasApi, type CameraDeployment } from '../../api/cameras';
-import type { Camera } from '../../api/types';
+import { errorDetail } from '../../lib/utils';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { DeploymentJourney, type JourneyItem } from '../DeploymentJourney';
-import { dayLabel } from './rows';
+import { dayLabel, daySpan, daysOverlap, placeName, today } from './format';
 import { SiteField } from '../sites/SiteField';
 import { Button } from '../ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/Dialog';
@@ -54,31 +54,23 @@ export interface SetDeploymentPrefill {
 
 interface Props {
   projectId: number;
-  camera: Camera;
+  cameraId: number;
+  cameraName: string;
   prefill: SetDeploymentPrefill;
+  // Add deployment only: the days of the camera's first and last photo
+  // without a site, for the hints under the two days.
+  unplacedDays?: { first: string | null; last: string | null };
   onClose: () => void;
-  // Called after a successful save, before onClose, with the statement
-  // written, so the caller can offer Undo.
-  onSaved?: (statementId: number) => void;
 }
 
 const inputClass = 'w-full px-3 py-2 border rounded-md text-sm';
 
-function errMsg(err: unknown): string {
-  const e = err as { response?: { data?: { detail?: string } }; message?: string };
-  return e?.response?.data?.detail || e?.message || 'Unknown error';
-}
-
-// Days a person can set, the same bounds as the server (_check_days in
-// routers/deployments.py): no day after today. The server takes today in
+// Days a person can set, the same bounds as the server (check_days in
+// utils/deployment_edits.py): no day after today. The server takes today in
 // its own timezone and has the last word. A year typed digit by digit
 // (0002, 0202) is a real date the preview must not send.
 const FIRST_DAY = '2000-01-01';
-const lastSettableDay = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-const settable = (day: string) => day >= FIRST_DAY && day <= lastSettableDay();
+const settable = (day: string) => day >= FIRST_DAY && day <= today();
 
 const card = (cameraName: string) => (d: CameraDeployment): JourneyItem => ({
   id: d.id,
@@ -95,16 +87,12 @@ const card = (cameraName: string) => (d: CameraDeployment): JourneyItem => ({
 const same = (a: CameraDeployment, b: CameraDeployment) =>
   a.site_id === b.site_id && a.start_date === b.start_date && a.end_date === b.end_date &&
   a.image_count === b.image_count;
-const overlaps = (a: CameraDeployment, b: CameraDeployment) =>
-  (a.end_date === null || b.start_date === null || b.start_date <= a.end_date) &&
-  (b.end_date === null || a.start_date === null || a.start_date <= b.end_date);
-const span = (d: CameraDeployment) =>
-  `${d.start_date ? dayLabel(d.start_date) : '-'} to ${d.end_date ? dayLabel(d.end_date) : 'now'}`;
+const shareDays = (a: CameraDeployment, b: CameraDeployment) =>
+  daysOverlap(a.start_date, a.end_date, b.start_date, b.end_date);
 
 export const SetDeploymentDialog: React.FC<Props> = ({
-  projectId, camera, prefill, onClose, onSaved,
+  projectId, cameraId, cameraName, prefill, unplacedDays, onClose,
 }) => {
-  const cameraId = camera.id;
   const editing = prefill.deploymentId !== null;
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -112,14 +100,8 @@ export const SetDeploymentDialog: React.FC<Props> = ({
   const [fromDate, setFromDate] = useState(prefill.fromDate);
   const [untilDate, setUntilDate] = useState(prefill.untilDate ?? '');
 
-  useEffect(() => {
-    setSiteId(prefill.siteId);
-    setFromDate(prefill.fromDate);
-    setUntilDate(prefill.untilDate ?? '');
-  }, [prefill]);
-
   const { data: deployments = [] } = useQuery({
-    queryKey: ['camera-deployments', cameraId],
+    queryKey: deploymentKeys.ofCamera(cameraId),
     queryFn: () => camerasApi.getDeployments(cameraId),
   });
 
@@ -128,8 +110,8 @@ export const SetDeploymentDialog: React.FC<Props> = ({
   // being edited ("here"), or, when adding one, the camera's photos without
   // a site, which is what Add deployment is for.
   const photosWhere = editing ? 'here' : 'without a site';
-  const firstPhotoDay = editing ? editedCard?.first_photo_day : camera.unplaced_first_day;
-  const lastPhotoDay = editing ? editedCard?.last_photo_day : camera.unplaced_last_day;
+  const firstPhotoDay = editing ? editedCard?.first_photo_day : unplacedDays?.first;
+  const lastPhotoDay = editing ? editedCard?.last_photo_day : unplacedDays?.last;
 
   const save = useMutation({
     mutationFn: (site: number) =>
@@ -140,19 +122,12 @@ export const SetDeploymentDialog: React.FC<Props> = ({
         until_date: untilDate || null,
         deployment_id: prefill.deploymentId,
       }),
-    onSuccess: (result) => {
-      // Everything that shows where a camera stood.
-      queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
-      queryClient.invalidateQueries({ queryKey: ['fixed-periods'] });
-      queryClient.invalidateQueries({ queryKey: ['cameras'] });
-      queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['site', projectId] });
-      queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
+    onSuccess: () => {
+      invalidateDeployments(queryClient, projectId);
       toast.success('Deployment saved');
-      onSaved?.(result.statement_id);
       onClose();
     },
-    onError: (error) => toast.error(`Could not save the deployment. ${errMsg(error)}`),
+    onError: (error) => toast.error(`Could not save the deployment. ${errorDetail(error)}`),
   });
 
   const until = untilDate || null;
@@ -171,7 +146,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
   const askedKey = useDebouncedValue(current, 400);
   const asked = JSON.parse(askedKey) as { site_id: number | null; from_date: string; until_date: string | null; ok: boolean };
   const preview = useQuery({
-    queryKey: ['camera-deployments', cameraId, 'preview', prefill.deploymentId, askedKey],
+    queryKey: [...deploymentKeys.ofCamera(cameraId), 'preview', prefill.deploymentId, askedKey],
     queryFn: ({ signal }) => deploymentsApi.preview(projectId, {
       camera_id: cameraId,
       site_id: asked.site_id!,
@@ -192,19 +167,18 @@ export const SetDeploymentDialog: React.FC<Props> = ({
   // GPS), and a neighbour the edit takes whole.
   const lostPhotos = before.reduce((n, d) => n + d.image_count, 0) - after.reduce((n, d) => n + d.image_count, 0);
   const gone = before.filter((b) =>
-    b.id !== prefill.deploymentId && !after.some((a) => a.site_id === b.site_id && overlaps(a, b)));
+    b.id !== prefill.deploymentId && !after.some((a) => a.site_id === b.site_id && shareDays(a, b)));
   const showPreview = canSave && preview.data !== undefined;
 
   return (
-    <>
       <Dialog open onOpenChange={(o) => !o && onClose()}>
         <DialogContent onClose={onClose} className="max-w-2xl lg:max-w-4xl">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit deployment' : 'Add deployment'}</DialogTitle>
             <DialogDescription>
               {editing
-                ? `Camera ${camera.name} at one site, from a first day to a last day.`
-                : `Where camera ${camera.name} stood, from a first day to a last day.`}
+                ? `Camera ${cameraName} at one site, from a first day to a last day.`
+                : `Where camera ${cameraName} stood, from a first day to a last day.`}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -235,7 +209,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                       type="date"
                       required
                       min={FIRST_DAY}
-                      max={lastSettableDay()}
+                      max={today()}
                       value={fromDate}
                       onChange={(e) => setFromDate(e.target.value)}
                       className={inputClass}
@@ -251,7 +225,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                       id="set-deployment-until"
                       type="date"
                       min={FIRST_DAY}
-                      max={lastSettableDay()}
+                      max={today()}
                       value={untilDate}
                       onChange={(e) => setUntilDate(e.target.value)}
                       className={inputClass}
@@ -267,7 +241,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                 {editing && editedCard && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Now</p>
-                    <DeploymentJourney items={[card(camera.name)(editedCard)]} emptyText="" />
+                    <DeploymentJourney items={[card(cameraName)(editedCard)]} emptyText="" />
                   </div>
                 )}
                 {showPreview && (
@@ -275,7 +249,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     <p className="text-sm font-medium">After saving</p>
                     {changed.length > 0 && (
                       <DeploymentJourney
-                        items={changed.map(card(camera.name))}
+                        items={changed.map(card(cameraName))}
                         emptyText=""
                         dimmed={preview.isPlaceholderData || askedKey !== current}
                       />
@@ -287,7 +261,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
                     )}
                     {gone.map((d) => (
                       <p key={d.id} className="text-xs text-muted-foreground">
-                        The deployment at {d.site_name ?? 'no site'}, {span(d)}, goes.
+                        The deployment at {placeName(d.site_name)}, {daySpan(d.start_date, d.end_date)}, goes.
                       </p>
                     ))}
                     {changed.length === 0 && lostPhotos <= 0 && gone.length === 0 && (
@@ -312,7 +286,7 @@ export const SetDeploymentDialog: React.FC<Props> = ({
               ) : unchanged ? (
                 <p className="text-sm text-muted-foreground">Nothing changed yet.</p>
               ) : preview.isError ? (
-                <p className="text-sm text-destructive">Could not work out the result. {errMsg(preview.error)}</p>
+                <p className="text-sm text-destructive">Could not work out the result. {errorDetail(preview.error)}</p>
               ) : canSave && (preview.isFetching || !showPreview) ? (
                 <p className="text-sm text-muted-foreground">Working out the result</p>
               ) : null}
@@ -329,7 +303,5 @@ export const SetDeploymentDialog: React.FC<Props> = ({
           </form>
         </DialogContent>
       </Dialog>
-
-    </>
   );
 };

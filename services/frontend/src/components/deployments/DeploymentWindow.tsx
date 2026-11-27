@@ -13,7 +13,7 @@
  * - only for a suspicious deployment (rows.ts), one question, did the camera
  *   really go there. The card has no Edit then, so the question stands
  *   alone:
- *   - Right (Enter, PUT .../deployments/checked) clears the warning and
+ *   - Right (Enter, PUT .../deployments/{id}/checked) clears the warning and
  *     records who said so. The window then shows that, with Undo.
  *   - Wrong (W, POST .../deployments/{id}/not-moved): the GPS was off, the
  *     camera stayed. One correction at the old site, at once, with Undo on
@@ -21,13 +21,17 @@
  *     deployment comes back under the same key and asks again.
  * Every other deployment asks nothing; a person fixes it with Edit.
  *
+ * The answers and their mutations are in useDeploymentAnswers; the photos
+ * and the question are the Evidence card below.
+ *
  * The arrows step without answering, Esc closes, and past the last row the
  * window closes, as image verification does.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronLeft, ChevronRight, Loader2, Undo2, X } from 'lucide-react';
-import { deploymentsApi, type DeploymentListItem, type DeploymentPhoto } from '../../api/deployments';
+import { deploymentKeys, deploymentsApi, type DeploymentListItem, type DeploymentPhoto } from '../../api/deployments';
+import { imageHref } from '../../lib/panel-links';
 import { formatDateTime } from '../../utils/datetime';
 import { AuthenticatedImage } from '../AuthenticatedImage';
 import { Button } from '../ui/Button';
@@ -35,13 +39,14 @@ import { Card, CardContent } from '../ui/Card';
 import { Dialog } from '../ui/Dialog';
 import { Kbd } from '../ui/Kbd';
 import { REVIEW_WINDOW_CLASS } from '../ui/review-window';
-import { useToast } from '../ui/Toaster';
 import { openOverlayCount } from '../ui/useOverlayLayer';
 import type { SitePin } from '../sites/SiteMarkersLayer';
 import { DeploymentCards, type DeploymentCardData } from './DeploymentCards';
 import { DeploymentStatus } from './DeploymentStatus';
 import { DeploymentsMap, type MapArrow } from './DeploymentsMap';
-import { dayLabel, metresLabel, placeName, SUSPICIOUS_REASON, type DeploymentRow } from './rows';
+import { cameraLabel, dayLabel, daysOverlap, metresLabel, placeName } from './format';
+import { SUSPICIOUS_REASON, type DeploymentRow } from './rows';
+import { useDeploymentAnswers } from './useDeploymentAnswers';
 
 interface Props {
   projectId: number;
@@ -52,15 +57,10 @@ interface Props {
   onClose: () => void;
 }
 
-function errMsg(err: unknown): string {
-  const e = err as { response?: { data?: { detail?: string } }; message?: string };
-  return e?.response?.data?.detail || e?.message || 'Unknown error';
-}
-
 const toCard = (d: DeploymentListItem): DeploymentCardData => ({
   id: d.id,
   cameraId: d.camera_id,
-  cameraName: d.camera_label ?? `Camera ${d.camera_id}`,
+  cameraName: cameraLabel(d.camera_label, d.camera_id),
   siteId: d.site_id,
   siteName: d.site_name,
   startDate: d.start_date,
@@ -70,107 +70,52 @@ const toCard = (d: DeploymentListItem): DeploymentCardData => ({
   lon: d.longitude,
 });
 
-/** Whether two deployments share a day (YYYY-MM-DD, null end = open). */
-const sharesDays = (a: DeploymentListItem, b: DeploymentListItem) =>
-  a.start_date !== null && b.start_date !== null &&
-  (a.end_date === null || a.end_date >= b.start_date) &&
-  (b.end_date === null || b.end_date >= a.start_date);
-
-/** A Wrong answered in this window: the correction it made, for Undo. */
-interface Wrong {
-  statementId: number;
-  oldSite: string;
-}
-
 export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys: rowKeys, startKey, onClose }) => {
-  const queryClient = useQueryClient();
-  const toast = useToast();
-
+  // Fixed when the window opens: the rows to step through, and every
+  // deployment as it was then, to say what a deployment that changed is now.
   const [queue] = useState<string[]>(rowKeys);
+  const [atOpen] = useState(() => new Map(rows.map((r) => [r.key, r.deployment])));
   const [current, setCurrent] = useState<string>(startKey);
-  const [wrongs, setWrongs] = useState<Record<string, Wrong>>({});
+  const [shown, setShown] = useState(() => new Set([startKey]));
+  const answers = useDeploymentAnswers(projectId);
 
   const index = queue.indexOf(current);
   const row = rows.find((r) => r.key === current) ?? null;
-  const wrong = wrongs[current];
+  const wrong = answers.wrongs[current];
   const d = row?.deployment;
   const p = row?.previous;
 
   // An Edit or an Undo can change where a deployment starts, and with that
   // its key. The window then shows what those days are now, as cards with
-  // Edit, so a split is seen and its new part can be edited next. It
-  // remembers each deployment it showed for that.
-  const seen = useRef(new Map<string, DeploymentListItem>());
-  if (d) seen.current.set(current, d);
-  const was = seen.current.get(current);
+  // Edit, so a split is seen and its new part can be edited next.
+  const was = atOpen.get(current);
   const changed = !row && was
-    ? rows.map((r) => r.deployment).filter((x) => x.camera_id === was.camera_id && sharesDays(x, was))
+    ? rows.map((r) => r.deployment)
+      .filter((x) => x.camera_id === was.camera_id &&
+        daysOverlap(x.start_date, x.end_date, was.start_date, was.end_date))
       .sort((a, b) => a.start_at.localeCompare(b.start_at))
     : [];
 
   // A deployment can disappear while the window is open (an Edit or an
-  // Undo on its card, a Wrong on its neighbour): stepping skips those.
-  const gone = (key: string) => !wrongs[key] && !seen.current.has(key) && !rows.some((r) => r.key === key);
+  // Undo on its card, a Wrong on its neighbour). Stepping skips those the
+  // window has not shown yet; one it did show stays, with what it is now.
+  const gone = (key: string) => !answers.wrongs[key] && !shown.has(key) && !rows.some((r) => r.key === key);
   const goTo = (target: number) => {
     const step = target < index ? -1 : 1;
     let i = target;
     while (i >= 0 && i < queue.length && gone(queue[i])) i += step;
     if (i >= queue.length) onClose();
-    else if (i >= 0) setCurrent(queue[i]);
+    else if (i >= 0) {
+      setCurrent(queue[i]);
+      setShown((s) => new Set(s).add(queue[i]));
+    }
   };
   const next = () => goTo(index + 1);
 
-  const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['deployments', projectId] });
-    queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
-    queryClient.invalidateQueries({ queryKey: ['site', projectId] });
-    queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
-    queryClient.invalidateQueries({ queryKey: ['fixed-periods'] });
-    queryClient.invalidateQueries({ queryKey: ['cameras'] });
-  };
-
-  // The evidence: the last photo before the move and the first after it,
-  // or the first two photos of a deployment that did not move.
-  const { data: before } = useQuery({
-    queryKey: ['deployment-photos', projectId, p?.id, 'last'],
-    queryFn: () => deploymentsApi.photos(projectId, p!.id, 'last', 1),
-    enabled: !!p,
-  });
-  const { data: after } = useQuery({
-    queryKey: ['deployment-photos', projectId, d?.id, 'first', p ? 1 : 2],
-    queryFn: () => deploymentsApi.photos(projectId, d!.id, 'first', p ? 1 : 2),
-    enabled: !!d,
-  });
-
-  // Each answer carries its own row: the window may have stepped on by the
-  // time the server answers, so `current` is not the row it was about.
-  const right = useMutation({
-    mutationFn: ({ id, checked }: { id: number; checked: boolean }) =>
-      deploymentsApi.setChecked(projectId, [id], checked),
-    onSuccess: refresh,
-    onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
-  });
-  const notMoved = useMutation({
-    mutationFn: ({ id }: { id: number; key: string; oldSite: string }) => deploymentsApi.notMoved(projectId, id),
-    onSuccess: (result, { key, oldSite }) => {
-      setWrongs((w) => ({ ...w, [key]: { statementId: result.statement_id, oldSite } }));
-      refresh();
-    },
-    onError: (error) => toast.error(`Could not save. ${errMsg(error)}`),
-  });
-  const undoWrong = useMutation({
-    mutationFn: ({ statementId }: { statementId: number; key: string }) =>
-      deploymentsApi.removeFixedPeriod(projectId, statementId),
-    onSuccess: (_, { key }) => {
-      setWrongs(({ [key]: _done, ...rest }) => rest);
-      refresh();
-    },
-    onError: (error) => toast.error(`Could not undo. ${errMsg(error)}`),
-  });
-  const answerRight = () => d && right.mutate({ id: d.id, checked: true });
-  const answerWrong = () => d && notMoved.mutate({ id: d.id, key: current, oldSite: placeName(p?.site_name) });
-  const busy = right.isPending || notMoved.isPending || undoWrong.isPending;
+  const answerRight = () => d && answers.right.mutate({ id: d.id, checked: true });
+  const answerWrong = () => d && answers.wrong.mutate({ id: d.id, key: current, oldSite: placeName(p?.site_name) });
   const asks = !!row?.suspicious && !wrong;
+  const { busy } = answers;
 
   // Keys as in image verification: Enter Right (or on, when there is no
   // question), W Wrong, arrows step, Esc closes (the dialog does that).
@@ -262,7 +207,12 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
                     Next
                     <Kbd onPrimary>→</Kbd>
                   </Button>
-                  <Button variant="outline" className="w-full" onClick={() => undoWrong.mutate({ statementId: wrong.statementId, key: current })} disabled={busy}>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => answers.undoWrong.mutate({ correctionId: wrong.correctionId, key: current })}
+                    disabled={busy}
+                  >
                     <Undo2 className="h-4 w-4 mr-2" />
                     Undo
                   </Button>
@@ -278,7 +228,7 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
                   emptyText=""
                 />
               </>
-            ) : !row || !d ? (
+            ) : !row ? (
               <Card>
                 <CardContent className="pt-4 pb-3 text-sm text-center text-muted-foreground">
                   This deployment no longer exists
@@ -288,80 +238,126 @@ export const DeploymentWindow: React.FC<Props> = ({ projectId, rows, sites, keys
               <>
                 <DeploymentCards
                   projectId={projectId}
-                  deployments={[toCard(d)]}
+                  deployments={[toCard(row.deployment)]}
                   canEdit={!asks}
                   emptyText=""
                   hideSuspicious
                 />
-
-                <Card>
-                  <CardContent className="pt-4 pb-3 space-y-3 text-sm">
-                    {p && (
-                      <p>
-                        Moved from {placeName(p.site_name)}
-                        {row.distanceM !== undefined && <span className="text-muted-foreground"> · {metresLabel(row.distanceM)}</span>}
-                      </p>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                      {p && <Photo projectId={projectId} photo={before?.[0]} label={`Last photo at ${placeName(p.site_name)}`} />}
-                      {(after ?? []).map((photo, i) => (
-                        <Photo
-                          key={photo.uuid}
-                          projectId={projectId}
-                          photo={photo}
-                          label={i === 0 ? `First photo at ${placeName(d.site_name)}` : 'Next photo'}
-                        />
-                      ))}
-                    </div>
-
-                    {asks && (
-                      <div className="space-y-3 border-t pt-3">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <DeploymentStatus row={row} />
-                          <span>{SUSPICIOUS_REASON}</span>
-                        </div>
-                        <p className="font-medium">
-                          Did the camera really go to {placeName(d.site_name)}?
-                        </p>
-                        <Button className="w-full" onClick={answerRight} disabled={busy}>
-                          {right.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
-                          Right, it went there
-                          <Kbd onPrimary>⏎</Kbd>
-                        </Button>
-                        <Button variant="outline" className="w-full" onClick={answerWrong} disabled={busy}>
-                          <X className="h-4 w-4 mr-2" />
-                          Wrong, it stayed at {placeName(p?.site_name)}
-                          <Kbd>W</Kbd>
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* A short trip somebody marked right: who and when,
-                        with Undo, which makes it suspicious again. */}
-                    {row.shortTrip && d.checked_at && (
-                      <div className="flex items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
-                        <span className="min-w-0 break-words">
-                          Marked right by {d.checked_by ?? 'someone'} on {dayLabel(d.checked_at.slice(0, 10))}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => right.mutate({ id: d.id, checked: false })}
-                          disabled={busy}
-                          className="inline-flex shrink-0 items-center gap-1 hover:text-foreground"
-                        >
-                          <Undo2 className="h-3.5 w-3.5" />
-                          Undo
-                        </button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                <Evidence
+                  projectId={projectId}
+                  row={row}
+                  asks={asks}
+                  busy={busy}
+                  savingRight={answers.right.isPending}
+                  onRight={answerRight}
+                  onWrong={answerWrong}
+                  onUndoRight={() => answers.right.mutate({ id: row.deployment.id, checked: false })}
+                />
               </>
             )}
           </div>
         </div>
       </div>
     </Dialog>
+  );
+};
+
+interface EvidenceProps {
+  projectId: number;
+  row: DeploymentRow;
+  asks: boolean; // suspicious and not answered yet
+  busy: boolean;
+  savingRight: boolean;
+  onRight: () => void;
+  onWrong: () => void;
+  onUndoRight: () => void;
+}
+
+/**
+ * What tells whether a deployment is right: where it moved from, and the
+ * last photo there next to the first one here (or its first two photos,
+ * when it did not move). Under it the question of a suspicious deployment,
+ * or who marked it right.
+ */
+const Evidence: React.FC<EvidenceProps> = ({
+  projectId, row, asks, busy, savingRight, onRight, onWrong, onUndoRight,
+}) => {
+  const d = row.deployment;
+  const p = row.previous;
+  const firstCount = p ? 1 : 2;
+  const { data: before } = useQuery({
+    queryKey: deploymentKeys.photos(projectId, p?.id, 'last', 1),
+    queryFn: () => deploymentsApi.photos(projectId, p!.id, 'last', 1),
+    enabled: !!p,
+  });
+  const { data: after } = useQuery({
+    queryKey: deploymentKeys.photos(projectId, d.id, 'first', firstCount),
+    queryFn: () => deploymentsApi.photos(projectId, d.id, 'first', firstCount),
+  });
+
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-3 space-y-3 text-sm">
+        {p && (
+          <p>
+            Moved from {placeName(p.site_name)}
+            {row.distanceM !== undefined && <span className="text-muted-foreground"> · {metresLabel(row.distanceM)}</span>}
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          {p && <Photo projectId={projectId} photo={before?.[0]} label={`Last photo at ${placeName(p.site_name)}`} />}
+          {(after ?? []).map((photo, i) => (
+            <Photo
+              key={photo.uuid}
+              projectId={projectId}
+              photo={photo}
+              label={i === 0 ? `First photo at ${placeName(d.site_name)}` : 'Next photo'}
+            />
+          ))}
+        </div>
+
+        {asks && (
+          <div className="space-y-3 border-t pt-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <DeploymentStatus row={row} />
+              <span>{SUSPICIOUS_REASON}</span>
+            </div>
+            <p className="font-medium">
+              Did the camera really go to {placeName(d.site_name)}?
+            </p>
+            <Button className="w-full" onClick={onRight} disabled={busy}>
+              {savingRight ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+              Right, it went there
+              <Kbd onPrimary>⏎</Kbd>
+            </Button>
+            <Button variant="outline" className="w-full" onClick={onWrong} disabled={busy}>
+              <X className="h-4 w-4 mr-2" />
+              Wrong, it stayed at {placeName(p?.site_name)}
+              <Kbd>W</Kbd>
+            </Button>
+          </div>
+        )}
+
+        {/* A short trip somebody marked right: who and when, with Undo,
+            which makes it suspicious again. */}
+        {row.shortTrip && d.checked_at && (
+          <div className="flex items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
+            <span className="min-w-0 break-words">
+              Marked right by {d.checked_by ?? 'someone'} on {dayLabel(d.checked_at.slice(0, 10))}
+            </span>
+            <button
+              type="button"
+              onClick={onUndoRight}
+              disabled={busy}
+              className="inline-flex shrink-0 items-center gap-1 hover:text-foreground"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              Undo
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -377,7 +373,7 @@ const Photo: React.FC<{ projectId: number; photo: DeploymentPhoto | undefined; l
   return (
     <figure className="min-w-0 space-y-1">
       {photo ? (
-        <a href={`/projects/${projectId}/images?image=${photo.uuid}`} target="_blank" rel="noopener noreferrer" title={title}>
+        <a href={imageHref(projectId, photo.uuid)} target="_blank" rel="noopener noreferrer" title={title}>
           <AuthenticatedImage
             src={`/api/images/${photo.uuid}/thumbnail`}
             alt={title}

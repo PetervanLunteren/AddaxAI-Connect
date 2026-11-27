@@ -3,8 +3,6 @@ How live ingestion turns GPS readings into deployments and sites.
 
 Photos go through create_image_record, the same call ingestion makes, which
 stores the photo and rebuilds the camera's deployments in one transaction.
-Written in step 1a against the old resolver; since step 2a the same outcomes
-come from the rebuild. The few that changed on purpose say so.
 """
 import uuid
 from datetime import timedelta
@@ -13,7 +11,7 @@ import pytest
 
 import db_operations as ingest
 from deployment_db import (
-    DAY, HOME, at, close, deployments, image_deployment, to_check,
+    DAY, HOME, at, close, deployments, image_deployment,
     make_camera, make_project, offset, rows, sites,
 )
 
@@ -57,8 +55,6 @@ def test_first_photo_opens_a_deployment_on_a_new_site(project, camera):
     assert image_deployment(image) == dep["id"]
     assert rows("SELECT gps_lat, gps_lon FROM images WHERE uuid = :u", u=image)[0] == \
         {"gps_lat": HOME[0], "gps_lon": HOME[1]}
-    # The GPS made it, so it waits on the To check list.
-    assert [d["id"] for d in to_check(camera)] == [dep["id"]]
 
 
 def test_readings_in_range_stay_on_one_deployment_and_the_pin_is_their_mean(project, camera):
@@ -73,7 +69,6 @@ def test_readings_in_range_stay_on_one_deployment_and_the_pin_is_their_mean(proj
     # The site pin is the centroid of its deployments, here the one pin.
     [s] = sites(project)
     assert close(s["lat"], dep["lat"]) and close(s["lon"], dep["lon"])
-    assert len(to_check(camera)) == 1
 
 
 def test_an_older_photo_arriving_late_moves_the_start_back(camera):
@@ -95,7 +90,6 @@ def test_one_far_reading_is_held_and_dropped_when_the_camera_reads_home_again(ca
     assert image_deployment(noise) == dep["id"]
     assert dep["readings"] == 2
     assert close(dep["lat"], HOME[0]) and close(dep["lon"], HOME[1])
-    assert len(to_check(camera)) == 1
 
 
 def test_two_far_readings_confirm_a_move_dated_back_to_the_first(project, camera):
@@ -119,7 +113,6 @@ def test_two_far_readings_confirm_a_move_dated_back_to_the_first(project, camera
     assert first["end_at"] == second["start_at"] == at(10)
     assert len(sites(project)) == 2
 
-    assert [d["id"] for d in to_check(camera)] == [first["id"], second["id"]]
 
 
 def test_two_far_readings_of_one_burst_also_confirm_a_move(camera):
@@ -161,7 +154,6 @@ def test_cameras_close_together_share_one_site(project):
     for i, cam in enumerate(cameras):
         [dep] = deployments(cam)
         assert dep["site_id"] == s["id"]
-        assert [d["id"] for d in to_check(cam)] == [dep["id"]]
 
 
 def test_rotating_cameras_land_on_the_existing_sites(project):
@@ -245,11 +237,11 @@ def test_a_rebuild_without_news_changes_nothing(project, camera):
     photo(camera, HOME, at(1))
     photo(camera, FAR_FOR_TESTS, at(5))
     photo(camera, FAR_FOR_TESTS, at(6))
-    before = (deployments(camera), sites(project), to_check(camera))
+    before = (deployments(camera), sites(project))
     with get_db_session() as session:
         result = rebuild_camera(session, camera)
     assert (result.created, result.deleted) == ((), 0)
-    assert (deployments(camera), sites(project), to_check(camera)) == before
+    assert (deployments(camera), sites(project)) == before
 
 
 FAR_FOR_TESTS = offset(HOME, east_m=1500)

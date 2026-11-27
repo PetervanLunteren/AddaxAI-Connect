@@ -1,5 +1,5 @@
 """The plain steps of the rebuild, without a database. rebuild_camera itself
-runs against PostGIS in the local test folder (see DEPLOYMENTS_PLAN.md)."""
+runs against PostGIS in tests/db_ingestion and tests/db_api."""
 from datetime import datetime
 
 from shared.deployment_build import BuiltDeployment

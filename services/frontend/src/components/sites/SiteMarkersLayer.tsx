@@ -1,6 +1,6 @@
 /**
  * Site pins on a map: a round marker per site at its real spot, with its
- * name as tooltip. Shared by the Sites map, the moves check and the site
+ * name as tooltip. Shared by the Sites map, the deployment window and the site
  * pickers. Must be used inside a MapContainer.
  *
  * Pins that overlap stay where they are; zoom in to tell them apart, as on

@@ -8,34 +8,33 @@
  * form as Edit, as Add deployment.
  */
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, MapPinPlus } from 'lucide-react';
 import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
+import { deploymentKeys } from '../api/deployments';
 import { DeploymentCards } from './deployments/DeploymentCards';
-import { dayLabel } from './deployments/rows';
+import { dayLabel, today } from './deployments/format';
 import { SetDeploymentDialog, type SetDeploymentPrefill } from './deployments/SetDeploymentDialog';
 import { Button } from './ui/Button';
 import { Callout } from './ui/Callout';
-import { useProject } from '../contexts/ProjectContext';
 
-const today = () => new Date().toISOString().slice(0, 10);
+interface Props {
+  camera: Camera;
+  projectId: number;
+  canEdit: boolean; // project admins
+}
 
-export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }) => {
-  const { projectId } = useParams<{ projectId: string }>();
-  const { isProjectAdmin } = useProject();
-  const pid = projectId ? Number(projectId) : undefined;
-  const canEdit = pid !== undefined && isProjectAdmin;
+export const CameraDeploymentHistory: React.FC<Props> = ({ camera, projectId, canEdit }) => {
   // Add deployment (Set site); Edit lives on the cards.
   const [adding, setAdding] = useState<SetDeploymentPrefill | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['camera-deployments', camera.id],
+    queryKey: deploymentKeys.ofCamera(camera.id),
     queryFn: () => camerasApi.getDeployments(camera.id),
   });
 
-  if (isLoading || pid === undefined) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-10 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -74,7 +73,7 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
       )}
 
       <DeploymentCards
-        projectId={pid}
+        projectId={projectId}
         deployments={deployments.map((d) => ({
           id: d.id,
           cameraId: camera.id,
@@ -92,7 +91,14 @@ export const CameraDeploymentHistory: React.FC<{ camera: Camera }> = ({ camera }
       />
 
       {adding && (
-        <SetDeploymentDialog projectId={pid} camera={camera} prefill={adding} onClose={() => setAdding(null)} />
+        <SetDeploymentDialog
+          projectId={projectId}
+          cameraId={camera.id}
+          cameraName={camera.name}
+          prefill={adding}
+          unplacedDays={{ first: camera.unplaced_first_day ?? null, last: camera.unplaced_last_day ?? null }}
+          onClose={() => setAdding(null)}
+        />
       )}
     </div>
   );

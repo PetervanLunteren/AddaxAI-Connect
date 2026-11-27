@@ -127,7 +127,7 @@ function PersistBaseLayer() {
 
 /**
  * `initial` starts this map on that layer whatever was chosen last, for a
- * map where one layer is the point (satellite in the moves check:
+ * map where one layer is the point (satellite in the deployment window:
  * the landscape shows whether a move is real). Switching still works.
  */
 export function BaseLayersControl({ initial }: { initial?: 'positron' | 'satellite' | 'osm' } = {}) {

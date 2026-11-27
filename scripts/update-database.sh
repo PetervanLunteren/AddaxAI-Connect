@@ -1,6 +1,6 @@
 #!/bin/bash
-# Update database with Alembic migrations and backfill data
-# This script applies migrations and populates derived tables (e.g. deployment periods).
+# Update the database: stop the app, apply the Alembic migrations, run the
+# data scripts that belong to them, start the app again.
 # Safe to run multiple times. For development: generate migrations locally, commit them, then deploy.
 
 set -eo pipefail
@@ -37,7 +37,7 @@ fi
 # minute wait in uploads/ and ingestion takes them in when it starts again.
 # The app stays stopped until the two scripts below are done as well: a photo
 # taken in before the carry-over rebuilds its camera from the GPS alone, and
-# the hand corrections of before phase 2 are then lost for good.
+# the hand corrections of before this release are then lost for good.
 # Starting everything at the end also does what three restarts did
 # before: api builds its connection pool and cached statements on the new
 # schema (drenthe served 185 UndefinedColumn errors on 18 Aug 2026 until api
@@ -62,12 +62,11 @@ docker exec addaxai-postgres psql -U addaxai -d addaxai_connect -c '\dt'
 
 echo ""
 echo "Carrying deployments over to statements (once per server)..."
-# Since phase 2 deployments are rebuilt from photo GPS plus statements. History
+# Deployments are rebuilt from photo GPS plus statements. Older history
 # that does not follow from the GPS alone (hand corrections, uploads to a site,
 # older rules) becomes statements, so no deployment changes. Runs once: it
 # records the run in server_settings and does nothing on later updates. The
-# four scripts that used to reshape deployments here are gone; they would undo
-# what the rebuild makes. The report stays in logs/, also when restore.sh
+# report stays in logs/, also when restore.sh
 # runs this script without output.
 mkdir -p logs
 docker compose run --rm -T api python /app/scripts/carry_over_deployments.py --apply | tee logs/carry-over-deployments.txt
