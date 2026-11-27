@@ -5,7 +5,8 @@
  * page always agree.
  *
  * A move is not a row of its own: it is how a deployment started. "Moved
- * from" is the deployment right before it, at another site.
+ * from" is the deployment right before it, at another site, and "Moved to"
+ * the one right after it.
  *
  * Nobody has to answer anything. Only a deployment the app doubts asks a
  * question: a short trip, which the server decides (short_trip on the
@@ -22,6 +23,10 @@ export interface DeploymentRow {
   deployment: DeploymentListItem;
   previous?: DeploymentListItem; // right before it, at another site
   distanceM?: number; // from the previous pin to this one
+  // Right after it, at another site: the same move, seen from where it
+  // left. The other row has this one as its previous.
+  next?: DeploymentListItem;
+  nextDistanceM?: number;
   // Looks like a GPS error, see DeploymentListItem.short_trip.
   shortTrip: boolean;
   // A short trip nobody answered: the app doubts it and asks.
@@ -65,19 +70,26 @@ export function deploymentRows(deployments: DeploymentListItem[], corrections: C
   const rows: DeploymentRow[] = [];
   for (const list of byCamera.values()) {
     list.sort((a, b) => a.start_at.localeCompare(b.start_at));
+    let last: DeploymentRow | undefined; // the row of list[i - 1]
     list.forEach((d, i) => {
       // Right before it: the end of one is the start of the next.
       const before = list[i - 1]?.end_at === d.start_at ? list[i - 1] : undefined;
       const previous = before && before.site_id !== d.site_id ? before : undefined;
-      rows.push({
+      const distanceM = previous && metresBetween(previous, d);
+      if (previous && last) {
+        last.next = d;
+        last.nextDistanceM = distanceM;
+      }
+      last = {
         key: rowKey(d.camera_id, d.start_at),
         deployment: d,
         previous,
-        distanceM: previous && metresBetween(previous, d),
+        distanceM,
         shortTrip: d.short_trip,
         suspicious: d.short_trip && d.checked_at === null,
         corrected: people.some((c) => covers(c, d.camera_id, d.start_date, d.end_date)),
-      });
+      };
+      rows.push(last);
     });
   }
   return rows.sort((a, b) =>

@@ -1,10 +1,8 @@
 /**
- * Links that open a camera's or a site's panel, a deployment's window, one
- * photo or a set of photos on its page, and the hook that opens a panel
- * from such a link. One
- * place for every screen that links there (deployment cards, the image
- * detail, the deployment window), so an address and its handling never
- * drift.
+ * Links that open a camera's, a site's or a deployment's panel, one photo
+ * or a set of photos on its page, and the hook that opens a panel from such
+ * a link. One place for every screen that links there (deployment cards,
+ * the image detail), so an address and its handling never drift.
  *
  * A panel's parameter is read once and removed from the address: closing
  * the panel does not reopen it, back stays usable, and it is never
@@ -15,16 +13,16 @@ import { useEffect } from 'react';
 
 export const CAMERA_PANEL_PARAM = 'camera';
 export const SITE_PANEL_PARAM = 'site_panel';
-// The window of one deployment on the Deployments page.
-export const DEPLOYMENT_WINDOW_PARAM = 'deployment';
+// The panel of one deployment on the Deployments page.
+export const DEPLOYMENT_PANEL_PARAM = 'deployment';
 
 export const cameraPanelHref = (projectId: number, cameraId: number) =>
   `/projects/${projectId}/cameras?${CAMERA_PANEL_PARAM}=${cameraId}`;
 export const sitePanelHref = (projectId: number, siteId: number) =>
   `/projects/${projectId}/sites?${SITE_PANEL_PARAM}=${siteId}`;
 
-export const deploymentWindowHref = (projectId: number, deploymentId: number) =>
-  `/projects/${projectId}/deployments?${DEPLOYMENT_WINDOW_PARAM}=${deploymentId}`;
+export const deploymentPanelHref = (projectId: number, deploymentId: number) =>
+  `/projects/${projectId}/deployments?${DEPLOYMENT_PANEL_PARAM}=${deploymentId}`;
 
 /** One photo, opened in image verification on the Images page. */
 export const imageHref = (projectId: number, imageUuid: string) =>

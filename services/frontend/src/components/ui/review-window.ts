@@ -1,8 +1,7 @@
 /**
  * The frame of a review window that shows one item at a time with the
- * evidence left and the answer right: image verification and the camera
- * deployment window. One class, so the two keep the same size, padding and
- * corners. Each window adds its own layout (scrolling, grid) to it.
+ * evidence left and the answer right: image verification. The window adds
+ * its own layout (scrolling, grid) to it.
  *
  * The width is set, not taken from the content: the dialog wrapper shrinks
  * to fit, so a window sized by its content grows when a photo loads, and a

@@ -1,7 +1,8 @@
 /**
  * A list of deployment cards: one card per deployment, oldest first, on a
  * timeline. The one picture of a deployment in the app. DeploymentCards
- * puts Edit, Undo and the Suspicious marker on it (camera and site panels);
+ * puts Edit, Details, Undo and the Suspicious marker on it (camera and
+ * site panels, the deployment's own panel);
  * the Edit deployment form uses it plain, for its Now and After saving
  * cards.
  *
@@ -16,7 +17,7 @@
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Camera, Images, MapPin, Pencil } from 'lucide-react';
+import { Calendar, Camera, Images, Info, MapPin, Pencil } from 'lucide-react';
 import { daySpan, siteLabel } from './deployments/format';
 
 export interface JourneyItem {
@@ -29,6 +30,8 @@ export interface JourneyItem {
   siteHref?: string;
   // The deployment's photos on the Images page.
   imagesHref?: string;
+  // The deployment's own panel on the Deployments page, shown as Details.
+  detailsHref?: string;
   startDate: string | null; // YYYY-MM-DD
   endDate: string | null; // YYYY-MM-DD, null = still there
   imageCount: number;
@@ -45,6 +48,9 @@ interface Props {
   // Cards drawn quieter: the form's cards while a newer preview loads.
   dimmed?: boolean;
 }
+
+// Details and Edit at the top right of a card.
+const ACTION_CLASS = 'tap-target inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground';
 
 // "Photos", as the Deployments table and every other deployment screen say.
 const photoCount = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'photo' : 'photos'}`;
@@ -82,12 +88,14 @@ export const DeploymentJourney: React.FC<Props> = ({ items, emptyText, onEdit, f
                   )}
                 </Row>
               </div>
+              {it.detailsHref && (
+                <Link to={it.detailsHref} className={ACTION_CLASS}>
+                  <Info className="h-3.5 w-3.5" />
+                  Details
+                </Link>
+              )}
               {onEdit && (
-                <button
-                  type="button"
-                  onClick={() => onEdit(it)}
-                  className="tap-target inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                >
+                <button type="button" onClick={() => onEdit(it)} className={ACTION_CLASS}>
                   <Pencil className="h-3.5 w-3.5" />
                   Edit
                 </button>

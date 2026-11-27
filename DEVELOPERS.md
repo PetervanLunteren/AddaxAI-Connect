@@ -768,29 +768,36 @@ deployment started.
   and Moved under More. Newest first until a header sorts, so rows stay
   put. No checkboxes and no bulk actions: nothing has to be answered, so
   there is nothing to answer in bulk.
-- **Window** (`DeploymentWindow.tsx`, the frame of image verification,
-  `REVIEW_WINDOW_CLASS`): a row click opens it, the arrows step through
-  the rows as shown, past the last row it closes. A link opens one
-  deployment's window (`deploymentWindowHref`, `?deployment=<id>`; the
-  card's Suspicious line uses it). Map on satellite with the two sites and
-  the arrow, or the one site. Right of it: the deployment's card
+- **Panel** (`DeploymentSheet.tsx`, a slide-out like a site's and a
+  camera's): a row click opens it. A link opens one deployment's panel
+  (`deploymentPanelHref`, `?deployment=<id>`; Details on a card uses it).
+  The same for every deployment, top to bottom: the deployment's card
   (`DeploymentCards`, so Edit, Undo and the links are the panels' own);
-  "Moved from" with the last photo there next to the first one here, or
-  the first two photos (`GET .../deployments/{id}/thumbnails`).
-  An Edit or an Undo can move a deployment's start and with it its key;
-  the window then shows "This deployment is now" with the cards of those
-  days, so the parts of a split can be edited next.
-- **The question**, only for a suspicious deployment, and then without
-  Edit on the card, so it stands alone: did the camera really go there.
-  - **Right** (Enter, `PUT .../deployments/{id}/checked`) only records who
+  the map on satellite with the site it came from, its own site and the
+  site it went to, and a bent arrow for each move (bent, so a trip there
+  and back draws two curves); Moved from and Moved to with day and
+  distance (`previous` and `next` of the row); the last photo at the old
+  site next to the first one here, or the first two photos
+  (`GET .../deployments/{id}/thumbnails`); links to its photos in Images
+  and Curation (`PhotoLinks`).
+  The page holds the key of the open row and reads the row fresh. An Edit
+  or an Undo can move a deployment's start and with it its key; the row
+  is gone then, and the page closes the panel with a message.
+  Until 27 November 2026 this was a window in the frame of image
+  verification with arrows to step through the rows. That came from when
+  the page was a list of moves to answer; it is not one any more, so a
+  deployment opens like a site and a camera do.
+- **The question**, a block in the panel, only for a suspicious
+  deployment: did the camera really go there.
+  - **Right** (`PUT .../deployments/{id}/checked`) only records who
     said so and when (`checked_at`, `checked_by_user_id`); the warning
-    goes. The window then shows "Marked right by … on date" with Undo.
-  - **Wrong** (W, `POST .../deployments/{id}/not-moved`): the GPS was
+    goes. The panel then shows "Marked right by … on date" with Undo.
+  - **Wrong** (`POST .../deployments/{id}/not-moved`): the GPS was
     off. One correction over the stay before and the trip, at the old
-    site (`take_back_move`).
-    At once, with Undo on the spot instead of a confirmation before it;
-    after Undo the deployment comes back under the same key and asks
-    again.
+    site (`take_back_move`). At once, without a confirmation. The
+    deployment is gone then, so the panel closes with a message; the
+    correction shows on the card at the old site, with Undo, and after
+    Undo the deployment comes back under the same key and asks again.
   - Every other deployment asks nothing. "It moved" on ordinary moves and
     the Checked status are gone (26 November 2026): a check that changes
     nothing is only worth asking where the app has a doubt. Older checks
@@ -819,12 +826,12 @@ deployment started.
   either side. A card always shows the same four lines with their icons:
   site and camera (each a link to its panel, `lib/panel-links.ts`), period,
   photos (a link to them on the Images page, empty ones included). For admins a card
-  also carries Edit, the Suspicious marker of
-  the Deployments page (`deploymentRows` on the same cached list, linking
-  to that deployment's window) and each correction
+  also carries Edit, Details (a link to that deployment's panel on the
+  Deployments page), the Suspicious marker of the Deployments page
+  (`deploymentRows` on the same cached list) and each correction
   on the card it made, "Last day set by … on date" with Undo (matched by
   camera and days; a card the app placed shows nothing). A new line on a
-  card goes in `DeploymentCards`, so both panels get it.
+  card goes in `DeploymentCards`, so every panel gets it.
 - **Edit deployment.** A deployment is a camera, a
   site and a period, and Edit deployment (`SetDeploymentDialog`) shows just
   those: the camera fixed (photos belong to the camera that took them), the

@@ -3,7 +3,7 @@
 The privacy blur is applied on read from the Detection rows of an image. An
 image that has not been through detection has none, which looks exactly like a
 classified frame holding no people, so the raw bytes went out. That covered the
-live feed, the deployment window's thumbnails and, permanently, every rejected file,
+live feed, the deployment panel's thumbnails and, permanently, every rejected file,
 which never reaches the detector at all.
 
 The rule now: when the project hides people or vehicles and we cannot tell where

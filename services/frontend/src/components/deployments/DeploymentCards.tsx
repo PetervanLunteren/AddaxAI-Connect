@@ -1,30 +1,31 @@
 /**
- * Deployment cards with everything that sits on them: Edit, the Suspicious
- * marker of a short trip nobody answered, and the corrections that made a card
- * ("Last day set by peter@... on 25 Nov 2026") with Undo. One component for
- * the camera panel and the site panel, which show the same deployments from
- * two sides, as the same card, so a deployment looks and works the same
- * wherever it is met.
+ * Deployment cards with everything that sits on them: Edit, Details, the
+ * Suspicious marker of a short trip nobody answered, and the corrections
+ * that made a card ("Last day set by peter@... on 25 Nov 2026") with Undo.
+ * One component for the camera panel, the site panel and the deployment's
+ * own panel, so a deployment looks and works the same wherever it is met.
  *
  * - Edit opens the Edit deployment form for the card's camera.
+ * - Details opens the deployment's own panel on the Deployments page, where
+ *   the map and the photos are.
  * - Suspicious uses the Deployments page's rows (deploymentRows) on the
  *   same cached list, so card and page agree; the question is answered in
- *   the deployment's window on that page, where the map and photos are.
+ *   the deployment's panel.
  * - A correction belongs to the cards of its camera whose days it covers.
  *   Undo takes back the whole edit: a correction is one fact about one
  *   period, so its parts cannot be undone apart. Cards the app placed show
  *   no line.
  *
- * Edit, Undo and Suspicious are for project admins (the endpoints are);
+ * Edit, Details, Undo and Suspicious are for project admins (the endpoints
+ * and the Deployments page are);
  * others see plain cards, and none of the admin lists is loaded for them.
  */
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Undo2 } from 'lucide-react';
 import { deploymentKeys, deploymentsApi, invalidateDeployments, type Correction } from '../../api/deployments';
 import { DeploymentJourney, type JourneyItem } from '../DeploymentJourney';
-import { cameraPanelHref, deploymentWindowHref, imagesHref, sitePanelHref } from '../../lib/panel-links';
+import { cameraPanelHref, deploymentPanelHref, imagesHref, sitePanelHref } from '../../lib/panel-links';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toaster';
 import { errorDetail } from '../../lib/utils';
@@ -82,13 +83,13 @@ interface Props {
   deployments: DeploymentCardData[];
   canEdit: boolean;
   emptyText: string;
-  // In the deployment's own window the Suspicious line would point at
-  // itself; the window shows the question instead.
-  hideSuspicious?: boolean;
+  // In the deployment's own panel: no Details link to itself, and no
+  // Suspicious line, since the panel shows the pill and the question.
+  inOwnPanel?: boolean;
 }
 
 export const DeploymentCards: React.FC<Props> = ({
-  projectId, deployments, canEdit, emptyText, hideSuspicious = false,
+  projectId, deployments, canEdit, emptyText, inOwnPanel = false,
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -127,19 +128,13 @@ export const DeploymentCards: React.FC<Props> = ({
 
   const footer = (item: JourneyItem) => {
     const d = byId.get(item.id)!;
-    const row = hideSuspicious ? undefined : suspicious.get(d.id);
+    const row = inOwnPanel ? undefined : suspicious.get(d.id);
     const mine = corrections.filter((c) => covers(c, d.cameraId, d.startDate, d.endDate));
     return (
       <>
         {row && (
-          <div className="mt-2 flex items-center justify-between gap-3 border-t pt-2 text-xs">
+          <div className="mt-2 border-t pt-2 text-xs">
             <DeploymentStatus row={row} />
-            <Link
-              to={deploymentWindowHref(projectId, d.id)}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              Check this move
-            </Link>
           </div>
         )}
         {mine.length > 0 && (
@@ -172,6 +167,7 @@ export const DeploymentCards: React.FC<Props> = ({
     cameraHref: cameraPanelHref(projectId, d.cameraId),
     siteHref: d.siteId !== null ? sitePanelHref(projectId, d.siteId) : undefined,
     imagesHref: imagesHref(projectId, { cameraId: d.cameraId, firstDay: d.startDate, lastDay: d.endDate }),
+    detailsHref: canEdit && !inOwnPanel ? deploymentPanelHref(projectId, d.id) : undefined,
     startDate: d.startDate,
     endDate: d.endDate,
     imageCount: d.imageCount,

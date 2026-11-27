@@ -1,15 +1,17 @@
 /**
- * The map of the deployment window, on satellite: the landscape shows
+ * The map of a deployment's panel, on satellite: the landscape shows
  * whether a move is real.
  *
- * It shows the move and nothing more: the site it left and the site it went
- * to, both magenta like the arrow between them, and the project's other
- * sites faded teal. A deployment that did not move has its one site
- * magenta. A person decides a move by whether they moved the camera, and the two photos in the card show that, so the GPS of the
- * photos is not drawn. The GPS stays the input of the build.
+ * It shows the moves and nothing more: the site the camera came from, the
+ * site of the deployment and the site it went to, all magenta like the
+ * arrows between them, and the project's other sites faded teal. A
+ * deployment that did not move has its one site magenta. A person decides a
+ * move by whether they moved the camera, and the two photos in the panel
+ * show that, so the GPS of the photos is not drawn. The GPS stays the input
+ * of the build.
  *
- * Nothing on it is clickable: the answer is in the card next to it.
- * The map fits to the move once; the window mounts a new map per deployment.
+ * Nothing on it is clickable. The map fits to the moves once; the panel
+ * mounts a new map per deployment.
  */
 import { Fragment, useEffect, useMemo } from 'react';
 import { MapContainer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
@@ -34,7 +36,7 @@ export interface MapArrow {
 
 interface Props {
   sites: SitePin[];
-  // The sites of the move, drawn magenta. Null = no move: every site plain.
+  // The sites to draw magenta. Null = none: every site plain.
   activeSiteIds: Set<number> | null;
   arrows: MapArrow[];
   height: number | string; // px, or a CSS length such as 100% of its box
@@ -45,11 +47,35 @@ interface Props {
 // Proportional, so a 300 m move and a 3 km move look alike.
 const ARROW_FROM = 0.15;
 const ARROW_TO = 0.85;
+// Every arrow leans to the right of its direction by this part of its
+// length, so a trip there and back draws two curves and not one line twice.
+const BEND = 0.15;
+const CURVE_STEPS = 12;
 
-const along = (a: MapArrow, t: number): [number, number] => [
-  a.from[0] + (a.to[0] - a.from[0]) * t,
-  a.from[1] + (a.to[1] - a.from[1]) * t,
-];
+/**
+ * The point at part `t` of the arrow's curve: a quadratic curve whose
+ * middle is pushed sideways. Longitude is scaled to the latitude, so the
+ * push is square to the line on the map.
+ */
+function along(a: MapArrow, t: number): [number, number] {
+  const scale = Math.cos(((a.from[0] + a.to[0]) / 2) * (Math.PI / 180)) || 1;
+  const dLat = a.to[0] - a.from[0];
+  const dLon = (a.to[1] - a.from[1]) * scale;
+  // The control point: the middle, moved to the right by BEND (the curve
+  // itself reaches half of that).
+  const cLat = dLat / 2 - dLon * BEND * 2;
+  const cLon = dLon / 2 + dLat * BEND * 2;
+  const u = 1 - t;
+  return [
+    a.from[0] + 2 * u * t * cLat + t * t * dLat,
+    a.from[1] + (2 * u * t * cLon + t * t * dLon) / scale,
+  ];
+}
+
+/** The curve as points, from ARROW_FROM to ARROW_TO. */
+const curve = (a: MapArrow): [number, number][] =>
+  Array.from({ length: CURVE_STEPS + 1 }, (_, i) =>
+    along(a, ARROW_FROM + ((ARROW_TO - ARROW_FROM) * i) / CURVE_STEPS));
 
 const headCache = new Map<string, L.DivIcon>();
 /** An arrow head that points along the compass bearing, in degrees. */
@@ -76,8 +102,8 @@ function bearing([lat1, lon1]: [number, number], [lat2, lon2]: [number, number])
 
 /**
  * Redraw the map whenever its box changes size. Leaflet measures its box
- * once; when the box grows later (the cards next to it get taller as their
- * photos load, fullscreen, a resized window) the new part stays grey.
+ * once; when the box changes later (fullscreen, a resized window) the new
+ * part stays grey.
  */
 function FollowSize() {
   const map = useMap();
@@ -124,14 +150,19 @@ export function DeploymentsMap({ sites, activeSiteIds, arrows, height }: Props) 
         colorFor={(s) => (inMove(s) ? MOVE : SITE_COLOR)}
         isFaded={(s) => activeSiteIds !== null && !inMove(s)}
       />
-      {arrows.map((a) => (
-        <Fragment key={a.key}>
-          <Polyline positions={[along(a, ARROW_FROM), along(a, ARROW_TO)]} pathOptions={{ color: MOVE, weight: 4, opacity: 0.95 }}>
-            <Tooltip sticky>{a.label}</Tooltip>
-          </Polyline>
-          <Marker position={along(a, ARROW_TO)} icon={arrowHead(bearing(a.from, a.to), MOVE)} interactive={false} />
-        </Fragment>
-      ))}
+      {arrows.map((a) => {
+        const line = curve(a);
+        const end = line[line.length - 1];
+        return (
+          <Fragment key={a.key}>
+            <Polyline positions={line} pathOptions={{ color: MOVE, weight: 4, opacity: 0.95 }}>
+              <Tooltip sticky>{a.label}</Tooltip>
+            </Polyline>
+            {/* The head points the way the last piece of the curve runs. */}
+            <Marker position={end} icon={arrowHead(bearing(line[line.length - 2], end), MOVE)} interactive={false} />
+          </Fragment>
+        );
+      })}
       <FitBounds points={fitPoints} maxZoom={16} />
       <FullscreenControl />
       <FollowSize />

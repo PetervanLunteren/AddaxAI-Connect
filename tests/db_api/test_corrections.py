@@ -219,7 +219,7 @@ async def test_undo_of_it_did_not_move_gives_the_move_back(session, admin):
     assert first["site_id"] == home and first["site_source"] == "auto"
     assert second["site_id"] != home and second["site_source"] == "auto"
     assert close(site(second["site_id"])["lon"], FAR[1], metres=20)
-    # The same move is back, by camera and start: what the deployment window
+    # The same move is back, by camera and start: what the Deployments page
     # finds it by after an Undo, whatever its row id is now.
     assert second["start_at"] == moved["start_at"]
 

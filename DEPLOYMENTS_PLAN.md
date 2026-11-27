@@ -493,6 +493,17 @@ Notes per step:
     `image_site_filter`. Considered and dropped: thumbnails in the form
     (they only narrow a move down to a week) and a Delete deployment
     button (a deployment comes back from its photos).
+  - Changed 27 Nov, Peter's call after clicking around on spw: a row on
+    the Deployments page opens a slide-out (`DeploymentSheet`) like a
+    site's and a camera's, not the window in the frame of image
+    verification. The window dated from the moves list; the page is no
+    list to answer any more. The same for every deployment: card, one
+    map with an arrow in and an arrow out (bent, so there and back are
+    two curves), Moved from and Moved to, the two photos, the photo
+    links. Only a suspicious one adds the Right or Wrong block. Gone:
+    stepping with arrows and keys, "This deployment is now" (the panel
+    closes with a message when its deployment is gone), "Check this
+    move" (a card has Details for admins). Browser code only.
   - Still open before the release: the phone check on a real phone
     (layout checked in Chrome's phone emulation, 27 Nov).
   - Fixed 26 Nov, was blocking: the update's migrations could deadlock

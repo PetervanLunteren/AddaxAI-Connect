@@ -16,15 +16,15 @@ GPS is noisy, more so under trees. On five servers with about 219,000 photos, mo
 
 ## Where you see deployments
 
-Open a camera on the Cameras page and go to its Deployments tab to see every place it stood, oldest first. Open a site on the Sites page and go to its Deployments tab to see the cameras there now, and under "Earlier here" the ones that stood there before. The Deployments page under Admin tools lists every deployment of the project in one table, with filters for camera, site, status and date, and under More whether it moved. A deployment always shows as the same card: its site, camera, period and number of photos, each a link to what it names. A card a person set also says who set it and when.
+Open a camera on the Cameras page and go to its Deployments tab to see every place it stood, oldest first. Open a site on the Sites page and go to its Deployments tab to see the cameras there now, and under "Earlier here" the ones that stood there before. The Deployments page under Admin tools lists every deployment of the project in one table, with filters for camera, site, status and date, and under More whether it moved. A deployment always shows as the same card: its site, camera, period and number of photos, each a link to what it names. A card a person set also says who set it and when. For a project admin, Details on a card opens that deployment on the Deployments page.
 
 ![Deployment cards in the camera panel](https://github.com/user-attachments/assets/ede95215-eeed-45cb-b795-87559f3e0f2f)
 
 *The Deployments tab of a camera, after a split. Each card says who set it, with Undo.*
 
-On the Deployments page, click a row to open the deployment with a map. After a move it shows the last photo at the old site next to the first photo at the new one, which usually tells you straight away whether the camera really moved.
+On the Deployments page, click a row to open the deployment in a panel, as on the Sites and Cameras pages. It shows the card, a map with an arrow from the site the camera came from and one to the site it went to, and the day and distance of each move. Under the map is the last photo at the old site next to the first photo at the new one, which usually tells you straight away whether the camera really moved. "Show in Images" and "Open in Curation" open the deployment's photos in a new tab.
 
-![The window of a move](https://github.com/user-attachments/assets/fb6510c8-83c3-4e1a-b474-d09dea1207f4)
+![A deployment that moved](https://github.com/user-attachments/assets/fb6510c8-83c3-4e1a-b474-d09dea1207f4)
 
 *A camera that moved 6.2 km, with the last photo at the old site next to the first at the new one.*
 
@@ -38,7 +38,7 @@ Click Edit on a card. The form holds the site, the first day and the last day. N
 
 ## Suspicious moves
 
-Bad GPS can still make a move that didn't happen, when the drift lasts long enough. The app marks such a deployment Suspicious, and Needs attention in the top bar counts it. Nobody has to answer, and a move nobody answers stays as the app made it. To check one, click the line in Needs attention, open the deployment and look at the map and the two photos. Click "Right, it went there" to clear the warning, or "Wrong, it stayed at X" to put the photos back at X. Both can be undone.
+Bad GPS can still make a move that didn't happen, when the drift lasts long enough. The app marks such a deployment Suspicious, and Needs attention in the top bar counts it. Nobody has to answer, and a move nobody answers stays as the app made it. To check one, click the line in Needs attention, open the deployment and look at the map and the two photos. Click "Right, it went there" to clear the warning, or "Wrong, it stayed at X" to put the photos back at X. Both can be undone: Right in the same panel, Wrong with Undo on the card at X.
 
 ![A suspicious deployment](https://github.com/user-attachments/assets/1ef60692-32e4-4bcf-806a-d7b84b7ca66e)
 

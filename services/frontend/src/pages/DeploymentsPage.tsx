@@ -7,32 +7,33 @@
  * A move is not a row of its own but how a deployment started: the Moved
  * from column (rows.ts). Status is quiet: only Suspicious (the app doubts
  * the deployment) and Corrected (a person set it) show a pill. To do and
- * the card's Suspicious line link here with the right filter or window.
+ * a card's Details link here, with the right filter or panel.
  *
- * A row click opens the deployment's window (DeploymentWindow): the map,
- * the photos and the card with Edit. Only a suspicious deployment asks a
- * question there. No checkboxes and no bulk actions: nothing here has to
- * be answered, so there is nothing to answer in bulk. It opens newest
- * first, and stays in that order while you work, so rows do not jump; a
- * header sorts.
+ * A row click opens the deployment's panel (DeploymentSheet), a slide-out
+ * as on the Sites and Cameras pages: the card with Edit, the map and the
+ * photos. Only a suspicious deployment asks a question there. No
+ * checkboxes and no bulk actions: nothing here has to be answered, so there
+ * is nothing to answer in bulk. It opens newest first, and stays in that
+ * order while you work, so rows do not jump; a header sorts.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { deploymentKeys, deploymentsApi } from '../api/deployments';
 import { sitesApi } from '../api/sites';
 import { DeploymentStatus } from '../components/deployments/DeploymentStatus';
-import { DeploymentWindow } from '../components/deployments/DeploymentWindow';
+import { DeploymentSheet } from '../components/deployments/DeploymentSheet';
 import { cameraLabel, dayLabel, daysOverlap, metresLabel, siteLabel } from '../components/deployments/format';
 import { deploymentRows, type DeploymentRow } from '../components/deployments/rows';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { Card, CardContent } from '../components/ui/Card';
 import { FilterBar, type FilterFieldDef, type FilterValue } from '../components/ui/FilterBar';
 import { SortableHeader, type SortState } from '../components/ui/SortableHeader';
+import { useToast } from '../components/ui/Toaster';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/Table';
 import { useProject } from '../contexts/ProjectContext';
 import { filtersFromSearchParams, filtersToSearchParams, type FilterSchema } from '../lib/filter-url';
-import { DEPLOYMENT_WINDOW_PARAM, useOpenPanelFromLink } from '../lib/panel-links';
+import { DEPLOYMENT_PANEL_PARAM, useOpenPanelFromLink } from '../lib/panel-links';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 
 type Column = 'camera' | 'site' | 'first' | 'last' | 'photos' | 'from' | 'status';
@@ -129,7 +130,20 @@ export const DeploymentsPage: React.FC = () => {
   );
 
   const [sort, setSort] = useState<SortState<Column>>({ column: 'first', direction: 'desc' });
-  const [opened, setOpened] = useState<{ keys: string[]; start: string } | null>(null);
+  // The key of the row whose panel is open. The row itself is read from
+  // the fresh rows, so the panel always shows the deployment as it is now.
+  const [opened, setOpened] = useState<string | null>(null);
+  const openedRow = rows.find((r) => r.key === opened);
+  const toast = useToast();
+  // An Edit or an Undo can change where a deployment starts, or join it
+  // with its neighbour: its row is gone then, and so is its panel.
+  const gone = opened !== null && !!deployments && !openedRow;
+  useEffect(() => {
+    if (!gone) return;
+    setOpened(null);
+    toast.success('This deployment changed. The table shows what it is now.');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gone]);
 
   // Filter options come from the rows, so each one can match.
   const options = useMemo(() => {
@@ -178,14 +192,11 @@ export const DeploymentsPage: React.FC = () => {
   }, [rows, f.camera, f.site, f.status, f.moved, f.from, f.to, sort]);
   const isFiltered = Object.values(f).some(Boolean);
 
-  // Open one deployment's window straight from a link (deploymentWindowHref),
-  // the Suspicious line of a card. It steps through the rows as shown when
-  // the deployment is among them.
-  useOpenPanelFromLink(DEPLOYMENT_WINDOW_PARAM, searchParams, setSearchParams, !!deployments, (id) => {
+  // Open one deployment's panel straight from a link (deploymentPanelHref),
+  // Details on a card.
+  useOpenPanelFromLink(DEPLOYMENT_PANEL_PARAM, searchParams, setSearchParams, !!deployments, (id) => {
     const row = rows.find((r) => r.deployment.id === id);
-    if (!row) return;
-    const keys = shown.map((r) => r.key);
-    setOpened({ keys: keys.includes(row.key) ? keys : [row.key], start: row.key });
+    if (row) setOpened(row.key);
   });
 
   // AppLayout shows a page only once its project is selected.
@@ -261,7 +272,7 @@ export const DeploymentsPage: React.FC = () => {
                       <TableRow
                         key={row.key}
                         className="cursor-pointer"
-                        onClick={() => setOpened({ keys: shown.map((r) => r.key), start: row.key })}
+                        onClick={() => setOpened(row.key)}
                       >
                         <TableCell className="font-medium"><Clip text={cameraOf(row)} /></TableCell>
                         <TableCell><SiteCell name={d.site_name} /></TableCell>
@@ -291,13 +302,11 @@ export const DeploymentsPage: React.FC = () => {
         </Card>
       )}
 
-      {opened && (
-        <DeploymentWindow
+      {openedRow && (
+        <DeploymentSheet
           projectId={projectId}
-          rows={rows}
+          row={openedRow}
           sites={sites ?? []}
-          keys={opened.keys}
-          startKey={opened.start}
           onClose={() => setOpened(null)}
         />
       )}
