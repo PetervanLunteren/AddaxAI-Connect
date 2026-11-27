@@ -140,6 +140,9 @@ export function DeploymentsMap({ sites, activeSiteIds, arrows, height }: Props) 
       maxZoom={MAP_MAX_ZOOM}
       style={{ height, width: '100%', zIndex: 0 }}
       attributionControl={false}
+      // The wheel scrolls the panel the map sits in, as on the site panel's
+      // map; the buttons zoom.
+      scrollWheelZoom={false}
       className="rounded-lg border border-gray-200"
     >
       <MapAttribution />

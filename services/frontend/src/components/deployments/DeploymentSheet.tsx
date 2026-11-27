@@ -113,10 +113,12 @@ export const DeploymentSheet: React.FC<Props> = ({ projectId, row, sites, onClos
           {row.shortTrip && <ShortTrip projectId={projectId} row={row} onClose={onClose} />}
 
           <div className="rounded-lg border p-4 space-y-3 text-sm">
-            {/* A new map per deployment and per set of sites: it fits once
-                when it opens, so after an edit to another site it fits again. */}
+            {/* A new map per deployment, per set of sites and per number of
+                arrows: it fits once when it opens, so after an edit to
+                another site, or when a new site's pin arrives after the
+                deployments did, it fits again. */}
             <DeploymentsMap
-              key={`${row.key}|${[...active].sort().join()}`}
+              key={`${row.key}|${[...active].sort().join()}|${arrows.length}`}
               sites={sites}
               activeSiteIds={active.size === 0 ? null : active}
               arrows={arrows}
