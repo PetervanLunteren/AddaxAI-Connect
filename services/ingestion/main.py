@@ -52,7 +52,7 @@ from resend_hold import (
     hold_is_over,
     parse_held_name,
 )
-from utils import ValidationError, reject_file, delete_file, is_valid_gps, prune_empty_parents
+from utils import ValidationError, reject_file, delete_file, prune_empty_parents
 
 # Enable PIL to load truncated images from camera traps
 # Camera traps often send incomplete JPEGs over cellular connections
@@ -415,31 +415,11 @@ def process_image(filepath: str, held: Optional[HeldCopy] = None) -> None:
 
             gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
 
-        # Step 4: Validate GPS (shared between both flows).
-        # Reject images whose GPS is present but nonsensical, e.g. (0, 0)
-        # or out-of-range. Doing this before the missing_gps check below so
-        # that (0, 0) is recorded under invalid_gps, not missing_gps.
-        if gps_location and not is_valid_gps(gps_location):
-            _reject(
-                filepath,
-                "invalid_gps",
-                f"Image GPS is invalid: {gps_location}. Expected a real coordinate, not (0, 0) or out of range.",
-                exif=exif,
-                device_id=device_id,
-                captured_at=captured_at,
-            )
-            return
-
-        if not gps_location and profile.requires_gps:
-            _reject(
-                filepath,
-                "missing_gps",
-                f"Image has no GPS coordinates. Profile {profile.name} requires GPS for deployment tracking.",
-                exif=exif,
-                device_id=device_id,
-                captured_at=captured_at,
-            )
-            return
+        # GPS is optional. A photo without it, or with an invalid one such
+        # as (0, 0), is stored without a reading and joins the deployment
+        # that covers its capture time, or none until a person places the
+        # camera (see "Deployments, statements and the rebuild" in
+        # DEVELOPERS.md).
 
         # Step 5: Look up camera (returns database ID or None)
         camera_db_id = get_camera_by_device_id(device_id)
@@ -521,7 +501,6 @@ def _store_image(
         storage_path=storage_path,
         thumbnail_path=thumbnail_path,
         captured_at=captured_at,
-        gps_location=gps_location,
         gps_reading=gps_location,
         exif_metadata=exif
     )
@@ -860,7 +839,6 @@ def main():
         "unsupported_camera",
         "missing_device_id",
         "missing_datetime",
-        "missing_gps",
         "validation_failed",
         "parse_failed",
         "exif_extraction_failed",

@@ -3,7 +3,7 @@
 Export a labelled dataset for the tamper-detection bake-off.
 
 Read-only. Pulls per-camera image history, detections, and the two ground
-truth signals for framing changes (camera_moved feed events and maintenance
+truth signals for framing changes (camera moves and maintenance
 visits) into CSV files, plus a sampled set of 300 px thumbnails. The
 analysis itself (dHash vs ORB vs DINOv2, person-proximity percentiles)
 runs offline on a development machine, not on the server.
@@ -26,7 +26,7 @@ Then copy the result out and down to the analysis machine:
     tar czf bakeoff-export.tar.gz bakeoff-export
 
 Thumbnail sampling: every live image inside a +/- --window-days window
-around a camera_moved event or a maintenance visit is always included
+around a camera move or a maintenance visit is always included
 (these windows contain the labelled framing changes). Outside the windows,
 images are sampled evenly per camera up to --max-per-camera so the total
 stays manageable while each camera keeps a chronological history for the
@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from botocore.exceptions import ClientError
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from shared.database import get_sync_session
@@ -54,7 +54,6 @@ from shared.models import (
     CameraMaintenanceEvent,
     Deployment,
     Detection,
-    FeedEvent,
     Image,
 )
 from shared.storage import BUCKET_THUMBNAILS, StorageClient
@@ -96,23 +95,31 @@ def _bbox_norm(bbox: dict[str, Any], meta: Optional[dict[str, Any]]) -> tuple[
         return None, None, None, None
 
 
+def _moves(session: Session, project_id: Optional[int]) -> list[tuple[int, Any]]:
+    """(camera id, first day at the new place) for every move: a deployment
+    that starts where the same camera's previous one ends."""
+    rows = session.execute(text("""
+        SELECT d.camera_id, d.start_date FROM deployments d
+        JOIN cameras c ON c.id = d.camera_id
+        WHERE (CAST(:project_id AS integer) IS NULL OR c.project_id = :project_id)
+          AND EXISTS (SELECT 1 FROM deployments p
+                      WHERE p.camera_id = d.camera_id AND p.end_at = d.start_at)
+    """), {"project_id": project_id})
+    return [(r.camera_id, r.start_date) for r in rows]
+
+
 def _load_event_days(
     session: Session, project_id: Optional[int]
 ) -> dict[int, set[Any]]:
     """
     Per camera, the set of dates on which a labelled framing change may
-    have happened: camera_moved feed events (their server date) and
+    have happened: camera moves (the first day at the new place) and
     maintenance visits (their event date).
     """
     days: dict[int, set[Any]] = defaultdict(set)
 
-    moved = select(FeedEvent.camera_id, FeedEvent.created_at).where(
-        FeedEvent.event_type == "camera_moved"
-    )
-    if project_id is not None:
-        moved = moved.where(FeedEvent.project_id == project_id)
-    for camera_id, created_at in session.execute(moved):
-        days[camera_id].add(created_at.date())
+    for camera_id, day in _moves(session, project_id):
+        days[camera_id].add(day)
 
     maint = select(
         CameraMaintenanceEvent.camera_id, CameraMaintenanceEvent.event_date
@@ -186,13 +193,10 @@ def cmd_scope(args: argparse.Namespace) -> int:
         for (camera_id,) in session.execute(live_images):
             per_camera[camera_id] += 1
 
-        moved = session.execute(
-            select(FeedEvent.camera_id, FeedEvent.resolved_action).where(
-                FeedEvent.event_type == "camera_moved"
-            )
-        ).all()
-        moved = [m for m in moved if m.camera_id in camera_ids]
-        confirmed_moves = [m for m in moved if m.resolved_action != "not_moved"]
+        moved = [m for m in _moves(session, args.project_id) if m[0] in camera_ids]
+        # A move a person took back is no longer a deployment, so every move
+        # left is one that happened.
+        confirmed_moves = moved
 
         maint_count = 0
         maint_cameras: set[int] = set()
@@ -285,27 +289,12 @@ def cmd_export(args: argparse.Namespace) -> int:
                         d.start_date, d.end_date or "",
                     ])
 
-        feed_events = session.execute(
-            select(
-                FeedEvent.id, FeedEvent.camera_id, FeedEvent.event_type,
-                FeedEvent.deployment_id, FeedEvent.site_id, FeedEvent.from_site_id,
-                FeedEvent.distance_m, FeedEvent.created_at, FeedEvent.resolved_action,
-            )
-        ).all()
-        with open(out / "feed_events.csv", "w", newline="") as f:
+        with open(out / "moves.csv", "w", newline="") as f:
             w = csv.writer(f)
-            w.writerow([
-                "feed_event_id", "camera_id", "event_type", "deployment_id",
-                "site_id", "from_site_id", "distance_m", "created_at",
-                "resolved_action",
-            ])
-            for e in feed_events:
-                if e.camera_id in camera_ids:
-                    w.writerow([
-                        e.id, e.camera_id, e.event_type, e.deployment_id or "",
-                        e.site_id or "", e.from_site_id or "", e.distance_m or "",
-                        e.created_at.isoformat(), e.resolved_action or "",
-                    ])
+            w.writerow(["camera_id", "first_day_at_new_place"])
+            for camera_id, day in _moves(session, args.project_id):
+                if camera_id in camera_ids:
+                    w.writerow([camera_id, day])
 
         maint = session.execute(
             select(

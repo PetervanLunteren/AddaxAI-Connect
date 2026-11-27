@@ -1,10 +1,9 @@
 """Activity helpers for the deployment timeline.
 
-The bars in the chart answer one question per camera per day: "was there
-any sign of life from this camera that day". A sign of life is either an
-image arrival (`Image.captured_at`) or a daily health report
-(`CameraHealthReport.reported_at`). Either one keeps the day filled.
-Days with neither show as a gap.
+The bars in the chart answer one question per deployment per day: "did this
+camera take a photo there that day". Photos are the one kind of evidence of
+effort, the rule of shared/effort.py; daily reports do not count. Days
+without photos show as a gap.
 
 Pure helpers plus a handful of async DB queries, kept in their own file
 so `utils/timeline.py` stays focused on shaping the response payload.
@@ -18,7 +17,7 @@ from typing import Iterable, Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.models import CameraHealthReport, Image
+from shared.models import Image
 
 
 # Any silent day breaks a bar. A gap of `MAX_INNER_BAR_GAP_DAYS + 1` or
@@ -121,41 +120,6 @@ def clip_segments_to_window(
     return out
 
 
-async def fetch_report_days(
-    db: AsyncSession,
-    camera_ids: list[int],
-    *,
-    clip_start: Optional[date] = None,
-    clip_end: Optional[date] = None,
-) -> dict[int, list[date]]:
-    """Return sorted, distinct `reported_at::date` values per camera.
-
-    A camera that posts a daily health report counts as alive on that
-    day even when no images arrive. Returned dict mirrors the shape of
-    `fetch_capture_days` so a caller can union the two sets by camera.
-    """
-    if not camera_ids:
-        return {}
-
-    reported_date = func.date(CameraHealthReport.reported_at).label('reported_date')
-    stmt = (
-        select(CameraHealthReport.camera_id, reported_date)
-        .where(CameraHealthReport.camera_id.in_(camera_ids))
-        .group_by(CameraHealthReport.camera_id, reported_date)
-    )
-    if clip_start is not None:
-        stmt = stmt.where(reported_date >= clip_start)
-    if clip_end is not None:
-        stmt = stmt.where(reported_date <= clip_end)
-    stmt = stmt.order_by(CameraHealthReport.camera_id, reported_date)
-
-    rows = (await db.execute(stmt)).all()
-    out: dict[int, list[date]] = defaultdict(list)
-    for camera_id, reported_date_value in rows:
-        out[camera_id].append(reported_date_value)
-    return dict(out)
-
-
 async def daily_camera_counts(
     db: AsyncSession,
     camera_ids: list[int],
@@ -163,11 +127,14 @@ async def daily_camera_counts(
     clip_start: Optional[date] = None,
     clip_end: Optional[date] = None,
 ) -> list[dict]:
-    """Return `[{date, camera_id, count}, ...]` for the heatmap and concurrent strip.
+    """Return `[{date, camera_id, deployment_id, count}, ...]` for the bars,
+    the heatmap and the concurrent strip.
 
-    One round-trip. Hidden images are excluded. Cameras with no images in
-    the window are simply absent from the result. Returned rows are sorted
-    by date then camera_id so the frontend can render in a stable order
+    One round-trip. Hidden images are excluded. A photo belongs to the
+    deployment the rebuild linked it to (images.deployment_id), so days are
+    never split between deployments by date. Cameras with no images in the
+    window are simply absent from the result. Returned rows are sorted by
+    date then camera_id so the frontend can render in a stable order
     without an extra pass.
     """
     if not camera_ids:
@@ -175,10 +142,10 @@ async def daily_camera_counts(
 
     captured_date = func.date(Image.captured_at).label('captured_date')
     stmt = (
-        select(captured_date, Image.camera_id, func.count(Image.id).label('cnt'))
+        select(captured_date, Image.camera_id, Image.deployment_id, func.count(Image.id).label('cnt'))
         .where(Image.camera_id.in_(camera_ids))
         .where(Image.is_hidden == False)  # noqa: E712
-        .group_by(captured_date, Image.camera_id)
+        .group_by(captured_date, Image.camera_id, Image.deployment_id)
         .order_by(captured_date, Image.camera_id)
     )
     if clip_start is not None:
@@ -188,8 +155,8 @@ async def daily_camera_counts(
 
     rows = (await db.execute(stmt)).all()
     return [
-        {"date": d, "camera_id": int(camera_id), "count": int(cnt)}
-        for d, camera_id, cnt in rows
+        {"date": d, "camera_id": int(camera_id), "deployment_id": deployment_id, "count": int(cnt)}
+        for d, camera_id, deployment_id, cnt in rows
     ]
 
 

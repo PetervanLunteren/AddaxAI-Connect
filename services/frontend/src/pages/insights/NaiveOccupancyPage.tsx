@@ -9,7 +9,6 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
-import { Info } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { sitesApi } from '../../api/sites';
@@ -25,6 +24,8 @@ import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { type DateRange } from '../../components/dashboard';
 import { NaiveOccupancyChart } from '../../components/dashboard/NaiveOccupancyChart';
 import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
+import { useNoSiteText } from '../../components/sites/NoSiteNote';
+import { CardCaption } from '../../components/ui/CardCaption';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -187,6 +188,11 @@ export const NaiveOccupancyPage: React.FC = () => {
     }
     return ids.size === 0 ? '0' : Array.from(ids).join(',');
   }, [tagValues, siteIdValues, sites]);
+  const noSite = useNoSiteText(
+    projectId,
+    ['is not in these occupancy figures', 'are not in these occupancy figures'],
+    siteIdsFromTags !== undefined,
+  );
 
   const [meta, setMeta] = useState<NaiveOccupancyMetadata | null>(null);
 
@@ -216,18 +222,10 @@ export const NaiveOccupancyPage: React.FC = () => {
           topN={topN}
           onMetadataChange={setMeta}
         />
-        {meta && (
-          <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <Info className="h-3.5 w-3.5 shrink-0" />
-            <span>{meta.sites_total} active sites</span>
-            {captionWindow && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>Window {captionWindow}</span>
-              </>
-            )}
-          </div>
-        )}
+        <CardCaption
+          className="mt-3"
+          parts={[meta && `${meta.sites_total} active sites`, meta && captionWindow && `Window ${captionWindow}`, noSite]}
+        />
       </div>
       <PlotExplainer
         plotKey="naive-occupancy"

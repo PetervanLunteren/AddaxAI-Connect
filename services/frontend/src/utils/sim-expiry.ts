@@ -1,8 +1,8 @@
 /**
- * SIM expiry helpers shared between the camera detail slideout and the
- * cameras list column. The "is in the alert window" rule must match the
- * monthly cron exactly (services/notifications/sim_expiry.py); both
- * surfaces compare expiry against the 1st of (today's month + 2).
+ * The words for a SIM expiry date, for the camera slide-out and the cameras
+ * table. Whether a card counts as expiring is the server's rule
+ * (`sim_expiring` on the camera, shared/camera_status.py), the same one the
+ * monthly email and To do use.
  */
 
 // Human-readable status for a SIM expiry date. Used as a caption next to
@@ -19,17 +19,6 @@ export function formatSimExpiryStatus(date: string | null | undefined): string {
   return `Expires in ${days} day${days === 1 ? '' : 's'}`;
 }
 
-// Tailwind class for the SIM expiry caption. Red whenever the camera would
-// appear in the next monthly SIM expiry alert (already expired or expiring
-// on or before the 1st of (today's month + 2), matching the cron's
-// calendar-aligned threshold). Muted otherwise so the line stays unobtrusive.
-export function simExpiryStatusClass(date: string | null | undefined): string {
-  if (!date) return 'text-muted-foreground';
-  const expiry = new Date(date);
-  expiry.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const threshold = new Date(today.getFullYear(), today.getMonth() + 2, 1);
-  threshold.setHours(0, 0, 0, 0);
-  return expiry <= threshold ? 'text-destructive' : 'text-muted-foreground';
-}
+/** Red text for a card that is expiring, muted otherwise. */
+export const simExpiryClass = (expiring: boolean): string =>
+  expiring ? 'text-destructive' : 'text-muted-foreground';

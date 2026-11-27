@@ -26,14 +26,16 @@ export type ColumnId =
   | 'notes'
   | 'sim_expiry'
   | 'last_maintenance'
-  | 'rejected';
+  | 'rejected'
+  | 'unplaced';
 
 // The key carries a version. A saved list from an older release lacks any
 // column added since, and load() cannot tell "new column" from "hidden on
 // purpose", so bumping the key resets everyone once and the new default
 // shows. v2: 'rejected' added, August 2026. 'rejected' went off by default
 // in November 2026 without a bump on purpose: saved lists keep it, new ones
-// do not. The attention chip is the warning now, the column is detail.
+// do not. To do is the warning now, the column is detail.
+// 'unplaced' came in November 2026 off by default, also without a bump.
 export const cameraColumnPrefs = makeColumnPrefs<ColumnId>('cameras-visible-columns-v2', [
   { id: 'device_id', label: 'Camera ID', defaultVisible: true, sortable: true },
   { id: 'tags', label: 'Tags', defaultVisible: false, sortable: true },
@@ -46,6 +48,7 @@ export const cameraColumnPrefs = makeColumnPrefs<ColumnId>('cameras-visible-colu
   { id: 'last_report', label: 'Last report', defaultVisible: false, sortable: true },
   { id: 'last_image', label: 'Last image', defaultVisible: true, sortable: true },
   { id: 'rejected', label: 'Rejected files', defaultVisible: false, sortable: true },
+  { id: 'unplaced', label: 'Without site', defaultVisible: false, sortable: true },
   { id: 'location', label: 'Location', defaultVisible: false, sortable: true },
   { id: 'notes', label: 'Notes', defaultVisible: false, sortable: false },
   { id: 'sim_expiry', label: 'SIM expiry', defaultVisible: false, sortable: true },

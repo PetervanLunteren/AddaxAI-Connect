@@ -8,7 +8,6 @@ Not every camera trap works out of the box. The system needs to know how to read
 
 - **Configurable FTPS settings**: the camera must be able to send images via FTPS (FTP over TLS) to a custom IP address or domain
 - **High-resolution images**: lower resolution leads to less predictable AI performance
-- **GPS location** in each image
 - **Camera identifier**: some link to the camera ID (usually IMEI or another unique identifier) so the system knows which camera the image came from
 - **Date and time** in each image
 
@@ -16,6 +15,7 @@ How this metadata is embedded (filename, EXIF, etc.) does not matter. A custom c
 
 **Nice to have:**
 
+- **GPS location** in each image. The app uses it to place the camera on a site and to notice when it moves. Without it you set the site by hand, see [a camera without GPS](sites-and-deployments.md#a-camera-without-gps).
 - **Recurrent status reports** with information like signal strength, battery percentage, SD card usage, camera location, number of images on SD, etc. These are shown on the camera health page. If the camera does not send this information, those fields simply won't be populated, but the system works fine without them.
 
 ## Supported cameras
@@ -68,7 +68,7 @@ If you need a new camera profile, [open an issue](https://github.com/PetervanLun
 Images uploading but not showing up? Here are the most common causes:
 
 - **No matching camera profile**: the system rejects images it can't identify. Go to File management (account menu in the top right, server admins only) to see rejected files and the reason they were rejected.
-- **Missing required metadata**: if the camera profile requires GPS or date/time and the image doesn't have it, it gets rejected. These files still carry the camera ID, so they show up on the Cameras page, in the needs attention chip while the camera keeps rejecting and in the optional `Rejected files` column, and in the `Rejected` tab of that camera, for every project member.
+- **Missing required metadata**: if the camera profile requires a date and time and the image doesn't have it, it gets rejected. A photo without GPS is not rejected, see [a camera stops adding GPS](sites-and-deployments.md#a-camera-stops-adding-gps). These files still carry the camera ID, so they show up on the Cameras page, in Needs attention while the camera keeps rejecting and in the optional `Rejected files` column, and in the `Rejected` tab of that camera, for every project member.
 - **Wrong file format**: only JPEG images are accepted (max 10 MB).
 - **Daily reports not parsed**: reports must be under 1 MB and match the expected format for the camera profile.
 - **Camera ID is already in use**: the same device is still registered in another project, or in this one. Retire it there first, see [moving a camera to another project](setup-guide.md#moving-a-camera-to-another-project).

@@ -68,8 +68,8 @@ def run_detection(
     logger.info("Running detection", image_path=image_path)
 
     try:
-        # Load image
-        image = Image.open(image_path)
+        # RGB, because MegaDetector fails on a grayscale or RGBA image
+        image = Image.open(image_path).convert("RGB")
         image_width, image_height = image.size
 
         # Run inference using MegaDetector API

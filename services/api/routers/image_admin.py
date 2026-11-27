@@ -24,6 +24,8 @@ from shared.classification_threshold import classification_passes_threshold
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
 from routers.images import blur_regions_for_images, needs_full_blur, removed_suffix
+from utils.deployment_edits import rebuild, site_is_used
+from utils.site_scope import image_site_filter
 from utils.image_processing import apply_privacy_blur, blur_whole_image
 
 # Caps for the bulk-download endpoint. Count is the hard ceiling so the
@@ -42,85 +44,39 @@ router = APIRouter(prefix="/api/admin/images", tags=["image-admin"])
 logger = get_logger("api.image_admin")
 
 
-async def cleanup_empty_deployments(
+async def rebuild_after_delete(
     db: AsyncSession, camera_ids: set[int]
 ) -> List["EmptiedSite"]:
     """
-    Delete deployment periods that have no image rows left at all, hidden
-    ones included. A deployment holding only hidden images must survive,
-    because pruning sets those images' deployment_id to NULL (FK) and an
-    unhide cannot restore the link. Returns the sites the pruning left
-    without any deployment, so the curation UI can offer to delete them;
-    the site rows themselves are never touched here, they hold user data
-    (name, tags, notes).
+    Rebuild the deployments of the cameras whose photos were just deleted. A
+    deployment that lost all its photos goes, unless a statement placed the
+    camera there: a person's word stands without photos. Returns the sites
+    that are now without deployments and statements, so the curation UI can
+    offer to delete them; the site rows themselves are never touched here,
+    they hold user data (name, tags, notes).
     """
     if not camera_ids:
         return []
 
     # The session runs autoflush=False, so image rows the caller removed with
-    # db.delete() are still pending here. Without this flush the counts below
-    # see them all and a deployment emptied by this very delete is never
-    # pruned.
+    # db.delete() are still pending here. Without this flush the rebuild sees
+    # them all.
     await db.flush()
-
-    pruned_site_ids: set[int] = set()
-    for camera_id in camera_ids:
-        # Find deployments for this camera that have zero images left
-        deployments_query = (
-            select(Deployment)
-            .where(Deployment.camera_id == camera_id)
-        )
-        result = await db.execute(deployments_query)
-        deployments = result.scalars().all()
-
-        for dep in deployments:
-            # Count every image in this deployment's date range, hidden ones
-            # included, see the docstring.
-            date_filters = [
-                Image.camera_id == camera_id,
-                Image.captured_at >= dep.start_date,
-            ]
-            if dep.end_date is not None:
-                date_filters.append(Image.captured_at <= dep.end_date)
-
-            count_query = (
-                select(func.count(Image.id))
-                .where(and_(*date_filters))
-            )
-            count_result = await db.execute(count_query)
-            image_count = count_result.scalar_one()
-
-            if image_count == 0:
-                # No keep-guard on purpose: deployments carry no user-entered
-                # data (the site holds the name), so an emptied one can always
-                # be pruned. Earlier guards here referenced columns that were
-                # later dropped (notes, then name), which 500'd every delete
-                # that emptied a deployment.
-                logger.info(
-                    "Deleting empty deployment period",
-                    camera_id=camera_id,
-                    deployment_number=dep.deployment_number,
-                )
-                if dep.site_id is not None:
-                    pruned_site_ids.add(dep.site_id)
-                await db.delete(dep)
-
-    if not pruned_site_ids:
-        return []
-
-    # Which of the touched sites are now without any deployment. The flush
-    # makes the deletes above visible to the count.
-    await db.flush()
-    rows = (
+    site_ids = set((
         await db.execute(
-            select(Site.id, Site.name)
-            .outerjoin(Deployment, Deployment.site_id == Site.id)
-            .where(Site.id.in_(pruned_site_ids))
-            .group_by(Site.id)
-            .having(func.count(Deployment.id) == 0)
+            select(Deployment.site_id).where(
+                Deployment.camera_id.in_(camera_ids), Deployment.site_id.isnot(None),
+            )
         )
-    ).all()
-    return [EmptiedSite(id=row.id, name=row.name) for row in rows]
+    ).scalars().all())
+    await rebuild(db, camera_ids)
+
+    emptied = []
+    for site_id in sorted(site_ids):
+        if not await site_is_used(db, site_id):
+            name = (await db.execute(select(Site.name).where(Site.id == site_id))).scalar_one()
+            emptied.append(EmptiedSite(id=site_id, name=name))
+    return emptied
 
 
 class AdminImageListItemResponse(BaseModel):
@@ -255,14 +211,11 @@ async def _build_filter_clauses(
     if camera_id is not None:
         filters.append(Image.camera_id == camera_id)
 
-    if site_id:
-        site_ids = [int(s.strip()) for s in site_id.split(',') if s.strip()]
-        if site_ids:
-            filters.append(
-                Image.deployment_id.in_(
-                    select(Deployment.id).where(Deployment.site_id.in_(site_ids))
-                )
-            )
+    # Photos at these sites, or without a site ("none"), as on the Images
+    # page. A project admin has no site restriction, hence None.
+    site_clause = image_site_filter(None, site_id)
+    if site_clause is not None:
+        filters.append(site_clause)
 
     if hidden is not None:
         if hidden.lower() == "true":
@@ -511,7 +464,7 @@ async def list_all_images(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     camera_id: Optional[int] = None,
-    site_id: Optional[str] = Query(None, description="Comma-separated site IDs"),
+    site_id: Optional[str] = Query(None, description="Comma-separated site IDs; 'none' for photos without a site"),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     species: Optional[str] = None,
@@ -757,10 +710,10 @@ async def delete_images_by_ids(
     """
     Permanently delete the given images and everything tied to them
     (detections, classifications, human observations, and the raw/thumbnail/crop
-    MinIO objects), prune any now-empty deployments, and commit.
+    MinIO objects), rebuild the cameras' deployments, and commit.
 
     Returns (success_count, errors, emptied_sites), where emptied_sites are
-    the sites the pruning left without deployments. Shared by the curation
+    the sites the delete left without deployments. Shared by the curation
     bulk-delete endpoint and the bulk-upload "delete imported images"
     cleanup, so the rules stay in one place.
     """
@@ -826,7 +779,7 @@ async def delete_images_by_ids(
             errors.append(f"Failed to delete image {image.uuid}: {str(e)}")
             logger.error("Failed to delete image", image_uuid=image.uuid, error=str(e))
 
-    emptied_sites = await cleanup_empty_deployments(db, affected_camera_ids)
+    emptied_sites = await rebuild_after_delete(db, affected_camera_ids)
     await db.commit()
     return success_count, errors, emptied_sites
 

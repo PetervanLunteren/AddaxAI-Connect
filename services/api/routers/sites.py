@@ -8,7 +8,7 @@ member; create, rename, merge and delete require project admin.
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from geoalchemy2.elements import WKTElement
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text, update
@@ -20,6 +20,7 @@ from shared.logger import get_logger
 from shared.models import (
     DetectionAlertRule,
     Deployment,
+    DeploymentStatement,
     ProjectMembership,
     Site,
     TheftWatchRule,
@@ -28,7 +29,10 @@ from shared.models import (
 )
 from auth.permissions import require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
-from utils.deployment_edits import recompute_site_location
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
+from shared.geo import RECOMPUTE_SITE_LOCATION_SQL
+from utils.csv_upload import read_csv_upload
+from utils.deployment_edits import rebuild, site_is_used
 from utils.site_scope import site_in_scope
 from utils.tags import normalize_tags, rename_tag_in_list, tag_length_error
 
@@ -47,6 +51,9 @@ class SiteListItem(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     habitat_type: Optional[str] = None
+    # Cameras at the site now (their current deployment is here), as the
+    # Cameras page counts. The past is in deployment_count and the site
+    # panel's Deployments tab.
     camera_count: int
     deployment_count: int
     image_count: int
@@ -79,6 +86,9 @@ class SiteDetail(BaseModel):
     habitat_type: Optional[str] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
+    # Cameras at the site now (their current deployment is here), as the
+    # Cameras page counts. The past is in deployment_count and the site
+    # panel's Deployments tab.
     camera_count: int
     deployment_count: int
     image_count: int
@@ -147,7 +157,7 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
                 LEFT JOIN images i ON i.deployment_id = d.id
                 WHERE d.site_id = :site_id
                 GROUP BY d.id, c.device_id
-                ORDER BY c.device_id, d.deployment_number
+                ORDER BY c.device_id, d.start_at, d.id
             """),
             {"site_id": site_id},
         )
@@ -177,7 +187,9 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
         habitat_type=head["habitat_type"],
         notes=head["notes"],
         tags=head["tags"],
-        camera_count=len({d.camera_id for d in deployments}),
+        camera_count=(await db.execute(text(f"""
+            SELECT count(*) FROM ({CURRENT_DEPLOYMENTS_SQL}) cur WHERE cur.site_id = :site_id
+        """), {"site_id": site_id})).scalar_one(),
         deployment_count=len(deployments),
         image_count=sum(d.image_count for d in deployments),
         deployments=deployments,
@@ -203,12 +215,16 @@ async def list_sites(
                        ST_Y(s.location::geometry) AS lat,
                        ST_X(s.location::geometry) AS lon,
                        count(DISTINCT d.id) AS deployment_count,
-                       count(DISTINCT d.camera_id) AS camera_count,
+                       coalesce(max(here.cameras), 0) AS camera_count,
                        count(i.id) AS image_count,
                        max(i.captured_at) AS last_activity
                 FROM sites s
                 LEFT JOIN deployments d ON d.site_id = s.id
                 LEFT JOIN images i ON i.deployment_id = d.id
+                LEFT JOIN (
+                    SELECT cur.site_id, count(*) AS cameras
+                    FROM ({CURRENT_DEPLOYMENTS_SQL}) cur GROUP BY cur.site_id
+                ) here ON here.site_id = s.id
                 WHERE s.project_id = :project_id{scope_sql}
                 GROUP BY s.id
                 ORDER BY s.name
@@ -288,6 +304,83 @@ async def create_site(
     await db.refresh(site)
     logger.info("Created site", site_id=site.id, project_id=project_id, site_name=site.name)
     return await _build_detail(db, project_id, site.id)
+
+
+class SiteImportRow(BaseModel):
+    """What happened to one row of a sites CSV."""
+    row_number: int
+    name: str
+    success: bool
+    error: Optional[str] = None
+    site_id: Optional[int] = None
+
+
+class SiteImportResponse(BaseModel):
+    success_count: int
+    failed_count: int
+    results: List[SiteImportRow]
+
+
+def site_row_error(row: Dict[str, str], taken_names: set) -> Optional[str]:
+    """Why a CSV row cannot become a site, or None when it can.
+    taken_names holds the lowercased names in the project and in the rows
+    before this one."""
+    name = (row.get('Name') or '').strip()
+    if not name:
+        return "Name is required"
+    if len(name) > 255:
+        return "Name is longer than 255 characters"
+    if name.lower() in taken_names:
+        return f'A site named "{name}" already exists'
+    try:
+        lat = float((row.get('Latitude') or '').strip())
+        lon = float((row.get('Longitude') or '').strip())
+    except ValueError:
+        return "Latitude and Longitude must be numbers, with a point as decimal sign"
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return "Latitude must be between -90 and 90, Longitude between -180 and 180"
+    return None
+
+
+@router.post("/import-csv", response_model=SiteImportResponse)
+async def import_sites_csv(
+    project_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Add many sites at once from a CSV with the columns Name, Latitude and
+    Longitude, and Notes if wanted. Good rows are added, each bad row is
+    reported with its reason, the same way the camera import works.
+    """
+    rows = await read_csv_upload(file, required_headers={'Name', 'Latitude', 'Longitude'})
+    taken = {
+        name.lower() for name in
+        (await db.execute(select(Site.name).where(Site.project_id == project_id))).scalars()
+    }
+    results: List[SiteImportRow] = []
+    for number, row in enumerate(rows, start=2):  # row 1 is the header
+        name = (row.get('Name') or '').strip()
+        error = site_row_error(row, taken)
+        if error:
+            results.append(SiteImportRow(row_number=number, name=name, success=False, error=error))
+            continue
+        site = Site(
+            uuid=str(uuid.uuid4()),
+            project_id=project_id,
+            name=name,
+            location=WKTElement(f"POINT({float(row['Longitude'])} {float(row['Latitude'])})", srid=4326),
+            notes=(row.get('Notes') or '').strip() or None,
+        )
+        db.add(site)
+        await db.flush()
+        taken.add(name.lower())
+        results.append(SiteImportRow(row_number=number, name=name, success=True, site_id=site.id))
+    await db.commit()
+    added = sum(r.success for r in results)
+    logger.info("Imported sites from CSV", project_id=project_id, added=added, failed=len(results) - added)
+    return SiteImportResponse(success_count=added, failed_count=len(results) - added, results=results)
 
 
 # Bulk-edit endpoints. Declared before /{site_id} so FastAPI matches the
@@ -627,22 +720,36 @@ async def merge_site(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Merge this site into target_site_id: move every deployment to the target,
-    then delete this site. Returns the target site.
+    Merge this site into target_site_id: move every deployment and statement
+    to the target, then delete this site. Returns the target site. A camera
+    whose deployments now sit back to back at the target gets one deployment
+    there, through the rebuild.
     """
     if body.target_site_id == site_id:
         raise HTTPException(status_code=400, detail="Cannot merge a site into itself")
     source = await _site_in_project(db, project_id, site_id)
     target = await _site_in_project(db, project_id, body.target_site_id)
 
+    camera_ids = (
+        await db.execute(
+            select(Deployment.camera_id).where(Deployment.site_id == source.id)
+            .union(select(DeploymentStatement.camera_id).where(DeploymentStatement.site_id == source.id))
+        )
+    ).scalars().all()
     await db.execute(
         update(Deployment).where(Deployment.site_id == source.id).values(site_id=target.id)
     )
+    # Removed statements too: the site row can only go when nothing points at it.
+    await db.execute(
+        update(DeploymentStatement).where(DeploymentStatement.site_id == source.id)
+        .values(site_id=target.id)
+    )
     await _remove_site_from_scopes(db, project_id, source.id, replacement_id=target.id)
     await db.delete(source)
-    # The target absorbed the source's deployments, so recompute its pin.
     await db.flush()
-    await recompute_site_location(db, target.id)
+    await rebuild(db, camera_ids)
+    # The target absorbed the source's deployments, so recompute its pin.
+    await db.execute(text(RECOMPUTE_SITE_LOCATION_SQL), {"site_id": target.id})
     await db.commit()
     logger.info(
         "Merged site",
@@ -661,11 +768,17 @@ async def delete_site(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Delete a site. Its deployments keep their rows but lose the site link
-    (deployments.site_id is set to NULL by the foreign key). Rules and viewer
-    scopes that referenced the site are cleaned in the same transaction.
+    Delete a site that no deployment or statement uses. A site in use is
+    refused: its history would lose its place. Merge it into another site, or
+    move its cameras first. Rules and viewer scopes that referenced the site
+    are cleaned in the same transaction.
     """
     site = await _site_in_project(db, project_id, site_id)
+    if await site_is_used(db, site_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cameras have stood at this site. Merge it into another site instead.",
+        )
     await _remove_site_from_scopes(db, project_id, site_id)
     await db.delete(site)
     await db.commit()

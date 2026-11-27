@@ -21,12 +21,11 @@ import { useQuery } from '@tanstack/react-query';
 import { MapContainer, CircleMarker } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
+import { CardCaption } from '../ui/CardCaption';
+import { useNoSiteText } from '../sites/NoSiteNote';
 import { statisticsApi } from '../../api/statistics';
 import type { LabelSource } from '../../api/types';
-import {
-  getDetectionRateColor,
-  calculateColorScaleDomain,
-} from '../../utils/color-scale';
+import { calculateRateDomain, getRateColor } from '../../lib/heat-color-scale';
 import { LightBaseLayer, MapAttribution, MAP_MAX_ZOOM } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
 
@@ -56,6 +55,11 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
   mapHref,
   className = '',
 }) => {
+  // Photos without a site are not on the map. No link: the whole card is
+  // one link to the full map, which has it.
+  const noSite = useNoSiteText(
+    projectId, ['is not on this map', 'are not on this map'], siteIds !== undefined, false,
+  );
   // Same query key shape as the insights map page, so navigating there after
   // an unfiltered look is served from cache.
   const filters = useMemo(
@@ -79,9 +83,7 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
 
   const domain = useMemo(
     () =>
-      calculateColorScaleDomain(
-        features.map((f) => f.properties.detection_rate_per_100),
-      ),
+      calculateRateDomain(features.map((f) => f.properties.detection_rate_per_100)),
     [features],
   );
 
@@ -111,8 +113,10 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
             : 'Darker sites have more detections per 100 trap-days'}
         </p>
       </CardHeader>
-      <CardContent className="flex-1 pb-6">
-        <div className="relative h-full min-h-[200px] overflow-hidden rounded-md border">
+      {/* A column: the map takes what is left after the info line, so the
+          line stays inside the card. */}
+      <CardContent className="flex flex-1 flex-col pb-6">
+        <div className="relative min-h-[200px] flex-1 overflow-hidden rounded-md border">
           {isLoading ? (
             <div className="h-full animate-pulse bg-muted" />
           ) : !bounds ? (
@@ -142,10 +146,8 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
               <LightBaseLayer />
               {features.map((feature) => {
                 const [lon, lat] = feature.geometry.coordinates;
-                const color = getDetectionRateColor(
-                  feature.properties.detection_rate_per_100,
-                  domain.max,
-                );
+                // The same ramp and cap as the Insights map's default.
+                const color = getRateColor(feature.properties.detection_rate_per_100, domain.cap);
                 // Two stacked circles per site, a wide translucent halo and a
                 // solid core, which reads as a coarse heat surface without a
                 // heatmap library.
@@ -169,6 +171,7 @@ export const MiniMapCard: React.FC<MiniMapCardProps> = ({
             </MapContainer>
           )}
         </div>
+        <CardCaption className="mt-3" parts={[noSite]} />
       </CardContent>
 
       {/* One link over the whole card. The map ignores pointer events itself

@@ -56,6 +56,47 @@ from (dark, first alphabetically) = #0f6064
 to (light, last alphabetically)   = #f9f871
 For example, species specific colors are calculated based on the number of species and mapped using this gradient (see `src/utils/species-colors.ts`). 
 
+### Maps are different: visibility first
+The colours above are for charts and pages on white. A map can sit on
+satellite imagery (dark forest, pale sand), where dark teal and dark red
+sink. So on maps (decided 24 November 2026):
+- Every point has a white ring with a soft shadow, never a dark grey one:
+  `components/map/marker-style.ts` (`dotIcon`, `dotCss`/`dotStyle`,
+  `ringPath` for SVG shapes). Do not build a marker of your own.
+- A form that chooses a site uses `SiteField` (`components/sites/`): the
+  list, "New site" next to it, the small map and a caption. Used by Edit
+  deployment and the bulk upload. Its map is `SitePickMap`, which Merge
+  site uses on its own. Do not build another site chooser.
+- One colour, one meaning, on every map: `SITE_COLOR` (teal) a site,
+  `FOCUS_COLOR` (magenta) what you look at or choose, `ALERT_COLOR`
+  (bright red `#d62828`) something wrong. The camera status and battery
+  red is `ALERT_COLOR` too, also in the cameras table.
+- Value ramps (rates per site, hexagons, clusters) come from
+  `src/lib/heat-color-scale.ts`, the same file as AddaxAI desktop: Heat by
+  default, Teal, Viridis, Rainbow and Thermal as a choice in the Display
+  menu. The ramp ends at the 95th percentile (`calculateRateDomain`), the
+  legend prints the cap with a "+" when sites lie above it.
+
+### Status red and nudges
+- Every status marker that means "something is wrong" uses `ALERT_COLOR`
+  (`#d62828`), on maps and on white: inactive, low battery, rejected files,
+  a failed upload. `#882000` stays only as a chart and series colour.
+- A nudge is a line in Needs attention (top bar, `components/layout/TodoMenu.tsx`),
+  never a badge in the navigation or a warning bar on a page. Pages show
+  state and offer filters; Needs attention links to them with the filter set. A
+  callout stays only where the fix is, on the page you are on (photos
+  without a site in the camera panel, Telegram on Notifications).
+- A view that leaves photos without a site out says so quietly, as one
+  part of its card's info line (`useNoSiteText` in `CardCaption`), never a
+  callout; the nudge stays in Needs attention. Exports ask once, at the
+  download that leaves them out.
+- The info line under a chart or map card is `CardCaption`: Info icon,
+  short parts with "·" between them. Never copy its markup.
+- Health limits are the server's (`shared/camera_status.py`). The browser
+  reads the camera flags (`low_battery`, `sd_nearly_full`, `sim_expiring`)
+  and keeps no limit of its own, except the colour scales of
+  `utils/camera-colors.ts`.
+
 ### Typography
 
 - Font: System font stack (default Tailwind)
@@ -127,6 +168,13 @@ Location: `src/components/ui/`
 **Available Components:**
 - `Button`: Primary UI actions
 - `Callout`: Info, warning, error, and success message boxes. Every short status or hint message uses this, never a hand-rolled colored div
+- `CardCaption`: the info line at the foot of a chart or map card (Info icon, parts joined by "·")
+- `DeploymentCards` (`components/deployments/`): a deployment, anywhere it is shown as a card (camera and site panels, the deployment's own panel `DeploymentSheet`), with Edit, Details, Undo and the Suspicious marker; plain `DeploymentJourney` where only the card is wanted (the Edit deployment form). In a table a deployment is a row of `deploymentRows` with its `DeploymentStatus` pill (the Deployments page). Never draw a deployment by hand
+- Deployment wording and refresh: days, spans, distances and the names of a site or camera come from `components/deployments/format.ts` (`dayLabel`, `daySpan`, `siteLabel`, `today`, `daysOverlap`), never formatted per file. After any change to a deployment call `invalidateDeployments` (`api/deployments.ts`), and build query keys with `deploymentKeys`, so a new screen is refreshed without being listed anywhere. Photos of a deployment are keyed by the deployment as the list has it, not invalidated
+- A project page can count on its project: `AppLayout` shows the page only once the project in the address is selected, and shows loading, a failed load with Try again, or "does not exist" itself. A page never writes its own "select a project" message
+- `PhotoLinks` (`components/deployments/`): the links "Show in Images" and "Open in Curation" for a set of photos (a deployment's, or a camera's photos without a site), where a person decides about photos they cannot see. The addresses come from `imagesHref` and `curationHref` in `lib/panel-links.ts`; never build a link to a filtered Images or Curation page by hand
+- `tap-target` (`src/styles/index.css`): a small text link or icon button gets a 44 by 44 px area to tap on touch screens, with no change on desktop. Use it on links smaller than that, such as Edit and Undo on a deployment card
+- `useNoSiteText` (`components/sites/NoSiteNote.tsx`): the sentence for cards that leave out photos without a site, with the count and, for project admins, a link to fix it, as a `CardCaption` part
 - `TabStrip`: Underlined tabs for switching views on a page or in a slide-out, with an optional count badge and a right-hand `extra` slot. `tabClass` gives the same look to tabs that are links
 - `BulkActionBar`: The bar above a table while rows are selected (count, the page's action buttons, Cancel). Pair it with `useBulkSelection`, `SelectAllCheckbox` and `SortableHeader`, as the cameras, sites and service tables do
 - `RowActionsMenu`: The three-dot menu at the end of a table row, each action with its icon and a word. Use it when a row has actions of its own, never a row of bare icon buttons. Tables where a click on the row opens a panel do not need it

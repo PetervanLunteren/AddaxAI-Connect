@@ -17,6 +17,7 @@ import json
 from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy import select, text
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
 
 from shared.classification_models import SPECIESNET, get_model, taxonomy
 from shared.config import get_settings
@@ -85,19 +86,16 @@ def site_location(db, site_id: Optional[int]) -> Tuple[Optional[float], Optional
 
 
 def camera_site(db, camera_id: int) -> Tuple[Optional[str], Optional[float], Optional[float]]:
-    """Name and coordinates of the site a camera currently stands at, via
-    its active (or latest) deployment. Same lookup as get_camera_site_label,
-    plus the coordinates the payload needs."""
+    """Name and coordinates of the site a camera currently stands at
+    (shared/deployment_queries.py), plus the coordinates the payload needs."""
     row = db.execute(
-        text("""
+        text(f"""
             SELECT s.name AS site_name,
                    ST_Y(s.location::geometry) AS lat,
                    ST_X(s.location::geometry) AS lon
-            FROM deployments d
-            JOIN sites s ON s.id = d.site_id
-            WHERE d.camera_id = :camera_id
-            ORDER BY (d.end_date IS NULL) DESC, d.start_date DESC
-            LIMIT 1
+            FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+            JOIN sites s ON s.id = cur.site_id
+            WHERE cur.camera_id = :camera_id
         """),
         {"camera_id": camera_id},
     ).first()

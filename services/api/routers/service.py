@@ -11,9 +11,8 @@ site the camera stood at on the visit date, a task the camera's current
 site. Project admins write; every project member can read, and a
 site-restricted viewer only sees rows whose site is in their scope.
 """
-from datetime import date, datetime
+from datetime import date
 from typing import List, Optional
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -32,11 +31,12 @@ from shared.models import (
     Site,
     User,
 )
-from auth.permissions import require_project_access, require_project_admin_access
+from auth.permissions import can_admin_project, require_project_access, require_project_admin_access
 from auth.project_access import get_site_scope
 from mailer.sender import get_email_sender
 from routers.cameras import _camera_label
 from utils.site_scope import site_of_camera
+from utils.server_time import server_today
 
 logger = get_logger("api.service")
 
@@ -161,11 +161,6 @@ def _not_found(detail: str) -> HTTPException:
 # Database helpers
 # ---------------------------------------------------------------------------
 
-async def _server_today(db: AsyncSession) -> date:
-    """Today under the server timezone, the reference for future and overdue dates."""
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-    return datetime.now(tz).date()
 
 
 async def _check_member(db: AsyncSession, user_id: Optional[int], project_id: int, who: str) -> None:
@@ -429,7 +424,7 @@ async def log_visits(
     """Log the same visit on every selected camera."""
     cameras = await _load_project_cameras(db, project_id, request.camera_ids)
     error = validate_maintenance_event(
-        request.action_types, request.event_date, await _server_today(db), request.note
+        request.action_types, request.event_date, await server_today(db), request.note
     )
     if error:
         raise _bad_request(error)
@@ -484,7 +479,7 @@ async def list_tasks(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Every open service task in the project, overdue first."""
-    today = await _server_today(db)
+    today = await server_today(db)
     rows = (await db.execute(_tasks_query(project_id, site_scope))).all()
     return [
         ServiceTaskResponse(
@@ -600,12 +595,24 @@ async def cancel_tasks(
 async def complete_tasks(
     project_id: int,
     request: CompleteTasksRequest,
-    user: User = Depends(require_project_admin_access),
+    user: User = Depends(require_project_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Mark the selected tasks done: one visit each, tasks deleted, one commit."""
+    """Mark the selected tasks done: one visit each, tasks deleted, one commit.
+
+    An admin may complete any task. Anyone else only tasks assigned to them,
+    performed by themselves: the person in the field reports their own work
+    (Needs attention shows them their tasks). Planning, assigning and
+    cancelling stay with admins.
+    """
     tasks = await _load_tasks(db, project_id, request.task_ids)
-    today = await _server_today(db)
+    if not await can_admin_project(user, project_id, db):
+        if any(t.assigned_to_user_id != user.id for t in tasks):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only mark your own tasks done")
+        if request.performed_by_user_id not in (None, user.id):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only log your own work")
+        request.performed_by_user_id = user.id
+    today = await server_today(db)
     await _check_member(db, request.performed_by_user_id, project_id, "Performed-by user")
 
     for task in tasks:

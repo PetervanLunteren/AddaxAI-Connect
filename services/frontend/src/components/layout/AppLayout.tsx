@@ -1,8 +1,16 @@
 /**
- * Main application layout with sidebar
+ * Main application layout with sidebar, around every project page.
+ *
+ * A project page is shown once its project is known: the project in the
+ * address, selected from the user's project list (ProjectContext). Until
+ * then the layout says what it waits for, so no page ever renders without
+ * a project or with the previous one.
  */
 import React, { useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { Menu } from 'lucide-react';
+import { Button } from '../ui/Button';
+import { useProject } from '../../contexts/ProjectContext';
 import { Sidebar } from './Sidebar';
 import { TopBar, TopBarLogo } from './TopBar';
 import { InstallHint } from '../InstallApp';
@@ -13,6 +21,9 @@ interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { missingProject, projectsFailed, refreshProjects, selectedProject, loading } = useProject();
+  const { projectId } = useParams();
+  const projectKnown = selectedProject !== null && String(selectedProject.id) === projectId;
 
   return (
     <div className="min-h-screen bg-background">
@@ -39,7 +50,25 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         />
 
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-          {children}
+          {/* The page only once its project is known. Before that: the
+              project does not exist for this user, the project list failed
+              to load, or it is still loading. Nothing for the moment
+              between the list arriving and the project being selected. */}
+          {missingProject ? (
+            <div className="py-16 text-center space-y-3">
+              <p className="text-muted-foreground">This project does not exist, or you have no access to it.</p>
+              <Link to="/projects" className="text-sm text-primary hover:underline">Back to projects</Link>
+            </div>
+          ) : projectKnown ? (
+            children
+          ) : projectsFailed ? (
+            <div className="py-16 text-center space-y-3">
+              <p className="text-muted-foreground">Could not load your projects.</p>
+              <Button variant="outline" size="sm" onClick={refreshProjects}>Try again</Button>
+            </div>
+          ) : loading ? (
+            <p className="py-16 text-center text-muted-foreground">Loading...</p>
+          ) : null}
         </div>
       </main>
 

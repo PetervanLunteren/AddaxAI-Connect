@@ -34,8 +34,20 @@ export interface Camera {
   rejected_count_recent: number | null;
   // True while the latest rejected file is newer than the latest live image,
   // so a camera that recovered after a battery change stops warning. Drives
-  // the attention chip and the filter. Null exactly when the count is null.
+  // the To do line and the filter. Null exactly when the count is null.
   rejecting: boolean | null;
+  // Photos no deployment covers yet, with their first and last day (camera
+  // clock, YYYY-MM-DD) for the Set deployment form. Null for site-restricted
+  // viewers, who cannot see these photos.
+  unplaced_photo_count: number | null;
+  unplaced_first_day: string | null;
+  unplaced_last_day: string | null;
+  // The health warnings, by the server's one set of rules
+  // (shared/camera_status.py), so this page and To do flag the same cameras.
+  // False for a retired camera or one that never reported.
+  low_battery: boolean;
+  sd_nearly_full: boolean;
+  sim_expiring: boolean;
 }
 
 // Service actions. The vocabulary mirrors VALID_ACTION_TYPES in

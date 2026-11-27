@@ -11,21 +11,15 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, union_all, literal, text
 
+from shared import effort
 from shared.classification_threshold import classification_passes_threshold
+from utils.site_scope import site_image_clause
 from shared.label_source import DEFAULT_LABEL_SOURCE, LabelScope, label_scope
 
 
-def _site_image_condition(site_ids: List[int]):
-    """SQLAlchemy condition restricting images to a set of sites.
-
-    Resolved through each image's deployment, so it is time-correct: an image
-    counts for the site its deployment stood at when captured, not the camera's
-    current site.
-    """
-    from shared.models import Image, Deployment
-    return Image.deployment_id.in_(
-        select(Deployment.id).where(Deployment.site_id.in_(site_ids))
-    )
+# Restricts images to a set of sites through each image's deployment; the
+# one definition lives in utils.site_scope.
+_site_image_condition = site_image_clause
 
 
 def _ai_image_filters(scope: LabelScope) -> list:
@@ -521,12 +515,15 @@ async def get_preferred_daily_trend(
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
     source: str = DEFAULT_LABEL_SOURCE,
+    placed_only: bool = False,
 ) -> List[dict]:
     """
     Get daily detection counts from preferred data source.
 
     For verified images: sums from HumanObservation.count
     For unverified: counts from Classification
+    placed_only leaves out photos without a site (no deployment), so the
+    counts match trap effort, which only knows deployments.
 
     Returns list of {date: str, count: int} sorted by date.
     """
@@ -566,6 +563,10 @@ async def get_preferred_daily_trend(
         verified_filters.append(_site_image_condition(site_ids))
         unverified_filters.append(_site_image_condition(site_ids))
         pv_filters.append(_site_image_condition(site_ids))
+    if placed_only:
+        verified_filters.append(Image.deployment_id.isnot(None))
+        unverified_filters.append(Image.deployment_id.isnot(None))
+        pv_filters.append(Image.deployment_id.isnot(None))
 
     # Verified: group by date, sum counts
     verified_query = (
@@ -768,10 +769,10 @@ WITH active_sites AS (
     WHERE c.project_id = ANY(:project_ids)
       AND cdp.site_id IS NOT NULL
       AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
-      AND cdp.start_date <= CAST(:end_date AS date)
-      AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
+      AND {first_day} <= CAST(:end_date AS date)
+      AND {last_day} >= CAST(:start_date AS date)
 )
-"""
+""".format(first_day=effort.first_day_sql("cdp"), last_day=effort.last_day_sql("cdp"))
 
 _NAIVE_OCCUPANCY_SQL = _ACTIVE_SITES_CTE + """,
 verified_presence AS (
@@ -882,12 +883,12 @@ WITH occ AS (
 SELECT DISTINCT cdp.site_id, occ.occ_idx
 FROM deployments cdp
 INNER JOIN cameras c ON cdp.camera_id = c.id
-INNER JOIN occ ON cdp.start_date <= occ.occ_end
-             AND (cdp.end_date IS NULL OR cdp.end_date >= occ.occ_start)
+INNER JOIN occ ON {first_day} <= occ.occ_end
+             AND {last_day} >= occ.occ_start
 WHERE c.project_id = ANY(:project_ids)
   AND cdp.site_id IS NOT NULL
   AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
-"""
+""".format(first_day=effort.first_day_sql("cdp"), last_day=effort.last_day_sql("cdp"))
 
 _SITE_MATRIX_DETECTED_SQL = """
 SELECT DISTINCT dep.site_id,

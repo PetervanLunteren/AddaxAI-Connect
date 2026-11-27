@@ -3,7 +3,7 @@
 #
 # When a camera is deleted in the UI, the cascade removes the camera row, its
 # deployments, health reports, images, detections, classifications, human
-# observations, and feed events, and the object files are removed from local
+# observations, and the object files are removed from local
 # storage. The next nightly mirror then also removes the files from the backup
 # bucket, but bucket versioning keeps them as noncurrent versions for the
 # retention window. This script puts all of it back:
@@ -116,7 +116,7 @@ PROJECT_ID="$(psql_scratch -c "SELECT project_id FROM cameras WHERE id = $CAMERA
 log "Camera found in dump: id=$CAMERA_ID device_id=$DEVICE_ID project_id=$PROJECT_ID"
 
 # Tables in FK insert order, with the WHERE clause that selects the camera's rows.
-TABLES=(cameras deployments images camera_health_reports detections classifications human_observations feed_events)
+TABLES=(cameras deployments images camera_health_reports detections classifications human_observations)
 where_clause() {
   case "$1" in
     cameras)               echo "id = $CAMERA_ID" ;;
@@ -126,7 +126,6 @@ where_clause() {
     detections)            echo "image_id IN (SELECT id FROM images WHERE camera_id = $CAMERA_ID)" ;;
     classifications)       echo "detection_id IN (SELECT d.id FROM detections d JOIN images i ON i.id = d.image_id WHERE i.camera_id = $CAMERA_ID)" ;;
     human_observations)    echo "image_id IN (SELECT id FROM images WHERE camera_id = $CAMERA_ID)" ;;
-    feed_events)           echo "camera_id = $CAMERA_ID" ;;
   esac
 }
 collist() {
@@ -189,8 +188,8 @@ check_refs() {
   missing="$(psql_live -c "SELECT count(*) FROM unnest(ARRAY[$refs]) AS r(id) WHERE NOT EXISTS (SELECT 1 FROM $target t WHERE t.id = r.id)")"
   [ "$missing" = "0" ] && ok "$label: all present in live DB" || fail "$label: $missing referenced rows missing in live DB"
 }
-check_refs "sites referenced by deployments/feed_events" \
-  "SELECT DISTINCT site_id FROM (SELECT site_id FROM deployments WHERE camera_id = $CAMERA_ID UNION SELECT site_id FROM feed_events WHERE camera_id = $CAMERA_ID UNION SELECT from_site_id FROM feed_events WHERE camera_id = $CAMERA_ID) s WHERE site_id IS NOT NULL" \
+check_refs "sites referenced by deployments" \
+  "SELECT DISTINCT site_id FROM deployments WHERE camera_id = $CAMERA_ID AND site_id IS NOT NULL" \
   "sites"
 check_refs "users referenced by restored rows" \
   "SELECT DISTINCT u FROM (
@@ -199,7 +198,6 @@ check_refs "users referenced by restored rows" \
      UNION SELECT needs_review_by_user_id FROM images WHERE camera_id = $CAMERA_ID
      UNION SELECT created_by_user_id FROM human_observations WHERE image_id IN (SELECT id FROM images WHERE camera_id = $CAMERA_ID)
      UNION SELECT updated_by_user_id FROM human_observations WHERE image_id IN (SELECT id FROM images WHERE camera_id = $CAMERA_ID)
-     UNION SELECT resolved_by_user_id FROM feed_events WHERE camera_id = $CAMERA_ID
    ) x WHERE u IS NOT NULL" \
   "users"
 

@@ -7,16 +7,18 @@ import L from 'leaflet';
 import type { SiteFeature } from '../../api/types';
 import type { MapMetric } from '../../utils/map-metrics';
 import { SiteMarker } from './SiteMarker';
-import { getDetectionRateColor } from '../../utils/color-scale';
+import { getRateColor, type RateRamp } from '../../lib/heat-color-scale';
+import { MARKER_RING, MARKER_RING_WIDTH } from './marker-style';
 
 interface ClusterLayerProps {
   sites: SiteFeature[];
   metric: MapMetric;
-  domainMax: number;
+  cap: number; // where the ramp ends (calculateRateDomain)
+  ramp: RateRamp;
   getMarkerColor: (feature: SiteFeature) => string;
 }
 
-export function ClusterLayer({ sites, metric, domainMax, getMarkerColor }: ClusterLayerProps) {
+export function ClusterLayer({ sites, metric, cap, ramp, getMarkerColor }: ClusterLayerProps) {
   // Map of coordinates to site feature for quick lookup.
   const coordsToFeature = new Map<string, SiteFeature>();
   sites.forEach((feature) => {
@@ -41,9 +43,9 @@ export function ClusterLayer({ sites, metric, domainMax, getMarkerColor }: Clust
     // Hollow cluster icon when every member site is empty for this metric,
     // matching the points and hexbin views.
     const isZero = members.every((f) => metric.isEmpty(f.properties));
-    const color = getDetectionRateColor(value, domainMax);
+    const color = getRateColor(value, cap, ramp);
     const background = isZero ? 'transparent' : color;
-    const textColor = isZero ? '#555555' : 'white';
+    const textColor = isZero ? '#333333' : 'white';
     const textShadow = isZero ? 'none' : '0 0 2px rgba(0,0,0,0.5)';
 
     return L.divIcon({
@@ -52,7 +54,8 @@ export function ClusterLayer({ sites, metric, domainMax, getMarkerColor }: Clust
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        border: 2px solid #555555;
+        border: ${MARKER_RING_WIDTH}px solid ${MARKER_RING};
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.4);
         display: flex;
         align-items: center;
         justify-content: center;

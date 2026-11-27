@@ -1,17 +1,17 @@
 """
-Build a camera's deployments from its GPS readings.
+Build a camera's deployments from its GPS readings and the statements people
+made about it.
 
-One function without database access: the same readings always give the same
-deployments. It applies the rule live ingestion uses today
-(update_or_create_site_and_deployment in services/ingestion/db_operations.py),
-quirks included, so the result can be compared with what is stored. See
-DEPLOYMENTS_PLAN.md, "How one camera's deployments are built".
+One function without database access: the same input always gives the same
+deployments. The GPS rule is the 250 m threshold with two far readings to
+confirm a move; see build_deployments.
 
-Not in here, on purpose: sites, statements by people, photos without GPS, and
-any write. Daily reports are not readings: only photos make deployments.
+Not in here, on purpose: choosing a site for a deployment that GPS made,
+photos without GPS, and any write. Daily reports are not readings: only
+photos make deployments.
 """
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Optional, Sequence
 
 from .geo import (
@@ -20,6 +20,16 @@ from .geo import (
     calculate_gps_distance,
     next_mean_pin,
 )
+
+
+def period_of_days(from_date: date, until_date: Optional[date]) -> tuple[datetime, Optional[datetime]]:
+    """Days as a period of camera clock time: from the start of the first day
+    to the start of the day after the last, None when there is no last day.
+    The one rule for a period given in days (the Edit form, an upload to a
+    site), so a day belongs to one deployment."""
+    from_at = datetime.combine(from_date, time.min)
+    until_at = datetime.combine(until_date + timedelta(days=1), time.min) if until_date else None
+    return from_at, until_at
 
 
 @dataclass(frozen=True)
@@ -31,17 +41,52 @@ class Reading:
     lon: float
 
 
+@dataclass(frozen=True)
+class Statement:
+    """A decision by a person: this camera stood at this site in this period.
+
+    A statement fixes the past, not the future.
+    - With an end (until_at), it is exactly that period: one deployment, and
+      GPS does not cut inside it. After the period the walk starts again from
+      the next reading, as for a new camera.
+    - Without an end the camera is still there. Everything up to
+      fixed_until_at, the camera's newest photo when the statement was made,
+      is fixed the same way. After that the GPS rule carries on from this
+      deployment, so a later move is still seen.
+    A newer statement (higher id) wins over an older one where they overlap.
+    keeps_start, keeps_end: an end a person moved, across which the
+    deployment never joins a neighbour at the same site; see join_same_site.
+    """
+    id: int
+    site_id: int
+    from_at: datetime
+    until_at: Optional[datetime] = None
+    fixed_until_at: Optional[datetime] = None  # only read when until_at is None
+    keeps_start: bool = False
+    keeps_end: bool = False
+
+
+@dataclass(frozen=True)
+class Move:
+    """Why the GPS rule started a deployment: the camera moved."""
+    distance_m: float  # from the previous deployment's pin to the reading that confirmed the move
+    readings: int  # how many far readings in a row confirmed it
+    first_at: datetime  # the first of them, which is where the deployment starts
+
+
 @dataclass
 class BuiltDeployment:
     """One camera at one place for a period. The period is [start_at, end_at):
-    the end of one deployment is the start of the next, and None means the
-    camera still stands there."""
+    None as end means the camera still stands there."""
     start_at: datetime
     end_at: Optional[datetime]
-    lat: float  # the pin, the running mean of the readings in range
-    lon: float
+    lat: Optional[float]  # the pin, the running mean of the readings in range.
+    lon: Optional[float]  # None for a stated deployment without any reading.
     reading_count: int
     image_ids: list[int] = field(default_factory=list)
+    site_id: Optional[int] = None  # set when a statement made this deployment
+    statement_id: Optional[int] = None
+    move: Optional[Move] = None  # set when the GPS rule cut here; scripts/analyse_move_rule.py reads it
 
     @property
     def start_date(self) -> date:
@@ -52,7 +97,7 @@ class BuiltDeployment:
         """The last whole day of the deployment. The day of a move belongs to
         the new deployment, so every day counts once for effort. Never before
         the start: a camera that moves on the day it started shares that day
-        with the next deployment, as it does today."""
+        with the next deployment."""
         if self.end_at is None:
             return None
         return max(self.end_at.date() - timedelta(days=1), self.start_date)
@@ -68,13 +113,55 @@ class _Held:
     image_ids: list[int]
 
 
-def build_deployments(readings: Sequence[Reading]) -> list[BuiltDeployment]:
+@dataclass(frozen=True)
+class _Piece:
+    """The part of a statement that is left after newer statements took their
+    periods out of it. end is None when it runs for ever."""
+    start: datetime
+    end: Optional[datetime]
+    statement: Statement
+
+    def is_fixed(self, moment: datetime) -> bool:
+        """Whether GPS may not cut at this moment inside the piece."""
+        s = self.statement
+        if s.until_at is not None:
+            return True
+        return s.fixed_until_at is not None and moment <= s.fixed_until_at
+
+
+def _lay_out(statements: Sequence[Statement]) -> list[_Piece]:
+    """Statements as periods that do not overlap, oldest period first. Goes
+    through the statements from old to new, and each one cuts its own period
+    out of what the older ones had."""
+    pieces: list[_Piece] = []
+    for s in sorted(statements, key=lambda s: s.id):
+        if s.until_at is not None and s.until_at <= s.from_at:
+            continue  # an empty period states nothing
+        kept: list[_Piece] = []
+        for p in pieces:
+            if p.start < s.from_at:
+                before_end = s.from_at if p.end is None or p.end > s.from_at else p.end
+                kept.append(_Piece(p.start, before_end, p.statement))
+            if s.until_at is not None and (p.end is None or p.end > s.until_at):
+                kept.append(_Piece(max(p.start, s.until_at), p.end, p.statement))
+        kept.append(_Piece(s.from_at, s.until_at, s))
+        pieces = kept
+    return sorted(pieces, key=lambda p: p.start)
+
+
+def build_deployments(
+    readings: Sequence[Reading],
+    statements: Sequence[Statement] = (),
+    closed_at: Optional[datetime] = None,
+) -> list[BuiltDeployment]:
     """
     Walk the readings in the order given and return the deployments, oldest
-    first. The function does not sort: capture order gives the history as it
-    happened, arrival order gives what live ingestion made of it.
+    first. The function does not sort the readings. Without statements,
+    capture order gives the history as it happened and arrival order gives
+    what live ingestion made of it. With statements the readings must be in
+    capture order.
 
-    The rule:
+    The GPS rule, for readings that no statement fixes:
     - A reading within SITE_THRESHOLD_METERS of the open deployment's pin
       joins it and is averaged into the pin.
     - A reading further away is held on the open deployment. When
@@ -83,24 +170,66 @@ def build_deployments(readings: Sequence[Reading]) -> list[BuiltDeployment]:
       the first of them and takes their photos.
     - A far reading that is not near the held one replaces it. A reading back
       in range drops it.
+
+    Statements, see Statement: a period a statement fixes is one deployment at
+    the stated site, whatever the GPS says.
+
+    closed_at ends the last deployment when it is still open. A retired
+    camera's history stops there.
     """
     deployments: list[BuiltDeployment] = []
+    todo = _lay_out(statements)  # pieces not entered yet, soonest first
+    current: Optional[_Piece] = None  # the piece the walk is inside
+    active: Optional[BuiltDeployment] = None  # the deployment readings join
     held: Optional[_Held] = None
 
+    def pass_time(until: Optional[datetime]) -> None:
+        """Enter and leave every piece that starts or ends before `until`
+        (None = the end of time: leave nothing open that has an end)."""
+        nonlocal current, active, held
+        while True:
+            if current is not None and current.end is not None and (until is None or until >= current.end):
+                if active is not None and active.end_at is None:
+                    active.end_at = current.end
+                current, active, held = None, None, None
+            elif current is None and todo and (until is None or todo[0].start <= until):
+                piece = todo.pop(0)
+                if active is not None and active.end_at is None:
+                    active.end_at = piece.start
+                active = BuiltDeployment(
+                    start_at=piece.start, end_at=None, lat=None, lon=None, reading_count=0,
+                    site_id=piece.statement.site_id, statement_id=piece.statement.id,
+                )
+                deployments.append(active)
+                current, held = piece, None
+            else:
+                return
+
     for reading in readings:
-        if not deployments:
-            deployments.append(_open(reading, reading.taken_at, [reading.image_id]))
+        pass_time(reading.taken_at)
+
+        if active is None:
+            active = _open(reading, reading.taken_at, [reading.image_id])
+            deployments.append(active)
             continue
 
-        active = deployments[-1]
-        distance = calculate_gps_distance(active.lat, active.lon, reading.lat, reading.lon)
+        fixed = current is not None and current.is_fixed(reading.taken_at)
+        if active.lat is None:
+            # A stated deployment without a reading yet: nothing to measure
+            # against, so the first one sets the pin.
+            distance = 0.0
+        else:
+            distance = calculate_gps_distance(active.lat, active.lon, reading.lat, reading.lon)
 
-        if distance <= SITE_THRESHOLD_METERS:
+        if fixed or distance <= SITE_THRESHOLD_METERS:
             held = None
             active.start_at = min(active.start_at, reading.taken_at)
-            active.lat, active.lon, active.reading_count = next_mean_pin(
-                active.lat, active.lon, active.reading_count, reading.lat, reading.lon
-            )
+            if active.lat is None:
+                active.lat, active.lon, active.reading_count = reading.lat, reading.lon, 1
+            else:
+                active.lat, active.lon, active.reading_count = next_mean_pin(
+                    active.lat, active.lon, active.reading_count, reading.lat, reading.lon
+                )
             active.image_ids.append(reading.image_id)
             continue
 
@@ -129,8 +258,15 @@ def build_deployments(readings: Sequence[Reading]) -> list[BuiltDeployment]:
         moving = set(waiting)
         active.image_ids = [i for i in active.image_ids if i not in moving]
         active.end_at = first_at
-        deployments.append(_open(reading, first_at, waiting + [reading.image_id]))
+        active = _open(reading, first_at, waiting + [reading.image_id])
+        active.move = Move(distance_m=distance, readings=count, first_at=first_at)
+        deployments.append(active)
         held = None
+
+    pass_time(None)
+
+    if closed_at is not None and deployments and deployments[-1].end_at is None:
+        deployments[-1].end_at = max(closed_at, deployments[-1].start_at)
 
     return deployments
 

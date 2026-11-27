@@ -177,9 +177,6 @@ class ScanProfileResponse(BaseModel):
     # the job will auto-create it.
     camera_registered: bool = False
     camera_id: Optional[int] = None
-    # Whether the matched profile needs a location on every photo. The
-    # review step warns about photos without one; the worker skips them.
-    requires_gps: bool = False
     # Set when the sample resolves more than one camera. The batch must be
     # split per camera (bulk attaches one camera per job).
     multiple_cameras: bool = False
@@ -478,7 +475,6 @@ async def scan_profile(
         profile_name=device_id_to_profile[device_id].name,
         camera_registered=camera_id is not None,
         camera_id=camera_id,
-        requires_gps=device_id_to_profile[device_id].requires_gps,
     )
 
 

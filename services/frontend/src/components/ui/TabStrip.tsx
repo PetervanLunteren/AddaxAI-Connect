@@ -1,10 +1,13 @@
 /**
  * Underlined tab strip, shared by every page and slide-out that switches
  * between views (Sites table and map, Service open and done, the camera
- * and site slide-outs, the camera updates panel).
+ * and site slide-outs).
  *
  * `extra` sits at the right end of the same row, for controls that belong
  * to the active tab. The row wraps, so on phones it drops to its own line.
+ * The tabs themselves never wrap: when they do not fit, they scroll
+ * sideways, the usual pattern on phones. The bottom padding keeps the
+ * active underline inside the scroll box, so it does not scroll up and down.
  */
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
@@ -38,9 +41,9 @@ interface TabStripProps<K extends string> {
 export function TabStrip<K extends string>({ tabs, value, onChange, extra, className }: TabStripProps<K>) {
   return (
     <div className={cn('flex flex-wrap items-center justify-between gap-y-2 border-b', className)}>
-      <div className="flex flex-wrap">
+      <div className="flex min-w-0 max-w-full overflow-x-auto pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map(({ key, label, icon: Icon, count }) => (
-          <button key={key} type="button" onClick={() => onChange(key)} className={tabClass(value === key)}>
+          <button key={key} type="button" onClick={() => onChange(key)} className={cn(tabClass(value === key), 'shrink-0 whitespace-nowrap')}>
             {Icon && <Icon className="h-4 w-4" />}
             {label}
             {(count ?? 0) > 0 && (

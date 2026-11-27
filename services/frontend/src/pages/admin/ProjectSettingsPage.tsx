@@ -250,13 +250,8 @@ export const ProjectSettingsPage: React.FC = () => {
   }, [siteGroups]);
 
 
-  if (!currentProject) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Please select a project to manage settings.</p>
-      </div>
-    );
-  }
+  // AppLayout shows a page only once its project is selected.
+  if (!currentProject) return null;
 
   // Check for unsaved changes
   const hasThresholdChanges = threshold !== currentProject.detection_threshold;

@@ -88,6 +88,9 @@ export interface CameraDeployment {
   start_date: string | null;
   end_date: string | null;
   image_count: number;
+  // The days of its first and last photo, null without photos.
+  first_photo_day: string | null;
+  last_photo_day: string | null;
 }
 
 export const camerasApi = {

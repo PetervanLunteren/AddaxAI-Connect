@@ -9,6 +9,7 @@ if _api not in sys.path:
 
 from utils.site_scope import (
     intersect_scope,
+    parse_site_filter,
     site_in_scope,
     validate_membership_site_ids,
 )
@@ -78,3 +79,21 @@ class TestValidateMembershipSiteIds:
 
     def test_repeats_rejected(self):
         assert validate_membership_site_ids("project-viewer", [1, 1]) is not None
+
+
+class TestParseSiteFilter:
+    """The site_id value of the Images list: ids and the word "none"."""
+
+    def test_nothing(self):
+        assert parse_site_filter(None) == (None, False)
+        assert parse_site_filter("") == (None, False)
+        assert parse_site_filter(" , ") == (None, False)
+
+    def test_ids(self):
+        assert parse_site_filter("3, 7") == ([3, 7], False)
+
+    def test_none_alone(self):
+        assert parse_site_filter("none") == (None, True)
+
+    def test_none_with_ids(self):
+        assert parse_site_filter("3,none,7") == ([3, 7], True)

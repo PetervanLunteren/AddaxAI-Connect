@@ -8,15 +8,26 @@
  * and refreshes preserve state, same as CamerasPage.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { usePersistedFilterParams } from '../lib/use-persisted-filter-params';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  ChevronDown,
   MapPin,
   Loader2,
   Map as MapIcon,
+  Plus,
   Table as TableIcon,
+  Upload,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/DropdownMenu';
+import { SiteFormModal } from '../components/sites/SiteFormModal';
+import { SiteImportDialog } from '../components/sites/SiteImportDialog';
 import { Card, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -51,9 +62,10 @@ import { useToast } from '../components/ui/Toaster';
 import { cn } from '../lib/utils';
 import { sitesApi, type SiteListItem } from '../api/sites';
 import { camerasApi } from '../api/cameras';
-import type { Camera } from '../api/types';
 import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
+import { useNoSiteText } from '../components/sites/NoSiteNote';
+import { CardCaption } from '../components/ui/CardCaption';
 import { MapSelectButton, MapSelectDialog } from '../components/map/MapSelectDialog';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
@@ -74,6 +86,8 @@ import {
   BulkSetHabitatDialog,
 } from '../components/BulkEditDialogs';
 import { siteColumnPrefs, type SiteColumnId } from '../components/sites/columnDefs';
+import { SITE_PANEL_PARAM, useOpenPanelFromLink } from '../lib/panel-links';
+import { errorDetail } from '../lib/utils';
 
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
@@ -92,11 +106,6 @@ const COLOR_MODES: { value: SiteColorMode; label: string }[] = [
   { value: 'battery', label: 'Battery' },
   { value: 'signal', label: 'Signal' },
 ];
-
-function errMsg(err: unknown): string {
-  const e = err as { response?: { data?: { detail?: string } }; message?: string };
-  return e?.response?.data?.detail || e?.message || 'Unknown error';
-}
 
 function fmtDate(s: string | null): string {
   if (!s) return '-';
@@ -143,6 +152,7 @@ export const SitesPage: React.FC = () => {
   const pid = Number(projectId);
   const { selectedProject, isProjectAdmin, isServerAdmin } = useProject();
   const canEdit = isProjectAdmin || isServerAdmin;
+  const [adding, setAdding] = useState<'single' | 'csv' | null>(null);
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -165,6 +175,8 @@ export const SitesPage: React.FC = () => {
 
   // Local UI state
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
+  // Open one site straight from a link (sitePanelHref), e.g. a deployment card.
+  useOpenPanelFromLink(SITE_PANEL_PARAM, searchParams, setSearchParams, true, setDetailSiteId);
   const [mergeSite, setMergeSite] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
@@ -219,33 +231,19 @@ export const SitesPage: React.FC = () => {
     enabled: Number.isFinite(pid),
   });
 
-  // Project cameras feed the map's health colouring and the detail sheet's
-  // camera list. Loads in parallel; the map renders without waiting for it and
-  // recolours when it arrives.
+  // Project cameras feed the map's health colouring. Loads in parallel; the
+  // map renders without waiting for it and recolours when it arrives.
   const { data: cameras } = useQuery({
     queryKey: ['cameras', pid],
     queryFn: () => camerasApi.getAll(pid),
     enabled: Number.isFinite(pid),
   });
 
-  // Worst-camera health per site, the cameras grouped by site (for the detail
-  // sheet), and the count of cameras not yet placed at any site.
+  // Worst-camera health per site, for the map's colours.
   const siteHealth = useMemo(() => buildSiteHealth(cameras ?? []), [cameras]);
-  const camerasBySite = useMemo(() => {
-    const bySite = new Map<number, Camera[]>();
-    for (const c of cameras ?? []) {
-      const siteId = c.current_site?.id;
-      if (siteId == null) continue;
-      const arr = bySite.get(siteId) ?? [];
-      arr.push(c);
-      bySite.set(siteId, arr);
-    }
-    return bySite;
-  }, [cameras]);
-  const orphanCount = useMemo(
-    () => (cameras ?? []).filter((c) => c.current_site == null).length,
-    [cameras],
-  );
+  // Photos without a site are not on the map; the line under it says how
+  // many, as on the Insights pages.
+  const noSite = useNoSiteText(pid, ['is not on this map', 'are not on this map']);
 
   // Habitat options: distinct non-null habitat_type values across the project.
   const habitatOptions = useMemo(() => {
@@ -405,7 +403,7 @@ export const SitesPage: React.FC = () => {
     toast.success(`Updated ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`);
   };
   const onBulkError = (err: unknown) => {
-    toast.error(`Bulk update failed, ${errMsg(err)}`);
+    toast.error(`Bulk update failed, ${errorDetail(err)}`);
   };
 
   const bulkAddTagsMutation = useMutation({
@@ -447,7 +445,7 @@ export const SitesPage: React.FC = () => {
         `Renamed the tag on ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`,
       );
     },
-    onError: (err: unknown) => toast.error(`Rename failed, ${errMsg(err)}`),
+    onError: (err: unknown) => toast.error(`Rename failed, ${errorDetail(err)}`),
   });
   const deleteTagMutation = useMutation({
     mutationFn: (tag: string) => sitesApi.deleteTag(pid, tag),
@@ -459,7 +457,7 @@ export const SitesPage: React.FC = () => {
         `Removed the tag from ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`,
       );
     },
-    onError: (err: unknown) => toast.error(`Delete failed, ${errMsg(err)}`),
+    onError: (err: unknown) => toast.error(`Delete failed, ${errorDetail(err)}`),
   });
 
   const tagCounts = useMemo(() => {
@@ -495,7 +493,7 @@ export const SitesPage: React.FC = () => {
       setDetailSiteId(null);
       toast.success('Sites merged');
     },
-    onError: (err) => toast.error(`Could not merge sites, ${errMsg(err)}`),
+    onError: (err) => toast.error(`Could not merge sites, ${errorDetail(err)}`),
   });
 
   const deleteMutation = useMutation({
@@ -506,7 +504,7 @@ export const SitesPage: React.FC = () => {
       setDetailSiteId(null);
       toast.success('Site deleted');
     },
-    onError: (err) => toast.error(`Could not delete site, ${errMsg(err)}`),
+    onError: (err) => toast.error(`Could not delete site, ${errorDetail(err)}`),
   });
 
   // Per-column cell renderer. Each SiteColumnId returns the cell body, not
@@ -514,9 +512,8 @@ export const SitesPage: React.FC = () => {
   const renderSiteCell = (id: SiteColumnId, site: SiteListItem): React.ReactNode => {
     switch (id) {
       case 'name':
-        // The chip is the same nudge the camera updates feed shows, so a
-        // site that still needs a name is visible here after its feed entry
-        // has scrolled off.
+        // The Unnamed chip is the only sign of a site nobody named. Naming
+        // is optional: many projects keep the names the app gives.
         return (
           <span className="inline-flex items-center gap-2">
             {site.name}
@@ -577,13 +574,8 @@ export const SitesPage: React.FC = () => {
     }
   };
 
-  if (!selectedProject) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Please select a project to view sites.</p>
-      </div>
-    );
-  }
+  // AppLayout shows a page only once its project is selected.
+  if (!selectedProject) return null;
 
   const hasSites = !isLoading && sites && sites.length > 0;
   const isFiltered = !!(searchQuery || habitatFilter || tagFilter || siteFocus);
@@ -598,7 +590,35 @@ export const SitesPage: React.FC = () => {
             Physical places that group camera deployments
           </p>
         </div>
+        {canEdit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="whitespace-nowrap self-start">
+                <Plus className="h-4 w-4 mr-2" />
+                Add site
+                <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setAdding('single')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add a single site
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAdding('csv')}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import from CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
+
+      {adding === 'single' && (
+        <SiteFormModal open onClose={() => setAdding(null)} projectId={pid} sites={sites ?? []} />
+      )}
+      {adding === 'csv' && (
+        <SiteImportDialog projectId={pid} onClose={() => setAdding(null)} />
+      )}
 
       {/* Filter bar (drives both table and map views) */}
       {hasSites && (
@@ -717,30 +737,19 @@ export const SitesPage: React.FC = () => {
             <MapPin className="h-8 w-8 mx-auto mb-3 opacity-50" />
             <p>
               No sites yet. Sites are created automatically as cameras report
-              their location, or you can add one.
+              their location, or you can add them with Add site.
             </p>
           </CardContent>
         </Card>
       ) : viewMode === 'map' ? (
-        <div className="space-y-3">
+        <div className="rounded-lg border bg-card p-4">
           <SitesMapView
             sites={sortedSites}
             onSiteClick={(id) => setDetailSiteId(id)}
             colorMode={colorMode}
             siteHealth={siteHealth}
           />
-          {orphanCount > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {orphanCount} {orphanCount === 1 ? 'camera is' : 'cameras are'} not placed at a
-              site.{' '}
-              <Link
-                to={`/projects/${pid}/cameras`}
-                className="text-primary hover:underline"
-              >
-                View cameras
-              </Link>
-            </p>
-          )}
+          <CardCaption className="mt-3" parts={[noSite]} />
         </div>
       ) : (
         <Card>
@@ -836,10 +845,10 @@ export const SitesPage: React.FC = () => {
         onClose={() => setDetailSiteId(null)}
         projectId={pid}
         siteId={detailSiteId}
-        cameras={detailSiteId != null ? camerasBySite.get(detailSiteId) : undefined}
-        // When a health colour is active on the map, open straight to the
-        // cameras tab so a clicked dot explains its colour. Otherwise overview.
-        initialTab={viewMode === 'map' && colorMode !== 'none' ? 'cameras' : 'overview'}
+        // When a health colour is active on the map, open on the site's
+        // deployments: its cameras, each a click from its health. Otherwise
+        // overview.
+        initialTab={viewMode === 'map' && colorMode !== 'none' ? 'deployments' : 'overview'}
         canEdit={canEdit}
         onMergeRequested={(s) => {
           setMergeSite(s);
@@ -984,8 +993,9 @@ export const SitesPage: React.FC = () => {
         title="Delete site"
         body={
           <>
-            Delete "{deleteSite?.name}"? Its deployments keep their data but lose
-            the site link. This cannot be undone.
+            Delete "{deleteSite?.name}"? Only a site where no camera has stood
+            can be deleted. To clean up a site that is in use, merge it into
+            another site.
           </>
         }
         confirmLabel="Delete"

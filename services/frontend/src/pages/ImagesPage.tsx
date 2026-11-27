@@ -29,13 +29,15 @@ import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, getSpeciesTextColor, setSpeciesContext } from '../utils/species-colors';
 import { useProject } from '../contexts/ProjectContext';
 import { useModalImageNavigation } from '../hooks/useModalImageNavigation';
+import { useUnplacedPhotos } from '../hooks/useUnplacedPhotos';
+import { NO_SITE } from '../lib/panel-links';
 import type { ImageListItem } from '../api/types';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera_ids: 'string[]',
   // The site slideout's "View images" deep-links here with a single id;
   // rendered as a Sites multiselect so several places can be filtered at once.
-  // The deployment slideout instead deep-links camera + date range.
+  // A deployment card deep-links camera + date range (imagesHref).
   site_id: 'string[]',
   tags: 'string[]',
   image_tags: 'string[]',
@@ -311,6 +313,12 @@ export const ImagesPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
+  // Photos without a site (a camera without GPS until its site is set):
+  // "No site" in the Sites filter, offered while there are any, and kept
+  // while chosen so a saved link never holds a choice the list cannot show.
+  const unplaced = useUnplacedPhotos(projectId);
+  const offerNoSite = !!unplaced || siteIdValues.includes(NO_SITE);
+
   const filterFields = useMemo<FilterFieldDef[]>(
     () => [
       {
@@ -337,7 +345,10 @@ export const ImagesPage: React.FC = () => {
         kind: 'multi-select',
         key: 'site_id',
         label: 'Sites',
-        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+        options: [
+          ...(sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+          ...(offerNoSite ? [{ label: 'No site', value: NO_SITE }] : []),
+        ],
         placeholder: 'All sites',
         summary: (n) => `${n} sites`,
       },
@@ -470,7 +481,7 @@ export const ImagesPage: React.FC = () => {
         chipLabel: (v) => `AI predicted ${normalizeLabel(v).toLowerCase()}`,
       },
     ],
-    [cameras, sites, tagOptions, imageTagOptions, speciesOptions, speciesLoading, validators, overview, selectedProject],
+    [cameras, sites, offerNoSite, tagOptions, imageTagOptions, speciesOptions, speciesLoading, validators, overview, selectedProject],
   );
 
   // Set species context using the full species list for consistent colors app-wide

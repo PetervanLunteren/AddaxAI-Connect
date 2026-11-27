@@ -44,6 +44,7 @@ from PIL import Image as PILImage
 from sqlalchemy import text
 
 from shared.database import get_db_session
+from shared.deployment_queries import CURRENT_DEPLOYMENTS_SQL
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES
 from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED
 
@@ -84,13 +85,12 @@ def find_source_by_species(species: str, project_id):
 
 def deployment_gps(device_id: str):
     """(lat, lon) of the camera's current deployment, or None if it has no location."""
-    sql = text("""
+    sql = text(f"""
         SELECT ST_Y(dp.location::geometry), ST_X(dp.location::geometry)
-        FROM deployments dp
-        JOIN cameras c ON c.id = dp.camera_id
-        WHERE c.device_id = :device_id AND dp.end_date IS NULL AND dp.location IS NOT NULL
-        ORDER BY dp.deployment_number DESC
-        LIMIT 1
+        FROM ({CURRENT_DEPLOYMENTS_SQL}) cur
+        JOIN deployments dp ON dp.id = cur.deployment_id
+        JOIN cameras c ON c.id = cur.camera_id
+        WHERE c.device_id = :device_id AND dp.end_at IS NULL
     """)
     with get_db_session() as s:
         row = s.execute(sql, {"device_id": device_id}).first()
@@ -115,7 +115,6 @@ def send_one(local_path: str, device_id: str, gps, note: str) -> str:
         storage_path=storage_path,
         thumbnail_path=thumbnail_path,
         captured_at=now_naive(),
-        gps_location=gps,
         gps_reading=gps,
         exif_metadata={"source": "dev_send_demo_image", "note": note,
                        "width": width, "height": height},

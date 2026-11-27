@@ -1,8 +1,8 @@
 /**
  * The one bar across the top of every page behind the login.
  *
- * Right is always the account menu, so "me" is in the same corner on the
- * Projects page, on the server pages and inside a project. Left is up to the
+ * Right are always To do and the account menu, so "me" is in the same corner
+ * on the Projects page, on the server pages and inside a project. Left is up to the
  * page: the logo, and inside a project on a phone the button that opens the
  * navigation.
  *
@@ -24,6 +24,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { AccountMenu } from '../AccountMenu';
+import { TodoMenu } from './TodoMenu';
 
 export const TopBarLogo: React.FC = () => (
   <Link to="/projects" className="shrink-0" aria-label="Projects">
@@ -34,6 +35,9 @@ export const TopBarLogo: React.FC = () => (
 export const TopBar: React.FC<{ left?: React.ReactNode }> = ({ left }) => (
   <header className="sticky top-[env(safe-area-inset-top)] z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-card px-4 sm:px-6">
     <div className="flex min-w-0 items-center gap-3">{left}</div>
-    <AccountMenu />
+    <div className="flex shrink-0 items-center gap-2">
+      <TodoMenu />
+      <AccountMenu />
+    </div>
   </header>
 );

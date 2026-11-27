@@ -38,7 +38,7 @@ project-wide.
 
 The rules for a restricted viewer:
 - Hard hide: out-of-scope sites do not exist for them anywhere (site
-  lists, cameras, images, statistics, exports, feed, image bytes).
+  lists, cameras, images, statistics, exports, image bytes).
   Totals mean totals over their sites.
 - Fail closed: data without a resolved site (images with no deployment,
   rejections, inventory cameras) is invisible to them.
@@ -266,8 +266,7 @@ addaxai-connect/
 │   │   │   ├── camera_reference_images.py # Reference images per camera
 │   │   │   ├── service.py             # Service visits (the log) and planned service tasks
 │   │   │   ├── sites.py               # Site CRUD
-│   │   │   ├── deployments.py         # Deployment list and escape-hatch reassign
-│   │   │   ├── feed.py                # Camera updates feed (list, resolve, seen)
+│   │   │   ├── deployments.py         # Deployment list and change site
 │   │   │   ├── images.py              # Image queries
 │   │   │   ├── image_admin.py         # Image admin operations
 │   │   │   ├── bulk_upload.py         # Bulk-upload job management
@@ -295,8 +294,7 @@ addaxai-connect/
 │   │   └── utils/                     # API utilities
 │   │       ├── activity_analysis.py   # Activity pattern analysis
 │   │       ├── camera_recency.py      # Per-camera last-capture / last-arrival lookups
-│   │       ├── deployment_edits.py    # Reassign/recompute/merge plumbing (deployments + feed)
-│   │       ├── feed.py                # Feed candidate-site helper
+│   │       ├── deployment_edits.py    # Statements and rebuilds for the routers
 │   │       ├── detection_filtering.py # Detection confidence and class filtering
 │   │       ├── occupancy_model.py     # Naive occupancy estimation
 │   │       ├── preferred_counts.py    # Preferred per-image counts
@@ -348,7 +346,8 @@ addaxai-connect/
 │       ├── device.py                  # The one rule for cpu vs cuda in the ML workers
 │       ├── taxonomy.py                # SpeciesNet label mapping (walk-up, fallback label, scientific names)
 │       ├── geo.py                     # GPS and spatial helpers
-│       ├── deployments.py             # Site and deployment grouping logic
+│       ├── deployment_build.py        # Deployments from readings and statements, no database
+│       ├── deployment_rebuild.py      # rebuild_camera, the only writer of deployments
 │       ├── independence_filter.py     # Independent-detection (capture event) filtering
 │       ├── classification_threshold.py # Per-project classification thresholds
 │       └── templates/                 # Shared email templates (base + per-notification)
@@ -362,11 +361,11 @@ addaxai-connect/
 │   ├── reset_two_factor.py            # Switch two-factor login off for an account, from the server
 │   ├── populate_demo_data.py          # Generate demo dataset
 │   ├── shift_demo_dates.py            # Shift demo dates for freshness
-│   ├── backfill_deployment_periods.py # Backfill camera deployment data
-│   ├── backfill_sites.py              # Backfill sites from camera positions
 │   ├── backfill_camera_tags_to_sites.py # Migrate legacy camera tags to sites
-│   ├── merge_contiguous_deployments.py # Merge adjacent deployments
-│   ├── cleanup_empty_deployments.py   # Remove deployments with no images
+│   ├── carry_over_deployments.py      # Turn deployments from before statements into statements, once per server
+│   ├── analyse_move_rule.py           # Read-only: GPS noise and what other move thresholds would give
+│   ├── dev_deployment_scenarios.py    # Dev only: a project of cameras that each tell one deployment story
+│   ├── dev_busy_project.py            # Dev only: a large project, for speed checks
 │   ├── remove_live_twins.py           # Remove bulk copies of photos already sent over 4G (dry run first)
 │   ├── regenerate_thumbnails.py       # Rebuild image thumbnails
 │   ├── rehydrate_cold_to_hot.py       # Pull cold-tier objects back to local storage
@@ -646,10 +645,8 @@ written once and never changed. It is empty when the camera sent no GPS or an
 invalid one: out of range, or exactly (0, 0), the rule of `is_valid_gps` in
 `services/ingestion/utils.py`.
 
-- `create_image_record` takes two GPS arguments. `gps_location` is what the
-  site and deployment are resolved from, `gps_reading` is what is stored. They
-  differ for a bulk upload to a chosen site: there `gps_location` is the
-  site's pin and `gps_reading` is the photo's own EXIF GPS, which may be empty.
+- `create_image_record` stores `gps_reading` as it is, also for a bulk upload
+  to a chosen site: that is the photo's own EXIF GPS, never the site's pin.
 - `update_camera_health` stores the reading on the report row of that day.
   A second report on the same day overwrites it, like the other health values.
 - `image_metadata` keeps the raw EXIF as before. Read GPS from the columns,
@@ -659,6 +656,227 @@ Migration `20261119_gps_readings` filled the columns for older photos, from
 `image_metadata['gps_decimal']` and, for INSTAR, from the position in
 `image_metadata['relative_path']`. Daily reports kept no GPS before, so older
 report rows stay empty.
+
+## Deployments, statements and the rebuild
+
+Three layers, see `DEPLOYMENTS_PLAN.md` for the model:
+
+1. **Readings**: the GPS of every photo (above). Daily reports store theirs
+   but are not readings: only photos make deployments.
+2. **Statements** (`deployment_statements`): "this camera stood at this site
+   from this moment to this moment", by a person, by an upload to a chosen
+   site, or carried over from before phase 2. Never edited. A newer one wins
+   where two overlap, and taking one back sets `removed_at`.
+3. **Deployments**: the result, per camera.
+
+The rules:
+
+- **Only `rebuild_camera` (`shared/shared/deployment_rebuild.py`) writes
+  `deployments` and `images.deployment_id`.** Everything else writes a
+  statement or a photo and then rebuilds the camera. It runs in the caller's
+  transaction and takes an advisory lock per camera, so two rebuilds of one
+  camera never cross. The API calls it through `utils/deployment_edits.py`,
+  which runs it on the request's session with `run_sync`.
+- The build itself is `build_deployments` (`shared/shared/deployment_build.py`),
+  without database access and tested in `tests/shared`. Without statements it
+  is the 250 m rule with two far readings to confirm a move.
+- A statement with an end is exactly that period. Without an end it fixes the
+  past up to the camera's newest photo when it was made, and the GPS rule
+  carries on after that, so a correction never locks a camera.
+- Rows keep their id and number across rebuilds where they can: a built
+  deployment keeps the row most of its photos were on. Numbers are never
+  reshuffled, so they need not follow time after an old SD card.
+- `deployments.start_at` and `end_at` are the period as camera clock, naive.
+  `start_date` and `end_date` follow from them and are what effort and the
+  exports read: the day of a move belongs to the new deployment.
+- A live photo is stored and rebuilt in one transaction. A bulk job rebuilds
+  once, when it ends.
+- GPS is optional on a photo. A photo that no deployment covers has
+  `deployment_id` NULL: it has no site yet. Admins see these photos, viewers
+  limited to sites do not (`site_image_clause` fails closed). The count per
+  camera is `utils/camera_unplaced.py`, the same pattern as rejected files.
+- A person sets a deployment with `POST /api/projects/{id}/deployments/statements`
+  (camera, site, first day, last day or none). The days become a period by
+  `period_of_days` (`shared/deployment_build.py`): from the start of the first
+  day to the start of the day after the last. The camera panel's Edit on a
+  deployment uses the same endpoint, prefilled with the deployment's own days.
+  `GET .../statements` lists the project's corrections in force,
+  `DELETE .../statements/{id}` takes one back. The rules of an edit (what it
+  replaces, which ends it keeps, Undo, "It stayed") are in
+  `utils/deployment_edits.py`; `routers/deployments.py` only translates
+  requests.
+- GPS for alerts, integrations and exports comes from `images.gps_lat` and
+  `gps_lon`, never from `image_metadata['gps_decimal']`: an accepted photo
+  can carry (0, 0) in its EXIF.
+- `scripts/carry_over_deployments.py` ran once per server in the update to
+  phase 2. Cameras whose stored history the readings give back stay
+  automatic, every other camera got `carried_over` statements, and the
+  result was checked against what was stored before.
+
+Three readers' rules, each in one place (step 2c):
+
+- **Current site** of a camera: the deployment that started last, also when
+  it has ended, so a retired camera keeps its last site. Never the highest
+  `deployment_number`, which does not follow time. One rule in
+  `shared/shared/deployment_queries.py`, as SQL text
+  (`CURRENT_DEPLOYMENTS_SQL`) and as an expression (`current_deployments`,
+  `site_on`), for every API route and worker.
+- **Which deployment a photo belongs to**: `images.deployment_id`, the link
+  the rebuild made. Never match photos by camera and date. An independent
+  event belongs to the deployment of its first photo. Daily reports and
+  maintenance visits are no photos and keep matching by time.
+- **Effort** (trap-days): `shared/shared/effort.py`. A camera counts at a site
+  from its first photo there to its last photo there, or to a last day a
+  person typed (`deployments.last_day_set`, which the rebuild sets from the
+  statement's `keeps_end` when the deployment ends where that statement
+  ends). Changing only the site, "It stayed", uploads and carried-over
+  history count to the last photo. Daily reports do not count. Every reader uses it: the
+  map, the spatial export, the effort chart, occupancy, the scheduled species
+  report, the timeline and the Camtrap DP `deploymentEnd`.
+  `deployments.last_photo_at` holds the last photo; the rebuild keeps it.
+
+**Deployments page** (`pages/DeploymentsPage.tsx`, under Admin tools next
+to Curation, project admins only) lists every deployment of the project,
+one row each, with the same facts as the deployment card. The app is
+automatic first, so it is an overview for administration and history, not
+a to-do list. The deployments are the one record; nothing about a move is
+stored apart from them. A move is not a row of its own but how a
+deployment started.
+
+- **Rows** (`components/deployments/rows.ts`, `deploymentRows`, built in
+  the browser from `GET .../deployments` and the project's corrections,
+  `GET .../statements`). Per deployment:
+  - **Moved from**: the deployment right before it (its end is this
+    one's start) at another site, whoever made either;
+  - **suspicious**: a short trip nobody answered (`checked_at` empty).
+    A short trip is a deployment the GPS made (`site_source = 'auto'`)
+    that is back at the site it left within a week, the usual shape of a
+    GPS error. One SQL condition decides it, `SHORT_TRIP_SQL` in
+    `shared/deployment_queries.py`: the list returns it per row
+    (`short_trip`) and To do counts with it (`SUSPICIOUS_MOVES_SQL` in
+    `utils/todo.py`), so page and count cannot differ. The browser has no
+    copy of the rule. Cases in `tests/db_api/test_suspicious.py`;
+  - **corrected**: a correction a person made (`source = 'person'`)
+    covers part of its days (`covers`, also used by the cards).
+  - The key is the camera and the start (`rowKey`), which come from the
+    photos, not the row id, which a rebuild may change.
+- **Table:** Camera, Site, First day, Last day, Photos, Moved from, Status.
+  One line per row, long names cut with the full text on hover. Status is
+  quiet: a pill for Suspicious and Corrected only (`DeploymentStatus`,
+  shared with the card). Shared `FilterBar`: camera, site (where it stood
+  or where it came from), status, date (the period overlaps the range),
+  and Moved under More. Newest first until a header sorts, so rows stay
+  put. No checkboxes and no bulk actions: nothing has to be answered, so
+  there is nothing to answer in bulk.
+- **Panel** (`DeploymentSheet.tsx`, a slide-out like a site's and a
+  camera's): a row click opens it. A link opens one deployment's panel
+  (`deploymentPanelHref`, `?deployment=<id>`; Details on a card uses it).
+  The same for every deployment, top to bottom: the deployment's card
+  (`DeploymentCards`, so Edit, Undo and the links are the panels' own);
+  the map on satellite with the site it came from, its own site and the
+  site it went to, and a bent arrow for each move (bent, so a trip there
+  and back draws two curves); Moved from and Moved to with day and
+  distance (`previous` and `next` of the row); the last photo at the old
+  site next to the first one here, or the first two photos
+  (`GET .../deployments/{id}/thumbnails`); links to its photos in Images
+  and Curation (`PhotoLinks`).
+  The page holds the key of the open row and reads the row fresh. An Edit
+  or an Undo can move a deployment's start and with it its key; the row
+  is gone then, and the page closes the panel with a message.
+  Until 27 November 2026 this was a window in the frame of image
+  verification with arrows to step through the rows. That came from when
+  the page was a list of moves to answer; it is not one any more, so a
+  deployment opens like a site and a camera do.
+- **The question**, a block in the panel, only for a suspicious
+  deployment: did the camera really go there.
+  - **Right** (`PUT .../deployments/{id}/checked`) only records who
+    said so and when (`checked_at`, `checked_by_user_id`); the warning
+    goes. The panel then shows "Marked right by … on date" with Undo.
+  - **Wrong** (`POST .../deployments/{id}/not-moved`): the GPS was
+    off. One correction over the stay before and the trip, at the old
+    site (`take_back_move`). At once, without a confirmation. The
+    deployment is gone then, so the panel closes with a message; the
+    correction shows on the card at the old site, with Undo, and after
+    Undo the deployment comes back under the same key and asks again.
+  - Every other deployment asks nothing. "It moved" on ordinary moves and
+    the Checked status are gone (26 November 2026): a check that changes
+    nothing is only worth asking where the app has a doubt. Older checks
+    stay in `checked_at`, unused.
+- **Two rules of the rebuild that corrections rely on:**
+  - a site's pin follows only the deployments the app placed from the GPS
+    (`RECOMPUTE_SITE_LOCATION_SQL` in `shared/geo.py`): a correction never
+    moves a pin, since the build snaps other cameras to pins;
+  - a GPS part keeps the site its stored row had only when the GPS chose
+    it (`deployment_rebuild.py`): after Undo the GPS decides again.
+- **A deployment's site is picked once, and that can depend on history.**
+  The nearest site within 250 m of the deployment's pin at that moment,
+  then kept, so GPS noise never hops a camera to a neighbouring site. Live,
+  the pin at that moment is the first reading; built from scratch (after
+  Undo, or the rebuild at a release) it is the mean of all readings. The
+  two differ only for a camera between two close sites or one that moved
+  less than 250 m (scenario S04: Stream west live, Stream east from
+  scratch). Not a bug: such a camera needs a person either way, and the
+  mean is the better guess. Making live and scratch equal means picking
+  from the first reading always, which makes the scratch result worse
+  (decided against, 26 November 2026).
+- **One deployment card.** A deployment is drawn by `DeploymentJourney`
+  (one card per deployment, never merged, days with `dayLabel`). The camera
+  panel's and the site panel's Deployments tabs both use
+  `DeploymentCards` (`components/deployments/`), the same cards seen from
+  either side. A card always shows the same four lines with their icons:
+  site and camera (each a link to its panel, `lib/panel-links.ts`), period,
+  photos (a link to them on the Images page, empty ones included). For admins a card
+  also carries Edit, Details (a link to that deployment's panel on the
+  Deployments page), the Suspicious marker of the Deployments page
+  (`deploymentRows` on the same cached list) and each correction
+  on the card it made, "Last day set by … on date" with Undo (matched by
+  camera and days; a card the app placed shows nothing). A new line on a
+  card goes in `DeploymentCards`, so every panel gets it.
+- **Edit deployment.** A deployment is a camera, a
+  site and a period, and Edit deployment (`SetDeploymentDialog`) shows just
+  those: the camera fixed (photos belong to the camera that took them), the
+  site and the first and last day editable; "Add deployment" for a camera
+  without a site. One rule covers every placement fix: the days given are
+  at that site, and days an edit leaves out go back to the app, which
+  places them from the GPS. A move the GPS missed is a later first day, a
+  first photo a week late an earlier one. An edit replaces the corrections
+  that made the deployment (`deployment_id` on the request; the replaced
+  statements get `replaced_by_statement_id`), so leaving days out really
+  gives them back instead of an older correction keeping them; Undo of the
+  edit brings them back. A day the person typed stays an end
+  (`keeps_start`, `keeps_end` on the statement, read by `join_same_site`;
+  Add deployment with a last day sets `keeps_end` too):
+  a shortened deployment splits in two, also when the GPS finds the same
+  site for the rest, and each part can be edited. An end left as it was
+  still joins, so changing only the site of a false trip folds it back into
+  one, as "It stayed" does. The form shows the deployment as a card (Now)
+  and the cards the save leaves that differ from now (After saving), from
+  `POST .../deployments/statements/preview`: the same edit as Save
+  (`set_deployment` in `utils/deployment_edits.py`) in a transaction that is rolled
+  back, so the preview is the rebuild's own answer, never a guess in the
+  browser. Everything is built before the rollback, which expires every
+  object of the session. Cards are compared by content (site, days,
+  photos), not id: after a split the old id can go to either part. The
+  browser asks 400 ms after the form stops changing, never caches or
+  retries, and cancels an older request. Days are bounded for Save and
+  preview: 1 January 2000 to today in the server timezone (`check_days`;
+  today comes from `utils/server_time.py`).
+  The site panel has Name this site; a camera that had its own spot gets
+  one from Edit on its card, with + New site. A correction deletes a site it emptied when that
+  site still has the app's name (`drop_unnamed_sites_left_empty`); a site
+  a person named is never deleted by the app. The screens say
+  "correction"; the server stores one as a statement, and the browser code
+  calls it `Correction` (`api/deployments.ts`). After any change the browser
+  refreshes through one function, `invalidateDeployments`.
+- Sites are added on the Sites page, one at a time or from a CSV
+  (`POST .../sites/import-csv`). `utils/csv_upload.py` reads the file for
+  this import and the camera import.
+
+`scripts/populate_demo_data.py` is the one place that writes deployments
+without the rebuild, for generated demo data.
+
+The rebuild and the routes that write statements are tested against a real
+PostGIS in `tests/db_ingestion` and `tests/db_api`, see "Running tests".
 
 ## SpeciesNet labels
 
@@ -877,6 +1095,117 @@ What the two share:
   restart, and a token cannot go stale. Point a dev project at
   `central-test.sensingclues.org` so nothing from dev reaches a real group.
 
+## Photos without a site
+
+A photo reaches its site through `images.deployment_id`. A camera without
+GPS has photos with no deployment until a person sets its site (Add
+deployment in the camera panel). The rule for those photos:
+
+- **Counted where no place is needed**: totals, species, activity, the
+  Observations export (with an empty site).
+- **Left out where a place is needed**: map, occupancy, timeline, the
+  trend per 100 trap-nights, and the spatial, detection history and
+  Camtrap DP exports. Camtrap DP requires a location on every deployment,
+  so leaving them out is forced. Never a made-up place.
+- **Said where left out**, in `components/sites/NoSiteNote.tsx`: "56
+  photos have no site yet and are not on this map", with a link for
+  project admins to the cameras that have them.
+  - Always inside the card it explains, as one part of its info line
+    (`ui/CardCaption`): Insights map, Sites map, occupancy, timeline, and
+    on the Dashboard the trend and the mini map.
+    `useNoSiteText(projectId, consequence, hidden, link)`, with `hidden`
+    set when the page has a site filter, and `link` false on the mini map
+    (the whole card is one link). Also in an empty state, so a project
+    whose cameras all lack GPS still learns why.
+  - Exports: silent until someone downloads spatial, detection history or
+    Camtrap DP; then a `ConfirmDialog`, "Some photos are left out", with
+    Download anyway.
+- **The number** comes from the cameras list (`useUnplacedPhotos`, the
+  sum of `unplaced_photo_count`), so it equals the camera panels and
+  follows a fix at once. It is the project total, not narrowed to the
+  page's dates or species. Null for a viewer with a site list, who never
+  sees these photos (`site_image_clause` fails closed).
+- **Images** and **Curation** take `site_id=none` for these photos
+  (`image_site_filter` in `utils/site_scope.py`); for a viewer with a site
+  list "none" matches nothing. The Edit and Add deployment form and a
+  camera's "photos have no site yet" line link to both pages with the
+  right filters (`PhotoLinks`, `imagesHref` and `curationHref` in
+  `lib/panel-links.ts`). Other site filters have no "none": on the server they are
+  hand-written SQL in about ten places, and the views need a place anyway.
+- **The trend** asks the daily trend helpers for `placed_only`, because it
+  divides by trap effort, which only knows deployments.
+- Not counted: photos of a deployment whose site was deleted (they have a
+  deployment and no site). The rebuild always gives a site, so this is
+  rare; the Map's About text names it.
+
+## Needs attention (To do)
+
+The one nudge of the app (decided 24 November 2026): an icon in the top bar,
+next to the avatar, with what needs somebody now. Users see it as "Needs
+attention" (the panel has no title, the tooltip and empty state use the
+name); the code calls it To do (`TodoMenu`, `/api/todo`, `utils/todo.py`).
+Not "To do" for users: most lines are states of the project, not tasks you
+tick off. It replaced the sidebar
+badges, the "Needs attention" bar and the Dashboard species banner, which
+used different limits for the same thing and which people learned to ignore.
+
+- **A line is state, not a message.** No read state, no dismiss, no history,
+  no table. A line is there while its rule holds and leaves when it is fixed.
+- **The server decides** (`services/api/utils/todo.py`, `GET /api/todo`):
+  per project a list of `{kind, count}`, plus server lines for server admins.
+  Only lines with something open, only projects with lines.
+- **The browser words it** (`src/lib/todo-lines.ts`): text and link per
+  kind. Every link opens the page with the filter that shows exactly the
+  counted rows. `TodoMenu.tsx` groups them: inside a project only that
+  project (For you, then its lines). Outside a project an accordion: Server
+  first and open (server admins), then one closed group per project, those
+  with something new first, a "3 new" pill on each header, and a Dismiss
+  all per open group so you never dismiss lines you did not see.
+- **Who sees what:** a line goes to whoever can act on it.
+  - Every member: camera health, fixed in the field (inactive, low battery,
+    SD nearly full, rejecting files), at the sites they may see; a
+    site-restricted viewer gets no rejecting line, they see no rejections
+    anywhere. And their own service tasks, which they can mark done.
+  - Project admins also: suspicious moves, photos without a site, SIM cards
+    expiring, failing integrations, others' overdue tasks, choose the
+    species. Only admins can fix those in the app.
+  - Server admins also, outside a project: services not running, files of
+    unknown cameras, Telegram not set up.
+- **One set of camera rules.** The camera lines count the same rows as the
+  Cameras page (`camera_responses` in `routers/cameras.py`) and their flags,
+  whose limits live in `shared/camera_status.py`: battery under 30, SD over
+  80, SIM expiring before the 1st of the month after next. The email report
+  and the SIM email read them too. Retired cameras and cameras that never
+  reported never warn.
+- **Each line has the icon of the page it opens** (Deployments, Cameras, Service,
+  Settings, the integration, System health, File management), so it shows
+  what it belongs to. Broken things (inactive, rejecting, a failing
+  integration or service) come first in their group.
+- **Dismiss makes a line quiet, for you only.** Every line stays in the
+  list; a new one is loud (bold, light teal, counted on the icon), a
+  dismissed one is a plain row you can still click. Dismiss on hover, or
+  Dismiss all at the bottom. A dismissal (`todo_dismissals`) remembers the
+  items the line held: camera, move, task or file ids (`keys` on each item,
+  never sent to the browser). The line turns loud again when an item
+  appears that was not there; the API keeps only the keys still in the
+  line, so the same camera failing again after it recovered is new too.
+  A line back after a dismissal shows the total and a "1 new" pill.
+  Dismiss sends the keys the user was shown, and only keys still in the
+  line are stored: a camera that arrived while the panel was open stays
+  new, and nobody stores keys they cannot see.
+  Species and Telegram have nothing to add, so once dismissed they stay
+  quiet. Why: a count that never changes teaches people to ignore the icon
+  (badge fatigue), and hiding would lose the overview. The read model of
+  Discourse and Gmail, with the resurfacing of Sentry's "archive until
+  escalating" and Linear's snooze. Per person, so nobody quiets a problem
+  for someone else. Decided 25 November 2026, replacing a shared "Not
+  needed" on three lines.
+- **Fresh:** polled every 5 minutes, and any successful change in the app
+  refreshes it (`MutationCache` in `src/lib/query-client.ts`).
+- **Adding a nudge:** count it in `_lines` with the keys of what it counts, add its kind to
+  `todo-lines.ts`, add a test in `tests/db_api/test_todo.py`. An unknown
+  kind is ignored by an older browser.
+
 ## Camera liveness status
 
 The `active / inactive / never_reported` badge has one rule, in
@@ -933,7 +1262,7 @@ the table; nothing scans the filesystem at read time.
 - The warning is a state, not a count. A camera is *rejecting* while its
   latest rejection in that window is newer than its latest live image
   (`is_rejecting` in `shared/shared/camera_status.py`, server receive
-  times, bulk uploads never clear it). It drives the attention chip ("N
+  times, bulk uploads never clear it). It drives the To do line ("N
   cameras rejecting files"), the Cameras filter, and the daily rejection
   rule, which fires only for cameras with N or more in the last day that
   are still rejecting at run time. The reason is the drenthe battery round
@@ -1006,7 +1335,10 @@ User docs: `docs/service.md`.
   a task's site is the camera's current site. Both come from `site_of_camera` in
   `utils/site_scope.py`, which is also what the viewer scope filters on,
   so a row without a site is invisible to a restricted viewer.
-- Every member reads, admins write. The frontend has one place to act,
+- Every member reads, admins write, with one exception: whoever a task is
+  assigned to may mark it done, as their own work (`complete_tasks`), so a
+  viewer in the field can close what Needs attention shows them. Planning,
+  assigning and cancelling stay with admins. The frontend has one place to act,
   the Service page; the camera and site slide-outs only summarise
   (`ServiceSummaryRows`) and link there.
 - The action vocabulary is `ACTION_LABELS` in `service.py`, mirrored in
@@ -1307,8 +1639,9 @@ those and not resource timing.
 ## Running tests
 
 ```bash
-# Run all tests
-pytest tests/ -v
+# Run the tests of one folder. The whole tree in one run fails at
+# collection, and the database tests need scripts/test-db.sh.
+pytest tests/api -m "not ml" -v
 
 # Run tests for one service
 pytest tests/ingestion/ -v
@@ -1318,6 +1651,13 @@ pytest tests/ingestion/test_daily_report_parser.py -v
 
 # Skip ML-dependent tests (used in CI)
 pytest tests/ -m "not ml"
+
+# The database tests, against a throwaway PostGIS (needs Docker)
+bash scripts/test-db.sh
+PYTHON=/path/to/python bash scripts/test-db.sh -k fixed
 ```
-</content>
-</invoke>
+
+The database tests (`tests/db_ingestion`, `tests/db_api`) refuse any database
+but the throwaway one, because every test empties the tables. CI runs them in
+the `db` job of `.github/workflows/tests.yml` with the same PostGIS image as
+production.

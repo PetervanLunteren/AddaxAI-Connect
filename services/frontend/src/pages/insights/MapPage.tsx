@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { DetectionRateMap, type ViewMode } from '../../components/map';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
+import { useNoSiteText } from '../../components/sites/NoSiteNote';
 import {
   FilterBar,
   type FilterFieldDef,
@@ -34,6 +35,7 @@ import {
   type MapMetricId,
 } from '../../utils/map-metrics';
 import type { DetectionRateMapFilters } from '../../api/types';
+import { DEFAULT_RAMP, RATE_RAMPS, isRateRamp, type RateRamp } from '../../lib/heat-color-scale';
 
 import { LABELS_FIELD, LABELS_SCHEMA, labelSourceParam } from '../../lib/labels-filter';
 
@@ -45,6 +47,8 @@ const FILTER_SCHEMA: FilterSchema = {
   site_ids: 'string[]',
   species: 'string[]',
   view_mode: 'string',
+  // The colour ramp, a display choice: Clear all keeps it.
+  colours: 'string',
   ...LABELS_SCHEMA,
 };
 
@@ -75,6 +79,9 @@ export const InsightsMapPage: React.FC = () => {
   const viewMode = (parsed.view_mode === 'hexbins' || parsed.view_mode === 'clusters'
     ? parsed.view_mode
     : 'points') as ViewMode;
+  // No one ramp reads on every background, so it is a choice (as in
+  // AddaxAI desktop); Heat by default, it reads on satellite imagery too.
+  const ramp: RateRamp = isRateRamp(parsed.colours) ? parsed.colours : DEFAULT_RAMP;
   const rawMetric = asString(parsed.metric);
   const metricId: MapMetricId = Object.hasOwn(MAP_METRICS, rawMetric)
     ? (rawMetric as MapMetricId)
@@ -91,6 +98,7 @@ export const InsightsMapPage: React.FC = () => {
     date_to: endDate || undefined,
     view_mode: viewMode === 'points' ? undefined : viewMode,
     labels: labelSource,
+    colours: ramp === DEFAULT_RAMP ? undefined : ramp,
   };
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
@@ -101,7 +109,9 @@ export const InsightsMapPage: React.FC = () => {
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), { replace: true });
   };
   const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
-  const onClearAll = () => setSearchParams(new URLSearchParams(), { replace: true });
+  const onClearAll = () => writeAll(Object.fromEntries(
+    Object.keys(FILTER_SCHEMA).filter((k) => k !== 'colours').map((k) => [k, undefined]),
+  ));
 
   const { data: sites } = useQuery({
     queryKey: ['sites', projectId],
@@ -137,6 +147,8 @@ export const InsightsMapPage: React.FC = () => {
     }
     return ids.size === 0 ? '0' : Array.from(ids).join(',');
   }, [tagValues, siteIdValues, sites]);
+
+  const noSite = useNoSiteText(projectId, ['is not on this map', 'are not on this map'], siteIdsParam !== undefined);
 
   const mapFilters: DetectionRateMapFilters = useMemo(
     () => ({
@@ -229,6 +241,13 @@ export const InsightsMapPage: React.FC = () => {
           values={filterValues}
           onChange={onFilterChange}
           onClearAll={onClearAll}
+          displayControls={[{
+            key: 'colours',
+            label: 'Colours',
+            options: RATE_RAMPS.map((r) => ({ value: r.id, label: r.label })),
+          }]}
+          displayValues={{ colours: ramp }}
+          onDisplayChange={(_key, value) => writeAll({ colours: value === DEFAULT_RAMP ? undefined : value })}
         />
       </div>
       <div className="rounded-lg border bg-card p-4">
@@ -236,6 +255,8 @@ export const InsightsMapPage: React.FC = () => {
           filters={mapFilters}
           viewMode={viewMode}
           metric={metricId}
+          ramp={ramp}
+          captionExtra={noSite}
         />
       </div>
       <PlotExplainer
@@ -254,7 +275,9 @@ export const InsightsMapPage: React.FC = () => {
             are drawn: points show each site individually, hexbins aggregate
             nearby sites onto a hex grid, and clusters group nearby sites into
             a single circle showing the pooled value. Deployments with no site
-            are not shown.
+            are not shown, and neither are photos without a site (a camera
+            without GPS until its site is set); the line under the map says
+            how many.
           </p>
         }
         how={

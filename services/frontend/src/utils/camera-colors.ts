@@ -3,11 +3,13 @@
  * table, the camera status badge, and the sites map (which colours each site
  * by the worst camera there).
  */
+import { ALERT_COLOR } from '../components/map/marker-style';
 
-// Status colors matching the app's color palette
+// Status colors. Red is the shared alert red of the maps (marker-style.ts),
+// bright enough to read on satellite imagery too; the old dark red sank.
 export const STATUS_COLORS = {
   active: '#0f6064',
-  inactive: '#882000',
+  inactive: ALERT_COLOR,
   never_reported: '#71b7ba',
   // Grey on purpose, a retired camera is neither good nor bad news.
   retired: '#9ca3af',
@@ -32,15 +34,40 @@ export function getStatusColor(status: string): string {
   return STATUS_COLORS[status as keyof typeof STATUS_COLORS] || UNKNOWN_COLOR;
 }
 
+// The server's limits (LOW_BATTERY_PERCENT and SD_NEARLY_FULL_PERCENT in
+// shared/camera_status.py). Kept here for the colour scales only: the sites
+// map colours a site by its lowest battery, a number, not a camera. Every
+// warning and filter reads the camera flags instead.
+const LOW_BATTERY_PERCENT = 30;
+const SD_NEARLY_FULL_PERCENT = 80;
+
 /**
  * Get color for battery percentage
- * >70% = good (teal), 40-70% = medium (light teal), <40% = bad (red)
+ * >70% = good (teal), 30-70% = medium (light teal), <30% = low (red)
  */
 export function getBatteryColor(percentage: number | null): string {
   if (percentage === null) return UNKNOWN_COLOR;
   if (percentage > 70) return '#0f6064';
-  if (percentage > 40) return '#71b7ba';
-  return '#882000';
+  if (percentage >= LOW_BATTERY_PERCENT) return '#71b7ba';
+  return ALERT_COLOR;
+}
+
+/** SD card use: under 50% teal, up to 80% light teal, over 80% red. */
+export function getSdColor(percentage: number | null): string {
+  if (percentage === null) return UNKNOWN_COLOR;
+  if (percentage < 50) return '#0f6064';
+  if (percentage <= SD_NEARLY_FULL_PERCENT) return '#71b7ba';
+  return ALERT_COLOR;
+}
+
+/** How long ago a camera-clock time was: a day teal, a week light teal,
+ *  older red. */
+export function getTimestampColor(timestamp: string | null): string {
+  if (!timestamp) return UNKNOWN_COLOR;
+  const days = Math.floor((Date.now() - new Date(timestamp).getTime()) / 86400000);
+  if (days <= 1) return '#0f6064';
+  if (days <= 7) return '#71b7ba';
+  return ALERT_COLOR;
 }
 
 /**
@@ -51,7 +78,7 @@ export function getSignalColor(csq: number | null): string {
   if (csq === null) return UNKNOWN_COLOR;
   if (csq >= 15) return '#0f6064';
   if (csq >= 10) return '#71b7ba';
-  return '#882000';
+  return ALERT_COLOR;
 }
 
 /**
@@ -87,15 +114,15 @@ export function getLegendItems(colorBy: ColorByMetric): LegendItem[] {
     case 'battery':
       return [
         { color: '#0f6064', label: 'Good (>70%)' },
-        { color: '#71b7ba', label: 'Medium (40-70%)' },
-        { color: '#882000', label: 'Low (<40%)' },
+        { color: '#71b7ba', label: 'Medium (30-70%)' },
+        { color: ALERT_COLOR, label: 'Low (<30%)' },
         { color: UNKNOWN_COLOR, label: 'Unknown' },
       ];
     case 'signal':
       return [
         { color: '#0f6064', label: 'Good (\u226515)' },
         { color: '#71b7ba', label: 'Medium (10-15)' },
-        { color: '#882000', label: 'Poor (<10)' },
+        { color: ALERT_COLOR, label: 'Poor (<10)' },
         { color: UNKNOWN_COLOR, label: 'Unknown' },
       ];
   }

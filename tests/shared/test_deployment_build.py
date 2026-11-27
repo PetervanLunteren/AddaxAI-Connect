@@ -1,8 +1,6 @@
 """The rule that turns a camera's GPS readings into deployments.
 
-Plain Python, no database. The same rule runs inside live ingestion today
-(update_or_create_site_and_deployment); the local PostGIS tests prove the two
-agree, these pin the rule itself.
+Plain Python, no database.
 """
 import math
 from datetime import date, datetime
@@ -141,3 +139,159 @@ def test_the_pin_averages_across_the_antimeridian():
         Reading(2, at(2), 0.0, -179.9995),
     ])
     assert abs(abs(dep.lon) - 180.0) < 1e-6
+
+
+# Statements
+
+from shared.deployment_build import Statement  # noqa: E402
+
+SITE_A, SITE_B = 101, 102
+
+
+def test_a_closed_statement_is_one_deployment_whatever_the_gps_says():
+    """The GPS saw a move on day 10. A person says the camera stood at site A
+    from day 1 to day 20, so there is no move."""
+    deps = build_deployments(
+        readings((HOME, at(1)), (HOME, at(2)), (FAR, at(10)), (FAR, at(11))),
+        [Statement(1, SITE_A, at(1, hour=0), at(20, hour=0))],
+    )
+    [dep] = deps
+    assert dep.site_id == SITE_A and dep.statement_id == 1
+    assert (dep.start_at, dep.end_at) == (at(1, hour=0), at(20, hour=0))
+    assert dep.image_ids == [1, 2, 3, 4]
+    assert dep.reading_count == 4  # every reading inside is averaged in
+
+
+def test_after_a_closed_statement_the_walk_starts_again():
+    deps = build_deployments(
+        readings((HOME, at(2)), (FAR, at(12)), (FAR, at(13))),
+        [Statement(1, SITE_A, at(1, hour=0), at(10, hour=0))],
+    )
+    stated, gps = deps
+    assert stated.end_at == at(10, hour=0) and stated.image_ids == [1]
+    # The first reading after the period opens a deployment without a site.
+    assert gps.site_id is None and gps.start_at == at(12) and gps.image_ids == [2, 3]
+
+
+def test_a_gps_deployment_ends_where_a_statement_starts():
+    deps = build_deployments(
+        readings((HOME, at(1)), (HOME, at(5))),
+        [Statement(1, SITE_B, at(4, hour=0), at(9, hour=0))],
+    )
+    gps, stated = deps
+    assert gps.end_at == at(4, hour=0) and gps.image_ids == [1]
+    assert stated.image_ids == [2]
+
+
+def test_a_statement_without_readings_is_still_a_deployment():
+    """A camera without GPS: the statement alone places it."""
+    [dep] = build_deployments([], [Statement(1, SITE_A, at(3, hour=0))])
+    assert dep.site_id == SITE_A and dep.end_at is None
+    assert dep.lat is None and dep.reading_count == 0
+
+
+def test_an_open_statement_fixes_up_to_its_newest_photo_then_gps_carries_on():
+    """'It did not move' on day 12 keeps days 1 to 12 at site A, far readings
+    included. A real move after that is still seen."""
+    statement = Statement(1, SITE_A, at(1, hour=0), fixed_until_at=at(12))
+    elsewhere = offset(HOME, north_m=4000)
+    deps = build_deployments(
+        readings(
+            (HOME, at(1)), (FAR, at(10)), (FAR, at(12)),  # fixed: stays at A
+            (HOME, at(14)),  # near the pin of A: joins
+            (elsewhere, at(20)), (elsewhere, at(21)),  # a real move
+        ),
+        [statement],
+    )
+    stated, moved = deps
+    assert stated.site_id == SITE_A and stated.image_ids == [1, 2, 3, 4]
+    assert stated.end_at == at(20)
+    assert moved.site_id is None and moved.image_ids == [5, 6]
+
+
+def test_an_open_statement_without_fixed_part_lets_gps_cut_at_once():
+    deps = build_deployments(
+        readings((HOME, at(2)), (FAR, at(5)), (FAR, at(6))),
+        [Statement(1, SITE_A, at(1, hour=0))],
+    )
+    assert [d.site_id for d in deps] == [SITE_A, None]
+
+
+def test_a_newer_statement_wins_where_they_overlap():
+    deps = build_deployments(
+        readings((HOME, at(2)), (HOME, at(6)), (HOME, at(12))),
+        [
+            Statement(1, SITE_A, at(1, hour=0), at(20, hour=0)),
+            Statement(2, SITE_B, at(5, hour=0), at(10, hour=0)),
+        ],
+    )
+    assert [(d.site_id, d.start_at.day, d.end_at.day) for d in deps] == [
+        (SITE_A, 1, 5), (SITE_B, 5, 10), (SITE_A, 10, 20),
+    ]
+    assert [d.image_ids for d in deps] == [[1], [2], [3]]
+
+
+def test_an_older_statement_under_a_newer_open_one_is_cut_short():
+    deps = build_deployments(
+        [],
+        [Statement(1, SITE_A, at(1, hour=0)), Statement(2, SITE_B, at(10, hour=0))],
+    )
+    assert [(d.site_id, d.end_at) for d in deps] == [(SITE_A, at(10, hour=0)), (SITE_B, None)]
+
+
+def test_a_newer_statement_fully_over_an_older_one_hides_it():
+    deps = build_deployments(
+        [],
+        [Statement(1, SITE_A, at(5, hour=0), at(6, hour=0)), Statement(2, SITE_B, at(1, hour=0), at(10, hour=0))],
+    )
+    assert [d.site_id for d in deps] == [SITE_B]
+
+
+def test_an_empty_statement_states_nothing():
+    deps = build_deployments(readings((HOME, at(2))), [Statement(1, SITE_A, at(5, hour=0), at(5, hour=0))])
+    assert [d.site_id for d in deps] == [None]
+
+
+def test_a_reading_on_the_end_moment_belongs_to_what_comes_next():
+    deps = build_deployments(
+        readings((HOME, at(2)), (HOME, at(10, hour=0))),
+        [Statement(1, SITE_A, at(1, hour=0), at(10, hour=0))],
+    )
+    assert [d.image_ids for d in deps] == [[1], [2]]
+
+
+def test_closed_at_ends_a_retired_camera():
+    [dep] = build_deployments(readings((HOME, at(1)), (HOME, at(3))), closed_at=at(4))
+    assert dep.end_at == at(4) and dep.end_date == date(2026, 3, 3)
+
+
+def test_closed_at_never_ends_before_the_start():
+    [dep] = build_deployments(readings((HOME, at(5)),), closed_at=at(1))
+    assert dep.end_at == dep.start_at
+
+
+# Why the GPS rule cut.
+
+
+def test_a_move_keeps_how_far_how_many_and_when():
+    confirming = offset(FAR, north_m=20)
+    first, second = build_deployments(readings(
+        (HOME, at(1)), (FAR, at(10, hour=9)), (confirming, at(11)),
+    ))
+    assert first.move is None  # the first photos, no move
+    assert second.move is not None
+    assert second.move.readings == 2
+    assert second.move.first_at == at(10, hour=9) == second.start_at
+    # From the previous pin to the reading that confirmed the move.
+    assert abs(second.move.distance_m - math.dist((0, 0), (1500, 20))) < 2
+
+
+def test_no_move_inside_or_after_a_statement():
+    deps = build_deployments(
+        readings((HOME, at(2)), (FAR, at(5)), (FAR, at(6)), (FAR, at(12)), (FAR, at(13))),
+        [Statement(1, SITE_A, at(1, hour=0), at(10, hour=0))],
+    )
+    stated, after = deps
+    assert stated.move is None and stated.statement_id == 1
+    # After a closed period the walk starts fresh: a first deployment, no move.
+    assert after.move is None and after.statement_id is None

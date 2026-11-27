@@ -15,8 +15,8 @@ from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.storage import StorageObjectNotFound
 from auth.routes import get_auth_router
-from routers import admin, classification_models, logs, cameras, site_groups, camera_reference_images, service, images, image_admin, statistics, projects, devtools, ingestion_monitoring, project_images, project_taxonomy, project_documents, notifications, reminders, camera_alert_rules, detection_alert_rules, scheduled_reports, theft_watch_rules, users, export, species, bulk_upload, sites, deployments, feed, live_feed, integrations
-from routers import health as health_router
+from routers import admin, classification_models, logs, cameras, site_groups, camera_reference_images, service, images, image_admin, statistics, projects, devtools, ingestion_monitoring, project_images, project_taxonomy, project_documents, notifications, reminders, camera_alert_rules, detection_alert_rules, scheduled_reports, theft_watch_rules, users, export, species, bulk_upload, sites, deployments, live_feed, integrations
+from routers import health as health_router, todo as todo_router
 from middleware.logging import RequestLoggingMiddleware
 
 # Enable PIL to load truncated images from camera traps
@@ -195,7 +195,7 @@ app.include_router(classification_models.router)
 app.include_router(bulk_upload.router)
 app.include_router(sites.router)
 app.include_router(deployments.router)
-app.include_router(feed.router)
 app.include_router(integrations.router)
 app.include_router(live_feed.router)
 app.include_router(health_router.router)
+app.include_router(todo_router.router)

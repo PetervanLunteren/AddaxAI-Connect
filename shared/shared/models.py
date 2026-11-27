@@ -293,9 +293,13 @@ class Deployment(Base):
     """
     Deployment: one camera at one place for a time range.
 
-    Renamed from CameraDeploymentPeriod. A new deployment is created when:
-    - Camera GPS moves more than SITE_THRESHOLD_METERS from previous location
-    - First image/report received for a camera
+    The result of the GPS readings of the camera's photos plus the statements
+    people made (DeploymentStatement). Only rebuild_camera in
+    shared/deployment_rebuild.py makes and removes these rows and sets their
+    period, pin and photos; everything else writes a photo or a statement
+    and rebuilds. Two columns are written elsewhere: site_id by a site merge
+    (every row of the merged site goes to the target), and checked_at by
+    the answer to a suspicious deployment.
 
     Used for:
     - Effort-corrected detection rate calculations (trap-days)
@@ -313,23 +317,105 @@ class Deployment(Base):
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
-    # 'auto' = site assigned by GPS clustering; 'manual' = a human assigned it.
-    # A label only (drives the GPS-guessed vs human-confirmed badge and filter
-    # on the Deployments page); it does not change ingestion behavior.
+    # 'manual' = a statement made this deployment (a person's correction, an
+    # upload to a site, the carried-over history), 'auto' = the GPS did. Set
+    # by the rebuild. Rules that read it: a site's pin only follows 'auto'
+    # deployments (shared/geo.py), the rebuild keeps the site of an 'auto'
+    # row, only an 'auto' deployment can be a short trip
+    # (shared/deployment_queries.py), and an edit replaces statements only
+    # on a 'manual' one (utils/deployment_edits.py).
     site_source = Column(String(16), nullable=False, server_default='auto')
+    # The period is [start_at, end_at), camera clock, naive, like
+    # images.captured_at. end_at NULL = the camera still stands there. The two
+    # dates follow from the times (BuiltDeployment.start_date and end_date in
+    # shared/deployment_build.py) and are what effort and exports read.
+    start_at = Column(DateTime(timezone=False), nullable=False)
+    end_at = Column(DateTime(timezone=False), nullable=True)
+    # Capture time of the newest photo on the deployment, NULL without photos.
+    # Ends the effort of an open deployment, see shared/effort.py.
+    last_photo_at = Column(DateTime(timezone=False), nullable=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment
+    # A person typed this deployment's last day (Edit or Add deployment), so
+    # effort counts to end_date and not to the last photo, see
+    # shared/effort.py. Set by the rebuild from the statement that ends the
+    # deployment (keeps_end). False when the GPS, an upload or the
+    # carried-over history made the end.
+    last_day_set = Column(Boolean, nullable=False, server_default='false')
     location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)
     # How many GPS readings `location` averages. The pin is the running mean of
     # the deployment's within-threshold photo readings (see shared.geo.
     # next_mean_pin), so it converges on the true spot instead of staying
-    # anchored on the first fix. Starts at 1 (the creation reading).
+    # anchored on the first fix. 0 for a stated deployment without readings.
     gps_reading_count = Column(Integer, nullable=False, server_default='1')
+    # When and by whom a person said a suspicious deployment is right. NULL =
+    # nobody answered. Saying it is right fixes nothing: the GPS can still
+    # change the deployment later. Only a statement does that.
+    checked_at = Column(DateTime(timezone=True), nullable=True)
+    checked_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     # Relationships
     site = relationship("Site", back_populates="deployments")
+
+
+class DeploymentStatement(Base):
+    """
+    A decision about where a camera stood: this camera, this site, this period.
+
+    Deployments are rebuilt per camera from the GPS readings of its photos
+    plus these rows (shared/deployment_rebuild.py). A statement overrules the
+    GPS for its period. What a statement says is never edited: a newer statement
+    wins over an older one where they overlap, and taking a decision back
+    sets removed_at (Undo of an edit clears it again on what the edit
+    replaced), so the table is also the history of every correction. A site
+    merge moves the site_id of the merged site's statements to the target.
+
+    A statement fixes the past, not the future. With until_at it is exactly
+    that period. Without, the camera is still there: everything up to
+    fixed_until_at (the camera's newest photo when the statement was made) is
+    fixed, and after that the GPS rule carries on from there.
+    """
+    __tablename__ = "deployment_statements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    # RESTRICT: a site that statements point at cannot be deleted. Merge it
+    # into another site, or move its deployments, first.
+    site_id = Column(Integer, ForeignKey("sites.id", ondelete="RESTRICT"), nullable=False, index=True)
+    # Camera clock, naive, like images.captured_at.
+    from_at = Column(DateTime(timezone=False), nullable=False)
+    until_at = Column(DateTime(timezone=False), nullable=True)
+    fixed_until_at = Column(DateTime(timezone=False), nullable=True)
+    # Set on a statement an edit of its deployment replaced (removed_at is set
+    # then too): the statement that replaced it. Undo of that one brings this
+    # one back, so an edit is undone to what was there before.
+    replaced_by_statement_id = Column(Integer, ForeignKey("deployment_statements.id", ondelete="SET NULL"), nullable=True)
+    # A day a person typed: the first day (keeps_start) or the last day
+    # (keeps_end) changed in Edit deployment, or the last day given in Add
+    # deployment. The deployment never joins a neighbour at the same site
+    # across such an end. Shortening a deployment then splits it in two, also
+    # when the GPS finds the same site for the rest, and each part can be
+    # edited. An end left as it was still joins, so changing only the site of
+    # a false trip folds it back into one. keeps_end is also what makes
+    # effort count to the last day (deployments.last_day_set). False for
+    # "It stayed", uploads and the carried-over history.
+    keeps_start = Column(Boolean, nullable=False, server_default="false")
+    keeps_end = Column(Boolean, nullable=False, server_default="false")
+    # What a person changed with it in Edit or Add deployment, for the line
+    # on the deployment card: "site", "first_day" and "last_day", comma
+    # separated ("site,last_day"). NULL for every other statement (uploads,
+    # "It stayed", the carried-over history, corrections before this).
+    changes = Column(String(32), nullable=True)
+    # 'person' = a correction in the app, 'upload' = an upload to a chosen
+    # site, 'carried_over' = written once by scripts/carry_over_deployments.py
+    # to keep the history from before statements existed as it was.
+    source = Column(String(16), nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    removed_at = Column(DateTime(timezone=True), nullable=True)
+    removed_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
 
 class CameraHealthReport(Base):
@@ -945,50 +1031,23 @@ class Rejection(Base):
     )
 
 
-class FeedEvent(Base):
-    """
-    One entry in a project's camera updates feed.
+class TodoDismissal(Base):
+    """A Needs attention line one person dismissed (services/api/utils/todo.py).
 
-    Written by ingestion when a deployment is created: a camera sent its first
-    image (camera_first_seen), or a confirmed relocation opened a new
-    deployment (camera_moved). Entries report what the system already did;
-    they never block ingestion. Each entry has one shared state: needs review
-    (resolved_action NULL) or reviewed. A project admin reviews it by
-    correcting it (rename the site, pick another site, split off a new site,
-    undo a move) or by confirming it as is; that stamps the resolved_*
-    columns for everyone. No personal read state on purpose.
+    The line stays in their list as a quiet row and is not counted on the
+    icon, until an item appears that is not in `keys` (a camera, move, task
+    or file id). The API keeps only the keys that are still in the line, so
+    an item that left and comes back is new again. project_id is NULL for a
+    server line. One row per person and line.
     """
-    __tablename__ = "feed_events"
+    __tablename__ = "todo_dismissals"
 
-    id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
-    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
-    event_type = Column(String(30), nullable=False)  # 'camera_first_seen' | 'camera_moved'
-    # The deployment the event created and the site it was put on. SET NULL
-    # so entries survive later merges and site deletions (they then render
-    # read-only where an action needs the missing row).
-    deployment_id = Column(Integer, ForeignKey("deployments.id", ondelete="SET NULL"), nullable=True)
-    site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True)
-    # Where the camera stood before a move. NULL for camera_first_seen.
-    from_site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True)
-    distance_m = Column(Float, nullable=True)  # move distance; NULL for camera_first_seen
-    # Whether the site was auto-created for this deployment (vs an existing
-    # site reused). Drives the entry copy, and the "new site" action only
-    # shows when the site already existed.
-    site_created = Column(Boolean, nullable=False, server_default='false')
-    # The site's name when the event happened, frozen. The live name can be
-    # renamed later; the entry must keep saying what the site was called at
-    # the time ("automatically named Site at 53.2460, 5.2620").
-    original_site_name = Column(String(255), nullable=True)
-    # Server wall-clock (aware UTC), the feed sort key and unseen-badge cutoff.
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
-    # Which action a human took on this entry, if any. Re-resolving is allowed
-    # (a user can change their mind); the last action wins.
-    # 'rename_site' | 'set_site' | 'new_site' | 'not_moved' | 'confirmed'
-    # ('confirmed' = nothing to change, closes the entry without side effects)
-    resolved_action = Column(String(20), nullable=True)
-    resolved_at = Column(DateTime(timezone=True), nullable=True)
-    resolved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
+    kind = Column(String(50), nullable=False)
+    keys = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class TelegramConfig(Base):
@@ -1020,6 +1079,10 @@ class ServerSettings(Base):
     # purpose: the security state belongs to the machine, not to a project, and
     # only a server admin can act on it. Default TRUE.
     notify_security_failures = Column(Boolean, nullable=False, server_default="true")
+    # When scripts/carry_over_deployments.py turned the deployments from
+    # before statements existed into statements. It runs once per server;
+    # NULL = not yet.
+    deployments_carried_over_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

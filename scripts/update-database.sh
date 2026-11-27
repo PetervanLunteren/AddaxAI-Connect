@@ -1,9 +1,9 @@
 #!/bin/bash
-# Update database with Alembic migrations and backfill data
-# This script applies migrations and populates derived tables (e.g. deployment periods).
+# Update the database: stop the app, apply the Alembic migrations, run the
+# data scripts that belong to them, start the app again.
 # Safe to run multiple times. For development: generate migrations locally, commit them, then deploy.
 
-set -e
+set -eo pipefail
 
 echo "Building API service with shared library..."
 docker compose build --no-cache api
@@ -28,6 +28,29 @@ else
     echo "Using existing migrations from version control..."
 fi
 
+# The app stops while the migrations run. They run in one transaction and take
+# exclusive locks on many tables, so a service reading the database at the same
+# moment can take its locks in the other order: Postgres then ends the
+# migration with a deadlock and the new code runs on the old schema. Seen on
+# dev in 2 of 10 restores on 26 Nov 2026, while the workers processed photos.
+# Only the stores the migration needs keep running. Photos that arrive in this
+# minute wait in uploads/ and ingestion takes them in when it starts again.
+# The app stays stopped until the two scripts below are done as well: a photo
+# taken in before the carry-over rebuilds its camera from the GPS alone, and
+# the hand corrections of before this release are then lost for good.
+# Starting everything at the end also does what three restarts did
+# before: api builds its connection pool and cached statements on the new
+# schema (drenthe served 185 UndefinedColumn errors on 18 Aug 2026 until api
+# restarted), bulk-upload recovers interrupted jobs on it (v0.14.0), and
+# ingestion takes in waiting uploads on it (drenthe kept 14 on 11 Nov 2026).
+APP_SERVICES=$(docker compose ps --services --status running | grep -vxF -e postgres -e redis -e minio || true)
+if [ -n "$APP_SERVICES" ]; then
+    echo ""
+    echo "Stopping the app while the database migrates: $(echo $APP_SERVICES)"
+    trap 'echo ""; echo "The update failed. The app is stopped; fix the cause and run this script again."' ERR
+    docker compose stop $APP_SERVICES > /dev/null
+fi
+
 echo ""
 echo "Applying migrations..."
 # Mount the alembic/versions directory so migration files are accessible
@@ -38,31 +61,15 @@ echo "✅ Database initialized! Checking tables..."
 docker exec addaxai-postgres psql -U addaxai -d addaxai_connect -c '\dt'
 
 echo ""
-echo "Backfilling deployment periods from image GPS data..."
-docker compose exec -T api python /app/scripts/backfill_deployment_periods.py
-
-echo ""
-echo "Backfilling sites from deployments and linking images to deployments..."
-# Must run after the deployment backfill, since sites are clustered from
-# deployment rows. Idempotent: deployments that already have a site are left
-# untouched, so this is safe on every update.
-docker compose exec -T api python /app/scripts/backfill_sites.py
-
-echo ""
-echo "Cleaning up empty deployment debris..."
-# Removes closed, zero-image deployments left by the pre-fix ingestion bug
-# (daily reports with GPS but no photo opened a deployment that closed before
-# any image landed). Conservative: only deletes deployments nothing references,
-# so a healthy server finds nothing to remove. Runs last, after sites are built.
-docker compose exec -T api python /app/scripts/cleanup_empty_deployments.py
-
-echo ""
-echo "Merging contiguous same-site deployments left by old GPS splits..."
-# Collapses a camera's adjacent same-site deployments that have no real gap (the
-# (0,0) split also cut one real placement into a before/after pair). Conservative
-# and idempotent: a genuine remove-and-redeploy has a multi-day gap and is never
-# merged, so a healthy server merges nothing.
-docker compose exec -T api python /app/scripts/merge_contiguous_deployments.py
+echo "Carrying deployments over to statements (once per server)..."
+# Deployments are rebuilt from photo GPS plus statements. Older history
+# that does not follow from the GPS alone (hand corrections, uploads to a site,
+# older rules) becomes statements, so no deployment changes. Runs once: it
+# records the run in server_settings and does nothing on later updates. The
+# report stays in logs/, also when restore.sh
+# runs this script without output.
+mkdir -p logs
+docker compose run --rm -T api python /app/scripts/carry_over_deployments.py --apply | tee logs/carry-over-deployments.txt
 
 echo ""
 echo "Moving legacy camera tags onto their sites..."
@@ -70,36 +77,13 @@ echo "Moving legacy camera tags onto their sites..."
 # Site now. Moves each camera's tags to every site it deploys to, then clears
 # the camera. Runs last, after sites are final. Idempotent: once moved the tags
 # are gone from the camera, so a healthy server moves nothing on the next run.
-docker compose exec -T api python /app/scripts/backfill_camera_tags_to_sites.py
+docker compose run --rm -T api python /app/scripts/backfill_camera_tags_to_sites.py
 
-echo ""
-# An update rebuilds the containers before it migrates, so the api's connection
-# pool and its asyncpg prepared statements are built against the old schema.
-# Adding a column afterwards does not reach those cached statements: every
-# request touching the changed table keeps failing with UndefinedColumn, and it
-# never heals on its own. drenthe served 185 such errors on 18 Aug 2026, still
-# climbing an hour after the migration, and stopped the moment api restarted.
-# restore.sh has always done this at its own end; this is the same line.
-echo "Restarting api to pick up the new schema..."
-docker compose restart api > /dev/null
-
-# The bulk upload worker recovers stuck jobs once, at startup, which lands in
-# that same window: with v0.14.0 the recovery hit a column the migration had
-# not added yet, logged an error and gave up, so a job interrupted by the
-# update stayed stuck. Restarting after the migration reruns the recovery on
-# the new schema. Only where it runs, demo's profile has no bulk upload.
-if docker compose ps --services --status running | grep -qx bulk-upload; then
-  echo "Restarting bulk-upload to recover interrupted jobs on the new schema..."
-  docker compose restart bulk-upload > /dev/null
-fi
-
-# Ingestion takes in waiting files once, at startup, which lands in the same
-# window: a photo that arrives before the migration fails on the old schema
-# and stays in uploads/. drenthe kept 14 that way on 11 Nov 2026. Restarting
-# after the migration takes them in on the new schema. demo runs no ingestion.
-if docker compose ps --services --status running | grep -qx ingestion; then
-  echo "Restarting ingestion to take in uploads that waited for the new schema..."
-  docker compose restart ingestion > /dev/null
+if [ -n "$APP_SERVICES" ]; then
+    echo ""
+    echo "Starting the app again..."
+    docker compose start $APP_SERVICES > /dev/null
+    trap - ERR
 fi
 
 echo ""

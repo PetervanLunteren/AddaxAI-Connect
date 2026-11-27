@@ -5,21 +5,20 @@
  * are. Toggling selects or deselects the visible rows only, leaving rows
  * hidden by the current filters untouched.
  */
-import React from 'react';
 
-interface SelectAllCheckboxProps {
-  visibleIds: number[];
-  selected: Set<number>;
-  onToggle: (ids: number[], on: boolean) => void;
+interface SelectAllCheckboxProps<K> {
+  visibleIds: K[];
+  selected: Set<K>;
+  onToggle: (ids: K[], on: boolean) => void;
   ariaLabel: string;
 }
 
-export const SelectAllCheckbox: React.FC<SelectAllCheckboxProps> = ({
+export function SelectAllCheckbox<K = number>({
   visibleIds,
   selected,
   onToggle,
   ariaLabel,
-}) => {
+}: SelectAllCheckboxProps<K>) {
   const allSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
   const someSelected = visibleIds.some((id) => selected.has(id));
@@ -36,4 +35,4 @@ export const SelectAllCheckbox: React.FC<SelectAllCheckboxProps> = ({
       className="w-4 h-4 cursor-pointer accent-primary"
     />
   );
-};
+}

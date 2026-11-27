@@ -12,7 +12,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { usePersistedFilterParams } from '../../lib/use-persisted-filter-params';
-import { Info, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { sitesApi } from '../../api/sites';
@@ -24,6 +24,7 @@ import type {
   TimeAxis,
 } from '../../api/types';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
+import { CardCaption } from '../../components/ui/CardCaption';
 import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
 import {
   ActivityOverlapChart,
@@ -324,20 +325,16 @@ export const ActivityOverlapPage: React.FC = () => {
             <div className="h-[420px]">
               <ActivityOverlapChart data={data} />
             </div>
-            <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <Info className="h-3.5 w-3.5 shrink-0" />
-              <span>Timezone {data.project_timezone}</span>
-              <span aria-hidden="true">·</span>
-              <span>Independence interval {data.independence_interval_minutes_recorded} min</span>
-              <span aria-hidden="true">·</span>
-              <span>Axis {data.time_axis === 'sun' ? 'sun (Vazquez 2019 anchored)' : 'clock'}</span>
-              {data.time_axis === 'clock' && data.sun_bands_reference_date && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>Sun bands drawn for {data.sun_bands_reference_date}</span>
-                </>
-              )}
-            </div>
+            <CardCaption
+              className="mt-3"
+              parts={[
+                `Timezone ${data.project_timezone}`,
+                `Independence interval ${data.independence_interval_minutes_recorded} min`,
+                `Axis ${data.time_axis === 'sun' ? 'sun (Vazquez 2019 anchored)' : 'clock'}`,
+                data.time_axis === 'clock' && data.sun_bands_reference_date
+                  && `Sun bands drawn for ${data.sun_bands_reference_date}`,
+              ]}
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

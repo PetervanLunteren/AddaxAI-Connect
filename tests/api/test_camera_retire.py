@@ -2,10 +2,11 @@
 
 What this guards:
 
-1. The retire helper closes the open placement at the last photo (never
-   before the placement started, today when there is no photo), stamps
-   retired_at and removes the open service tasks. Without the close the old
-   project keeps counting trap days for a camera that left.
+1. The retire helper stamps retired_at, rebuilds the camera's deployments
+   and removes the open service tasks. The rebuild closes the open
+   deployment at the day of the last photo (tests/shared/test_deployment_build.py,
+   closed_at). Without the close the old project keeps counting trap days for
+   a camera that left.
 
 2. Storage cleanup goes per image, never by camera prefix. A retired camera
    and its re-registration share one device id, so a prefix wipe for the new
@@ -20,7 +21,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,7 @@ _api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "serv
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from shared.models import Camera, Deployment  # noqa: E402
+from shared.models import Camera  # noqa: E402
 from routers.cameras import (  # noqa: E402
     ImageRef,
     _delete_camera_storage,
@@ -39,7 +40,6 @@ from routers.cameras import (  # noqa: E402
 import routers.cameras as cameras_module  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
-TODAY = date(2026, 10, 13)
 
 
 class _Scalar:
@@ -69,6 +69,9 @@ class _FakeSession:
         self._deleted_tasks = deleted_tasks
         self.statements = []
 
+    async def flush(self):
+        self.statements.append("FLUSH")
+
     async def execute(self, query, params=None):
         sql = str(query).strip()
         self.statements.append(sql)
@@ -81,53 +84,38 @@ def _camera(camera_id: int = 1) -> Camera:
     return Camera(id=camera_id, device_id="CAM-1", project_id=1)
 
 
-def _open_deployment(start: date) -> Deployment:
-    return Deployment(id=10, camera_id=1, deployment_number=1, start_date=start, end_date=None)
+@pytest.fixture
+def rebuilt(monkeypatch):
+    """The camera ids the retire helper rebuilt."""
+    seen = []
+
+    async def fake_rebuild(db, camera_ids):
+        seen.extend(camera_ids)
+
+    monkeypatch.setattr(cameras_module, "rebuild", fake_rebuild)
+    return seen
 
 
 class TestRetireCamera:
     @pytest.mark.asyncio
-    async def test_stamps_retired_at_as_aware_utc(self):
+    async def test_stamps_retired_at_as_aware_utc(self, rebuilt):
         camera = _camera()
-        await _retire_camera(_FakeSession(), camera, TODAY)
+        await _retire_camera(_FakeSession(), camera)
         assert camera.retired_at is not None
         assert camera.retired_at.tzinfo is not None
 
     @pytest.mark.asyncio
-    async def test_closes_the_open_placement_at_the_last_photo(self):
-        deployment = _open_deployment(date(2026, 3, 1))
-        last_photo = datetime(2026, 9, 20, 14, 30)  # naive camera clock
-        db = _FakeSession(selects=[deployment, last_photo])
-        await _retire_camera(db, _camera(), TODAY)
-        assert deployment.end_date == date(2026, 9, 20)
+    async def test_rebuilds_the_camera_after_the_stamp_is_saved(self, rebuilt):
+        """The rebuild reads retired_at from the database, so the flush comes first."""
+        db = _FakeSession()
+        await _retire_camera(db, _camera(7))
+        assert rebuilt == [7]
+        assert db.statements[0] == "FLUSH"
 
     @pytest.mark.asyncio
-    async def test_never_closes_before_the_placement_started(self):
-        """A bulk upload can leave a placement that starts after the last
-        live photo. end before start would be a negative trap-day count."""
-        deployment = _open_deployment(date(2026, 10, 1))
-        db = _FakeSession(selects=[deployment, datetime(2026, 9, 20, 8, 0)])
-        await _retire_camera(db, _camera(), TODAY)
-        assert deployment.end_date == date(2026, 10, 1)
-
-    @pytest.mark.asyncio
-    async def test_closes_today_when_the_camera_never_sent_a_photo(self):
-        deployment = _open_deployment(date(2026, 10, 1))
-        db = _FakeSession(selects=[deployment, None])
-        await _retire_camera(db, _camera(), TODAY)
-        assert deployment.end_date == TODAY
-
-    @pytest.mark.asyncio
-    async def test_no_open_placement_is_fine(self):
-        db = _FakeSession(selects=[None])
-        await _retire_camera(db, _camera(), TODAY)
-        # Only the deployment lookup and the task delete ran, no max query.
-        assert len(db.statements) == 2
-
-    @pytest.mark.asyncio
-    async def test_returns_how_many_open_tasks_went(self):
-        db = _FakeSession(selects=[None], deleted_tasks=3)
-        assert await _retire_camera(db, _camera(), TODAY) == 3
+    async def test_returns_how_many_open_tasks_went(self, rebuilt):
+        db = _FakeSession(deleted_tasks=3)
+        assert await _retire_camera(db, _camera()) == 3
         assert any("camera_service_tasks" in s for s in db.statements if s.upper().startswith("DELETE"))
 
 

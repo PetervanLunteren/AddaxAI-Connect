@@ -18,6 +18,7 @@ from shared.classification_threshold import (
     CLASSIFICATION_THRESHOLD_FILTER_SQL,
     effective_classification_threshold,
 )
+from shared import effort
 from shared.database import get_async_session
 from shared.label_source import DEFAULT_LABEL_SOURCE, LabelSource, label_scope
 from auth.users import current_verified_user
@@ -74,6 +75,7 @@ from shared.independence_filter import (
     get_group_size_distribution,
     summarize_group_sizes,
 )
+from utils.server_time import get_server_timezone
 
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
@@ -148,12 +150,6 @@ async def _server_now(db: AsyncSession) -> datetime:
     return datetime.now(tz).replace(tzinfo=None)
 
 
-async def get_server_timezone(db: AsyncSession) -> str:
-    """Re-export of the canonical helper from routers.admin so other
-    activity-overlap-style endpoints can resolve the tz without a circular
-    import dance at call sites."""
-    from routers.admin import get_server_timezone as _impl
-    return await _impl(db)
 
 
 class StatisticsOverview(BaseModel):
@@ -472,7 +468,6 @@ async def get_last_update(
         return LastUpdateResponse(last_update=None)
 
     # Camera-clock naive datetime, interpret under the server's declared tz, serialize as UTC.
-    from routers.admin import get_server_timezone
     server_tz = await get_server_timezone(db)
     utc_dt = captured_at.replace(tzinfo=ZoneInfo(server_tz)).astimezone(timezone.utc)
     return LastUpdateResponse(last_update=utc_dt.isoformat())
@@ -648,14 +643,9 @@ async def fetch_site_buckets(
             FROM deployments cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             LEFT JOIN images i ON
-                i.camera_id = cdp.camera_id
+                i.deployment_id = cdp.id
                 AND {verified_scope}
                 AND i.is_hidden = FALSE
-                -- Half-open range on the raw timestamp rather than casting
-                -- every row to a date. Same rows, one less conversion per
-                -- image, and there are three of these joins over 58k images.
-                AND i.captured_at >= cdp.start_date
-                AND (cdp.end_date IS NULL OR i.captured_at < cdp.end_date + INTERVAL '1 day')
             LEFT JOIN human_observations ho ON ho.image_id = i.id
             WHERE c.project_id = ANY(:project_ids)
               AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
@@ -685,14 +675,9 @@ async def fetch_site_buckets(
             INNER JOIN cameras c ON cdp.camera_id = c.id
             INNER JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i ON
-                i.camera_id = cdp.camera_id
+                i.deployment_id = cdp.id
                 AND {ai_scope}
                 AND i.is_hidden = FALSE
-                -- Half-open range on the raw timestamp rather than casting
-                -- every row to a date. Same rows, one less conversion per
-                -- image, and there are three of these joins over 58k images.
-                AND i.captured_at >= cdp.start_date
-                AND (cdp.end_date IS NULL OR i.captured_at < cdp.end_date + INTERVAL '1 day')
             LEFT JOIN detections d ON d.image_id = i.id
             LEFT JOIN classifications cl ON cl.detection_id = d.id
             WHERE c.project_id = ANY(:project_ids)
@@ -716,14 +701,9 @@ async def fetch_site_buckets(
             INNER JOIN cameras c ON cdp.camera_id = c.id
             INNER JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i ON
-                i.camera_id = cdp.camera_id
+                i.deployment_id = cdp.id
                 AND {ai_scope}
                 AND i.is_hidden = FALSE
-                -- Half-open range on the raw timestamp rather than casting
-                -- every row to a date. Same rows, one less conversion per
-                -- image, and there are three of these joins over 58k images.
-                AND i.captured_at >= cdp.start_date
-                AND (cdp.end_date IS NULL OR i.captured_at < cdp.end_date + INTERVAL '1 day')
             LEFT JOIN detections d ON d.image_id = i.id AND d.category IN ('person', 'vehicle')
             WHERE c.project_id = ANY(:project_ids)
               AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
@@ -765,10 +745,7 @@ async def fetch_site_buckets(
                 s.name as site_name,
                 ST_X(s.location::geometry) as lon,
                 ST_Y(s.location::geometry) as lat,
-                COALESCE(
-                    (cdp.end_date - cdp.start_date + 1),
-                    (CURRENT_DATE - cdp.start_date + 1)
-                ) as trap_days
+                {trap_days} as trap_days
             FROM deployments cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             INNER JOIN sites s ON s.id = cdp.site_id
@@ -792,12 +769,15 @@ async def fetch_site_buckets(
             COALESCE(cc.detection_count, 0) as detection_count
         FROM deployment_info di
         LEFT JOIN combined_counts cc ON cc.deployment_id = di.deployment_id
-        ORDER BY di.site_id, di.camera_id, di.deployment_number
+        ORDER BY di.site_id, di.camera_id, di.start_date, di.deployment_id
     """
 
     # Execute query
     result = await db.execute(
-        text(query_sql.format(verified_scope=scope.verified_sql, ai_scope=scope.ai_sql)),
+        text(query_sql.format(
+            verified_scope=scope.verified_sql, ai_scope=scope.ai_sql,
+            trap_days=effort.days_sql("cdp", "CAST(:start_date AS date)", "CAST(:end_date AS date)"),
+        )),
         {
             "species_list": species_list,
             "start_date": start_date,
@@ -1076,7 +1056,6 @@ async def get_activity_pattern(
     # timezone from GPS would silently override the user's choice). The
     # bands need a single project to be meaningful; cross-project view
     # falls back to the frontend's hardcoded ranges.
-    from routers.admin import get_server_timezone
     server_tz = await get_server_timezone(db)
 
     sun_bands: Optional[SunBands] = None
@@ -1201,6 +1180,8 @@ async def get_detection_trend(
 
     Prefers human observations for verified images, falls back to AI for unverified.
     No date filter means all-time, same as the other dashboard endpoints.
+    Only photos with a site count: the chart divides by trap effort, which
+    only knows deployments, so photos without a site would raise the rate.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
@@ -1222,6 +1203,7 @@ async def get_detection_trend(
             end_date=end_dt,
             site_ids=site_id_list,
             source=source,
+            placed_only=True,
         )
     else:
         daily_data = await get_preferred_daily_trend(
@@ -1232,6 +1214,7 @@ async def get_detection_trend(
             end_date=end_dt,
             site_ids=site_id_list,
             source=source,
+            placed_only=True,
         )
 
     return [
@@ -1308,8 +1291,8 @@ async def get_trap_effort(
         active_periods AS (
             SELECT
                 cdp.id,
-                cdp.start_date,
-                COALESCE(cdp.end_date, CURRENT_DATE) AS end_date
+                {first_day} AS start_date,
+                {last_day} AS end_date
             FROM deployments cdp
             JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = ANY(CAST(:project_ids AS integer[]))
@@ -1327,7 +1310,7 @@ async def get_trap_effort(
            AND ap.end_date >= days.d
         GROUP BY days.d
         ORDER BY days.d;
-    """)
+    """.format(first_day=effort.first_day_sql("cdp"), last_day=effort.last_day_sql("cdp")))
 
     result = await db.execute(sql, params)
     rows = result.mappings().all()

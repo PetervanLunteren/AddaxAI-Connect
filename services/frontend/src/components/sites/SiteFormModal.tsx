@@ -23,6 +23,7 @@ import { Button } from '../ui/Button';
 import { SiteLocationPicker } from './SiteLocationPicker';
 import { sitesApi, type SiteDetail, type SiteListItem } from '../../api/sites';
 import { useToast } from '../ui/Toaster';
+import { errorDetail } from '../../lib/utils';
 
 interface Props {
   open: boolean;
@@ -36,11 +37,6 @@ interface Props {
 
 const inputClass =
   'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring';
-
-function errMsg(err: unknown): string {
-  const e = err as { response?: { data?: { detail?: string } }; message?: string };
-  return e?.response?.data?.detail || e?.message || 'Unknown error';
-}
 
 export const SiteFormModal: React.FC<Props> = ({
   open,
@@ -92,7 +88,7 @@ export const SiteFormModal: React.FC<Props> = ({
       onCreated?.(site);
       onClose();
     },
-    onError: (err) => toast.error(`Could not create site, ${errMsg(err)}`),
+    onError: (err) => toast.error(`Could not create site, ${errorDetail(err)}`),
   });
 
   const handleClose = () => {

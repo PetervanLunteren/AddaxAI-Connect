@@ -30,6 +30,7 @@ the upgrade path if manual re-runs ever become a tool.
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import date, datetime, timedelta, timezone
 
+from shared import effort
 from sqlalchemy import select, text
 
 from shared.logger import get_logger
@@ -313,23 +314,13 @@ def eligibility_skip_reason(user, membership_role, membership_site_ids) -> Optio
 
 
 def get_site_effort(db, project_id: int, start: date, end: date) -> List[Dict[str, Any]]:
-    """Every site of the project with its trap-days clipped to the period.
-
-    Open-ended deployments are clipped to the period end, which always
-    lies in the past, so nothing here depends on the database server's
-    own date or timezone. The inverted-date guard mirrors the map
-    endpoint's defense against zombie rows.
-    """
-    query = text("""
+    """Every site of the project with its trap-days clipped to the period,
+    by the one effort rule (shared/effort.py)."""
+    query = text(f"""
         SELECT s.id AS site_id, s.name AS site_name,
-               COALESCE(SUM(GREATEST(0,
-                   LEAST(COALESCE(dep.end_date, :period_end), :period_end)
-                   - GREATEST(dep.start_date, :period_start) + 1)), 0)::int AS trap_days
+               COALESCE(SUM({effort.days_sql("dep", "CAST(:period_start AS date)", "CAST(:period_end AS date)")}), 0)::int AS trap_days
         FROM sites s
         LEFT JOIN deployments dep ON dep.site_id = s.id
-            AND dep.start_date <= :period_end
-            AND COALESCE(dep.end_date, :period_end) >= :period_start
-            AND (dep.end_date IS NULL OR dep.end_date >= dep.start_date)
         WHERE s.project_id = :project_id
         GROUP BY s.id, s.name
         ORDER BY s.name

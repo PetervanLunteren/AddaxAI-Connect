@@ -23,10 +23,11 @@ unit tests without an app context.
 """
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
+from shared.deployment_queries import current_deployments, site_on
 from shared.models import Camera, Deployment, Image, Site
 
 
@@ -71,6 +72,41 @@ def site_image_clause(site_id_list: List[int]):
     )
 
 
+# The word in a site filter that asks for photos without a site (no
+# deployment yet: a camera without GPS until a person sets its site).
+NO_SITE = "none"
+
+
+def parse_site_filter(value: Optional[str]) -> tuple[Optional[List[int]], bool]:
+    """Split a comma-separated site filter into site ids and "no site".
+
+    "3,none" gives ([3], True); "" or None gives (None, False). Ids are
+    None, not [], when none were given, so "no filter" stays apart from
+    "matches nothing".
+    """
+    parts = [p.strip() for p in (value or "").split(",") if p.strip()]
+    ids = [int(p) for p in parts if p != NO_SITE]
+    return (ids or None), NO_SITE in parts
+
+
+def image_site_filter(scope: Optional[List[int]], value: Optional[str]):
+    """The site filter of an image list, or None for no filter.
+
+    value is the comma-separated site_id parameter, which may hold
+    NO_SITE for photos without a site. A viewer with a site list never
+    sees those (site_image_clause fails closed), so for them NO_SITE asks
+    for nothing: "none" alone matches nothing, never their whole list.
+    """
+    ids, asked_no_site = parse_site_filter(value)
+    # "none" alone is still a filter: [] matches no site.
+    requested = ids if ids is not None else ([] if asked_no_site else None)
+    effective = intersect_scope(scope, requested)
+    if asked_no_site and scope is None:
+        unplaced = Image.deployment_id.is_(None)
+        return or_(site_image_clause(effective), unplaced) if effective else unplaced
+    return site_image_clause(effective) if effective is not None else None
+
+
 def cameras_at_sites_clause(site_id_list: List[int]):
     """Restrict cameras to those with any deployment at the given sites."""
     return Camera.id.in_(
@@ -81,42 +117,20 @@ def cameras_at_sites_clause(site_id_list: List[int]):
 def cameras_current_site_clause(site_id_list: List[int]):
     """Restrict cameras to those whose current site is in the given sites.
 
-    Current site means the latest deployment (highest deployment_number),
-    the same rule the camera list uses for its current_site column. A
-    camera with no deployments, or whose latest deployment has no site,
-    does not match.
+    Current site is the one rule of shared/deployment_queries.py, the same
+    the camera list shows. A camera with no deployments, or whose current
+    deployment has no site, does not match.
     """
-    latest = (
-        select(Deployment.camera_id, Deployment.site_id)
-        .distinct(Deployment.camera_id)
-        .order_by(Deployment.camera_id, Deployment.deployment_number.desc())
-        .subquery()
-    )
+    current = current_deployments()
     return Camera.id.in_(
-        select(latest.c.camera_id).where(latest.c.site_id.in_(site_id_list))
+        select(current.c.camera_id).where(current.c.site_id.in_(site_id_list))
     )
 
 
 def site_of_camera(camera_id_col, on_date_col=None):
-    """Correlated scalar subquery: the site a camera stood at.
-
-    Without a date it is the current site (latest deployment), the rule of
-    cameras_current_site_clause. With a date it is the newest deployment
-    that started on or before that day. The end date is ignored on purpose:
-    a bulk-upload deployment ends at its last imported photo, while the
-    camera stays at the site and is serviced there later. NULL before the
-    first deployment, or when it has no site, so a scope filter on the
-    result fails closed.
-    """
-    query = select(Deployment.site_id).where(Deployment.camera_id == camera_id_col)
-    if on_date_col is not None:
-        query = query.where(Deployment.start_date <= on_date_col)
-    return (
-        query.order_by(Deployment.deployment_number.desc())
-        .limit(1)
-        .correlate_except(Deployment)
-        .scalar_subquery()
-    )
+    """Correlated scalar subquery: the site a camera stood at, now or on a
+    day. See site_on in shared/deployment_queries.py."""
+    return site_on(camera_id_col, on_date_col)
 
 
 def validate_membership_site_ids(

@@ -2,6 +2,7 @@
 Shared geographic constants and helpers for the spatial model.
 """
 import math
+import re
 
 # The single distance threshold that drives sites and deployments.
 #
@@ -28,8 +29,24 @@ SITE_THRESHOLD_METERS = 250.0
 # deployment. A lone outlier (a single bad GPS fix) is attached to the current
 # deployment instead of spawning a phantom site. 2 kills the single-outlier
 # case; the cost is that a real move sending only one reading before the camera
-# dies attaches to the old deployment. See update_or_create_site_and_deployment.
+# dies attaches to the old deployment. See build_deployments in deployment_build.py.
 RELOCATION_CONFIRMATIONS = 2
+
+# The placeholder name of a site the app made for a new place, until a person
+# names it. A site that still carries it was named by nobody, so the app may
+# remove it once nothing uses it (utils/deployment_edits.py). The front end
+# has the same pattern in utils/site-names.ts.
+AUTO_SITE_NAME_PATTERN = r"^Site at -?\d+\.\d+, -?\d+\.\d+$"  # also valid as a Postgres regex
+_AUTO_SITE_NAME = re.compile(AUTO_SITE_NAME_PATTERN)
+
+
+def auto_site_name(lat: float, lon: float) -> str:
+    return f"Site at {lat:.4f}, {lon:.4f}"
+
+
+def is_auto_site_name(name: str) -> bool:
+    return bool(_AUTO_SITE_NAME.match(name or ""))
+
 
 def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
@@ -90,19 +107,45 @@ def next_mean_pin(
     return lat + (new_lat - lat) / n, mean_lon, n
 
 
-# A site's pin is the centroid of its deployments' locations. Run this after a
-# site's deployment membership changes (a deployment is created at, reassigned
-# to, merged into, or removed from it), and after a deployment's own pin moved
-# (the running mean above). It is a no-op for a site with no deployments, which
-# keeps its current location. Bind :site_id. Works from both
-# the sync ingestion session and the async API session.
+def combine_pins(
+    lat_a: float, lon_a: float, count_a: int, lat_b: float, lon_b: float, count_b: int,
+) -> tuple[float, float, int]:
+    """The mean of two pins that each average count readings: the pin of all
+    their readings together. For two deployments that become one. Longitudes
+    are unwrapped as in next_mean_pin."""
+    n = count_a + count_b
+    if lon_b - lon_a > 180:
+        lon_b -= 360
+    elif lon_a - lon_b > 180:
+        lon_b += 360
+    lon = (lon_a * count_a + lon_b * count_b) / n
+    if lon > 180:
+        lon -= 360
+    elif lon < -180:
+        lon += 360
+    return (lat_a * count_a + lat_b * count_b) / n, lon, n
+
+
+# A site's pin is the centroid of the locations of the deployments the app
+# placed there from the GPS (site_source 'auto'). A deployment a person placed
+# (a correction) never moves the pin: its GPS is where the camera really was,
+# which is the reason for the correction, and the build snaps other cameras
+# to pins, so a pin pulled by a correction would misplace them ("It stayed"
+# would drag Pond halfway to Ridge, and Undo could not bring it back). A site
+# with no such deployment keeps its location, also a pin a person typed or
+# clicked.
+#
+# Run this after a site's deployment membership changes (a deployment is
+# created at, reassigned to, merged into, or removed from it), and after a
+# deployment's own pin moved (the running mean above). Bind :site_id. Works
+# from both the sync ingestion session and the async API session.
 RECOMPUTE_SITE_LOCATION_SQL = """
     UPDATE sites s
     SET location = c.centroid
     FROM (
         SELECT ST_Centroid(ST_Collect(location::geometry))::geography AS centroid
         FROM deployments
-        WHERE site_id = :site_id
+        WHERE site_id = :site_id AND site_source = 'auto'
     ) c
     WHERE s.id = :site_id AND c.centroid IS NOT NULL
 """

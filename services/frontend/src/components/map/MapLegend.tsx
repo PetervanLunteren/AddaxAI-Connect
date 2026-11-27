@@ -1,18 +1,18 @@
 /**
  * Map legend component
- * Shows color scale for detection rates with continuous gradient
+ * Shows the colour ramp of the map as a continuous gradient, from zero at
+ * the bottom to the cap at the top (calculateRateDomain), with a "+" when
+ * some sites lie above the cap.
  */
 import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { rampGradient, type RateRamp, type RateScaleDomain } from '../../lib/heat-color-scale';
+import { MARKER_RING_WIDTH } from './marker-style';
 
 interface MapLegendProps {
-  domain: {
-    min: number;
-    max: number;
-    p33: number;
-    p66: number;
-  };
+  domain: RateScaleDomain;
+  ramp: RateRamp;
   /** Two-line title, static registry strings (safe for innerHTML). */
   title: [string, string];
   /** Footer label for the hollow marker, null hides the footer. */
@@ -21,7 +21,7 @@ interface MapLegendProps {
   formatShort: (v: number) => string;
 }
 
-export function MapLegend({ domain, title, emptyLabel, formatShort }: MapLegendProps) {
+export function MapLegend({ domain, ramp, title, emptyLabel, formatShort }: MapLegendProps) {
   const map = useMap();
 
   useEffect(() => {
@@ -35,14 +35,9 @@ export function MapLegend({ domain, title, emptyLabel, formatShort }: MapLegendP
       div.style.borderRadius = '4px';
       div.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
 
-      // Calculate middle value
-      const middleValue = domain.max / 2;
-
-      // App gradient from FRONTEND_CONVENTIONS.md: #0f6064 (high) -> #f9f871 (low)
-      const gradientColors = [
-        '#0f6064',  // Top (highest) - dark teal
-        '#f9f871',  // Bottom (zero) - light yellow
-      ].join(', ');
+      // The ramp ends at the cap; a "+" says some sites lie above it.
+      const top = `${formatShort(domain.cap)}${domain.max > domain.cap ? '+' : ''}`;
+      const middleValue = domain.cap / 2;
 
       div.innerHTML = `
         <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px; line-height: 1.3;">
@@ -52,7 +47,7 @@ export function MapLegend({ domain, title, emptyLabel, formatShort }: MapLegendP
           <div style="
             width: 20px;
             height: 150px;
-            background: linear-gradient(to bottom, ${gradientColors});
+            background: ${rampGradient(ramp, 'to top')};
             border: 1px solid rgba(0,0,0,0.2);
             border-radius: 2px;
             margin-right: 8px;
@@ -64,7 +59,7 @@ export function MapLegend({ domain, title, emptyLabel, formatShort }: MapLegendP
             height: 150px;
             font-size: 11px;
           ">
-            <div>${formatShort(domain.max)}</div>
+            <div>${top}</div>
             <div>${formatShort(middleValue)}</div>
             <div>0</div>
           </div>
@@ -82,7 +77,7 @@ export function MapLegend({ domain, title, emptyLabel, formatShort }: MapLegendP
             width: 14px;
             height: 14px;
             border-radius: 50%;
-            border: 2px solid #555555;
+            border: ${MARKER_RING_WIDTH}px solid #555555;
             background: transparent;
             margin-right: 8px;
             box-sizing: border-box;
@@ -100,7 +95,7 @@ export function MapLegend({ domain, title, emptyLabel, formatShort }: MapLegendP
     return () => {
       legend.remove();
     };
-  }, [map, domain, title, emptyLabel, formatShort]);
+  }, [map, domain, ramp, title, emptyLabel, formatShort]);
 
   return null;
 }

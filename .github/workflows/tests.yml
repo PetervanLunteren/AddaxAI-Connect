@@ -115,6 +115,56 @@ jobs:
       - name: Run ${{ matrix.dir }}
         run: pytest ${{ matrix.dir }} -q
 
+  db:
+    runs-on: ubuntu-latest
+    name: database tests
+
+    # The deployment code decides in SQL as much as in Python (nearest site,
+    # site pins, the per-camera lock), so tests/db_ingestion and tests/db_api
+    # run against a real PostGIS, the image production runs. The same as
+    # scripts/test-db.sh locally. One job and not two matrix entries: both
+    # folders only need the api requirements and shared/, and the script runs
+    # them as separate pytest calls because of the two top-level `utils`.
+    services:
+      postgis:
+        image: postgis/postgis:15-3.3
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: deployment_tests
+        ports:
+          - 5432:5432
+        # Over TCP on purpose: the image first runs its init scripts on a
+        # server that only listens on the socket, then restarts.
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        # Same order as the api image: its requirements, then shared/.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/api/requirements.txt
+          pip install -e shared/
+          pip install -r tests/requirements.txt
+
+      - name: Check the environment is consistent
+        run: pip check
+
+      - name: Migrate and run the database tests
+        env:
+          DEPLOYMENT_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/deployment_tests
+        run: bash scripts/test-db-run.sh python
+
   frontend:
     runs-on: ubuntu-latest
     name: frontend build

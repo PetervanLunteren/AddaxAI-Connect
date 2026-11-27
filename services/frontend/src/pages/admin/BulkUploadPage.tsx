@@ -27,7 +27,6 @@ import {
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Callout } from '../../components/ui/Callout';
-import { Select } from '../../components/ui/Select';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import {
   Dialog,
@@ -38,9 +37,8 @@ import {
 } from '../../components/ui/Dialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
-import { sitesApi } from '../../api/sites';
 import { apiErrorMessage } from '../../api/client';
-import { SiteFormModal } from '../../components/sites/SiteFormModal';
+import { SiteField } from '../../components/sites/SiteField';
 import { ClockOffsetDialog } from '../../components/ClockOffsetDialog';
 import { formatOffset, shiftEntries } from '../../utils/clock-offset';
 import {
@@ -56,6 +54,7 @@ import {
   type ActiveUpload,
 } from '../../lib/bulkUploadStore';
 import { downloadBlob } from '../../utils/download';
+import { ALERT_COLOR } from '../../components/map/marker-style';
 
 const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed', 'cancelled']);
 
@@ -78,7 +77,7 @@ function statusLabel(status: BulkUploadJob['status']): string {
 }
 
 // Status badges use the project palette (FRONTEND_CONVENTIONS.md):
-// good=#0f6064, middle=#71b7ba, bad=#882000. Done is the only
+// good=#0f6064, middle=#71b7ba, bad=ALERT_COLOR. Done is the only
 // success terminal state, failed is the only failure state, everything
 // else is in-flight/pending and shares the middle colour.
 function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties {
@@ -86,7 +85,7 @@ function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties 
     case 'done':
       return { backgroundColor: '#0f6064', color: 'white' };
     case 'failed':
-      return { backgroundColor: '#882000', color: 'white' };
+      return { backgroundColor: ALERT_COLOR, color: 'white' };
     case 'cancelled':
       // Stopped on purpose, not an error: muted grey rather than the bad colour.
       return { backgroundColor: '#6b7280', color: 'white' };
@@ -1029,7 +1028,6 @@ const ReviewStep: React.FC<{
 }> = ({ projectId, folderName, entries: rawEntries, files, onBack, onCancel, onConfirm }) => {
   const toast = useToast();
   const [siteId, setSiteId] = useState<string>('');
-  const [showCreateSite, setShowCreateSite] = useState(false);
   const [timeOffset, setTimeOffset] = useState(0);
   const [showClockOffset, setShowClockOffset] = useState(false);
 
@@ -1047,11 +1045,6 @@ const ReviewStep: React.FC<{
   // deployment dates in the manifest, the duplicate pre-check and the skip
   // list. One shift in one place, so they cannot disagree.
   const entries = useMemo(() => shiftEntries(rawEntries, timeOffset), [rawEntries, timeOffset]);
-
-  const { data: sites } = useQuery({
-    queryKey: ['sites', projectId],
-    queryFn: () => sitesApi.list(projectId),
-  });
 
   // Compute manifest from the local scan. Same shape the server used
   // to write itself, so all the downstream UI keeps working.
@@ -1130,10 +1123,10 @@ const ReviewStep: React.FC<{
   const unreadableCount = manifest.by_status.corrupt ?? 0;
   const undatedCount = manifest.by_status.missing_exif_datetime ?? 0;
   const validCount = Math.max(0, rawValidCount - duplicateCount);
-  // Photos the analysis will skip because the camera needs a location.
-  // They still upload; the worker decides, this only says so in advance.
+  // Photos of a recognised camera without a location of their own. They are
+  // kept and follow the camera's deployments; this only says so in advance.
   const noLocationCount = useMemo(() => {
-    if (profile?.mode !== 'profile' || !profile.requires_gps) return 0;
+    if (profile?.mode !== 'profile') return 0;
     const excluded = new Set(excludedPaths);
     return entries.filter(
       (e) => e.status === 'valid' && !e.has_gps && !excluded.has(e.relative_path),
@@ -1278,32 +1271,12 @@ const ReviewStep: React.FC<{
           {!profile.camera_registered && ' This camera will be added to this project.'}
         </Callout>
       ) : (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Site</label>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Select
-                value={siteId}
-                onChange={(e) => setSiteId(e.target.value)}
-              >
-                <option value="">Select a site</option>
-                {(sites ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <Button type="button" variant="outline" onClick={() => setShowCreateSite(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              New site
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Pick the place they were taken. Choose an existing site, or add a new one.
-            All images in one upload must be from a single site and a single camera.
-          </p>
-        </div>
+        <SiteField
+          projectId={projectId}
+          value={siteId ? Number(siteId) : null}
+          onChange={(id) => setSiteId(id === null ? '' : String(id))}
+          caption="The place they were taken. All images in one upload must be from a single site and a single camera."
+        />
       )}
 
       {duplicatesFailed && (
@@ -1364,7 +1337,7 @@ const ReviewStep: React.FC<{
           )}
           {noLocationCount > 0 && (
             <span className="font-medium">
-              {noLocationCount.toLocaleString()} image{noLocationCount === 1 ? ' has' : 's have'} no location, the analysis will skip {noLocationCount === 1 ? 'it' : 'them'}.
+              {noLocationCount.toLocaleString()} image{noLocationCount === 1 ? ' has' : 's have'} no location. {noLocationCount === 1 ? 'It gets' : 'They get'} the site the camera has on {noLocationCount === 1 ? 'that day' : 'those days'}. If it has none, set the site on the camera afterwards.
             </span>
           )}
         </Callout>
@@ -1401,13 +1374,6 @@ const ReviewStep: React.FC<{
         </Button>
       </div>
 
-      <SiteFormModal
-        open={showCreateSite}
-        onClose={() => setShowCreateSite(false)}
-        projectId={projectId}
-        sites={sites ?? []}
-        onCreated={(site) => setSiteId(String(site.id))}
-      />
     </div>
   );
 };
@@ -1419,6 +1385,7 @@ const ReviewStep: React.FC<{
 // the reasons in services/bulk-upload/worker.py. Unknown keys fall back to
 // "for another reason", so a new reason never breaks the line.
 const SKIP_REASON_LABELS: Record<string, string> = {
+  // Jobs from before photos without a usable location were kept.
   invalid_gps: 'without location',
   missing_gps: 'without location',
   missing_datetime: 'without date',

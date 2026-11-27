@@ -5,6 +5,7 @@ Only accessible by superusers.
 """
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 import secrets
 import httpx
 import base64
@@ -1444,13 +1445,6 @@ async def update_project_classification_thresholds(
 
 # ==================== Server Settings ====================
 
-async def get_server_timezone(db: AsyncSession) -> str:
-    """Get server timezone, defaulting to UTC if not configured."""
-    result = await db.execute(select(ServerSettings).limit(1))
-    settings = result.scalar_one_or_none()
-    return settings.timezone if settings and settings.timezone else "UTC"
-
-
 class ServerSettingsResponse(BaseModel):
     """Response for server settings"""
     timezone: Optional[str] = None
@@ -1520,7 +1514,6 @@ async def update_server_settings(
     """
     # Validate timezone if provided
     if data.timezone is not None:
-        from zoneinfo import ZoneInfo
         try:
             ZoneInfo(data.timezone)
         except (KeyError, Exception):

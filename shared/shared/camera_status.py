@@ -33,15 +33,27 @@ rejects a photo or two and then recovers on its own; counting rejections
 would keep warning about it for days, while this clears with the first
 good photo. A bulk upload never clears it, a carried-in SD card says
 nothing about the camera's GPS today.
+
+The health limits live here too, so the Cameras page, the To do list and
+the email report flag the same cameras: battery under
+`LOW_BATTERY_PERCENT`, SD card over `SD_NEARLY_FULL_PERCENT`, a SIM card
+that expires before the 1st of the month after next. They only count for
+a camera that reports (`counts_for_health`): a retired camera left its
+project, one that never reported has nothing to read.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
 
 CameraStatus = Literal['active', 'inactive', 'never_reported', 'retired']
 
 CAMERA_SILENCE_DAYS = 7
+LOW_BATTERY_PERCENT = 30
+SD_NEARLY_FULL_PERCENT = 80
+# A SIM card counts as expiring on or before the 1st of the month this many
+# months ahead: the monthly email then warns a whole month before.
+SIM_LOOKAHEAD_MONTHS = 2
 
 
 def camera_status(
@@ -87,3 +99,28 @@ def is_rejecting(
     if last_rejected_at is None:
         return False
     return last_live_image_at is None or last_rejected_at > last_live_image_at
+
+
+def counts_for_health(status: CameraStatus) -> bool:
+    """Whether a camera's health readings may raise a warning at all."""
+    return status in ('active', 'inactive')
+
+
+def is_low_battery(percent: Optional[float]) -> bool:
+    return percent is not None and percent < LOW_BATTERY_PERCENT
+
+
+def is_sd_nearly_full(percent: Optional[float]) -> bool:
+    return percent is not None and percent > SD_NEARLY_FULL_PERCENT
+
+
+def sim_expiry_threshold(today: date) -> date:
+    """The 1st of the month `SIM_LOOKAHEAD_MONTHS` after today's month."""
+    months = today.year * 12 + today.month - 1 + SIM_LOOKAHEAD_MONTHS
+    return date(months // 12, months % 12 + 1, 1)
+
+
+def is_sim_expiring(expiry: Optional[date], today: date) -> bool:
+    """True when the SIM card expires on or before the threshold, or already
+    expired. `today` is the server's date (its timezone setting)."""
+    return expiry is not None and expiry <= sim_expiry_threshold(today)

@@ -4,8 +4,8 @@
  * Shows full camera details in a slide-out panel with tabs:
  * - Overview: Status, site, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
- * - Placements: Where this camera has been over time (all users), with an
- *   admin-only change-site action per step as the late-correction escape hatch
+ * - Deployments: Where this camera has been over time (all users). Project
+ *   admins set deployments there and see the corrections
  * - Rejected: Files the server refused but could attribute to this camera
  *   (all users, hidden for site-restricted viewers who get no count)
  * - Details: Camera id, custom fields, remarks, tags, SIM, reference (admins)
@@ -43,7 +43,7 @@ import type { Camera } from '../api/types';
 import { formatDateTime } from '../utils/datetime';
 import { getSignalLabel } from '../utils/camera-colors';
 import { CameraStatusBadge } from './CameraStatusBadge';
-import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
+import { formatSimExpiryStatus, simExpiryClass } from '../utils/sim-expiry';
 import { useToast } from './ui/Toaster';
 
 interface CameraDetailSheetProps {
@@ -276,7 +276,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               tabs={[
                 { key: 'overview', label: 'Overview' },
                 { key: 'history', label: 'History' },
-                { key: 'deployments', label: 'Placements' },
+                { key: 'deployments', label: 'Deployments' },
                 ...(camera.rejected_count_recent !== null ? [{ key: 'rejections' as const, label: 'Rejected' }] : []),
                 ...(canAdmin ? [{ key: 'details' as const, label: 'Details' }] : []),
               ]}
@@ -367,12 +367,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                           }
                           className="w-full px-3 py-2 border rounded-md text-sm"
                         />
-                        <p className={`text-xs mt-1 ${simExpiryStatusClass(editForm.sim_expiry_date)}`}>
+                        <p className="text-xs mt-1 text-muted-foreground">
                           {formatSimExpiryStatus(editForm.sim_expiry_date)}
                         </p>
                       </>
                     ) : (
-                      <p className={`text-sm mt-1 ${simExpiryStatusClass(camera.sim_expiry_date)}`}>
+                      <p className={`text-sm mt-1 ${simExpiryClass(camera.sim_expiring)}`}>
                         {camera.sim_expiry_date
                           ? `${camera.sim_expiry_date} (${formatSimExpiryStatus(camera.sim_expiry_date)})`
                           : 'Not set'}
@@ -468,8 +468,21 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       >
                         {camera.current_site.name}
                       </Link>
+                    ) : canAdmin && !!camera.unplaced_photo_count ? (
+                      // Where the gap shows: the fix, with the dates of the
+                      // photos, is the callout on the Deployments tab.
+                      <span>
+                        No site yet ·{' '}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('deployments')}
+                          className="text-primary hover:underline"
+                        >
+                          Set site
+                        </button>
+                      </span>
                     ) : (
-                      <span>Unknown</span>
+                      <span>No site yet</span>
                     )}
                   </div>
                   <div className="flex justify-between">
@@ -562,8 +575,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             )}
 
             {/* Deployments tab */}
-            {activeTab === 'deployments' && (
-              <CameraDeploymentHistory cameraId={camera.id} cameraName={camera.name} />
+            {activeTab === 'deployments' && projectId !== undefined && (
+              <CameraDeploymentHistory camera={camera} projectId={projectId} canEdit={canAdmin} />
             )}
 
             {/* Rejected tab: files refused by the server, attributed to this camera */}
